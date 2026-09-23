@@ -39,14 +39,17 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Run `npm test`, `npm run test:survival`, `python tests/ui-smoke.py`, `python tests/navigation-smoke.py`, `python tests/survival-smoke.py`. No long-run survival fixture implies autonomous births or the complete V1.0 proof.
 
 
-## Lifecycle Stage Gameplay 0.3.1 (current engine)
+## Autonomous Birth 0.3.2 (current engine)
 
 - Read `docs/LIFECYCLE_0.3.0.md` before changing age, stage, birth or death behavior.
-- Engine `VERSION=0.3.1`; save schema `SAVE_VERSION=0.2.0`; `restore()` explicitly migrates legacy 0.1.0 saves.
+- Engine `VERSION=0.3.2`; save schema `SAVE_VERSION=0.2.0`; `restore()` explicitly migrates legacy 0.1.0 saves.
 - Lifecycle is simulation-time only: 360 ticks = 1 biological year. No Date/time or Math.random belongs in lifecycle rules.
 - Stage boundaries are CHILD 0–15, ADULT 16–54, ELDER 55+, with DEAD overriding age.
 - Existing worlds and manual CLONE start lifecycle at age 18. Manual CLONE is an Influence action; it is not autonomous birth.
 - CHILD cannot take productive resource/build jobs; ADULT work rate is 1.0; ELDER productive work rate is 0.75. Stage-ineligible saved tasks must replan through task validation.
-- V0.3.1 still does not create autonomous children or cause age death. Do not surface those as implemented.
-- Candidate evidence: 69/69 unit/asset tests, 18/18 Survival Core scenarios, and 89 offline Chromium assertions passed on `b6cd1fc26408f34a08bf58db2344dc53f586c809`.
+- Autonomous birth is separate from manual CLONE: max one/year, parent cooldown four years, Food 8 + Wood 4, next-population food reserve and Wood 12 safety floor.
+- Birth pacing/cooldown are derived from lineage + bornTick; do not add a second mutable reproduction registry.
+- Autonomous children start age 0 and inherit 35% Skill XP. Manual CLONE remains age 18.
+- V0.3.2 still does not cause age death.
+- Candidate evidence: 76/76 unit/asset, 18/18 Survival, 5/5 autonomous-birth seeds and 89 offline Chromium assertions passed on `7b7fa0e9775b20c2f601fd878c033dc4b12d4660`.
 - Candidate branches are verified by `.github/workflows/verify.yml`; Pages deployment remains gated on exact `main` workflow success.

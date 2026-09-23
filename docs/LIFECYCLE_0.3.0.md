@@ -1,6 +1,6 @@
 # Simclone V0.3 — Lifecycle + Autonomous Generation Contract
 
-Status: **V0.3.1 Stage Gameplay verified candidate**. V0.3.0 lifecycle derivation/migration and V0.3.1 stage gameplay are implemented. Autonomous reproduction and age death remain future V0.3 gates.
+Status: **V0.3.2 Autonomous Birth verified candidate**. Lifecycle derivation, stage gameplay and resource-safe autonomous birth are implemented. Age death and post-death generation continuity remain future V0.3 gates.
 
 ## Product gate
 
@@ -84,9 +84,9 @@ Manual CLONE remains an **Influence action** that creates an adult clone at age 
 
 ## V0.3.2 — Autonomous birth
 
-### Success Contract
+### Implemented contract
 
-Autonomous birth is a separate engine transition from manual CLONE and may occur only when all are true:
+Autonomous birth is a separate engine transition from manual CLONE and occurs only when all are true:
 
 - at least one eligible living ADULT exists;
 - housing has a free slot;
@@ -146,3 +146,21 @@ Workflow run: `35887581535` — **SAT**
 - The 100-day survival fixtures exercise elder work-rate reduction after lifecycle aging and still satisfy their declared survival contracts.
 
 These browser suites use an explicit Storage test double. Native browser persistence and physical Android performance remain UNKNOWN until separately exercised. Autonomous generation continuity is not claimed by V0.3.1.
+
+
+## V0.3.2 verification evidence
+
+Candidate commit: `7b7fa0e9775b20c2f601fd878c033dc4b12d4660`
+
+Workflow run: `35921105182` — **SAT**
+
+- `npm test`: 76/76 PASS.
+- Survival regression: 18/18 SAT.
+- Autonomous-birth proof: 5/5 seeds SAT, 30 simulated years each, zero player/manual CLONE commands.
+- Every proof seed produced 6 autonomous children and reached living population 12/12 housing without exceeding capacity.
+- Every proof seed reached generation 2.
+- Grown autonomous descendants: 6, 6, 6, 6, 5 across seeds 230926, 1, 42, 2026, 90001.
+- Productive grown descendants: 6, 6, 5, 6, 4 respectively.
+- Offline Chromium: 43 observation UI + 36 navigation/save + 10 survival/autonomous-birth UI checks PASS.
+
+The proof demonstrates **autonomous birth → child growth → productive descendant**. It does not demonstrate age death or population continuity after the original generation dies; that remains V0.3.3/V0.3.4.

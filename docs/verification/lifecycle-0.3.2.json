@@ -1,0 +1,119 @@
+{
+  "scope": "V0.3.2 autonomous birth; proves autonomous birth -> child growth -> productive descendant without player CLONE. Does not prove age death/post-death continuity.",
+  "commit": "7b7fa0e9775b20c2f601fd878c033dc4b12d4660",
+  "workflowRun": 35921105182,
+  "result": "SAT",
+  "unitAsset": {
+    "tests": 76,
+    "passed": 76,
+    "failed": 0,
+    "result": "SAT"
+  },
+  "survivalRegression": {
+    "scenarios": 18,
+    "passed": 18,
+    "failed": 0,
+    "result": "SAT"
+  },
+  "autonomousBirthProof": {
+    "seeds": 5,
+    "passed": 5,
+    "failed": 0,
+    "result": "SAT",
+    "results": [
+      {
+        "seed": 230926,
+        "autonomousBirths": 6,
+        "grownDescendants": 6,
+        "productiveDescendants": 6,
+        "maxGeneration": 2,
+        "livingPopulation": 12,
+        "elapsedYears": 30,
+        "manualCloneCommands": 0,
+        "maxPopulation": 12,
+        "housing": 12,
+        "result": "SAT"
+      },
+      {
+        "seed": 1,
+        "autonomousBirths": 6,
+        "grownDescendants": 6,
+        "productiveDescendants": 6,
+        "maxGeneration": 2,
+        "livingPopulation": 12,
+        "elapsedYears": 30,
+        "manualCloneCommands": 0,
+        "maxPopulation": 12,
+        "housing": 12,
+        "result": "SAT"
+      },
+      {
+        "seed": 42,
+        "autonomousBirths": 6,
+        "grownDescendants": 6,
+        "productiveDescendants": 5,
+        "maxGeneration": 2,
+        "livingPopulation": 12,
+        "elapsedYears": 30,
+        "manualCloneCommands": 0,
+        "maxPopulation": 12,
+        "housing": 12,
+        "result": "SAT"
+      },
+      {
+        "seed": 2026,
+        "autonomousBirths": 6,
+        "grownDescendants": 6,
+        "productiveDescendants": 6,
+        "maxGeneration": 2,
+        "livingPopulation": 12,
+        "elapsedYears": 30,
+        "manualCloneCommands": 0,
+        "maxPopulation": 12,
+        "housing": 12,
+        "result": "SAT"
+      },
+      {
+        "seed": 90001,
+        "autonomousBirths": 6,
+        "grownDescendants": 5,
+        "productiveDescendants": 4,
+        "maxGeneration": 2,
+        "livingPopulation": 12,
+        "elapsedYears": 30,
+        "manualCloneCommands": 0,
+        "maxPopulation": 12,
+        "housing": 12,
+        "result": "SAT"
+      }
+    ]
+  },
+  "offlineChromium": {
+    "observationUI": 43,
+    "navigationSave": 36,
+    "survivalUI": 10,
+    "total": 89,
+    "result": "SAT"
+  },
+  "rules": {
+    "birthsPerYearMax": 1,
+    "parentCooldownYears": 4,
+    "foodCost": 8,
+    "woodCost": 4,
+    "woodSafetyFloor": 12,
+    "skillInheritance": 0.35
+  },
+  "save": {
+    "schema": "0.2.0",
+    "legacyAccepted": "0.1.0",
+    "storageKey": "simclone:world:v1",
+    "newMutableBirthRegistry": false
+  },
+  "unknown": [
+    "age death",
+    "post-death generation continuity",
+    "native browser localStorage persistence",
+    "physical Android performance",
+    "full V1.0 autonomy proof"
+  ]
+}

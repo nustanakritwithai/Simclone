@@ -1,6 +1,6 @@
 # Simclone — Autonomous Clone World
 
-**Stage Gameplay 0.3.1** over **Survival Core 0.2.0**.
+**Autonomous Birth 0.3.2** over deterministic lifecycle and Survival Core 0.2.0.
 
 Play: https://nustanakritwithai.github.io/Simclone/
 
@@ -8,35 +8,37 @@ Plan: https://nustanakritwithai.github.io/Simclone/plan.html
 
 ## Current engine gate
 
-Lifecycle now affects real behavior:
+The colony can now produce new generations without player Clone commands.
 
 - 360 ticks = 1 simulated day = 1 biological year.
-- CHILD 0–15: no FORAGE / WOODCUT / MINE / BUILD.
+- CHILD 0–15: no productive resource/build jobs.
 - ADULT 16–54: full productive work.
 - ELDER 55+: productive work at 75%.
-- DEAD overrides age.
-- Inspector displays derived age/stage and Decision Trace can explain stage-blocked work.
-- Manual CLONE still creates an age-18 adult and costs Food 8 + Wood 4.
-- Autonomous birth and age death are not enabled yet.
-
-Save schema is 0.2.0 with explicit migration from legacy 0.1.0. Storage key remains `simclone:world:v1`.
+- Autonomous birth: max 1/year; same parent cooldown 4 years.
+- Birth costs Food 8 + Wood 4 and preserves survival reserves.
+- Reserved meals cannot be spent on birth.
+- Children start at age 0, preserve lineage, get a permanent identity and inherit 35% Skill XP.
+- Manual CLONE remains a separate player Influence action that creates an age-18 adult.
+- Age death is not enabled yet.
 
 ## Verification
 
-V0.3.1 candidate evidence:
+V0.3.2 candidate:
 
-- 69/69 unit/asset tests PASS.
-- 18/18 Survival Core scenarios SAT.
-- Offline Chromium: 43 observation UI + 36 navigation/save + 10 survival UI checks PASS.
-- Versioned ES-module cache pins are regression-tested to stay aligned.
+- 76/76 unit/asset PASS.
+- 18/18 Survival regression SAT.
+- 5/5 autonomous-birth proof seeds SAT over 30 simulated years with **zero manual CLONE commands**.
+- Every proof seed reached generation 2.
+- Offline Chromium: 89 checks PASS.
 
-These tests do not prove autonomous generation continuity. Native browser persistence, live public HTTP delivery and physical Android performance remain separate evidence gates.
+This proves autonomous birth and growth into productive descendants. It does **not** yet prove continuity after age death or the full V1.0 Living World gate.
 
 ## Development
 
 ```sh
 npm test
 npm run test:survival
+npm run test:lifecycle
 python tests/ui-smoke.py
 python tests/navigation-smoke.py
 python tests/survival-smoke.py
@@ -48,4 +50,4 @@ python tests/survival-smoke.py
 - [Master roadmap](GAME_PLAN.md)
 - [Agent handoff](AGENTS.md)
 
-Next: **V0.3.2 Autonomous Birth**.
+Next: **V0.3.3 Age Death + Cleanup**.

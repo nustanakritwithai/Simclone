@@ -120,7 +120,7 @@ PLAY
 
 Concrete lifecycle/save contract: [docs/LIFECYCLE_0.3.0.md](docs/LIFECYCLE_0.3.0.md)
 
-Current clock contract: **360 ticks = 1 simulated day = 1 biological year**; CHILD 0–15, ADULT 16–54, ELDER 55+, DEAD overrides age. V0.3.1 stage effects are active: children cannot take productive jobs and elders work at 75%. Autonomous birth and age death remain later V0.3 gates.
+Current clock contract: **360 ticks = 1 simulated day = 1 biological year**; CHILD 0–15, ADULT 16–54, ELDER 55+, DEAD overrides age. V0.3.1 stage effects are active. V0.3.2 autonomous birth is active with resource/housing/cooldown gates and zero-manual-Clone multi-seed proof. Age death remains the next V0.3 gate.
 
 ### Agent Identity
 - id
