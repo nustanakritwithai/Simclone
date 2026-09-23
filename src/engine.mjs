@@ -1,11 +1,13 @@
-/** Simclone 0.2.0 — deterministic survival; 0.1.0 saves remain readable. */
+/** Simclone 0.3.0 — deterministic lifecycle foundation over Survival Core 0.2. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
   skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs';
-export {tileAt,walkable,pathTo,survivalSummary};
-export const VERSION = '0.2.0';
-export const SAVE_VERSION = '0.1.0';
+import {LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife} from './lifecycle.mjs';
+export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife};
+export const VERSION = '0.3.0';
+export const SAVE_VERSION = '0.2.0';
+export const LEGACY_SAVE_VERSION = '0.1.0';
 export const SIZE = { w: 30, h: 26 };
-export const DAY_TICKS = 360;
+export const DAY_TICKS = LIFE.ticksPerYear;
 export const SKILLS = ['FORAGE', 'WOODCUT', 'MINE', 'BUILD'];
 export const LABELS = { FORAGE:'หาอาหาร', WOODCUT:'ตัดไม้', MINE:'ขุดหิน', BUILD:'สร้างบ้าน', EAT:'กินอาหาร', REST:'พักผ่อน', EXPLORE:'สำรวจ', IDLE:'พักรอ' };
 export const clamp = (n, lo=0, hi=100) => Math.max(lo, Math.min(hi, n));
@@ -26,7 +28,7 @@ function createAgent(s,parent,initial=false){
     x:9+k%4,y:11+Math.floor(k/4)%3,hp:100,satiety:85,energy:90,alive:true,
     appearance:{coat:palette[k%palette.length],skin:['#e5b38a','#c99064','#f1c9a6','#a97050'][k%4],hair:['#302a28','#5e3e2c','#d5ad6f','#312e3b'][k%4],style:k%3},
     preference:SKILLS[k%4],skills,source:parent?'Clone จาก '+parent.name:'ความรู้เริ่มต้นของ Original',
-    memory:[],task:null,trace:[],moveTick:0,workDone:0,bornTick:s.tick};
+    memory:[],task:null,trace:[],moveTick:0,workDone:0,bornTick:s.tick,life:adultLife(s.tick)};
   if(parent){a.x=parent.x;a.y=parent.y;}
   if(initial&&parent){a.x=9+k%4;a.y=10+Math.floor(k/4)*2;a.satiety=65+k*3;a.energy=72+k*3;}
   s.agents.push(a);event(s,'birth',parent?a.name+' ถูกสร้างจาก '+parent.name+' · รุ่น '+a.generation:'Original เข้าสู่โลกใหม่',id);
@@ -220,6 +222,8 @@ export function validate(s){
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
     if(!Array.isArray(a.trace)||a.trace.length>30||a.trace.some(t=>!LABELS[t.kind]||!finite(t.score)||!t.factors||Object.values(t.factors).some(v=>!finite(v))))bad('Trace');
     if(!finite(a.moveTick)||!finite(a.workDone)||!finite(a.bornTick)||typeof a.source!=='string'||!SKILLS.includes(a.preference))bad('Agent bookkeeping');
+    if(!a.life||!Number.isInteger(a.life.anchorTick)||a.life.anchorTick<0||a.life.anchorTick>s.tick||
+      !Number.isInteger(a.life.ageAtAnchorYears)||a.life.ageAtAnchorYears<0||a.life.ageAtAnchorYears>200)bad('Lifecycle');
     if(a.task&&(!LABELS[a.task.kind]||!finite(a.task.work)||!Array.isArray(a.task.path)||a.task.path.length>SIZE.w*SIZE.h||a.task.path.some(p=>!walkable(s,p.x,p.y))))bad('Task');
   }
   if(s.agents.some(a=>a.parentId!==null&&!ids.has(a.parentId)))bad('Parent reference');
@@ -230,7 +234,15 @@ export function validate(s){
   if(!Number.isInteger(s.nextAgent)||s.nextAgent<=Math.max(...ids)||!Number.isInteger(s.nextEvent)||!Number.isInteger(s.nextBuilding))bad('Counters');
   return errors;
 }
+function migrateLegacySave(s){
+  if(!s||s.version!==LEGACY_SAVE_VERSION)return s;
+  const anchor=Number.isInteger(s.tick)&&s.tick>=0?s.tick:0;
+  s.version=SAVE_VERSION;
+  if(Array.isArray(s.agents))for(const a of s.agents)a.life=adultLife(anchor);
+  return s;
+}
 export function restore(text){
   if(typeof text!=='string'||text.length>2000000)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป');
-  const s=JSON.parse(text),errors=validate(s);if(errors.length)throw new Error('บันทึกไม่ถูกต้อง: '+errors.join(', '));return s;
+  const s=migrateLegacySave(JSON.parse(text)),errors=validate(s);
+  if(errors.length)throw new Error('บันทึกไม่ถูกต้อง: '+errors.join(', '));return s;
 }

@@ -1,0 +1,26 @@
+name: Verify Simclone candidates
+
+on:
+  push:
+    branches:
+      - "feature/**"
+      - "fix/**"
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify engine, persistence and local assets
+        run: npm test
+
+      - name: Verify Survival Core regression suite
+        run: npm run test:survival

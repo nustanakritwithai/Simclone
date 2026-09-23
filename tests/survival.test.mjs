@@ -20,10 +20,12 @@ function assertExclusive(s){
  assert.ok([...builders.values()].every(n=>n<=2));
  assert.ok(active.filter(a=>a.task.kind==='EAT').length<=s.stock.food);
 }
-test('engine version changes, old save schema does not',()=>{assert.equal(VERSION,'0.2.0');assert.equal(createWorld().version,SAVE_VERSION);assert.equal(SAVE_VERSION,'0.1.0');});
+test('engine version advances with explicit lifecycle save schema',()=>{assert.equal(VERSION,'0.3.0');assert.equal(createWorld().version,SAVE_VERSION);assert.equal(SAVE_VERSION,'0.2.0');});
 test('real pre-update save retains identity, resources, seed and skills; old jobs replan on tick',()=>{
  const old=legacyWorld(230926);legacyStep(old,87);const text=legacySerialize(old),s=restore(text);
- assert.equal(serialize(s),text);assert.ok(s.agents.some(a=>a.task&&!a.task.policy));
+ assert.equal(s.version,SAVE_VERSION);assert.notEqual(serialize(s),text);
+ assert.ok(s.agents.every(a=>a.life?.anchorTick===s.tick&&a.life.ageAtAnchorYears===18));
+ assert.ok(s.agents.some(a=>a.task&&!a.task.policy));
  step(s);assert.deepEqual(s.agents.map(a=>[a.id,a.appearance,a.parentId,a.skills]),old.agents.map(a=>[a.id,a.appearance,a.parentId,a.skills]));
  assert.equal(s.seed,old.seed);assert.deepEqual(s.stock,old.stock);assert.ok(s.agents.every(a=>!a.task||a.task.policy===RULES.jobPolicy));assertExclusive(s);
 });
