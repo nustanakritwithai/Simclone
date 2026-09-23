@@ -1,6 +1,6 @@
 /** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
-import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage} from './engine.mjs?v=0.3.1';
-export const UI_VERSION='0.3.1';
+import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage} from './engine.mjs?v=0.3.2';
+export const UI_VERSION='0.3.2';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={
@@ -27,6 +27,7 @@ const events={birth:'ชีวิตใหม่',skill:'พัฒนาทั�
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
 const stageLabels={CHILD:'เด็ก',ADULT:'ผู้ใหญ่',ELDER:'ผู้สูงวัย',DEAD:'เสียชีวิต'};
+const birthLabels={ready:'พร้อมเมื่อถึงรอบปี',housing:'ที่พักเต็ม',history:'ประวัติตัวละครเต็ม',pace:'รอรอบปีถัดไป',parent:'ยังไม่มีผู้ใหญ่ที่พร้อม',food:'อาหารสำรองยังไม่พอ',wood:'ไม้สำรองยังไม่พอ'};
 const tabNames={about:'ตอนนี้',skills:'ทักษะ',why:'เหตุผล',memory:'ความทรงจำ'};
 function setText(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=value;}
 function replaceIfChanged(el,html){if(el.dataset.content!==html){const y=el.scrollTop;el.innerHTML=html;el.dataset.content=html;el.scrollTop=y;}}
@@ -168,7 +169,8 @@ export function installUX(api){
     <p>มีอาหารทั้งหมด ${v.food} หน่วย · เป้าสำรอง ${v.targets.food} หน่วย<br>คนความอิ่มต่ำกว่า 35: ${v.hungry} คน · พลังงานต่ำกว่า 12: ${v.exhausted} คน</p>
     <div class="clone-skills"><div><span>แหล่งทรัพยากรที่มีคนจอง</span><b>${v.nodeJobs} จุด</b></div><div><span>คนที่จองงานก่อสร้าง</span><b>${v.builders} คน</b></div><div><span>บ้านที่กำลังสร้าง</span><b>${v.unfinished} หลัง</b></div><div><span>ไม้ / เป้าสำรอง</span><b>${v.stock.wood} / ${v.targets.wood}</b></div><div><span>หิน / เป้าสำรอง</span><b>${v.stock.stone} / ${v.targets.stone}</b></div></div>
     <p class="source-note">แหล่งทรัพยากรรับคนทำงานครั้งละ 1 คน · บ้านรับคนสร้างได้ 2 คนพร้อมกัน<br>เลือกแหล่งที่ไปถึงได้ตามระยะเดินจริง ไม่วัดแค่ความใกล้บนจอ<br>เมื่อหิว คนเก็บอาหารกินผลผลิต 1 หน่วยที่จุดเก็บได้ ส่วนที่เหลือเข้าคลังรวม<br>คิดเป้าสำรองรวมผลผลิตของงานที่มีคนจองแล้ว งานชุดสุดท้ายอาจทำให้เกินเป้าได้เล็กน้อย</p>
-    <p class="source-note">ช่วงวัยทำงานแล้ว: เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัยทำงานผลิตที่ 75% · ยังไม่มีการเกิดอัตโนมัติหรือเสียชีวิตตามวัย</p>`);
+    <div class="clone-skills"><div><span>เกิดเองแล้ว</span><b>${v.autonomousBirths} คน</b></div><div><span>สถานะการเกิดอัตโนมัติ</span><b>${birthLabels[v.birth.reason]??v.birth.reason}</b></div></div>
+    <p class="source-note">เงื่อนไขเกิดเอง: ที่พักต้องว่าง · ต้องมีผู้ใหญ่พร้อม · อาหารว่างต้องพอจ่าย 8 แล้วยังเหลือถึงเป้ารุ่นถัดไป · ไม้จ่าย 4 แล้วยังเหลืออย่างน้อย 12 · เกิดได้สูงสุด 1 คนต่อปีจำลอง และ parent คนเดิมพัก 4 ปี<br>ช่วงวัยทำงานแล้ว: เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัยทำงานผลิตที่ 75% · ยังไม่มีการเสียชีวิตตามวัย</p>`);
   $('dialog').dataset.kind='survival';
  }
  function openGuide(){api.openDialog('เริ่มจากการรู้จักคนหนึ่งคน','OBSERVE → UNDERSTAND → INFLUENCE',`<div class="guide-step"><span>01</span><div><b>แตะหน้า เลือกคน</b><p>ใช้แถวตัวละครด้านล่าง หรือแตะคนในโลก การ์ดย่อจะบอกว่ากำลังทำอะไร โดยไม่บังแผนที่</p></div></div><div class="guide-step"><span>02</span><div><b>ถามว่า “ทำไม?”</b><p>ดูคะแนนงานจริง หรือเปิดทักษะเพื่อดูสิ่งที่เขาเรียนรู้มาต่างจากคนอื่น</p></div></div><div class="guide-step"><span>03</span><div><b>สร้างเงื่อนไขให้ชีวิตใหม่</b><p>เลือกต้นแบบก่อนโคลน หรือเลือกจุดวางบ้าน ตรวจตัวอย่าง แล้วค่อยยืนยันหักวัสดุ</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างนี้หยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">เริ่มสังเกตโลก</button></div>`);$('dialog').dataset.kind='guide';}

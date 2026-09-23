@@ -31,6 +31,9 @@ jobs:
       - name: Verify survival across populations and food crises
         run: npm run test:survival
 
+      - name: Verify autonomous birth across seeds
+        run: npm run test:lifecycle
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
