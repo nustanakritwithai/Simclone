@@ -1,6 +1,6 @@
 # Simclone V0.3 — Lifecycle + Autonomous Generation Contract
 
-Status: **V0.3.2 Autonomous Birth verified candidate**. Lifecycle derivation, stage gameplay and resource-safe autonomous birth are implemented. Age death and post-death generation continuity remain future V0.3 gates.
+Status: **V0.3.3 Age Death verified candidate**. Lifecycle derivation, stage gameplay, autonomous birth and deterministic age death/cleanup are implemented. Post-death generation continuity remains the V0.3.4 gate.
 
 ## Product gate
 
@@ -103,7 +103,7 @@ Population pressure and cooldown must prevent runaway exponential growth. Reserv
 
 ## V0.3.3 — Age death + cleanup
 
-### Success Contract
+### Implemented contract
 
 - Lifespan is deterministic in the declared 78–92 year window.
 - Age death and starvation death share a single dead-state invariant: `alive=false`, `task=null`, no further decisions/actions.
@@ -164,3 +164,21 @@ Workflow run: `35921105182` — **SAT**
 - Offline Chromium: 43 observation UI + 36 navigation/save + 10 survival/autonomous-birth UI checks PASS.
 
 The proof demonstrates **autonomous birth → child growth → productive descendant**. It does not demonstrate age death or population continuity after the original generation dies; that remains V0.3.3/V0.3.4.
+
+
+## V0.3.3 verification evidence
+
+Candidate commit: `8dbbb2c16c4dba6920036028ec002419cefc51ee`
+
+Workflow run: `35922444771` — **SAT**
+
+- `npm test`: 81/81 PASS.
+- Survival regression: 18/18 SAT.
+- Autonomous-birth proof: 5/5 SAT.
+- Age-death/cleanup proof: 5/5 seeds SAT over 90 simulated years.
+- Age deaths observed by seed: 10, 11, 10, 10, 9.
+- Starvation deaths in that proof: 0 for every seed.
+- No dead agent retained a task or any node/build/meal reservation.
+- Offline Chromium: 43 observation UI + 36 navigation/save + 10 survival/lifecycle UI checks PASS.
+
+Living population after 90 years varied from 1 to 9. This is intentionally **not** counted as V0.3.4 continuity proof; the next gate must demonstrate later generations continue autonomously after the original generation has died, not merely that some agent remains alive.

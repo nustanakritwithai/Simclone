@@ -1,0 +1,113 @@
+{
+  "scope": "V0.3.3 deterministic age death + cleanup. Does not yet prove post-original generation continuity.",
+  "commit": "8dbbb2c16c4dba6920036028ec002419cefc51ee",
+  "workflowRun": 35922444771,
+  "result": "SAT",
+  "unitAsset": {
+    "tests": 81,
+    "passed": 81,
+    "failed": 0,
+    "result": "SAT"
+  },
+  "survivalRegression": {
+    "scenarios": 18,
+    "passed": 18,
+    "result": "SAT"
+  },
+  "autonomousBirthProof": {
+    "seeds": 5,
+    "passed": 5,
+    "result": "SAT"
+  },
+  "ageDeathProof": {
+    "seeds": 5,
+    "passed": 5,
+    "result": "SAT",
+    "results": [
+      {
+        "seed": 230926,
+        "ageDeaths": 10,
+        "starvationDeaths": 0,
+        "livingPopulation": 2,
+        "totalHistoricalAgents": 12,
+        "maxPopulation": 12,
+        "housing": 12,
+        "elapsedYears": 90,
+        "result": "SAT"
+      },
+      {
+        "seed": 1,
+        "ageDeaths": 11,
+        "starvationDeaths": 0,
+        "livingPopulation": 1,
+        "totalHistoricalAgents": 12,
+        "maxPopulation": 12,
+        "housing": 12,
+        "elapsedYears": 90,
+        "result": "SAT"
+      },
+      {
+        "seed": 42,
+        "ageDeaths": 10,
+        "starvationDeaths": 0,
+        "livingPopulation": 6,
+        "totalHistoricalAgents": 16,
+        "maxPopulation": 12,
+        "housing": 12,
+        "elapsedYears": 90,
+        "result": "SAT"
+      },
+      {
+        "seed": 2026,
+        "ageDeaths": 10,
+        "starvationDeaths": 0,
+        "livingPopulation": 2,
+        "totalHistoricalAgents": 12,
+        "maxPopulation": 12,
+        "housing": 12,
+        "elapsedYears": 90,
+        "result": "SAT"
+      },
+      {
+        "seed": 90001,
+        "ageDeaths": 9,
+        "starvationDeaths": 0,
+        "livingPopulation": 9,
+        "totalHistoricalAgents": 18,
+        "maxPopulation": 12,
+        "housing": 12,
+        "elapsedYears": 90,
+        "result": "SAT"
+      }
+    ]
+  },
+  "offlineChromium": {
+    "observationUI": 43,
+    "navigationSave": 36,
+    "survivalUI": 10,
+    "total": 89,
+    "result": "SAT"
+  },
+  "lifecycle": {
+    "lifespanMin": 78,
+    "lifespanMax": 92,
+    "lifespanPersisted": false,
+    "deathCleanup": [
+      "alive=false",
+      "hp=0",
+      "task=null",
+      "moveTick=0"
+    ]
+  },
+  "save": {
+    "schema": "0.2.0",
+    "legacyAccepted": "0.1.0",
+    "storageKey": "simclone:world:v1"
+  },
+  "unknown": [
+    "post-death generation continuity",
+    "full V1.0 autonomy proof",
+    "native browser localStorage persistence",
+    "physical Android performance"
+  ]
+}

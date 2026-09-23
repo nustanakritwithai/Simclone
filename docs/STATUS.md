@@ -1,70 +1,69 @@
-# Simclone — current release 0.3.2
+# Simclone — current release 0.3.3
 
-Current implementation: **Autonomous Birth 0.3.2 + Stage Gameplay 0.3.1 + Survival Core 0.2.0 + Observation UI 0.3.2**. Save schema remains 0.2.0 with explicit migration from legacy 0.1.0.
+Current implementation: **Age Death 0.3.3 + Autonomous Birth 0.3.2 + Stage Gameplay 0.3.1 + Survival Core 0.2.0**. Save schema remains 0.2.0 with explicit migration from 0.1.0.
 
 ## What works
 
-The world can now create a new generation without the player pressing Clone.
+The lifecycle loop now includes deterministic death by age.
 
-Autonomous birth is an engine transition, separate from manual CLONE:
+- Biological time remains simulation-only: 360 ticks = 1 biological year.
+- Lifespan is derived deterministically from world seed + agent identity/generation.
+- Lifespan range is 78–92 years inclusive.
+- No `lifespan` field is stored and no save-schema bump was required.
+- When derived age reaches lifespan, the agent dies.
+- Starvation and age death use the same dead-state invariant: `alive=false`, `hp=0`, `task=null`, `moveTick=0`.
+- Death occurs before reservation reconstruction, so dead agents cannot retain node/build/meal claims.
+- Chronicle/personal memory records cause-specific death; age-death text records age at death.
+- Identity, lineage, appearance and derived lifespan remain valid through save/load.
+- Inspector exposes derived current age/lifespan for living agents and lifespan for dead agents.
 
-- evaluated on simulated-year boundaries;
-- at most one autonomous birth per biological year;
-- parent must be a living ADULT;
-- same parent has a 4-year cooldown;
-- living population must be below housing and hard population limits;
-- historical agent cap remains 200;
-- Food cost = 8 and Wood cost = 4;
-- reserved EAT meals are excluded from spendable food;
-- after paying Food 8, free food must still meet the next population's food target;
-- after paying Wood 4, at least 12 wood must remain;
-- food gathering automatically includes a birth reserve so the old soft stock target cannot deadlock reproduction;
-- parent selection is deterministic and favors fewer autonomous children / older last birth / lower ID;
-- child starts at age 0, keeps parentId, generation +1, permanent new appearance and 35% inherited Skill XP.
-
-No separate mutable reproduction lock/cooldown registry exists. Birth pacing and parent cooldown are derived from persisted agent lineage and `bornTick`.
-
-Lifecycle behavior remains:
-
-- CHILD 0–15 cannot take FORAGE / WOODCUT / MINE / BUILD;
-- ADULT 16–54 works at 100%;
-- ELDER 55+ productive work rate is 75%;
-- DEAD overrides age.
-
-Observation UI now shows autonomous-birth count and the current blocking reason: housing, pacing, parent eligibility, food or wood.
+Autonomous birth remains active with max one birth/year, four-year same-parent cooldown, Food 8 + Wood 4 cost, next-population food reserve and Wood 12 safety floor.
 
 ## Latest evidence
 
-Candidate commit `7b7fa0e9775b20c2f601fd878c033dc4b12d4660`, workflow `35921105182`: **SAT**.
+Candidate commit `8dbbb2c16c4dba6920036028ec002419cefc51ee`, workflow `35922444771`: **SAT**.
 
-- Unit/asset: **76/76 PASS**.
+- Unit/asset: **81/81 PASS**.
 - Survival regression: **18/18 SAT**.
-- Autonomous-birth long-run proof: **5/5 seeds SAT**, 30 simulated years each.
-- Manual CLONE commands in the autonomous proof: **0** for every seed.
-- Each seed created 6 autonomous children and reached max generation 2.
-- At least 4 productive grown descendants were observed in every seed.
-- Offline Chromium: **43 + 36 + 10 = 89 PASS**.
+- Autonomous birth proof: **5/5 SAT**.
+- Age-death/cleanup proof: **5/5 SAT**, 90 simulated years per seed.
+- Age deaths: 10 / 11 / 10 / 10 / 9 across seeds 230926 / 1 / 42 / 2026 / 90001.
+- Starvation deaths in age-death proof: **0** for all seeds.
+- Offline Chromium: **89 PASS**.
 
-This is not V1.0 proof. The new proof does not include age death, post-death generation continuation, mentor/archive knowledge, social relationships, factions or replay.
+After 90 years, living population ranged from 1 to 9 depending on seed. That is evidence the death system is active, but it is not sufficient to claim autonomous population continuity.
 
 ## Save contract
 
-Engine version: `0.3.2`.
+Engine version: `0.3.3`.
 
 Save schema: `0.2.0`.
 
-Accepted legacy schema: `0.1.0`.
+Legacy accepted: `0.1.0`.
 
-Storage key remains `simclone:world:v1`.
+Storage key: `simclone:world:v1`.
 
-V0.3.2 does not add a cooldown field or birth registry to the save. Autonomous births are recognizable from persisted lifecycle/lineage data, so no schema bump was required.
+Lifespan is derived, not persisted. Birth cooldown remains derived from lineage and `bornTick`. No new mutable lifecycle registry was introduced.
 
 ## Verification limits
 
-Offline Chromium uses an explicit Storage test double. Native browser localStorage persistence and physical Android performance remain UNKNOWN. GitHub Pages deployment must be verified against the exact `main` commit before release is called deployed.
+The historical Survival Core 100-day regression deliberately freezes agents below the minimum age-death threshold once they reach late elder age; this keeps that fixture measuring survival/resource mechanics rather than the new death gate while retaining Elder 75% productivity. Age death is verified separately by `npm run test:death`.
+
+Offline Chromium uses an explicit Storage test double. Native browser localStorage and physical Android performance remain UNKNOWN.
 
 ## Next gate
 
-**V0.3.3 — Age Death + Cleanup.**
+**V0.3.4 — Generation Continuity Proof.**
 
-Age death must be deterministic in the declared 78–92 year window. Death must clear tasks, release all derived reservations, stop actions, preserve identity/lineage/history and survive save/load. Only after this passes do we run V0.3.4 generation-continuity proof.
+The proof must use no player manual CLONE and demonstrate:
+
+```text
+initial adults
+→ autonomous child
+→ child grows and works
+→ original generation ages and dies
+→ later generation produces another generation
+→ world remains valid and inhabited
+```
+
+across multiple seeds. V1.0 is still not claimed.
