@@ -1,17 +1,22 @@
-import {installUX,UI_VERSION} from './ux.mjs?v=0.1.1';
+import {installUX,UI_VERSION} from './ux.mjs?v=0.1.2';
+import {createWorldStore,saveLabel} from './storage.mjs';
+import {installNavigation} from './navigation.mjs';
 import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt} from './engine.mjs';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let ux=null;
-const SAVE_KEY='simclone:world:v1';
-let state=createWorld(),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe',canAutosave=true;
-let toastTimer,ground,cw=0,ch=0,dpr=1,zoom=innerWidth<700?1.12:1.25,pan={x:innerWidth>700?-120:0,y:38};
+let ux=null,nav=null;
+const store=createWorldStore({getStorage:()=>localStorage,serialize,restore});
+let state=createWorld(),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
+let toastTimer,ground,cw=0,ch=0,dpr=1,zoom=innerWidth<700?1.12:1.25,pan={x:0,y:0};
 let focus={x:11,y:12},follow=false,ghost=null,positions=new Map(),lastUi=0,lastFrame=0,accumulator=0;
 const hw=27,hh=13.5;
 const proj=(x,y)=>({x:(x-y)*hw,y:(x+y)*hh});
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),4200);}
-try{const stored=localStorage.getItem(SAVE_KEY);if(stored){state=restore(stored);toast('กลับสู่โลกเดิม · วันที่ '+day(state));}}catch{canAutosave=false;toast('อ่านบันทึกเดิมไม่ได้ จึงยังไม่เขียนทับ · เปิดเมนูเพื่อเริ่มโลกใหม่');}
-function save(manual=false){try{if(!canAutosave)throw new Error('protected');localStorage.setItem(SAVE_KEY,serialize(state));if(manual)toast('บันทึกโลกในเบราว์เซอร์นี้แล้ว');}catch{if(manual)toast('บันทึกไม่ได้ · ใช้ส่งออกไฟล์เพื่อเก็บโลกไว้');}}
+const loaded=store.load();if(loaded)state=loaded;
+if(store.status().kind==='protected')toast('เซฟเดิมมีปัญหา จึงยังไม่เขียนทับ · สำรองไฟล์เดิมได้ในเมนู');
+else if(store.status().kind==='unavailable')toast('เบราว์เซอร์ไม่ให้เข้าถึงบันทึก · ส่งออกไฟล์เพื่อเก็บโลกไว้');
+else if(loaded)toast('กลับสู่โลกเดิม · วันที่ '+day(state));
+function save(manual=false){const result=store.save(state);if(manual)toast(result.ok?'บันทึกโลกในเบราว์เซอร์นี้แล้ว':result.reason==='protected'?'ยังไม่เขียนทับเซฟเดิม · สำรองไฟล์ก่อนเริ่มโลกใหม่':'บันทึกไม่ได้ · ใช้ส่งออกไฟล์เพื่อเก็บโลกไว้');return result;}
 function portrait(a){const p=a.appearance;return `<svg class="portrait" viewBox="0 0 60 68" aria-label="${esc(a.name)}"><rect width="60" height="68" fill="#3b5747"/><circle cx="30" cy="31" r="27" fill="#667954" opacity=".35"/><path d="M7 69Q7 46 30 46Q53 46 53 69" fill="${p.coat}"/><path d="M25 43h10v10l-5 5-5-5" fill="${p.skin}"/><path d="M16 28Q12 10 30 9Q47 9 45 31L43 49H17Z" fill="${p.hair}"/><ellipse cx="30" cy="32" rx="12" ry="16" fill="${p.skin}"/><path d="${p.style===0?'M17 29Q13 9 31 10Q49 13 43 28L36 19 23 22Z':p.style===1?'M17 29Q12 12 30 10Q48 11 44 31L37 16 29 24Z':'M16 28Q12 8 31 9Q49 12 44 29L41 17 32 14 21 22Z'}" fill="${p.hair}"/><path d="M22 30h5m7 0h5" stroke="#4c392e" stroke-width="1.4"/><circle cx="25" cy="33" r="1.3" fill="#24352d"/><circle cx="36" cy="33" r="1.3" fill="#24352d"/><path d="M30 34v5h2M26 43q4 3 8 0" fill="none" stroke="#a66c54" stroke-width="1"/><path d="M19 52l11 7 11-7M30 59v10" stroke="#eee4ba88" stroke-width="1" fill="none"/></svg>`;}
 function polygon(c,points,fill,stroke=null){c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fillStyle=fill;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=.7;c.stroke();}}
 function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
@@ -115,14 +120,16 @@ function person(c,a,time){
  }
  c.restore();
 }
-function screenPoint(x,y){const p=proj(x,y),f=proj(focus.x,focus.y);return {x:cw/2+pan.x+(p.x-f.x)*zoom,y:ch/2+pan.y+(p.y-f.y)*zoom};}
-function worldPoint(x,y){const f=proj(focus.x,focus.y);const px=(x-cw/2-pan.x)/zoom+f.x,py=(y-ch/2-pan.y)/zoom+f.y;return {x:Math.round((px/hw+py/hh)/2),y:Math.round((py/hh-px/hw)/2)};}
+function cameraOrigin(){return nav?.anchor()??{x:cw/2,y:ch/2};}
+function centerCamera(p){focus={...p};pan={x:0,y:0};follow=false;}
+function screenPoint(x,y){const p=proj(x,y),f=proj(focus.x,focus.y);return {x:cameraOrigin().x+pan.x+(p.x-f.x)*zoom,y:cameraOrigin().y+pan.y+(p.y-f.y)*zoom};}
+function worldPoint(x,y){const f=proj(focus.x,focus.y);const px=(x-cameraOrigin().x-pan.x)/zoom+f.x,py=(y-cameraOrigin().y-pan.y)/zoom+f.y;return {x:Math.round((px/hw+py/hh)/2),y:Math.round((py/hh-px/hw)/2)};}
 function resize(){const rect=canvas.getBoundingClientRect();cw=rect.width;ch=rect.height;dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(cw*dpr);canvas.height=Math.round(ch*dpr);}
 function render(time){
  ctx.setTransform(dpr,0,0,dpr,0,0);
  const bg=ctx.createLinearGradient(0,0,cw,ch);bg.addColorStop(0,'#4c654b');bg.addColorStop(1,'#314b3d');ctx.fillStyle=bg;ctx.fillRect(0,0,cw,ch);
  if(follow){const a=state.agents.find(a=>a.id===selected&&a.alive);if(a){focus.x+=(a.x-focus.x)*.03;focus.y+=(a.y-focus.y)*.03;}}
- ctx.save();ctx.translate(cw/2+pan.x,ch/2+pan.y);ctx.scale(zoom,zoom);const f=proj(focus.x,focus.y);ctx.translate(-f.x,-f.y);
+ ctx.save();ctx.translate(cameraOrigin().x+pan.x,cameraOrigin().y+pan.y);ctx.scale(zoom,zoom);const f=proj(focus.x,focus.y);ctx.translate(-f.x,-f.y);
  ctx.drawImage(ground,-SIZE.h*hw-60,-32);
  // Render-only ripples. They never consume simulation RNG.
  for(let i=0;i<12;i++){const y=2+i*1.8,x=21+Math.round(Math.sin(y*.26)*2),p=proj(x,y);line(ctx,[[p.x-8+Math.sin(time*.001+i)*3,p.y],[p.x+8,p.y]],'#b4d5c640',1);}
@@ -138,23 +145,7 @@ function render(time){
  const vignette=ctx.createRadialGradient(cw*.46,ch*.48,Math.min(cw,ch)*.22,cw*.5,ch*.5,Math.max(cw,ch)*.68);vignette.addColorStop(0,'#0b251500');vignette.addColorStop(1,'#12291e55');ctx.fillStyle=vignette;ctx.fillRect(0,0,cw,ch);
 }
 function actionText(a){if(!a.alive)return 'เสียชีวิตแล้ว';const task=a.task;return task?(task.path.length?'เดินไป':'กำลัง')+(LABELS[task.kind]||'พักรอ'):'กำลังเลือกงาน';}
-function inspect(){
- if(ux)return ux.renderInspector();
- const el=$('inspector'),a=state.agents.find(a=>a.id===selected);if(!a){el.hidden=true;return;}el.hidden=false;
- const focused=el.contains(document.activeElement)?document.activeElement.dataset.ui:null;
- const parent=state.agents.find(p=>p.id===a.parentId),t=a.task,chosen=a.trace.find(c=>c.status==='selected');
- let content='';
- if(tab==='skills')content=SKILLS.map(k=>`<div class="skill-row">${LABELS[k]}<span>Lv.${level(a.skills[k])} · ${a.skills[k]} XP</span></div>`).join('')+`<p class="source-note">ที่มา: ${esc(a.source)}<br>Clone ใหม่สืบทอด 35% ของ XP จากต้นแบบ แล้วฝึกต่อจากงานที่ทำ</p>`;
- else if(tab==='memory')content=a.memory.slice().reverse().map(m=>`<div class="memory-item"><small>วันที่ ${1+Math.floor(m.tick/360)}</small>${esc(m.text)}</div>`).join('')||'<p class="source-note">ยังไม่มีความทรงจำสำคัญ</p>';
- else if(tab==='why'){
-  const max=Math.max(1,...a.trace.map(t=>t.score));
-  content=a.trace.slice(0,6).map(c=>`<div class="trace-row ${c.status==='selected'?'selected':''}"><span>${c.status==='selected'?'● ':''}${LABELS[c.kind]} ${c.status==='no-path'?'· ไปไม่ถึง':''}</span><b>${c.score}</b><div class="scorebar"><i style="width:${Math.max(0,c.score/max*100)}%"></i></div></div>`).join('');
-  if(chosen)content+=`<div class="trace-detail">คะแนนตอนเลือกงาน (tick ${t?.started??state.tick})<br>พื้นฐาน ${chosen.factors.base} + ความต้องการ ${chosen.factors.need} + ความถนัด ${chosen.factors.goal} + ทักษะ ${chosen.factors.skill} − ระยะทาง ${Math.abs(chosen.factors.distance)}<br>นี่คือคะแนนจากกฎ CPU ไม่ใช่ข้อความจาก LLM</div>`;
-  if(!a.trace.length)content='<p class="source-note">จะมีเหตุผลเมื่อโลกเดิน tick แรก</p>';
- }else content=`<div class="current-job"><small>CURRENT ACTION · ${t?.kind??'IDLE'}</small><b>${esc(actionText(a))}</b><p>${t?.path.length?'เหลืออีก '+t.path.length+' ช่องก่อนถึงเป้าหมาย':'ความต้องการ ทักษะ และระยะทางมีผลต่อการเลือกงาน'}${chosen?' · คะแนน '+chosen.score:''}</p></div><div class="source-note">ต้นแบบ: ${esc(parent?.name??'คนแรกของโลก')}<br>งานสำเร็จ ${a.workDone} ครั้ง · คลิก “เหตุผล” เพื่อดูว่าทำไมเลือกงานนี้</div>`;
- el.innerHTML=`<div class="inspect-head"><span class="eyebrow">ONE CLONE. A DIFFERENT STORY.</span><button data-ui="close" aria-label="ปิดข้อมูลตัวละคร">×</button></div><div class="identity">${portrait(a)}<div><h2>${esc(a.name)} <sup style="font:9px system-ui;color:var(--muted)">#${a.id}</sup></h2><p>${a.generation===0?'ORIGINAL':'CLONE · รุ่น '+a.generation} · ${a.alive?'มีชีวิต':'เสียชีวิต'}</p><p class="role">ถนัด${LABELS[a.preference]}</p></div></div><div class="needs">${[['satiety','ความอิ่ม',''],['energy','พลังงาน','need-energy'],['hp','สุขภาพ','need-hp']].map(([k,label,cl])=>`<div class="${cl}"><div class="need-label"><span>${label}</span><b>${Math.round(a[k])}</b></div><div class="meter"><i style="width:${a[k]}%"></i></div></div>`).join('')}</div><div class="tabs">${[['about','ตอนนี้'],['skills','ทักษะ'],['why','เหตุผล'],['memory','ความทรงจำ']].map(([id,title])=>`<button data-ui="tab-${id}" data-tab="${id}" class="${tab===id?'active':''}">${title}</button>`).join('')}</div>${content}<button data-ui="follow" class="secondary follow">${follow?'หยุดติดตาม':'⌖ ติดตามตัวละครนี้'}</button>`;
- if(focused)el.querySelector(`[data-ui="${focused}"]`)?.focus({preventScroll:true});
-}
+function inspect(){ux?.renderInspector();}
 function updateUI(){
  $('day').textContent='วันที่ '+day(state);const h=hour(state),mins=Math.floor(state.tick%15/15*60);$('clock').textContent=String(h).padStart(2,'0')+':'+String(mins).padStart(2,'0')+' · '+(h<6||h>=19?'กลางคืน':h<12?'เช้า':'บ่าย');
  for(const type of ['food','wood','stone'])$(type).textContent=state.stock[type];
@@ -163,22 +154,18 @@ function updateUI(){
  $('world-status').textContent=paused||dialog.open?'หยุดเวลา · โลกยังอยู่ตรงนี้':'โลกกำลังดำเนินไปด้วยตัวเอง';
  $('seed-label').textContent='SEED '+state.seed;
  $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip" data-event="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · ${e.type.toUpperCase()}</small><p>${esc(e.text)}</p></button>`).join('');
- inspect();ux?.renderHUD();
+ inspect();ux?.renderHUD();nav?.update();
 }
-function selectAgent(id,center=false){selected=id;tab='about';mode='observe';$('mode-hint').hidden=true;$('build').classList.remove('active');$('observe').classList.add('active');const a=state.agents.find(a=>a.id===id);if(center&&a){focus={x:a.x,y:a.y};pan={x:innerWidth>700?-120:0,y:innerWidth>700?20:-80};}updateUI();}
+function selectAgent(id,center=false){follow=false;selected=id;tab='about';mode='observe';$('mode-hint').hidden=true;$('build').classList.remove('active');$('observe').classList.add('active');const a=state.agents.find(a=>a.id===id);if(a&&(center||innerWidth<=700)){focus={x:a.x,y:a.y};pan={x:0,y:0};}updateUI();}
 function openDialog(title,kicker,body){$('dialog').dataset.kind='other';$('dialog-title').textContent=title;$('dialog-kicker').textContent=kicker;$('dialog-body').innerHTML=body;if(!dialog.open)dialog.showModal();updateUI();}
-function roster(){if(ux)return ux.openRoster();openDialog('คนในหมู่บ้าน','POPULATION · '+living(state).length+' LIVING',state.agents.map(a=>`<button class="person-row" data-person="${a.id}">${portrait(a)}<div><b>${esc(a.name)}</b><small>รุ่น ${a.generation} · ${esc(actionText(a))}</small></div><span class="badge">${a.alive?Math.round(a.satiety)+'% อิ่ม':'เสียชีวิต'}</span></button>`).join(''));}
-function history(){if(ux)return ux.openHistory();openDialog('ทุกชีวิตมีเรื่องราว','WORLD CHRONICLE',`<p>บันทึกเหตุการณ์จริงล่าสุด ${state.events.length} รายการ · แตะเหตุการณ์ของตัวละครเพื่อไปหาเขา (ยังไม่ใช่ระบบย้อนเวลา)</p>`+state.events.slice().reverse().map(e=>`<button class="history-event" data-story="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · TICK ${e.tick} · ${esc(e.type)}</small><p>${esc(e.text)}</p></button>`).join(''));}
-function cloneDialog(){
- if(ux)return ux.openClone();
- const parent=state.agents.find(a=>a.id===selected&&a.alive)||living(state)[0];if(!parent){toast('ไม่มีต้นแบบที่มีชีวิตอยู่');return;}selected=parent.id;
- openDialog('ชีวิตใหม่ เริ่มจากใคร?','CREATE A CLONE',`<div class="identity">${portrait(parent)}<div><h2>${esc(parent.name)}</h2><p>ต้นแบบที่เลือก · รุ่น ${parent.generation}</p></div></div><p>Clone ใหม่จะเป็นรุ่น ${parent.generation+1} สืบทอด <b>35% ของ XP ทุกทักษะ</b> ของ ${esc(parent.name)} จากนั้นเลือกงานและฝึกฝนด้วยตัวเอง</p><p>ใช้ <b>อาหาร 8 · ไม้ 4</b> · ที่พัก ${living(state).length} / ${capacity(state)} คน<br>ต้นแบบรอบนี้ยังไม่มีวงจรเกิดและเติบโตอัตโนมัติ</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone">สร้าง Clone</button><button class="secondary" data-action="cancel">ยังไม่สร้าง</button></div>`);
-}
+function roster(){ux?.openRoster();}
+function history(){ux?.openHistory();}
+function cloneDialog(){ux?.openClone();}
 function startBuild(){
  if(dialog.open)dialog.close();selected=null;follow=false;mode='build';$('build').classList.add('active');$('observe').classList.remove('active');
  $('mode-hint').hidden=false;$('mode-hint').textContent='แตะพื้นหญ้าว่างเพื่อวางบ้าน · ไม้ 12 + หิน 6 · กด “โลก” เพื่อยกเลิก';updateUI();
 }
-function menu(){openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,`<div class="menu-grid"><button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>นี่คือต้นแบบ V0.1 ไม่ใช่ Living World V1.0 ที่ผ่านเกณฑ์ทั้งหมด</div>`);}
+function menu(){openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,`<p class="menu-save-note"><strong>${esc(saveLabel(store.status()))}</strong><br>เซฟอยู่ในเบราว์เซอร์นี้เท่านั้น ไม่ได้ซิงก์ขึ้นคลาวด์</p><div class="menu-grid">${store.status().protected&&store.originalText()!==null?'<button data-action="export-original">สำรองไฟล์เซฟเดิมที่มีปัญหา</button>':''}<button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>นี่คือต้นแบบ V0.1 ไม่ใช่ Living World V1.0 ที่ผ่านเกณฑ์ทั้งหมด</div>`);}
 function download(){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='simclone-day-'+day(state)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกไฟล์โลกแล้ว');}
 $('dialog-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{accumulator=0;updateUI();});
 $('dialog-body').addEventListener('click',e=>{
@@ -188,20 +175,21 @@ $('dialog-body').addEventListener('click',e=>{
  const action=b.dataset.action;
  if(action==='cancel'){dialog.close();return;}
  if(action==='confirm-clone'){const result=command(state,'CLONE',{parentId:selected});toast(result.message);if(result.ok){dialog.close();selectAgent(result.agentId,true);save();}return;}
+ if(action==='export-original'){const text=store.originalText();if(text!==null){const url=URL.createObjectURL(new Blob([text],{type:'text/plain'})),a=document.createElement('a');a.href=url;a.download='simclone-recovery-original.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกเซฟเดิมโดยไม่แก้ไขแล้ว');}return;}
  if(action==='save'){save(true);return;}if(action==='export'){download();return;}
  if(action==='import'){$('import-file').click();return;}
  if(action==='reset'){openDialog('เริ่มโลกใหม่','NEW WORLD',`<p>โลกปัจจุบันในเบราว์เซอร์จะถูกแทนที่ ควรส่งออกไฟล์ก่อน กรอก seed เดิมเพื่อเริ่มด้วยแผนที่และตัวละครตั้งต้นเหมือนเดิม</p><label for="seed-input">World seed</label><input id="seed-input" class="seed-input" type="number" min="0" max="4294967295" value="${state.seed}"><div class="dialog-actions"><button class="primary" data-action="confirm-reset">เริ่มใหม่และแทนที่บันทึก</button><button class="secondary" data-action="export">ส่งออกโลกปัจจุบัน</button></div>`);return;}
  if(action==='confirm-reset'){
   const seed=Number($('seed-input').value);if(!Number.isInteger(seed)||seed<0||seed>4294967295){toast('กรอก seed เป็นจำนวนเต็ม 0–4294967295');return;}
-  state=createWorld(seed);canAutosave=true;paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus={x:11,y:12};pan={x:innerWidth>700?-120:0,y:38};makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
+  state=createWorld(seed);store.allowReplacement();paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
  }
  if(action==='help')openDialog('สังเกต เข้าใจ แล้วค่อยแทรกแซง','HOW TO PLAY',`<p><b>1. สังเกต</b><br>ลากแผนที่เพื่อเลื่อน ใช้ + / − หรือจีบนิ้วเพื่อซูม แตะคนเพื่อดูความอิ่ม พลังงาน และงานที่กำลังทำ</p><p><b>2. เข้าใจ</b><br>เปิดแท็บ “เหตุผล” ดูคะแนนจริงจาก CPU เปิด “ทักษะ” เพื่อดู XP และต้นแบบที่ถ่ายทอดความรู้</p><p><b>3. ช่วยให้โลกเติบโต</b><br>เลือกคนแล้วกดโคลน หรือวางแปลนบ้านบนหญ้าว่าง ตัวละครจะเลือกไปสร้างเองเมื่อทำได้</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น · Escape ยกเลิกวางบ้าน<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">รุ่นนี้ยังไม่มีวัยเด็ก ความชรา สังคม Faction และ Replay เต็มรูปแบบ · ภาพทั้งหมดวาดในเกม ไม่ใช้ภาพหน้าจอจำลอง</div>`);
 });
 $('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>2000000)throw new Error('ไฟล์ใหญ่เกิน 2 MB');const candidate=restore(await file.text());
  openDialog('นำเข้าโลกที่บันทึกไว้','IMPORT WORLD',`<p>วันที่ ${day(candidate)} · ประชากร ${living(candidate).length} คน<br>การนำเข้าจะแทนที่โลกปัจจุบันในเบราว์เซอร์</p><div class="dialog-actions"><button id="confirm-import" class="primary">ยืนยันนำเข้า</button><button class="secondary" data-action="cancel">ยกเลิก</button></div>`);
- $('confirm-import').onclick=()=>{state=candidate;canAutosave=true;selected=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus={x:11,y:12};pan={x:innerWidth>700?-120:0,y:38};makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
+ $('confirm-import').onclick=()=>{state=candidate;store.allowReplacement();selected=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
  }catch(error){toast('นำเข้าไม่ได้: '+error.message);}});
-$('inspector').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.ui==='close'){selected=null;follow=false;}else if(b.dataset.tab)tab=b.dataset.tab;else if(b.dataset.ui==='follow'){follow=!follow;const a=state.agents.find(a=>a.id===selected);if(a){focus={x:a.x,y:a.y};pan={x:innerWidth>700?-120:0,y:innerWidth>700?20:-90};}}updateUI();});
+$('inspector').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.ui==='close'){selected=null;follow=false;}else if(b.dataset.tab)tab=b.dataset.tab;else if(b.dataset.ui==='follow'){follow=!follow;const a=state.agents.find(a=>a.id===selected);if(a){focus={x:a.x,y:a.y};pan={x:0,y:0};}}updateUI();});
 $('pause').onclick=()=>{paused=!paused;accumulator=0;updateUI();};
 for(const b of document.querySelectorAll('[data-speed]'))b.onclick=()=>{speed=Number(b.dataset.speed);document.querySelectorAll('[data-speed]').forEach(x=>x.classList.toggle('active',x===b));};
 $('clone').onclick=cloneDialog;$('build').onclick=startBuild;$('roster').onclick=roster;$('history').onclick=history;$('open-chronicle').onclick=history;$('menu').onclick=menu;
@@ -209,7 +197,7 @@ function observe(){mode='observe';$('mode-hint').hidden=true;$('build').classLis
 $('observe').onclick=observe;
 $('recent-events').onclick=e=>{const id=e.target.closest('[data-event]')?.dataset.event;if(!id)return;const ev=state.events.find(e=>e.id===Number(id));if(ev?.agentId)selectAgent(ev.agentId,true);else history();};
 for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===b));const n=b.dataset.nav;if(n==='people')roster();else if(n==='clone')cloneDialog();else if(n==='build')startBuild();else if(n==='history')history();else{selected=null;follow=false;observe();}};
-$('recenter').onclick=()=>{focus={x:11,y:12};pan={x:innerWidth>700?-120:0,y:38};follow=false;};
+$('recenter').onclick=()=>{focus={x:11,y:12};pan={x:0,y:0};follow=false;};
 const setZoom=z=>{zoom=Math.max(.5,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
 canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
 const pointers=new Map();let drag=null,pinch=0,multiTouch=false;
@@ -233,24 +221,27 @@ canvas.addEventListener('pointerup',e=>{
 canvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);drag=null;multiTouch=false;});
 addEventListener('keydown',e=>{if(dialog.open||['INPUT','TEXTAREA','BUTTON'].includes(document.activeElement.tagName))return;if(e.code==='Space'){e.preventDefault();paused=!paused;accumulator=0;updateUI();}if(e.key==='Escape')observe();});
 addEventListener('resize',resize);document.addEventListener('visibilitychange',()=>{accumulator=0;lastFrame=0;if(document.hidden)save();});
-addEventListener('pagehide',()=>save());setInterval(()=>{if(!document.hidden)save();},10000);
+addEventListener('pagehide',()=>save());
 function frame(time){
  const dt=lastFrame?Math.min(.2,(time-lastFrame)/1000):0;lastFrame=time;
  if(!paused&&!document.hidden&&!dialog.open){accumulator+=dt*speed;let loops=0;while(accumulator>=.25&&loops<8){step(state);accumulator-=.25;loops++;}}
  else accumulator=0;
  render(time);if(time-lastUi>300){updateUI();lastUi=time;}requestAnimationFrame(frame);
 }
-makeGround();resize();updateUI();requestAnimationFrame(frame);
+makeGround();resize();
 
 ux=installUX({
- read:()=>({state,selected,tab,mode,paused,follow,canAutosave}),
+ read:()=>({state,selected,tab,mode,paused,follow,canAutosave:!store.status().protected}),
  portrait,actionText,toast,openDialog,closeDialog:()=>dialog.close(),
  select:selectAgent,setTab:value=>{tab=value;updateUI();},observe,
- setGhost:p=>{ghost=p;},center:p=>{focus={...p};pan={x:innerWidth>700?-100:0,y:innerWidth>700?0:-40};follow=false;},
+ setGhost:p=>{ghost=p;},center:centerCamera,
  preview:(type,data)=>{const copy=JSON.parse(serialize(state)),result=command(copy,type,data);return {...result,agent:type==='CLONE'&&result.ok?copy.agents.at(-1):null};},
  execute:(type,data)=>{const result=command(state,type,data);updateUI();return result;},save
 });
+nav=installNavigation({read:()=>({state,selected,follow,mode,paused}),menu,center:centerCamera,worldPoint,focus:()=>({...focus}),zoom:()=>zoom,storageStatus:store.status,layoutChanged:()=>{const a=state.agents.find(a=>a.id===selected&&a.alive);if(a)focus={x:a.x,y:a.y};}});
 updateUI();
+setInterval(()=>{if(!document.hidden)save();},10000);
+requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,snapshot:()=>JSON.parse(serialize(state)),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});

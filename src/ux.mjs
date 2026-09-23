@@ -1,6 +1,6 @@
 /** Observation UI 0.1.1. Read projections; all world mutations use the engine bridge. */
 import {SKILLS,LABELS,level,day,living,capacity} from './engine.mjs';
-export const UI_VERSION='0.1.1';
+export const UI_VERSION='0.1.2';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={

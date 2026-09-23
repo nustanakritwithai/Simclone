@@ -37,3 +37,7 @@ Harden V0.2: food/resource balance, job reservations, travel-aware scoring and e
 ## Observation UI update 0.1.1
 
 The presentation layer has been upgraded while preserving the 0.1.0 engine and save schema. See [UX/UI implementation and verification](UX_UI_0.1.1.md) for the exact scope and current evidence: 15 engine tests and 42 offline Chromium UI assertions passed. This newer UI fixture supersedes the old fixture's immediate house-placement interaction. Native storage and live browser delivery limitations remain explicit.
+
+## Observation UI update 0.1.2
+
+Adds layout-aware camera framing, a read-only minimap, recoverable startup and visible save status/protection without changing engine/save 0.1.0. Current evidence and remaining verification limits are recorded in [UI 0.1.2](UX_UI_0.1.2.md). Older test counts above describe earlier builds; they do not establish live Android or HTTP verification.

@@ -20,3 +20,11 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - UI version 0.1.1 is independent of engine/save version 0.1.0. Never invalidate old saves for a stylesheet change.
 - Current browser fixture: `python tests/browser-smoke.py` delegates to `tests/ui-smoke.py`. It is offline with a Storage test double; do not report it as live HTTP or native storage proof.
 - Pages now deploys from `main` via `.github/workflows/pages.yml`. The earlier `gh-pages` note is historical; verify the workflow for the exact released commit.
+
+## UI 0.1.2
+
+- Startup entry is now `src/boot.mjs`; it loads `src/app.mjs` after stylesheet readiness and keeps a retry screen on failure.
+- `src/navigation.mjs` measures real overlay bounds for the camera and draws a read-only minimap. No movement or resource commands belong here.
+- `src/storage.mjs` preserves damaged/unreadable original saves. Do not release protection except after an explicit reset/import confirmation. Storage failure is not successful saving.
+- Tests: `npm test`, `python tests/ui-smoke.py`, `python tests/navigation-smoke.py`. Browser fixtures share `tests/browser_fixture.py`; they are offline and use a Storage double.
+- Details and limitations: `docs/UX_UI_0.1.2.md`. Pages now gates deployment on unit and local asset tests, not on physical-device or public-browser tests.

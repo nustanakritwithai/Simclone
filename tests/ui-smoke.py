@@ -4,14 +4,8 @@ from playwright.sync_api import sync_playwright
 import base64,json
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'evidence-ui';OUT.mkdir(exist_ok=True)
-def uri(text):return 'data:text/javascript;base64,'+base64.b64encode(text.encode()).decode()
-engine=uri((ROOT/'src/engine.mjs').read_text())
-ux=uri((ROOT/'src/ux.mjs').read_text().replace("'./engine.mjs'",repr(engine)))
-app=(ROOT/'src/app.mjs').read_text().replace("'./engine.mjs'",repr(engine)).replace("'./ux.mjs?v=0.1.1'",repr(ux))
-html=(ROOT/'index.html').read_text()
-for file,ver in [('game.css','0.1.0'),('ux.css','0.1.1')]:
- html=html.replace(f'<link rel="stylesheet" href="./src/{file}?v={ver}">','<style>'+(ROOT/'src'/file).read_text()+'</style>')
-html=html.replace('<script type="module" src="./src/app.mjs?v=0.1.1"></script>','<script type="module">'+app+'</script>')
+from browser_fixture import HTML
+html=HTML
 checks=[];errors=[]
 def check(name,condition=True):
  assert condition,name
@@ -20,7 +14,7 @@ def boot(page,saved=None):
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.evaluate("saved=>{const m=new Map(saved?[['simclone:world:v1',saved]]:[]);Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v))}})}",saved)
  page.set_content(html,wait_until='load')
- page.wait_for_function("window.simclone?.uiVersion==='0.1.1'")
+ page.wait_for_function("window.simclone?.uiVersion==='0.1.2'")
  page.wait_for_timeout(400)
 def paused(page):
  if page.locator('#pause').get_attribute('aria-pressed')!='true':page.locator('#pause').click()
@@ -29,7 +23,7 @@ def no_overflow(page):return page.evaluate('document.documentElement.scrollWidth
 with sync_playwright() as p:
  b=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
  desktop=b.new_page(viewport={'width':1440,'height':1000});boot(desktop)
- check('desktop boot with UI 0.1.1 and engine 0.1.0',desktop.evaluate('simclone.version')=='0.1.0')
+ check('desktop boot with UI 0.1.2 and engine 0.1.0',desktop.evaluate('simclone.version')=='0.1.0')
  check('world actually advances',snap(desktop)['tick']>0)
  desktop.screenshot(path=str(OUT/'desktop-world.png'))
  paused(desktop);t=snap(desktop)['tick'];desktop.wait_for_timeout(700);check('pause freezes simulation',snap(desktop)['tick']==t)
