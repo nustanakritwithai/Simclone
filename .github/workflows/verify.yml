@@ -28,6 +28,9 @@ jobs:
       - name: Verify autonomous birth across seeds
         run: npm run test:lifecycle
 
+      - name: Verify deterministic age death and cleanup
+        run: npm run test:death
+
       - name: Setup Python for offline Chromium checks
         uses: actions/setup-python@v6
         with:

@@ -1,7 +1,7 @@
 /** Survival-only fixtures. NOT the V1.0 lifecycle/generation proof. */
 import {performance} from 'node:perf_hooks';
 import {writeFileSync,mkdirSync} from 'node:fs';
-import {createWorld,command,step,validate,living,survivalSummary,serialize,restore} from '../src/engine.mjs';
+import {createWorld,command,step,validate,living,survivalSummary,serialize,restore,ageYears} from '../src/engine.mjs';
 import assert from 'node:assert/strict';
 const results=[];
 function populate(seed,population){
@@ -16,6 +16,9 @@ function populate(seed,population){
 for(const seed of [230926,1,42,2026,90001])for(const population of [6,12,36]){
  const s=populate(seed,population),start=performance.now();let lowestHP=100,maxHungry=0,maxNodeJobs=0,highestStock=0;
  for(let d=0;d<100;d++){
+  // This is the historical Survival Core fixture, not the age-death proof. Preserve natural Adult→Elder behavior,
+  // then freeze agents below the minimum age-death threshold so this regression keeps measuring survival mechanics.
+  for(const a of s.agents)if(a.alive&&ageYears(s,a)>=76)a.life={anchorTick:s.tick,ageAtAnchorYears:76};
   step(s,360);assert.deepEqual(validate(s),[]);
   const v=survivalSummary(s);lowestHP=Math.min(lowestHP,...s.agents.map(a=>a.hp));maxHungry=Math.max(maxHungry,v.hungry);maxNodeJobs=Math.max(maxNodeJobs,v.nodeJobs);highestStock=Math.max(highestStock,...Object.values(s.stock));
  }

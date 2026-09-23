@@ -1,10 +1,10 @@
-/** Simclone 0.3.2 — autonomous birth over deterministic lifecycle + Survival Core 0.2. */
+/** Simclone 0.3.3 — deterministic age death + cleanup over autonomous lifecycle. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
   skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs';
-import {LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate} from './lifecycle.mjs';
+import {LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs';
 import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs';
-export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,BIRTH_RULES,birthPlan,isAutonomousChild};
-export const VERSION = '0.3.2';
+export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
+export const VERSION = '0.3.3';
 export const SAVE_VERSION = '0.2.0';
 export const LEGACY_SAVE_VERSION = '0.1.0';
 export const SIZE = { w: 30, h: 26 };
@@ -43,6 +43,14 @@ function attemptAutonomousBirth(s){
   if(!parent)return null;
   s.stock.food-=BIRTH_RULES.foodCost;s.stock.wood-=BIRTH_RULES.woodCost;
   return createAgent(s,parent,false,'birth');
+}
+function killAgent(s,a,cause){
+  if(!a.alive)return false;
+  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;
+  const text=cause==='age'
+    ?a.name+' เสียชีวิตตามวัยเมื่ออายุ '+ageYears(s,a)+' ปี'
+    :a.name+' เสียชีวิตจากการขาดอาหาร';
+  event(s,'death',text,a.id);return true;
 }
 export function createWorld(seed=230926){
   const s={version:SAVE_VERSION,seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
@@ -196,7 +204,8 @@ export function step(s,count=1){
       if(!a.alive)continue;
       a.satiety=clamp(a.satiety-.11);a.energy=clamp(a.energy-.06);
       if(a.satiety===0)a.hp=clamp(a.hp-.28);
-      if(a.hp===0){a.alive=false;a.task=null;event(s,'death',a.name+' เสียชีวิตจากการขาดอาหาร',a.id);continue;}
+      if(a.hp===0){killAgent(s,a,'starvation');continue;}
+      if(shouldDieOfAge(s,a)){killAgent(s,a,'age');continue;}
       if(a.task&&interrupt(s,a)){a.task=null;a.moveTick=0;}
     }
     const {book,rejected}=reservations(s);

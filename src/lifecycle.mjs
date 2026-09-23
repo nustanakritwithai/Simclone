@@ -1,4 +1,4 @@
-/** Lifecycle 0.3.1: deterministic simulated age/stage and stage capability helpers. */
+/** Lifecycle 0.3.3: deterministic age/stage, work capability and derived lifespan helpers. */
 export const LIFE = Object.freeze({
   ticksPerYear: 360,
   yearsPerSimDay: 1,
@@ -45,4 +45,17 @@ export function productiveWorkRate(state,agent){
   if(stage===LIFE_STAGES.ADULT)return 1;
   if(stage===LIFE_STAGES.ELDER)return LIFE.elderWorkRate;
   return 0;
+}
+
+export function lifespanYears(state,agent){
+  if(!state||!agent||!Number.isInteger(state.seed)||!Number.isInteger(agent.id)||!Number.isInteger(agent.generation))return null;
+  let x=((state.seed>>>0)^Math.imul(agent.id,0x9e3779b1)^Math.imul(agent.generation+1,0x85ebca6b))>>>0;
+  x^=x>>>16;x=Math.imul(x,0x7feb352d);x^=x>>>15;x=Math.imul(x,0x846ca68b);x^=x>>>16;
+  const span=LIFE.plannedAgeDeathMax-LIFE.plannedAgeDeathMin+1;
+  return LIFE.plannedAgeDeathMin+((x>>>0)%span);
+}
+
+export function shouldDieOfAge(state,agent){
+  const age=ageYears(state,agent),limit=lifespanYears(state,agent);
+  return !!agent?.alive&&age!==null&&limit!==null&&age>=limit;
 }
