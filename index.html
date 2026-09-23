@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b1210" />
+  <meta name="description" content="Autonomous Clone World — แผนพัฒนาเกม Living World ตั้งแต่ Prototype ถึง V2.0" />
+  <title>Autonomous Clone World — Development Plan</title>
+  <style>
+    :root{
+      --bg:#08100e;--panel:#0f1916;--panel2:#13211d;--line:#243a33;
+      --text:#e8f2ed;--muted:#9db2a9;--accent:#7ee0a7;--accent2:#7fc7ff;
+      --warn:#ffd166;--danger:#ff7b7b;--shadow:0 18px 60px rgba(0,0,0,.28);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;background:
+      radial-gradient(circle at 20% -10%,rgba(126,224,167,.13),transparent 32%),
+      radial-gradient(circle at 100% 0,rgba(127,199,255,.09),transparent 34%),
+      var(--bg);color:var(--text);
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans Thai",sans-serif;
+      line-height:1.65;
+    }
+    a{color:inherit}
+    .wrap{max-width:1180px;margin:auto;padding:0 22px}
+    .topbar{
+      position:sticky;top:0;z-index:20;backdrop-filter:blur(16px);
+      background:rgba(8,16,14,.78);border-bottom:1px solid rgba(255,255,255,.06)
+    }
+    .topbar .inner{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 0}
+    .brand{display:flex;gap:10px;align-items:center;font-weight:800}
+    .mark{width:12px;height:12px;border-radius:999px;background:var(--accent);box-shadow:0 0 28px rgba(126,224,167,.6)}
+    nav{display:flex;flex-wrap:wrap;gap:8px}
+    nav a{font-size:13px;text-decoration:none;color:var(--muted);padding:7px 10px;border-radius:999px}
+    nav a:hover{background:var(--panel);color:var(--text)}
+    .hero{padding:72px 0 46px}
+    .eyebrow{color:var(--accent);font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:12px}
+    h1{font-size:clamp(40px,7vw,78px);line-height:1.02;margin:12px 0 18px;letter-spacing:-.04em}
+    .hero p{max-width:850px;color:var(--muted);font-size:clamp(17px,2vw,22px)}
+    .hero-grid{display:grid;grid-template-columns:1.4fr .8fr;gap:18px;margin-top:30px}
+    .card{background:linear-gradient(180deg,rgba(19,33,29,.94),rgba(12,22,19,.94));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .card.pad{padding:24px}
+    .mission{
+      min-height:300px;padding:30px;display:flex;flex-direction:column;justify-content:flex-end;
+      background:
+        linear-gradient(180deg,rgba(7,14,12,.06),rgba(7,14,12,.92)),
+        radial-gradient(circle at 30% 25%,rgba(126,224,167,.18),transparent 30%),
+        linear-gradient(135deg,#173328,#0b1714 55%,#13243a);
+    }
+    .mission h2{font-size:30px;margin:0 0 10px}
+    .chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}
+    .chip{font-size:13px;padding:8px 11px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03);color:#cde0d7}
+    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .stat{padding:18px}
+    .stat b{display:block;font-size:26px}
+    .stat span{color:var(--muted);font-size:13px}
+    section{padding:38px 0}
+    h2.section-title{font-size:34px;line-height:1.2;margin:0 0 10px}
+    .lead{color:var(--muted);max-width:860px;margin:0 0 24px}
+    .pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    .pillar{padding:20px}
+    .pillar h3{margin:8px 0 6px}
+    .pillar p{margin:0;color:var(--muted)}
+    .flow{
+      display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:18px
+    }
+    .node{
+      padding:14px 10px;text-align:center;border-radius:14px;background:var(--panel);border:1px solid var(--line);font-weight:700;font-size:13px
+    }
+    .roadmap{display:grid;gap:12px}
+    .mile{
+      display:grid;grid-template-columns:120px 1fr auto;gap:16px;align-items:start;padding:18px 20px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.02)
+    }
+    .version{font-size:18px;font-weight:900;color:var(--accent)}
+    .mile h3{margin:0 0 4px;font-size:18px}
+    .mile p{margin:0;color:var(--muted)}
+    .status{font-size:12px;padding:6px 9px;border-radius:999px;background:#16261f;border:1px solid #2b493c;color:#bce8cd;white-space:nowrap}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .list{margin:0;padding-left:20px;color:#c8d8d1}
+    .list li{margin:6px 0}
+    .arch{padding:24px}
+    .layer{display:flex;gap:12px;align-items:flex-start;padding:15px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+    .layer:last-child{border-bottom:0}
+    .layer-num{min-width:52px;color:var(--accent);font-weight:900}
+    .layer strong{display:block;margin-bottom:2px}
+    .layer span{color:var(--muted);font-size:14px}
+    .ux-shell{
+      display:grid;grid-template-columns:140px 1fr 280px;min-height:420px;overflow:hidden
+    }
+    .ux-side,.ux-inspector{padding:16px;background:#0b1512}
+    .ux-side{border-right:1px solid var(--line)}
+    .ux-inspector{border-left:1px solid var(--line)}
+    .ux-world{
+      position:relative;padding:22px;background:
+      radial-gradient(circle at 30% 30%,rgba(126,224,167,.22),transparent 18%),
+      radial-gradient(circle at 72% 62%,rgba(127,199,255,.16),transparent 22%),
+      linear-gradient(135deg,#1e3a2d,#17291f 50%,#1b2b24);
+      min-height:420px
+    }
+    .mini-btn{padding:10px 8px;margin-bottom:8px;border:1px solid var(--line);border-radius:12px;font-size:13px;color:#c5d8cf}
+    .agent{position:absolute;width:46px;height:46px;border-radius:50%;border:3px solid #e8fff2;background:#284b3c;display:grid;place-items:center;font-weight:900;box-shadow:0 12px 30px rgba(0,0,0,.3)}
+    .a1{left:28%;top:34%}.a2{left:58%;top:52%}.a3{left:73%;top:24%}
+    .thought{position:absolute;background:#fff;color:#17231e;padding:6px 9px;border-radius:12px;font-size:12px;font-weight:700}
+    .t1{left:33%;top:25%}.t2{left:61%;top:43%}
+    .bar{height:7px;background:#23382f;border-radius:999px;overflow:hidden;margin:4px 0 12px}
+    .bar i{display:block;height:100%;background:var(--accent)}
+    .trace{display:grid;gap:9px;margin-top:12px}
+    .trace-row{display:flex;justify-content:space-between;gap:12px;color:#cbdad3;font-size:14px}
+    .trace-row b{color:var(--accent)}
+    .timeline{display:flex;gap:8px;flex-wrap:wrap}
+    .event{flex:1;min-width:150px;padding:14px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+    .event b{display:block}
+    .event small{color:var(--muted)}
+    .proof{border:1px solid #345747;background:linear-gradient(180deg,rgba(126,224,167,.08),rgba(255,255,255,.01))}
+    .check{display:grid;grid-template-columns:auto 1fr;gap:8px 12px}
+    .check span:first-child{color:var(--accent);font-weight:900}
+    .footer{padding:50px 0 70px;color:var(--muted);font-size:14px}
+    .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}
+    .btn{display:inline-block;text-decoration:none;padding:11px 15px;border-radius:12px;background:var(--accent);color:#082015;font-weight:900}
+    .btn.alt{background:transparent;color:var(--text);border:1px solid var(--line)}
+    .mobile-note{display:none}
+    @media(max-width:900px){
+      .hero-grid,.grid2,.grid3{grid-template-columns:1fr}
+      .pillars{grid-template-columns:1fr 1fr}
+      .flow{grid-template-columns:repeat(3,1fr)}
+      .ux-shell{grid-template-columns:1fr}
+      .ux-side{display:none}
+      .ux-inspector{border-left:0;border-top:1px solid var(--line)}
+      .mobile-note{display:block}
+    }
+    @media(max-width:620px){
+      nav{display:none}
+      .hero{padding-top:48px}
+      .pillars{grid-template-columns:1fr}
+      .flow{grid-template-columns:repeat(2,1fr)}
+      .mile{grid-template-columns:86px 1fr}
+      .mile .status{grid-column:2}
+      .stat-grid{grid-template-columns:1fr}
+      .wrap{padding:0 14px}
+      .card.pad,.arch{padding:18px}
+    }
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap inner">
+    <div class="brand"><span class="mark"></span> Autonomous Clone World</div>
+    <nav>
+      <a href="#vision">Vision</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#ux">UX/UI</a>
+      <a href="#proof">V1.0 Proof</a>
+      <a href="#build">Build Order</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div class="eyebrow">Game Design + Development Master Plan</div>
+    <h1>โลกของ Clone ที่<br>เรียนรู้และเดินต่อเอง</h1>
+    <p>
+      ผู้เล่นคือ Original คนแรกของโลก สร้าง Clone แล้วเฝ้าดูสิ่งมีชีวิตที่เริ่มจากต้นแบบเดียวกัน
+      ค่อย ๆ แตกต่างจากประสบการณ์ ความรู้ ความสัมพันธ์ และการตัดสินใจ
+      จนเกิดเป็นสังคม อารยธรรม และประวัติศาสตร์ที่ไม่ได้ถูก script ตายตัว
+    </p>
+
+    <div class="hero-grid">
+      <div class="card mission">
+        <div class="eyebrow">Core fantasy</div>
+        <h2>Observe → Understand → Influence</h2>
+        <div>
+          โลกต้องเดินต่อได้แม้ผู้เล่นไม่ออกคำสั่งทุกคน ผู้เล่นเลือกเป็นผู้สร้าง ผู้สอน นักสำรวจ
+          ผู้สังเกต หรือผู้แทรกแซง แต่ไม่ใช่ผู้ควบคุม NPC ทุกตัวตลอดเวลา
+        </div>
+        <div class="chips">
+          <span class="chip">Autonomous Society</span>
+          <span class="chip">Survival</span>
+          <span class="chip">Automation</span>
+          <span class="chip">Colony Sim</span>
+          <span class="chip">Emergent Narrative</span>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="card stat"><b>V1.0</b><span>100-Day Autonomous Proof</span></div>
+        <div class="card stat"><b>2+</b><span>Generations ต้องเกิดเอง</span></div>
+        <div class="card stat"><b>CPU</b><span>Known path / scoring / planning</span></div>
+        <div class="card stat"><b>LLM</b><span>Novelty / ambiguity / reflection</span></div>
+      </div>
+    </div>
+  </div>
+
+  <section id="vision">
+    <div class="wrap">
+      <h2 class="section-title">1. Game Pillars</h2>
+      <p class="lead">หัวใจของเกมไม่ใช่จำนวน NPC แต่คือความต่อเนื่องของเหตุและผลข้ามคน ข้ามกลุ่ม และข้าม Generation</p>
+      <div class="pillars">
+        <div class="card pillar"><div>🧭</div><h3>Autonomy</h3><p>Clone เลือกและลงมือเองตาม state, need, goal, memory และสิ่งที่รับรู้</p></div>
+        <div class="card pillar"><div>🧠</div><h3>Learning</h3><p>ประสบการณ์กลายเป็น Skill, Knowledge และสิ่งที่ถ่ายทอดได้</p></div>
+        <div class="card pillar"><div>🌱</div><h3>Emergence</h3><p>เรื่องราวเกิดจากระบบ ไม่ได้ถูกเขียนล่วงหน้าเป็นเส้นตรง</p></div>
+        <div class="card pillar"><div>🔎</div><h3>Legibility</h3><p>ผู้เล่นต้องเห็นว่าใครกำลังทำอะไร และ “ทำไม” ถึงตัดสินใจแบบนั้น</p></div>
+        <div class="card pillar"><div>📜</div><h3>Continuity</h3><p>ความรู้ ความสัมพันธ์ และประวัติศาสตร์ต้องข้าม Generation ได้</p></div>
+        <div class="card pillar"><div>⚙️</div><h3>Scalability</h3><p>Deterministic CPU ทำสิ่งที่รู้แล้ว ส่วน AI ใช้เฉพาะสิ่งใหม่และคลุมเครือ</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="section-title">2. Core Game Loop</h2>
+      <p class="lead">ผู้เล่นเริ่มจากการเอาตัวรอด แล้วค่อย ๆ เปลี่ยนจาก “ลงมือเอง” ไปเป็น “สร้างระบบที่โลกใช้ดำเนินต่อเอง”</p>
+      <div class="flow">
+        <div class="node">PLAY</div><div class="node">OBSERVE</div><div class="node">TEACH</div>
+        <div class="node">CLONE</div><div class="node">LEARN</div><div class="node">AUTOMATE</div>
+        <div class="node">SPECIALIZE</div><div class="node">FORM SOCIETY</div><div class="node">EVOLVE</div>
+        <div class="node">DISCOVER</div><div class="node">HISTORY</div><div class="node">CONTINUE</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="roadmap">
+    <div class="wrap">
+      <h2 class="section-title">3. Roadmap ตั้งแต่เริ่มต้นถึง Living World</h2>
+      <p class="lead">ลำดับนี้ตั้งใจลดความเสี่ยง: ต้องพิสูจน์ “โลกเดียวอยู่รอดและอธิบายการตัดสินใจได้” ก่อนขยายเมือง สงคราม และ AI หนัก ๆ</p>
+      <div class="roadmap">
+        <div class="mile"><div class="version">V0.1</div><div><h3>Simulation Skeleton</h3><p>Tick, world state, agent entity, resource node, basic render, pause/speed/reset</p></div><span class="status">Foundation</span></div>
+        <div class="mile"><div class="version">V0.2</div><div><h3>Survival Loop</h3><p>Food/Wood/Stone, hunger, energy, forage, rest, inventory และ shelter ขั้นพื้นฐาน</p></div><span class="status">Core Loop</span></div>
+        <div class="mile"><div class="version">V0.3</div><div><h3>Clone + Lifecycle</h3><p>Original, cloning, parent link, age, child/adult/elder/death และ population state</p></div><span class="status">Life</span></div>
+        <div class="mile"><div class="version">V0.4</div><div><h3>Skills + Learning</h3><p>Skill XP/Level, FORAGE/WOODCUT/MINE/BUILD/EXPLORE/SOCIAL และผล gameplay จริง</p></div><span class="status">Learning</span></div>
+        <div class="mile"><div class="version">V0.5</div><div><h3>Knowledge + Memory</h3><p>Memory, provenance, parent inheritance, mentor teaching, cultural archive และ discovery</p></div><span class="status">Continuity</span></div>
+        <div class="mile"><div class="version">V0.6.4</div><div><h3>Stabilized Baseline</h3><p>ล็อก regression ของระบบเดิมก่อนเริ่มแกนสมองใหม่ ห้ามแก้ UI แล้วทำ simulation พัง</p></div><span class="status">Baseline</span></div>
+        <div class="mile"><div class="version">V0.7</div><div><h3>Decision Brain</h3><p>Candidate Scoring แทน random พร้อม Decision Trace: Need + Goal + Skill + Social + Expected Value − Distance − Risk − Cost</p></div><span class="status">Reasoning</span></div>
+        <div class="mile"><div class="version">V0.8</div><div><h3>Perception + Local Knowledge</h3><p>Agent รู้เฉพาะสิ่งที่เห็น ได้ยิน หรือถูกบอก แต่ละคนมี knowledge map ไม่เท่ากัน</p></div><span class="status">Perception</span></div>
+        <div class="mile"><div class="version">V0.9</div><div><h3>Spatial World + Pathfinding</h3><p>ตำแหน่งจริง, movement, distance cost, pathfinding และ execute action เมื่อเดินถึงเป้าหมาย</p></div><span class="status">Space</span></div>
+        <div class="mile"><div class="version">V1.0</div><div><h3>100-Day Autonomous Proof</h3><p>หยุด micromanage แล้วปล่อยโลก 100 วันจำลอง ต้องอยู่รอด เกิดหลาย Generation และอธิบายเหตุผลได้</p></div><span class="status">Proof</span></div>
+        <div class="mile"><div class="version">V1.1–1.7</div><div><h3>Society Expansion</h3><p>Social Brain → Faction → Economy → Conflict → Culture → Discovery → Evolution</p></div><span class="status">Society</span></div>
+        <div class="mile"><div class="version">V1.8–1.9</div><div><h3>AI Brain + AI CPU</h3><p>LLM สำหรับ novelty/reflection และ Reasoning Compilation เปลี่ยนความรู้ที่ verify แล้วเป็น deterministic skill/rule</p></div><span class="status">AI CPU</span></div>
+        <div class="mile"><div class="version">V2.0</div><div><h3>Living World</h3><p>หลายเมือง หลาย faction การเดินทางของข่าวสาร วัฒนธรรม เทคโนโลยี และประวัติศาสตร์ระยะยาว</p></div><span class="status">Scale</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="architecture">
+    <div class="wrap">
+      <h2 class="section-title">4. Technical Architecture</h2>
+      <p class="lead">UI อ่าน state จาก Engine เท่านั้น กฎ simulation ห้ามไปซ่อนอยู่ใน UI เพื่อให้ test/replay/reproduce bug ได้</p>
+      <div class="grid2">
+        <div class="card arch">
+          <div class="layer"><div class="layer-num">world/</div><div><strong>World Simulation</strong><span>เวลา แผนที่ resource weather event</span></div></div>
+          <div class="layer"><div class="layer-num">agents/</div><div><strong>Character State</strong><span>identity needs life memory relationship</span></div></div>
+          <div class="layer"><div class="layer-num">decision/</div><div><strong>Decision Brain</strong><span>candidate generation scoring planning selection</span></div></div>
+          <div class="layer"><div class="layer-num">skills/</div><div><strong>Action Contracts</strong><span>preconditions effects XP execution</span></div></div>
+          <div class="layer"><div class="layer-num">knowledge/</div><div><strong>Learning</strong><span>archive teaching inheritance provenance discovery</span></div></div>
+          <div class="layer"><div class="layer-num">society/</div><div><strong>Society</strong><span>faction leadership economy conflict culture</span></div></div>
+        </div>
+        <div class="card arch">
+          <div class="layer"><div class="layer-num">sim/</div><div><strong>Simulation Runtime</strong><span>tick scheduler event bus state transition</span></div></div>
+          <div class="layer"><div class="layer-num">ai/</div><div><strong>LLM Bridge</strong><span>novelty ambiguity reflection proposal</span></div></div>
+          <div class="layer"><div class="layer-num">verify/</div><div><strong>Verification</strong><span>contracts assertions replay regression</span></div></div>
+          <div class="layer"><div class="layer-num">ui/</div><div><strong>Observation UI</strong><span>world map portrait inspector trace overlays</span></div></div>
+          <div class="layer"><div class="layer-num">persist/</div><div><strong>Persistence</strong><span>save load snapshot chronicle replay</span></div></div>
+          <div class="layer"><div class="layer-num">perf/</div><div><strong>Performance</strong><span>LOD simulation batch CPU bounded memory LLM budget</span></div></div>
+        </div>
+      </div>
+      <div class="card pad" style="margin-top:16px">
+        <b>Tick Pipeline</b>
+        <p style="color:var(--muted);margin-bottom:0">World Update → Perception → Needs → Decision → Validate → Execute → Outcome → Memory → Learning → Society/Event → Snapshot → UI Render</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="section-title">5. AI / AI CPU Strategy</h2>
+      <div class="grid3">
+        <div class="card pad"><div class="eyebrow">System 0</div><h3>Deterministic Execution</h3><p class="lead">movement, inventory, skill execution, path step, resource transfer — สิ่งที่รู้แน่แล้วต้องไม่ใช้ LLM</p></div>
+        <div class="card pad"><div class="eyebrow">System 1</div><h3>CPU Decision</h3><p class="lead">candidate scoring, planning, search, priority และ policy ที่คำนวณได้เร็วและ reproduce ได้</p></div>
+        <div class="card pad"><div class="eyebrow">System 2</div><h3>LLM Novelty</h3><p class="lead">ใช้เมื่อเกิดสิ่งใหม่ คลุมเครือ ต้องสะท้อนเหตุผล หรือเสนอ skill/rule ใหม่ แล้วต้อง verify ก่อนใช้งานจริง</p></div>
+      </div>
+      <div class="card pad" style="margin-top:16px">
+        <b>หลักการ Reasoning Compilation</b>
+        <p style="margin-bottom:0;color:var(--muted)">อย่า generate ถ้าเลือกได้ • อย่า reasoning ถ้าคำนวณได้ • AI proposal ที่ผ่าน verification แล้วควรไหลลงเป็น knowledge → deterministic rule/skill</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="ux">
+    <div class="wrap">
+      <h2 class="section-title">6. UX/UI ใหม่ — World Observation UI</h2>
+      <p class="lead">หน้าหลักไม่ควรเป็น dashboard ตัวเลข แต่ต้องทำให้ผู้เล่น “มองโลกก่อน” แล้วค่อยเจาะเข้าไปดูเหตุผล ความทรงจำ ความรู้ และความสัมพันธ์</p>
+      <div class="card ux-shell">
+        <div class="ux-side">
+          <div class="mini-btn">👁 Observe</div>
+          <div class="mini-btn">✋ Influence</div>
+          <div class="mini-btn">🔨 Build</div>
+          <div class="mini-btn">🗺 Zones</div>
+          <div class="mini-btn">📜 History</div>
+        </div>
+        <div class="ux-world">
+          <div style="position:absolute;left:18px;top:16px;color:#d9eee4;font-weight:800">Day 43 · Morning · ▶ x2</div>
+          <div class="agent a1">N</div><div class="thought t1">💭 Shelter?</div>
+          <div class="agent a2">K</div><div class="thought t2">💡</div>
+          <div class="agent a3">R</div>
+          <div style="position:absolute;bottom:18px;left:20px;right:20px;padding:10px 12px;border-radius:12px;background:rgba(5,12,10,.75);font-size:13px;color:#cfe0d7">
+            Timeline: 👶 Birth · 🏠 Shelter · 💡 Discovery · ⚔ Conflict · 🏳 Faction
+          </div>
+        </div>
+        <div class="ux-inspector">
+          <div class="eyebrow">Selected Clone</div>
+          <h3 style="margin:4px 0">Nira #12</h3>
+          <div style="color:var(--muted);font-size:13px">Generation 3 · Daughter of Kira · Builder</div>
+          <p style="font-size:13px;margin-bottom:4px">Hunger 32</p><div class="bar"><i style="width:32%"></i></div>
+          <p style="font-size:13px;margin-bottom:4px">Energy 71</p><div class="bar"><i style="width:71%;background:var(--accent2)"></i></div>
+          <p style="font-size:13px;margin-bottom:4px">Health 96</p><div class="bar"><i style="width:96%"></i></div>
+          <div style="margin-top:18px"><b>Current Goal</b><br><span style="color:var(--muted)">Build West Shelter</span></div>
+          <div class="trace">
+            <div class="trace-row"><span>Goal</span><b>+28</b></div>
+            <div class="trace-row"><span>Skill</span><b>+22</b></div>
+            <div class="trace-row"><span>Need</span><b>+10</b></div>
+            <div class="trace-row"><span>Distance</span><span style="color:var(--danger)">−5</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="mobile-note" style="color:var(--muted)">บนมือถือ Inspector จะเปลี่ยนเป็น Bottom Sheet และเมนูหลักย้ายไปแถบล่าง</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="section-title">7. Systems หลัง V1.0</h2>
+      <div class="grid3">
+        <div class="card pad"><h3>👥 Social Brain</h3><ul class="list"><li>Trust / Affinity / Respect / Fear / Debt</li><li>Friend / Rival / Family / Mentor / Student</li><li>Relationship เปลี่ยนจากเหตุการณ์จริง</li></ul></div>
+        <div class="card pad"><h3>🏳 Faction</h3><ul class="list"><li>สร้าง / ยุบ / แตก / รวม</li><li>Leader succession</li><li>Goal, rules, resources, knowledge, territory</li></ul></div>
+        <div class="card pad"><h3>💱 Economy</h3><ul class="list"><li>Shared resource → specialization</li><li>Production / processing</li><li>Barter / trade / scarcity / logistics</li></ul></div>
+        <div class="card pad"><h3>⚔ Conflict</h3><ul class="list"><li>เริ่มจากภัยสิ่งแวดล้อมและสัตว์</li><li>Conflict ต้องมีเหตุ</li><li>Retreat / negotiation / alliance</li></ul></div>
+        <div class="card pad"><h3>🧪 Discovery</h3><ul class="list"><li>Experience → Hypothesis → Experiment</li><li>Outcome → Verification</li><li>ความรู้ผิดแพร่ได้และถูกพิสูจน์ผิดได้</li></ul></div>
+        <div class="card pad"><h3>📚 Culture</h3><ul class="list"><li>เมืองต่างกันมี technology ต่างกัน</li><li>Knowledge transfer เมื่อวัฒนธรรมพบกัน</li><li>รุ่นหลังสร้างสิ่งที่ Original ไม่เคยรู้</li></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="proof">
+    <div class="wrap">
+      <div class="card pad proof">
+        <div class="eyebrow">V1.0 Acceptance Test</div>
+        <h2 class="section-title">100-Day Autonomous Proof</h2>
+        <p class="lead">นี่คือประตูสำคัญก่อนขยาย Social/Faction/Economy ถ้ายังผ่านไม่ได้ ห้ามแก้ปัญหาด้วยการเพิ่มระบบใหญ่ขึ้น</p>
+        <div class="check">
+          <span>✓</span><span>เริ่มจาก Original + Clone จำนวนน้อย แล้วไม่ออกคำสั่ง 100 วันจำลอง</span>
+          <span>✓</span><span>Population ไม่ล่มเพราะ bug ใน resource/need loop</span>
+          <span>✓</span><span>เกิดอย่างน้อย 2 Generation</span>
+          <span>✓</span><span>Agent มี Skill / Memory / อาชีพแตกต่างกัน</span>
+          <span>✓</span><span>ความรู้ถ่ายทอดข้ามรุ่นจริง พร้อม provenance</span>
+          <span>✓</span><span>เกิด social relationship และ emergent group</span>
+          <span>✓</span><span>วิกฤตทำให้ Agent เปลี่ยน priority อย่างมีเหตุผล</span>
+          <span>✓</span><span>Inspector อธิบาย action ได้จาก candidate score</span>
+          <span>✓</span><span>Chronicle สรุป 100 วัน และ replay bug จาก seed/event log ได้</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="build">
+    <div class="wrap">
+      <h2 class="section-title">8. Next Build Order</h2>
+      <div class="grid2">
+        <div class="card pad">
+          <h3>ลำดับพัฒนา</h3>
+          <ol class="list">
+            <li>สร้าง Simulation Skeleton + deterministic tick</li>
+            <li>ปิด Survival / Lifecycle / Skill / Knowledge baseline</li>
+            <li>ล็อก regression เป็น V0.6.4</li>
+            <li>ทำ V0.7 Decision Brain + Decision Trace UI</li>
+            <li>ทำ V0.8 Perception + local knowledge</li>
+            <li>ทำ V0.9 Spatial map + pathfinding</li>
+            <li>รัน V1.0 100-day proof</li>
+            <li>ค่อยเพิ่ม Social / Faction / Economy / Conflict</li>
+            <li>ต่อ Culture / Discovery / Evolution</li>
+            <li>เพิ่ม AI Brain + AI CPU + Reasoning Compilation</li>
+            <li>ขยาย V2.0 หลายเมือง</li>
+          </ol>
+        </div>
+        <div class="card pad">
+          <h3>สิ่งที่ยังไม่ควรทำก่อน V1.0</h3>
+          <ul class="list">
+            <li>ไม่ทำ 3D ใหญ่ก่อน Decision/Perception ผ่าน</li>
+            <li>ไม่เพิ่มหลายเมืองก่อนโลกเดียวอยู่รอด 100 วัน</li>
+            <li>ไม่เรียก LLM ทุก Agent ทุก tick</li>
+            <li>ไม่ทำสงครามซับซ้อนก่อน Social/Faction เสถียร</li>
+            <li>ไม่ rewrite engine เพื่อแก้ UI</li>
+            <li>UI แสดงค่าได้ ≠ ระบบผ่าน ต้องมี deterministic test</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="section-title">9. Development Rules</h2>
+      <div class="grid2">
+        <div class="card pad">
+          <h3>Verify → Improve → Prove</h3>
+          <ul class="list">
+            <li>กำหนด Success Contract / Definition of Done ก่อนลงมือ</li>
+            <li>ผลลัพธ์แรกเป็น candidate ไม่ใช่คำตอบสุดท้าย</li>
+            <li>Verification แยก SAT / VIOL / UNKNOWN</li>
+            <li>ทุก milestone มี deterministic test + long-run test</li>
+            <li>เก็บ seed + event log เพื่อ reproduce bug</li>
+          </ul>
+        </div>
+        <div class="card pad">
+          <h3>Performance Strategy</h3>
+          <ul class="list">
+            <li>Agent ไกลใช้ simulation fidelity ต่ำลง</li>
+            <li>Known skill ใช้ deterministic code</li>
+            <li>Decision scoring ทำ batch/CPU</li>
+            <li>Perception จำกัดพื้นที่</li>
+            <li>Memory retrieval เฉพาะที่เกี่ยวข้อง</li>
+            <li>LLM มี budget และ cooldown</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="card pad">
+        <div class="eyebrow">Final Product Vision</div>
+        <h2 class="section-title">กลับมาอีกหลายร้อยปี แล้วโลกยังมีเรื่องของมันเอง</h2>
+        <p class="lead">
+          ผู้เล่นสามารถเปิดโลกที่ปล่อย simulation ทิ้งไว้ แล้วพบว่า Clone รุ่นหลังสร้างเมือง กลุ่ม ความรู้ เทคโนโลยี
+          และเรื่องเล่าที่ไม่ได้ถูก script ตั้งแต่แรก หัวใจคือ:
+          <b style="color:var(--text)">คนหนึ่งพบสิ่งใหม่ → เรียนรู้ → ถ่ายทอด → คนรุ่นหลังดัดแปลง → สังคมเปลี่ยน → เหตุการณ์กลายเป็นประวัติศาสตร์</b>
+        </p>
+        <div class="cta">
+          <a class="btn" href="GAME_PLAN.md">เปิด Master Spec</a>
+          <a class="btn alt" href="https://github.com/nustanakritwithai/Simclone">เปิด GitHub Repository</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    Autonomous Clone World · Simclone · Living World Development Plan
+  </div>
+</footer>
+</body>
+</html>
