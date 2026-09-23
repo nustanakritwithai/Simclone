@@ -31,6 +31,9 @@ jobs:
       - name: Verify deterministic age death and cleanup
         run: npm run test:death
 
+      - name: Verify post-death generation continuity
+        run: npm run test:continuity
+
       - name: Setup Python for offline Chromium checks
         uses: actions/setup-python@v6
         with:
