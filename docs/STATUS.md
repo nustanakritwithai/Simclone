@@ -33,3 +33,7 @@ The simulation stops while hidden, while a modal is open, and after closing the 
 ## Next implementation gate
 
 Harden V0.2: food/resource balance, job reservations, travel-aware scoring and edge cases with a fully occupied village. Then implement V0.3 aging and autonomous generation creation with new deterministic contracts; do not infer it from the existing manual Clone command.
+
+## Observation UI update 0.1.1
+
+The presentation layer has been upgraded while preserving the 0.1.0 engine and save schema. See [UX/UI implementation and verification](UX_UI_0.1.1.md) for the exact scope and current evidence: 15 engine tests and 42 offline Chromium UI assertions passed. This newer UI fixture supersedes the old fixture's immediate house-placement interaction. Native storage and live browser delivery limitations remain explicit.
