@@ -1,4 +1,5 @@
-/** Survival 0.2: deterministic routing and derived reservations, with no DOM or clock. */
+/** Survival 0.2 + Lifecycle 0.3.1: routing/reservations also enforce stage work eligibility. */
+import {canPerformProductiveWork} from './lifecycle.mjs';
 export const RULES = Object.freeze({
   width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
@@ -51,10 +52,11 @@ export function taskValid(s,a){
     if(!walkable(s,next.x,next.y)||Math.abs(a.x-next.x)+Math.abs(a.y-next.y)!==1||last.x!==t.x||last.y!==t.y)return false;
   }else if(a.x!==t.x||a.y!==t.y)return false;
   if(RESOURCE_ACTIONS[t.kind]){
+    if(!canPerformProductiveWork(s,a))return false;
     const n=s.nodes.find(n=>n.id===t.targetId);
     return !!n&&n.type===RESOURCE_ACTIONS[t.kind]&&n.x===t.x&&n.y===t.y&&n.amount>0&&s.stock[n.type]<RULES.stockLimit;
   }
-  if(t.kind==='BUILD')return s.buildings.some(b=>b.id===t.targetId&&!b.complete&&b.x===t.x&&b.y===t.y);
+  if(t.kind==='BUILD')return canPerformProductiveWork(s,a)&&s.buildings.some(b=>b.id===t.targetId&&!b.complete&&b.x===t.x&&b.y===t.y);
   if(t.kind==='EAT')return s.stock.food>0&&s.buildings.some(b=>b.id===t.targetId&&b.complete&&b.x===t.x&&b.y===t.y);
   if(t.kind==='REST')return t.fieldRest===true||s.buildings.some(b=>b.id===t.targetId&&b.complete&&b.x===t.x&&b.y===t.y);
   return ['IDLE','EXPLORE'].includes(t.kind);

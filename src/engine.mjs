@@ -1,9 +1,9 @@
-/** Simclone 0.3.0 — deterministic lifecycle foundation over Survival Core 0.2. */
+/** Simclone 0.3.1 — deterministic lifecycle stage gameplay over Survival Core 0.2. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
   skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs';
-import {LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife} from './lifecycle.mjs';
-export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife};
-export const VERSION = '0.3.0';
+import {LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate} from './lifecycle.mjs';
+export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate};
+export const VERSION = '0.3.1';
 export const SAVE_VERSION = '0.2.0';
 export const LEGACY_SAVE_VERSION = '0.1.0';
 export const SIZE = { w: 30, h: 26 };
@@ -85,6 +85,7 @@ export function command(s,type,data={}){
 /** One reachable destination per job family; busy nodes never hide a free alternative. */
 function candidates(s,a,book,field){
   const out=[],targets=stockTargets(s),projected=plannedStock(s,book),freeFood=s.stock.food-book.meals.size;
+  const productive=canPerformProductiveWork(s,a);
   const compare=(x,y)=>routeDistance(field,x)-routeDistance(field,y)||x.id-y.id;
   const homes=s.buildings.filter(b=>b.complete&&routeDistance(field,b)>=0).sort(compare);
   const home=homes[0];
@@ -108,11 +109,11 @@ function candidates(s,a,book,field){
     const target=available[0]??reachable[0]??all[0];if(!target)continue;
     const hungerBonus=kind==='FORAGE'&&a.satiety<RULES.hungry&&freeFood<=0?210:0;
     const shortage=projected[type]<targets[type]/2?40:18;
-    const status=reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
+    const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
     add(kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status);
   }
   for(const b of s.buildings.filter(b=>!b.complete))
-    add('BUILD',b,56,0,a.preference==='BUILD'?18:0,(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved');
+    add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved');
   const tx=5+(a.id*7+Math.floor(s.tick/40))%13,ty=5+(a.id*3+Math.floor(s.tick/60))%16;
   add('EXPLORE',{x:tx,y:ty},3);
   add('IDLE',a,0);
@@ -139,7 +140,8 @@ function execute(s,a){
   if(t.kind==='IDLE'){a.energy=clamp(a.energy+.3);if(++t.work>=12)a.task=null;return;}
   if(t.kind==='EAT'&&s.stock.food<=0){a.task=null;return;}
   if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const p=t.path.shift();a.x=p.x;a.y=p.y;a.moveTick=0;}return;}
-  t.work++;
+  const workRate=SKILLS.includes(t.kind)?productiveWorkRate(s,a):1;
+  t.work+=workRate;
   if(t.kind==='EAT'){
     if(t.work>=3){if(s.stock.food>0){s.stock.food--;a.satiety=clamp(a.satiety+RULES.mealSatiety);}a.task=null;}
   }else if(t.kind==='REST'){
@@ -148,7 +150,7 @@ function execute(s,a){
   }else if(t.kind==='BUILD'){
     const b=s.buildings.find(b=>b.id===t.targetId);
     if(!b||b.complete){a.task=null;return;}
-    b.progress=Math.min(30,b.progress+.35+level(a.skills.BUILD)*.08);
+    b.progress=Math.min(30,b.progress+(.35+level(a.skills.BUILD)*.08)*workRate);
     if(b.progress>=30){b.complete=true;s.stats.built++;gain(s,a,'BUILD');event(s,'build',a.name+' สร้างบ้านสำเร็จ · ที่พักเพิ่ม 6 คน',a.id);a.task=null;}
   }else if(SKILLS.includes(t.kind)){
     const n=s.nodes.find(n=>n.id===t.targetId);

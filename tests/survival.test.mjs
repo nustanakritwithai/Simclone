@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld as legacyWorld,step as legacyStep,serialize as legacySerialize} from './fixtures/legacy-engine-0.1.0.mjs';
-import {VERSION,SAVE_VERSION,createWorld,step,command,serialize,restore,validate,survivalSummary} from '../src/engine.mjs';
+import {VERSION,SAVE_VERSION,DAY_TICKS,createWorld,step,command,serialize,restore,validate,survivalSummary,childLife,adultLife} from '../src/engine.mjs';
 import {RULES,RESOURCE_ACTIONS,routeField,routeTo,routeDistance,reservations,taskValid,stockTargets} from '../src/survival.mjs';
 function scenario(n=3){
  const s=createWorld(77);s.tiles.fill('grass');s.nodes=[];s.agents=s.agents.slice(0,n);
@@ -20,7 +20,7 @@ function assertExclusive(s){
  assert.ok([...builders.values()].every(n=>n<=2));
  assert.ok(active.filter(a=>a.task.kind==='EAT').length<=s.stock.food);
 }
-test('engine version advances with explicit lifecycle save schema',()=>{assert.equal(VERSION,'0.3.0');assert.equal(createWorld().version,SAVE_VERSION);assert.equal(SAVE_VERSION,'0.2.0');});
+test('engine version advances while lifecycle save schema stays stable',()=>{assert.equal(VERSION,'0.3.1');assert.equal(createWorld().version,SAVE_VERSION);assert.equal(SAVE_VERSION,'0.2.0');});
 test('real pre-update save retains identity, resources, seed and skills; old jobs replan on tick',()=>{
  const old=legacyWorld(230926);legacyStep(old,87);const text=legacySerialize(old),s=restore(text);
  assert.equal(s.version,SAVE_VERSION);assert.notEqual(serialize(s),text);
@@ -139,4 +139,43 @@ test('a path that would teleport an agent is canceled and replanned',()=>{
 test('fractional imported node quantity cannot become a whole free meal',()=>{
  const s=scenario(1),a=s.agents[0];s.nodes=[node(1,'food',a.x,a.y,.5)];a.satiety=4;a.energy=10;assign(s,a,'FORAGE',s.nodes[0],{work:100});
  step(s);assert.equal(s.stock.food,.5);assert.equal(s.stats.gathered,.5);assert.ok(a.satiety<4);
+});
+
+test('child cannot claim or execute productive jobs and trace gives a stage reason',()=>{
+ const s=scenario(1),a=s.agents[0];a.life=childLife(s.tick);a.preference='FORAGE';
+ s.nodes=[node(1,'food',10,12),node(2,'wood',12,12),node(3,'stone',11,13)];
+ s.buildings.push({id:2,type:'shelter',x:14,y:12,progress:0,complete:false});
+ step(s);
+ assert.ok(!['FORAGE','WOODCUT','MINE','BUILD'].includes(a.task.kind));
+ assert.ok(a.trace.filter(t=>['FORAGE','WOODCUT','MINE','BUILD'].includes(t.kind)).every(t=>t.status==='stage'));
+ assert.equal(reservations(s).book.nodes.size,0);assert.equal(survivalSummary(s).builders,0);
+});
+
+test('forced productive child task is rejected before work and releases derived claim',()=>{
+ const s=scenario(1),a=s.agents[0];a.life=childLife(s.tick);s.nodes=[node(1,'food',10,12)];
+ assign(s,a,'FORAGE',s.nodes[0]);const before=a.skills.FORAGE;step(s);
+ assert.notEqual(a.task?.kind,'FORAGE');assert.equal(a.skills.FORAGE,before);assert.equal(reservations(s).book.nodes.size,0);
+});
+
+test('child becomes eligible for productive work at biological age 16',()=>{
+ const s=scenario(1),a=s.agents[0];a.life=childLife(0);a.preference='FORAGE';s.tick=16*DAY_TICKS;s.nodes=[node(1,'food',10,12)];
+ step(s);assert.equal(a.task.kind,'FORAGE');assert.equal(a.task.targetId,1);
+});
+
+test('elder productive work advances at 75 percent of adult work rate',()=>{
+ const adult=scenario(1),elder=scenario(1),aa=adult.agents[0],ea=elder.agents[0];
+ aa.life=adultLife(adult.tick,30);ea.life=adultLife(elder.tick,60);
+ adult.nodes=[node(1,'wood',11,12)];elder.nodes=[node(1,'wood',11,12)];
+ assign(adult,aa,'WOODCUT',adult.nodes[0]);assign(elder,ea,'WOODCUT',elder.nodes[0]);
+ step(adult,4);step(elder,4);
+ assert.equal(aa.task.work,4);assert.equal(ea.task.work,3);
+});
+
+test('elder build progress is reduced by the same deterministic work rate',()=>{
+ const adult=scenario(1),elder=scenario(1),aa=adult.agents[0],ea=elder.agents[0];
+ aa.life=adultLife(adult.tick,30);ea.life=adultLife(elder.tick,60);
+ const ab={id:2,type:'shelter',x:11,y:12,progress:0,complete:false},eb={...ab};
+ adult.buildings.push(ab);elder.buildings.push(eb);assign(adult,aa,'BUILD',ab);assign(elder,ea,'BUILD',eb);
+ step(adult);step(elder);
+ assert.ok(ab.progress>eb.progress);assert.equal(eb.progress,ab.progress*0.75);
 });

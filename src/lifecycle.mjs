@@ -1,4 +1,4 @@
-/** Lifecycle 0.3: deterministic simulated age/stage helpers. No wall clock or random source. */
+/** Lifecycle 0.3.1: deterministic simulated age/stage and stage capability helpers. */
 export const LIFE = Object.freeze({
   ticksPerYear: 360,
   yearsPerSimDay: 1,
@@ -7,6 +7,7 @@ export const LIFE = Object.freeze({
   legacyAdultAge: 18,
   plannedAgeDeathMin: 78,
   plannedAgeDeathMax: 92,
+  elderWorkRate: 0.75,
 });
 
 export const LIFE_STAGES = Object.freeze({
@@ -33,3 +34,15 @@ export function lifeStage(state,agent){
 
 export const adultLife=(anchorTick,age=LIFE.legacyAdultAge)=>({anchorTick,ageAtAnchorYears:age});
 export const childLife=anchorTick=>({anchorTick,ageAtAnchorYears:0});
+
+export function canPerformProductiveWork(state,agent){
+  const stage=lifeStage(state,agent);
+  return stage===LIFE_STAGES.ADULT||stage===LIFE_STAGES.ELDER;
+}
+
+export function productiveWorkRate(state,agent){
+  const stage=lifeStage(state,agent);
+  if(stage===LIFE_STAGES.ADULT)return 1;
+  if(stage===LIFE_STAGES.ELDER)return LIFE.elderWorkRate;
+  return 0;
+}

@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createWorld,step,command,serialize,restore,VERSION,SAVE_VERSION,DAY_TICKS,
-  LIFE,LIFE_STAGES,ageYears,lifeStage,childLife} from '../src/engine.mjs';
+  LIFE,LIFE_STAGES,ageYears,lifeStage,childLife,adultLife,canPerformProductiveWork,productiveWorkRate} from '../src/engine.mjs';
 import {createWorld as legacyWorld,step as legacyStep,serialize as legacySerialize} from './fixtures/legacy-engine-0.1.0.mjs';
 
 test('lifecycle clock is simulated and one day equals one biological year',()=>{
-  assert.equal(VERSION,'0.3.0');assert.equal(SAVE_VERSION,'0.2.0');
+  assert.equal(VERSION,'0.3.1');assert.equal(SAVE_VERSION,'0.2.0');
   assert.equal(DAY_TICKS,360);assert.equal(LIFE.ticksPerYear,360);assert.equal(LIFE.yearsPerSimDay,1);
   const source=readFileSync(new URL('../src/lifecycle.mjs',import.meta.url),'utf8');
   assert.equal(source.includes('Date.'),false);assert.equal(source.includes('Math.random'),false);
@@ -41,4 +41,16 @@ test('current lifecycle save round-trips and continuation stays deterministic',(
   const a=createWorld(42);step(a,777);const b=restore(serialize(a));
   assert.equal(serialize(a),serialize(b));
   step(a,1234);step(b,1234);assert.equal(serialize(a),serialize(b));
+});
+
+test('stage capability and elder work rate are deterministic',()=>{
+  const s=createWorld(11),a=s.agents[0];
+  a.life=childLife(s.tick);
+  assert.equal(canPerformProductiveWork(s,a),false);assert.equal(productiveWorkRate(s,a),0);
+  a.life=adultLife(s.tick,30);
+  assert.equal(canPerformProductiveWork(s,a),true);assert.equal(productiveWorkRate(s,a),1);
+  a.life=adultLife(s.tick,60);
+  assert.equal(canPerformProductiveWork(s,a),true);assert.equal(productiveWorkRate(s,a),0.75);
+  a.alive=false;
+  assert.equal(canPerformProductiveWork(s,a),false);assert.equal(productiveWorkRate(s,a),0);
 });
