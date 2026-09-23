@@ -1,9 +1,10 @@
-/** Simclone 0.3.1 — deterministic lifecycle stage gameplay over Survival Core 0.2. */
+/** Simclone 0.3.2 — autonomous birth over deterministic lifecycle + Survival Core 0.2. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
   skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs';
 import {LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate} from './lifecycle.mjs';
-export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate};
-export const VERSION = '0.3.1';
+import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs';
+export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,BIRTH_RULES,birthPlan,isAutonomousChild};
+export const VERSION = '0.3.2';
 export const SAVE_VERSION = '0.2.0';
 export const LEGACY_SAVE_VERSION = '0.1.0';
 export const SIZE = { w: 30, h: 26 };
@@ -21,18 +22,27 @@ function event(s,type,text,agentId=null) {
   s.events.push(e); if(s.events.length>120)s.events.shift();
   if(agentId){const a=s.agents.find(a=>a.id===agentId); if(a){a.memory.push({tick:s.tick,text});if(a.memory.length>8)a.memory.shift();}}
 }
-function createAgent(s,parent,initial=false){
-  const id=s.nextAgent++, k=id-1;
+function createAgent(s,parent,initial=false,mode='manual'){
+  const id=s.nextAgent++, k=id-1,autonomous=mode==='birth';
   const skills=Object.fromEntries(SKILLS.map(key=>[key,parent?Math.floor(parent.skills[key]*.35):60]));
   const a={id,name:names[k%names.length]+(k>=names.length?' '+id:''),parentId:parent?.id??null,generation:parent?parent.generation+1:0,
     x:9+k%4,y:11+Math.floor(k/4)%3,hp:100,satiety:85,energy:90,alive:true,
     appearance:{coat:palette[k%palette.length],skin:['#e5b38a','#c99064','#f1c9a6','#a97050'][k%4],hair:['#302a28','#5e3e2c','#d5ad6f','#312e3b'][k%4],style:k%3},
-    preference:SKILLS[k%4],skills,source:parent?'Clone จาก '+parent.name:'ความรู้เริ่มต้นของ Original',
-    memory:[],task:null,trace:[],moveTick:0,workDone:0,bornTick:s.tick,life:adultLife(s.tick)};
+    preference:SKILLS[k%4],skills,source:parent?(autonomous?'สืบทอดเมื่อเกิดจาก '+parent.name:'Clone จาก '+parent.name):'ความรู้เริ่มต้นของ Original',
+    memory:[],task:null,trace:[],moveTick:0,workDone:0,bornTick:s.tick,life:autonomous?childLife(s.tick):adultLife(s.tick)};
   if(parent){a.x=parent.x;a.y=parent.y;}
   if(initial&&parent){a.x=9+k%4;a.y=10+Math.floor(k/4)*2;a.satiety=65+k*3;a.energy=72+k*3;}
-  s.agents.push(a);event(s,'birth',parent?a.name+' ถูกสร้างจาก '+parent.name+' · รุ่น '+a.generation:'Original เข้าสู่โลกใหม่',id);
+  s.agents.push(a);
+  event(s,'birth',parent?(autonomous?a.name+' เกิดจาก '+parent.name+' · รุ่น '+a.generation:a.name+' ถูกสร้างจาก '+parent.name+' · รุ่น '+a.generation):'Original เข้าสู่โลกใหม่',id);
   return a;
+}
+function attemptAutonomousBirth(s){
+  const {book}=reservations(s),freeFood=Math.max(0,s.stock.food-book.meals.size),plan=birthPlan(s,freeFood);
+  if(!plan.ok)return null;
+  const parent=s.agents.find(a=>a.id===plan.parentId&&a.alive);
+  if(!parent)return null;
+  s.stock.food-=BIRTH_RULES.foodCost;s.stock.wood-=BIRTH_RULES.woodCost;
+  return createAgent(s,parent,false,'birth');
 }
 export function createWorld(seed=230926){
   const s={version:SAVE_VERSION,seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
@@ -201,7 +211,10 @@ export function step(s,count=1){
       const task=a.task;
       if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
     }
-    if(s.tick%DAY_TICKS===0)event(s,'day','เริ่มวันที่ '+day(s)+' · ประชากร '+living(s).length+' คน · อาหาร '+s.stock.food);
+    if(s.tick%DAY_TICKS===0){
+      attemptAutonomousBirth(s);
+      event(s,'day','เริ่มวันที่ '+day(s)+' · ประชากร '+living(s).length+' คน · อาหาร '+s.stock.food);
+    }
   }
   return s;
 }

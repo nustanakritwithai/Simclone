@@ -4,7 +4,7 @@ import {createWorld,step,validate,serialize,restore,command,living,capacity,path
 test('seed produces identical initial world',()=>assert.equal(serialize(createWorld(12)),serialize(createWorld(12))));
 test('different seeds produce different maps',()=>assert.notDeepEqual(createWorld(1).nodes,createWorld(2).nodes));
 test('10,000 ticks: deterministic, valid state, agents survive',()=>{
- const a=createWorld(),b=createWorld();step(a,10000);step(b,10000);
+ const a=createWorld(),b=createWorld();a.buildings=a.buildings.slice(0,1);b.buildings=b.buildings.slice(0,1);step(a,10000);step(b,10000);
  assert.equal(serialize(a),serialize(b));assert.deepEqual(validate(a),[]);assert.equal(living(a).length,6);assert.ok(a.stats.gathered>0);
 });
 test('five seeds remain valid for 10,000 ticks',()=>{for(const seed of [1,42,2026,772,90001]){const s=createWorld(seed);step(s,10000);assert.deepEqual(validate(s),[]);assert.ok(living(s).length>0);}});
@@ -25,4 +25,4 @@ test('pathfinding crosses bridge and never walks in water',()=>{const s=createWo
 test('renderer is not needed to advance simulation',()=>{const s=createWorld();step(s,20);assert.equal(s.tick,20);assert.ok(s.agents.every(a=>a.trace.some(t=>t.status==='selected')));});
 test('bounded history and memory',()=>{const s=createWorld();step(s,50000);assert.ok(s.events.length<=120);assert.ok(s.agents.every(a=>a.memory.length<=8));assert.deepEqual(validate(s),[]);});
 test('corrupt and unsupported saves rejected',()=>{assert.throws(()=>restore('bad'));const s=createWorld();s.agents[0].x=-1;assert.throws(()=>restore(serialize(s)));s.version='99';assert.throws(()=>restore(serialize(s)));});
-test('unique permanent appearance survives jobs and save/load',()=>{const s=createWorld(),p=JSON.stringify(s.agents.map(a=>a.appearance));step(s,600);assert.equal(JSON.stringify(restore(serialize(s)).agents.map(a=>a.appearance)),p);assert.equal(new Set(s.agents.map(a=>a.appearance.coat)).size,6);});
+test('unique permanent appearance survives jobs and save/load',()=>{const s=createWorld();s.buildings=s.buildings.slice(0,1);const p=JSON.stringify(s.agents.map(a=>a.appearance));step(s,600);assert.equal(JSON.stringify(restore(serialize(s)).agents.map(a=>a.appearance)),p);assert.equal(new Set(s.agents.map(a=>a.appearance.coat)).size,6);});

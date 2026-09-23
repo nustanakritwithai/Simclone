@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 const results=[];
 function populate(seed,population){
  const s=createWorld(seed);
+ if(population===6)s.buildings=s.buildings.slice(0,1);
  if(population>12)for(const [x,y] of [[13,9],[15,10],[8,16],[14,17]])s.buildings.push({id:s.nextBuilding++,type:'shelter',x,y,progress:30,complete:true});
  s.stock={food:999,wood:999,stone:999};
  while(s.agents.length<population)assert.ok(command(s,'CLONE',{parentId:1}).ok);

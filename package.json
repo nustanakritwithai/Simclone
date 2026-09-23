@@ -1,10 +1,11 @@
 {
   "name": "simclone",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "test:survival": "node scripts/survival-proof.mjs"
+    "test:survival": "node scripts/survival-proof.mjs",
+    "test:lifecycle": "node scripts/birth-proof.mjs"
   }
 }

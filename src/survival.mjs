@@ -1,5 +1,6 @@
 /** Survival 0.2 + Lifecycle 0.3.1: routing/reservations also enforce stage work eligibility. */
 import {canPerformProductiveWork} from './lifecycle.mjs';
+import {autonomousBirthFoodTarget} from './reproduction.mjs';
 export const RULES = Object.freeze({
   width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
@@ -39,7 +40,7 @@ export function routeTo(field,target){
 export const pathTo=(s,a,b)=>walkable(s,b.x,b.y)?routeTo(routeField(s,a),b):null;
 export function stockTargets(s){
   const n=s.agents.filter(a=>a.alive).length;
-  return {food:Math.max(24,n*4),wood:Math.max(36,n*3),stone:Math.max(24,n*2)};
+  return {food:Math.max(24,n*4,autonomousBirthFoodTarget(s)),wood:Math.max(36,n*3),stone:Math.max(24,n*2)};
 }
 
 /** Validate an in-flight contract BEFORE walking, not only at the destination. */

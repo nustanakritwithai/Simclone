@@ -25,6 +25,9 @@ jobs:
       - name: Verify Survival Core regression suite
         run: npm run test:survival
 
+      - name: Verify autonomous birth across seeds
+        run: npm run test:lifecycle
+
       - name: Setup Python for offline Chromium checks
         uses: actions/setup-python@v6
         with:

@@ -20,7 +20,7 @@ function assertExclusive(s){
  assert.ok([...builders.values()].every(n=>n<=2));
  assert.ok(active.filter(a=>a.task.kind==='EAT').length<=s.stock.food);
 }
-test('engine version advances while lifecycle save schema stays stable',()=>{assert.equal(VERSION,'0.3.1');assert.equal(createWorld().version,SAVE_VERSION);assert.equal(SAVE_VERSION,'0.2.0');});
+test('engine version advances while lifecycle save schema stays stable',()=>{assert.equal(VERSION,'0.3.2');assert.equal(createWorld().version,SAVE_VERSION);assert.equal(SAVE_VERSION,'0.2.0');});
 test('real pre-update save retains identity, resources, seed and skills; old jobs replan on tick',()=>{
  const old=legacyWorld(230926);legacyStep(old,87);const text=legacySerialize(old),s=restore(text);
  assert.equal(s.version,SAVE_VERSION);assert.notEqual(serialize(s),text);
@@ -125,7 +125,7 @@ test('exclusive reservations and bounds hold every tick in a crowded 2,000-tick 
  assert.deepEqual(validate(s),[]);assert.equal(s.agents.filter(a=>a.alive).length,12);
 });
 test('pending production prevents a second unnecessary gather assignment',()=>{
- const s=scenario(2);s.stock.food=22;s.nodes=[node(1,'food',10,12),node(2,'food',14,12)];for(const a of s.agents)a.preference='FORAGE';
+ const s=scenario(2);s.stock.food=30;s.nodes=[node(1,'food',10,12),node(2,'food',14,12)];for(const a of s.agents)a.preference='FORAGE';
  step(s);assert.equal(s.agents.filter(a=>a.task.kind==='FORAGE').length,1);assert.ok(s.agents.some(a=>a.trace.some(t=>t.kind==='FORAGE'&&t.status==='satisfied')));
 });
 test('reconstructed conflicting node claims retain oldest owner and replan the loser',()=>{
