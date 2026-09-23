@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   deploy:
+    timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -26,6 +27,9 @@ jobs:
 
       - name: Verify engine, persistence and local assets
         run: npm test
+
+      - name: Verify survival across populations and food crises
+        run: npm run test:survival
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

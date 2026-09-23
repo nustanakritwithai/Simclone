@@ -1,16 +1,16 @@
 # Simclone — Autonomous Clone World
 
-**Playable Alpha 0.1.0** — a seeded, CPU-driven colony simulation.
+**Survival Core 0.2.0** — seeded CPU-driven survival with an inspectable mobile-first UI.
 
 Play: https://nustanakritwithai.github.io/Simclone/
 
-Plan page: https://nustanakritwithai.github.io/Simclone/plan.html
+Plan: https://nustanakritwithai.github.io/Simclone/plan.html
 
-## What to try
+## Try it
 
-Select a character and open the reason/skill tabs. Clone the selected character, then place a house on free grass and watch the villagers construct it. Use pause, 1× / 2× / 5×, pan, zoom and camera follow. On mobile, use the bottom navigation. Save/export/import are in the top-right menu.
+Tap a portrait, then “ทำไม?” to inspect actual job scores and route lengths. Tap the food counter to see available/reserved food and assigned workers. Clone a selected parent, or preview/confirm a house and watch the workers construct it. Resource nodes have one worker each; houses allow two builders. Hungry foragers can eat one harvested food unit on site.
 
-No API key, account or paid model is required. Time stops when the tab is hidden or the page closes. Save data stays in the current browser unless exported.
+Pause / 1× / 2× / 5×, pan/zoom/follow, minimap, roster search and recent Chronicle are included. Save/export/import are in the menu. No account or AI API key is required. Time stops when hidden or closed. Saves stay in the current browser unless exported.
 
 ## Development
 
@@ -18,13 +18,15 @@ Static HTML/CSS/ES modules; no runtime dependencies or build step.
 
 ```sh
 npm test
+npm run test:survival
 python -m http.server 8000
 ```
 
-Open `http://localhost:8000`. Use an HTTP server, not a file URL, for ES modules.
+Use an HTTP server, not a file URL, for ES modules. Offline browser fixtures require Python Playwright and Chromium; they do not prove native localStorage or live HTTP delivery.
 
+- [Current status](docs/STATUS.md)
+- [Survival rules and evidence](docs/SURVIVAL_0.2.0.md)
 - [Master roadmap](GAME_PLAN.md)
-- [Implemented scope and verification limits](docs/STATUS.md)
 - [Agent handoff](AGENTS.md)
 
-This build is not the V1.0 100-day autonomy proof. Autonomous births/aging, social systems, cultural archives and replay remain future work.
+0.1.0 saved worlds remain readable. This is not the V1.0 autonomous lifecycle proof. Birth/aging, mentor/archive learning, social systems and full replay remain future work.

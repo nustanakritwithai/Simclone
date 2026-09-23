@@ -1,15 +1,11 @@
-/** Simclone 0.2.0 — deterministic survival; 0.1.0 saves remain readable. */
-import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
-  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs';
-export {tileAt,walkable,pathTo,survivalSummary};
-export const VERSION = '0.2.0';
-export const SAVE_VERSION = '0.1.0';
+/** Simclone 0.1.0 — deterministic, DOM-free simulation. No external services. */
+export const VERSION = '0.1.0';
 export const SIZE = { w: 30, h: 26 };
 export const DAY_TICKS = 360;
 export const SKILLS = ['FORAGE', 'WOODCUT', 'MINE', 'BUILD'];
 export const LABELS = { FORAGE:'หาอาหาร', WOODCUT:'ตัดไม้', MINE:'ขุดหิน', BUILD:'สร้างบ้าน', EAT:'กินอาหาร', REST:'พักผ่อน', EXPLORE:'สำรวจ', IDLE:'พักรอ' };
 export const clamp = (n, lo=0, hi=100) => Math.max(lo, Math.min(hi, n));
-export const level = skillLevel;
+export const level = xp => Math.min(10, 1 + Math.floor(Math.sqrt(xp / 20)));
 const distance = (a,b) => Math.abs(a.x-b.x) + Math.abs(a.y-b.y);
 const names = ['Original','Nira','Kira','Rin','Tao','Lume','Ari','Mira','Sol','Nova','Kai','Yuna'];
 const palette = ['#dda35d','#71b6a0','#b791bc','#6e9fbf','#d77c69','#c5ba6b'];
@@ -18,6 +14,24 @@ function event(s,type,text,agentId=null) {
   const e={id:s.nextEvent++,tick:s.tick,type,text,agentId};
   s.events.push(e); if(s.events.length>120)s.events.shift();
   if(agentId){const a=s.agents.find(a=>a.id===agentId); if(a){a.memory.push({tick:s.tick,text});if(a.memory.length>8)a.memory.shift();}}
+}
+export function tileAt(s,x,y) { return s.tiles[y*SIZE.w+x]; }
+export function walkable(s,x,y) { return Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<SIZE.w&&y<SIZE.h&&tileAt(s,x,y)!=='water'; }
+export function pathTo(s,a,b) {
+  if(!walkable(s,b.x,b.y))return null;
+  const key=(x,y)=>y*SIZE.w+x, start=key(a.x,a.y), goal=key(b.x,b.y);
+  const parent=new Int32Array(SIZE.w*SIZE.h).fill(-1), queue=[start]; parent[start]=start;
+  for(let i=0;i<queue.length;i++){
+    const p=queue[i]; if(p===goal)break;
+    const x=p%SIZE.w,y=Math.floor(p/SIZE.w);
+    for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1]]){
+      const nx=x+dx,ny=y+dy,k=key(nx,ny);
+      if(walkable(s,nx,ny)&&parent[k]===-1){parent[k]=p;queue.push(k);}
+    }
+  }
+  if(parent[goal]===-1)return null;
+  const out=[];for(let p=goal;p!==start;p=parent[p])out.push({x:p%SIZE.w,y:Math.floor(p/SIZE.w)});
+  return out.reverse();
 }
 function createAgent(s,parent,initial=false){
   const id=s.nextAgent++, k=id-1;
@@ -33,7 +47,7 @@ function createAgent(s,parent,initial=false){
   return a;
 }
 export function createWorld(seed=230926){
-  const s={version:SAVE_VERSION,seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
+  const s={version:VERSION,seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
   let nid=1;
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
@@ -62,8 +76,7 @@ export function command(s,type,data={}){
     if(!parent)return {ok:false,message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
     if(living(s).length>=Math.min(36,capacity(s)))return {ok:false,message:'ที่พักเต็มแล้ว สร้างบ้านให้เสร็จก่อน'};
     if(s.agents.length>=200)return {ok:false,message:'ถึงขีดจำกัดประวัติตัวละครของต้นแบบนี้แล้ว'};
-    const freeFood=survivalSummary(s).freeFood;
-    if(freeFood<8||s.stock.wood<4)return {ok:false,message:'ต้องมีอาหารว่าง 8 และไม้ 4 · อาหารที่จองไว้ให้คนกินไม่นับเป็นอาหารว่าง'};
+    if(s.stock.food<8||s.stock.wood<4)return {ok:false,message:'ต้องมีอาหาร 8 และไม้ 4'};
     s.stock.food-=8;s.stock.wood-=4;s.stats.cloned++;
     const a=createAgent(s,parent);return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
   }
@@ -80,52 +93,35 @@ export function command(s,type,data={}){
   }
   return {ok:false,message:'ไม่รู้จักคำสั่งนี้'};
 }
-/** One reachable destination per job family; busy nodes never hide a free alternative. */
-function candidates(s,a,book,field){
-  const out=[],targets=stockTargets(s),projected=plannedStock(s,book),freeFood=s.stock.food-book.meals.size;
-  const compare=(x,y)=>routeDistance(field,x)-routeDistance(field,y)||x.id-y.id;
-  const homes=s.buildings.filter(b=>b.complete&&routeDistance(field,b)>=0).sort(compare);
-  const home=homes[0];
-  function add(kind,target,base,need=0,goal=0,status='candidate',extra={}){
-    const travel=routeDistance(field,target),skill=SKILLS.includes(kind)?level(a.skills[kind])*3:0;
-    const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(travel*.7)};
-    out.push({kind,targetId:target.id??null,x:target.x,y:target.y,
-      score:Object.values(factors).reduce((sum,v)=>sum+v,0),factors,travelSteps:Math.max(0,travel),
-      status:travel<0?'no-path':status,...extra});
+function candidates(s,a){
+  const home=s.buildings[0],out=[];
+  function add(kind,target,base,need=0,goal=0){
+    const skill=SKILLS.includes(kind)?level(a.skills[kind])*3:0;
+    const cost=Math.round(distance(a,target)*.7);
+    out.push({kind,targetId:target.id??null,x:target.x,y:target.y,score:Math.round(base+need+goal+skill-cost),factors:{base,need:Math.round(need),goal,skill,distance:-cost}});
   }
-  if(home&&a.satiety<82&&s.stock.food>0)
-    add('EAT',home,0,(100-a.satiety)*1.25+(a.satiety<RULES.hungry?180:0),0,freeFood>0?'candidate':'reserved');
-  if(a.energy<85){
-    const fieldRest=!home||(a.energy<RULES.exhausted&&routeDistance(field,home)>8);
-    add('REST',fieldRest?a:home,0,(100-a.energy)*1.2+(a.energy<RULES.exhausted?80:0),0,'candidate',{fieldRest});
+  if(s.stock.food>0&&a.satiety<82)add('EAT',home,0,(100-a.satiety)*1.25+(a.satiety<25?90:0));
+  if(a.energy<85)add('REST',home,0,(100-a.energy)*1.2+(a.energy<18?80:0));
+  for(const [kind,type] of [['FORAGE','food'],['WOODCUT','wood'],['MINE','stone']]){
+    if(s.stock[type]>=900)continue;
+    const nodes=s.nodes.filter(n=>n.type===type&&n.amount>0).sort((x,y)=>distance(a,x)-distance(a,y)||x.id-y.id);
+    if(nodes.length){const shortage=s.stock[type]<(type==='food'?living(s).length*3:24)?25:0;
+      add(kind,nodes[0],25,shortage+(kind==='FORAGE'&&a.satiety<25&&s.stock.food===0?100:0),a.preference===kind?15:0);}
   }
-  for(const [kind,type] of Object.entries(RESOURCE_ACTIONS)){
-    const all=s.nodes.filter(n=>n.type===type&&n.amount>0);
-    const reachable=all.filter(n=>routeDistance(field,n)>=0).sort(compare);
-    const available=reachable.filter(n=>!book.nodes.has(n.id));
-    const target=available[0]??reachable[0]??all[0];if(!target)continue;
-    const hungerBonus=kind==='FORAGE'&&a.satiety<RULES.hungry&&freeFood<=0?210:0;
-    const shortage=projected[type]<targets[type]/2?40:18;
-    const status=reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
-    add(kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status);
-  }
-  for(const b of s.buildings.filter(b=>!b.complete))
-    add('BUILD',b,56,0,a.preference==='BUILD'?18:0,(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved');
+  for(const b of s.buildings.filter(b=>!b.complete))add('BUILD',b,56,0,a.preference==='BUILD'?18:0);
+  // Exploration target uses stable time/id arithmetic, never render randomness.
   const tx=5+(a.id*7+Math.floor(s.tick/40))%13,ty=5+(a.id*3+Math.floor(s.tick/60))%16;
-  add('EXPLORE',{x:tx,y:ty},3);
-  add('IDLE',a,0);
-  return out.sort((x,y)=>y.score-x.score||(x.kind<y.kind?-1:x.kind>y.kind?1:0)||(x.targetId??0)-(y.targetId??0));
+  add('EXPLORE',{x:tx,y:ty},3);return out.sort((x,y)=>y.score-x.score||x.kind.localeCompare(y.kind));
 }
-function decide(s,a,book){
-  const field=routeField(s,a),choices=candidates(s,a,book,field);
-  a.trace=choices;
-  for(const c of choices){
-    if(c.status!=='candidate')continue;
-    a.task={kind:c.kind,targetId:c.targetId,x:c.x,y:c.y,path:routeTo(field,c),work:0,
-      score:c.score,started:s.tick,policy:RULES.jobPolicy,fieldRest:c.fieldRest===true};
-    if(!claim(book,s,a)){c.status='reserved';a.task=null;continue;}
-    c.status='selected';a.moveTick=0;return;
+function decide(s,a){
+  const choices=candidates(s,a);a.trace=choices.map(c=>({...c,status:'candidate'}));
+  for(let i=0;i<choices.length;i++){
+    const c=choices[i],path=pathTo(s,a,c);
+    if(path===null){a.trace[i].status='no-path';continue;}
+    a.trace[i].status='selected';
+    a.task={kind:c.kind,targetId:c.targetId,x:c.x,y:c.y,path,work:0,score:c.score,started:s.tick};return;
   }
+  a.task={kind:'IDLE',path:[],work:0,started:s.tick};
 }
 function gain(s,a,key){
   if(!SKILLS.includes(key))return;
@@ -134,14 +130,14 @@ function gain(s,a,key){
 }
 function execute(s,a){
   const t=a.task;
-  if(t.kind==='IDLE'){a.energy=clamp(a.energy+.3);if(++t.work>=12)a.task=null;return;}
+  if(t.kind==='IDLE'){a.energy=clamp(a.energy+1);a.task=null;return;}
   if(t.kind==='EAT'&&s.stock.food<=0){a.task=null;return;}
-  if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const p=t.path.shift();a.x=p.x;a.y=p.y;a.moveTick=0;}return;}
+  if(t.path.length){a.moveTick++;if(a.moveTick>=3){const p=t.path.shift();a.x=p.x;a.y=p.y;a.moveTick=0;}return;}
   t.work++;
   if(t.kind==='EAT'){
-    if(t.work>=3){if(s.stock.food>0){s.stock.food--;a.satiety=clamp(a.satiety+RULES.mealSatiety);}a.task=null;}
+    if(t.work>=3){if(s.stock.food>0){s.stock.food--;a.satiety=clamp(a.satiety+48);}a.task=null;}
   }else if(t.kind==='REST'){
-    a.energy=clamp(a.energy+(t.fieldRest?.9:2));if(!t.fieldRest&&a.satiety>30)a.hp=clamp(a.hp+.3);
+    a.energy=clamp(a.energy+2);if(a.satiety>30)a.hp=clamp(a.hp+.3);
     if(t.work>=26||a.energy>=99)a.task=null;
   }else if(t.kind==='BUILD'){
     const b=s.buildings.find(b=>b.id===t.targetId);
@@ -153,24 +149,9 @@ function execute(s,a){
     if(!n||n.amount<=0){a.task=null;return;}
     if(t.work>=Math.max(4,14-level(a.skills[t.kind]))){
       const amount=Math.min(n.amount,2+Math.floor(level(a.skills[t.kind])/2),999-s.stock[n.type]);
-      if(amount>0){
-        n.amount-=amount;s.stats.gathered+=amount;
-        // A hungry forager eats ONE freshly harvested unit. No free meal is created.
-        const meal=t.kind==='FORAGE'&&a.satiety<RULES.hungry&&amount>=1?1:0;
-        s.stock[n.type]+=amount-meal;
-        if(meal)a.satiety=clamp(a.satiety+RULES.mealSatiety);
-        gain(s,a,t.kind);
-      }
-      a.task=null;
+      n.amount-=amount;s.stock[n.type]+=amount;s.stats.gathered+=amount;gain(s,a,t.kind);a.task=null;
     }
   }else if(t.work>=6){a.task=null;}
-}
-function interrupt(s,a){
-  const t=a.task;if(!taskValid(s,a))return true;
-  if(s.tick%12!==0)return false;
-  // Hunger wins over tiredness; avoid oscillating between rest and foraging.
-  if(a.satiety<RULES.hungry&&!['EAT','FORAGE'].includes(t.kind))return true;
-  return a.energy<RULES.exhausted&&a.satiety>=RULES.hungry&&t.kind!=='REST';
 }
 export function step(s,count=1){
   if(!Number.isInteger(count)||count<0||count>100000)throw new Error('Invalid tick count');
@@ -183,19 +164,8 @@ export function step(s,count=1){
       a.satiety=clamp(a.satiety-.11);a.energy=clamp(a.energy-.06);
       if(a.satiety===0)a.hp=clamp(a.hp-.28);
       if(a.hp===0){a.alive=false;a.task=null;event(s,'death',a.name+' เสียชีวิตจากการขาดอาหาร',a.id);continue;}
-      if(a.task&&interrupt(s,a)){a.task=null;a.moveTick=0;}
-    }
-    const {book,rejected}=reservations(s);
-    for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
-    const agents=living(s),rotation=s.tick%Math.max(1,agents.length);
-    const priority=a=>a.satiety<RULES.hungry?0:a.energy<RULES.exhausted?1:2;
-    const order=agents.map((a,index)=>({a,order:(index+rotation)%agents.length})).sort((x,y)=>
-      priority(x.a)-priority(y.a)||(priority(x.a)===0?x.a.satiety-y.a.satiety:priority(x.a)===1?x.a.energy-y.a.energy:0)||x.order-y.order);
-    for(const {a} of order){
-      if(a.task&&!taskValid(s,a)){release(book,a,a.task);a.task=null;}
-      if(!a.task)decide(s,a,book);
-      const task=a.task;
-      if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
+      if(a.task&&s.tick%12===0&&((a.satiety<18&&!['EAT','FORAGE'].includes(a.task.kind))||(a.energy<10&&a.task.kind!=='REST')))a.task=null;
+      if(!a.task)decide(s,a);execute(s,a);
     }
     if(s.tick%DAY_TICKS===0)event(s,'day','เริ่มวันที่ '+day(s)+' · ประชากร '+living(s).length+' คน · อาหาร '+s.stock.food);
   }
@@ -204,7 +174,7 @@ export function step(s,count=1){
 export function serialize(s){return JSON.stringify(s);}
 export function validate(s){
   const errors=[];const bad=x=>errors.push(x),finite=n=>typeof n==='number'&&Number.isFinite(n);
-  if(!s||s.version!==SAVE_VERSION)return ['Unsupported save version'];
+  if(!s||s.version!==VERSION)return ['Unsupported save version'];
   if(!Number.isInteger(s.tick)||s.tick<0||!Number.isInteger(s.rng)||!Number.isInteger(s.seed))bad('Clock/seed');
   if(!Array.isArray(s.tiles)||s.tiles.length!==SIZE.w*SIZE.h||s.tiles.some(t=>!['grass','water','path','bridge'].includes(t)))return ['Terrain'];
   if(!s.stock||['food','wood','stone'].some(k=>!finite(s.stock[k])||s.stock[k]<0||s.stock[k]>999))bad('Inventory');

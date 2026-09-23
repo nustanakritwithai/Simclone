@@ -1,6 +1,6 @@
-/** Observation UI 0.1.1. Read projections; all world mutations use the engine bridge. */
-import {SKILLS,LABELS,level,day,living,capacity} from './engine.mjs';
-export const UI_VERSION='0.1.2';
+/** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
+import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary} from './engine.mjs?v=0.2.0';
+export const UI_VERSION='0.2.0';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={
@@ -25,6 +25,7 @@ const paths={
 export const icon=name=>`<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths[name]||paths.eye}</svg>`;
 const events={birth:'ชีวิตใหม่',skill:'พัฒนาทักษะ',build:'สิ่งปลูกสร้าง',death:'สูญเสีย',day:'วันใหม่'};
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
+const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน'};
 const tabNames={about:'ตอนนี้',skills:'ทักษะ',why:'เหตุผล',memory:'ความทรงจำ'};
 function setText(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=value;}
 function replaceIfChanged(el,html){if(el.dataset.content!==html){const y=el.scrollTop;el.innerHTML=html;el.dataset.content=html;el.scrollTop=y;}}
@@ -36,8 +37,13 @@ export function installUX(api){
  for(const [id,key] of Object.entries(staticIcons)){const button=$(id);const span=button.querySelector('span');if(span)span.innerHTML=icon(key);else button.innerHTML=icon(key);}
  const navIcons={world:'eye',people:'people',clone:'clone',build:'home',history:'history'};
  document.querySelectorAll('[data-nav]').forEach(b=>b.querySelector('span').innerHTML=icon(navIcons[b.dataset.nav]));
- document.querySelector('.version').innerHTML=`OBSERVATION UI <b>${UI_VERSION}</b>`;
+ document.querySelector('.version').innerHTML=`SURVIVAL CORE <b>${VERSION}</b>`;
  document.querySelector('.brand').title='Simclone · UI '+UI_VERSION;
+ const foodCard=$('food').parentElement;
+ foodCard.setAttribute('role','button');foodCard.tabIndex=0;
+ foodCard.setAttribute('aria-label','ดูภาพรวมอาหารและงานที่จองไว้');
+ foodCard.style.cursor='pointer';foodCard.onclick=openSurvival;
+ foodCard.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSurvival();}};
  const resourceIcons=['leaf','wood','stone','people'];
  document.querySelectorAll('.resources>div').forEach((el,i)=>{el.querySelector('span').innerHTML=icon(resourceIcons[i]);});
  const rail=document.createElement('section');rail.id='people-rail';rail.className='people-rail';rail.setAttribute('aria-label','เลือกตัวละครอย่างรวดเร็ว');
@@ -108,9 +114,9 @@ export function installUX(api){
   else if(tab==='memory')html=a.memory.slice().reverse().map(m=>`<div class="memory-item"><small>วันที่ ${1+Math.floor(m.tick/360)}</small>${escape(m.text)}</div>`).join('')||'<p class="empty-state">ยังไม่มีความทรงจำสำคัญ</p>';
   else if(tab==='why'){
    const chosen=a.trace.find(t=>t.status==='selected'),max=Math.max(1,...a.trace.map(t=>t.score));
-   if(chosen){html=`<div class="decision-callout">${icon('brain')}<div><small>เหตุผลจากการตัดสินใจล่าสุด</small><b>เลือก${LABELS[chosen.kind]} · ${chosen.score} คะแนน</b><p>เปรียบเทียบความต้องการ ความถนัด ทักษะ และระยะทางของงานที่เสนอเข้ามา ไม่ได้สุ่มงาน</p></div></div>`;}
-   html+=a.trace.slice(0,6).map(c=>`<div class="trace-row ${c.status==='selected'?'selected':''}"><span>${c.status==='selected'?'✓ ':''}${LABELS[c.kind]}${c.status==='no-path'?' · ไปไม่ถึง':''}</span><b>${c.score}</b><div class="scorebar"><i style="width:${Math.max(0,c.score/max*100)}%"></i></div></div>`).join('');
-   if(chosen){const f=chosen.factors;html+=`<details class="score-details"><summary>ดูส่วนประกอบคะแนน</summary><dl>${[['พื้นฐาน',f.base],['ความต้องการ',f.need],['ความถนัด',f.goal],['ทักษะ',f.skill],['ระยะทาง',f.distance]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details><p class="source-note">${a.task?'เลือกเมื่อ tick '+a.task.started:'งานล่าสุดสิ้นสุดแล้ว'} · คะแนนนี้มาจากกฎ CPU ไม่ใช่ข้อความคิดจาก LLM</p>`;}
+   if(chosen){html=`<div class="decision-callout">${icon('brain')}<div><small>เหตุผลจากการตัดสินใจล่าสุด</small><b>เลือก${LABELS[chosen.kind]} · ${chosen.score} คะแนน</b><p>เปรียบเทียบความต้องการ ความถนัด ทักษะ และระยะเดินจริง งานที่คนอื่นจองหรือทรัพยากรสำรองพอแล้วจะไม่ถูกเลือก</p></div></div>`;}
+   html+=(chosen?[chosen,...a.trace.filter(t=>t!==chosen).slice(0,5)]:a.trace.slice(0,6)).map(c=>`<div class="trace-row ${c.status==='selected'?'selected':''}"><span>${c.status==='selected'?'✓ ':''}${LABELS[c.kind]}${blockedLabels[c.status]?' · '+blockedLabels[c.status]:''}</span><b>${c.score}</b><div class="scorebar"><i style="width:${Math.max(0,c.score/max*100)}%"></i></div></div>`).join('');
+   if(chosen){const f=chosen.factors;html+=`<details class="score-details"><summary>ดูส่วนประกอบคะแนน</summary><dl>${[['พื้นฐาน',f.base],['ความต้องการ',f.need],['ความถนัด',f.goal],['ทักษะ',f.skill],['ระยะเดินจริง',f.distance]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details><p class="source-note">ระยะเดินตอนเลือก ${chosen.travelSteps??'—'} ช่อง · ${a.task?'เลือกเมื่อ tick '+a.task.started:'งานล่าสุดสิ้นสุดแล้ว'} · คะแนนนี้มาจากกฎ CPU ไม่ใช่ข้อความคิดจาก LLM</p>`;}
    if(!a.trace.length)html='<p class="empty-state">รอโลกเดิน tick แรกเพื่อดูคะแนนจริง</p>';
   }else{
    const parent=s.agents.find(p=>p.id===a.parentId);
@@ -153,6 +159,16 @@ export function installUX(api){
   api.select(parent.id,false);const p=api.preview('CLONE',{parentId:parent.id});
   api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">รุ่นนี้โคลนด้วยคำสั่งผู้เล่น ยังไม่มีการเกิดหรือเติบโตอัตโนมัติ</p>`);$('dialog').dataset.kind='clone';
  }
+ function openSurvival(){
+  const s=api.read().state,v=survivalSummary(s);
+  api.openDialog('หมู่บ้านอยู่รอดอย่างไร','SURVIVAL CORE · '+VERSION,
+   `<div class="life-summary"><div><small>อาหารที่ใช้ได้ตอนนี้</small><b>${v.freeFood} หน่วย</b></div><div><small>จองไว้ให้คนกิน</small><b>${v.reservedMeals} หน่วย</b></div></div>
+    <p>มีอาหารทั้งหมด ${v.food} หน่วย · เป้าสำรอง ${v.targets.food} หน่วย<br>คนความอิ่มต่ำกว่า 35: ${v.hungry} คน · พลังงานต่ำกว่า 12: ${v.exhausted} คน</p>
+    <div class="clone-skills"><div><span>แหล่งทรัพยากรที่มีคนจอง</span><b>${v.nodeJobs} จุด</b></div><div><span>คนที่จองงานก่อสร้าง</span><b>${v.builders} คน</b></div><div><span>บ้านที่กำลังสร้าง</span><b>${v.unfinished} หลัง</b></div><div><span>ไม้ / เป้าสำรอง</span><b>${v.stock.wood} / ${v.targets.wood}</b></div><div><span>หิน / เป้าสำรอง</span><b>${v.stock.stone} / ${v.targets.stone}</b></div></div>
+    <p class="source-note">แหล่งทรัพยากรรับคนทำงานครั้งละ 1 คน · บ้านรับคนสร้างได้ 2 คนพร้อมกัน<br>เลือกแหล่งที่ไปถึงได้ตามระยะเดินจริง ไม่วัดแค่ความใกล้บนจอ<br>เมื่อหิว คนเก็บอาหารกินผลผลิต 1 หน่วยที่จุดเก็บได้ ส่วนที่เหลือเข้าคลังรวม<br>คิดเป้าสำรองรวมผลผลิตของงานที่มีคนจองแล้ว งานชุดสุดท้ายอาจทำให้เกินเป้าได้เล็กน้อย</p>
+    <p class="source-note">คลังยังเป็นคลังรวมแบบต้นแบบ ไม่ใช่ระบบขนส่งสินค้าเต็มรูปแบบ · ยังไม่มีเกิด–โต–แก่เอง</p>`);
+  $('dialog').dataset.kind='survival';
+ }
  function openGuide(){api.openDialog('เริ่มจากการรู้จักคนหนึ่งคน','OBSERVE → UNDERSTAND → INFLUENCE',`<div class="guide-step"><span>01</span><div><b>แตะหน้า เลือกคน</b><p>ใช้แถวตัวละครด้านล่าง หรือแตะคนในโลก การ์ดย่อจะบอกว่ากำลังทำอะไร โดยไม่บังแผนที่</p></div></div><div class="guide-step"><span>02</span><div><b>ถามว่า “ทำไม?”</b><p>ดูคะแนนงานจริง หรือเปิดทักษะเพื่อดูสิ่งที่เขาเรียนรู้มาต่างจากคนอื่น</p></div></div><div class="guide-step"><span>03</span><div><b>สร้างเงื่อนไขให้ชีวิตใหม่</b><p>เลือกต้นแบบก่อนโคลน หรือเลือกจุดวางบ้าน ตรวจตัวอย่าง แล้วค่อยยืนยันหักวัสดุ</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างนี้หยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">เริ่มสังเกตโลก</button></div>`);$('dialog').dataset.kind='guide';}
- return {renderInspector,renderHUD,openRoster,openHistory,openClone,choosePlacement,getPlacement:()=>candidate?{...candidate,ok:placement?.ok===true}:null};
+ return {renderInspector,renderHUD,openRoster,openHistory,openClone,openSurvival,choosePlacement,getPlacement:()=>candidate?{...candidate,ok:placement?.ok===true}:null};
 }
