@@ -1,11 +1,11 @@
-/** Autonomous Birth 0.3.2 — deterministic, derived from world/agent history; no mutable lock registry. */
+/** Autonomous Birth 0.3.4 — deterministic pacing avoids synchronized generation collapse. */
 import {LIFE,LIFE_STAGES,lifeStage} from './lifecycle.mjs';
 
 export const BIRTH_RULES=Object.freeze({
   foodCost:8,
   woodCost:4,
   woodSafetyFloor:12,
-  globalIntervalYears:1,
+  globalIntervalYears:4,
   parentCooldownYears:4,
   maxPopulation:36,
   maxAgents:200,

@@ -1,10 +1,10 @@
-/** Simclone 0.3.3 — deterministic age death + cleanup over autonomous lifecycle. */
+/** Simclone 0.3.4 — generation continuity pacing over autonomous lifecycle. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
   skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs';
 import {LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs';
 import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs';
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
-export const VERSION = '0.3.3';
+export const VERSION = '0.3.4';
 export const SAVE_VERSION = '0.2.0';
 export const LEGACY_SAVE_VERSION = '0.1.0';
 export const SIZE = { w: 30, h: 26 };

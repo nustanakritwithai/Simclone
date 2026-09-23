@@ -37,18 +37,21 @@ test('housing, food and wood safety gates prevent free population growth',()=>{
   const wood=ready();wood.stock.wood=BIRTH_RULES.woodCost+BIRTH_RULES.woodSafetyFloor-1;step(wood);assert.equal(wood.agents.length,6);
 });
 
-test('global pace allows at most one autonomous birth per biological year and parent cooldown rotates parents',()=>{
+test('global birth gap spreads cohorts four years apart and parent cooldown rotates parents',()=>{
   const s=ready();step(s);assert.equal(s.agents.filter(isAutonomousChild).length,1);
-  step(s,359);assert.equal(s.agents.filter(isAutonomousChild).length,1);
-  s.stock.food=100;s.stock.wood=100;step(s);
-  const born=s.agents.filter(isAutonomousChild);assert.equal(born.length,2);assert.notEqual(born[0].parentId,born[1].parentId);
+  step(s,3*360);assert.equal(s.agents.filter(isAutonomousChild).length,1);
+  s.stock.food=100;s.stock.wood=100;step(s,360);
+  const born=s.agents.filter(isAutonomousChild);assert.equal(born.length,2);
+  assert.equal(born[1].bornTick-born[0].bornTick,4*360);assert.notEqual(born[0].parentId,born[1].parentId);
   assert.equal(autonomousChildrenOf(s,born[0].parentId).length,1);
 });
 
 test('housing cap prevents explosion even with abundant resources',()=>{
   const s=ready();step(s);
-  for(let year=0;year<12;year++){s.stock.food=999;s.stock.wood=999;step(s,360);}
+  for(let year=0;year<24;year++){s.stock.food=999;s.stock.wood=999;step(s,360);}
   assert.equal(s.agents.filter(a=>a.alive).length,12);assert.equal(s.agents.filter(isAutonomousChild).length,6);
+  const ticks=s.agents.filter(isAutonomousChild).map(a=>a.bornTick);
+  for(let i=1;i<ticks.length;i++)assert.ok(ticks[i]-ticks[i-1]>=4*360);
 });
 
 test('autonomous birth save/restore continuation is deterministic',()=>{

@@ -6,7 +6,7 @@ import {createWorld,step,command,serialize,restore,VERSION,SAVE_VERSION,DAY_TICK
 import {createWorld as legacyWorld,step as legacyStep,serialize as legacySerialize} from './fixtures/legacy-engine-0.1.0.mjs';
 
 test('lifecycle clock is simulated and one day equals one biological year',()=>{
-  assert.equal(VERSION,'0.3.3');assert.equal(SAVE_VERSION,'0.2.0');
+  assert.equal(VERSION,'0.3.4');assert.equal(SAVE_VERSION,'0.2.0');
   assert.equal(DAY_TICKS,360);assert.equal(LIFE.ticksPerYear,360);assert.equal(LIFE.yearsPerSimDay,1);
   const source=readFileSync(new URL('../src/lifecycle.mjs',import.meta.url),'utf8');
   assert.equal(source.includes('Date.'),false);assert.equal(source.includes('Math.random'),false);
