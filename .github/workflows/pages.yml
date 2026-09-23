@@ -34,6 +34,9 @@ jobs:
       - name: Verify autonomous birth across seeds
         run: npm run test:lifecycle
 
+      - name: Verify deterministic age death and cleanup
+        run: npm run test:death
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

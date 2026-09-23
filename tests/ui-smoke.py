@@ -14,7 +14,7 @@ def boot(page,saved=None):
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.evaluate("saved=>{const m=new Map(saved?[['simclone:world:v1',saved]]:[]);Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v))}})}",saved)
  page.set_content(html,wait_until='load')
- page.wait_for_function("window.simclone?.uiVersion==='0.3.2'")
+ page.wait_for_function("window.simclone?.uiVersion==='0.3.3'")
  page.wait_for_timeout(400)
 def paused(page):
  if page.locator('#pause').get_attribute('aria-pressed')!='true':page.locator('#pause').click()
@@ -24,7 +24,7 @@ with sync_playwright() as p:
  exe='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None
  b=p.chromium.launch(executable_path=exe,headless=True,args=['--no-sandbox'])
  desktop=b.new_page(viewport={'width':1440,'height':1000});boot(desktop)
- check('desktop boot with UI 0.3.2 and engine 0.3.2',desktop.evaluate('simclone.version')=='0.3.2')
+ check('desktop boot with UI 0.3.3 and engine 0.3.3',desktop.evaluate('simclone.version')=='0.3.3')
  check('world actually advances',snap(desktop)['tick']>0)
  desktop.screenshot(path=str(OUT/'desktop-world.png'))
  paused(desktop);t=snap(desktop)['tick'];desktop.wait_for_timeout(700);check('pause freezes simulation',snap(desktop)['tick']==t)
@@ -56,7 +56,7 @@ with sync_playwright() as p:
  m.screenshot(path=str(OUT/'mobile-world.png'))
  m.locator('[data-quick-person="2"]').tap()
  check('quick portrait selects Nira', 'Nira' in m.locator('#inspector .identity').inner_text())
- check('inspector shows derived adult age', 'ผู้ใหญ่' in m.locator('#life-label').inner_text() and '18 ปี' in m.locator('#life-label').inner_text())
+ check('inspector shows derived adult age and lifespan', 'ผู้ใหญ่' in m.locator('#life-label').inner_text() and '18 ปี' in m.locator('#life-label').inner_text() and 'อายุขัย' in m.locator('#life-label').inner_text())
  check('mobile inspector initially compact',not m.locator('#inspector').evaluate('(e)=>e.classList.contains("is-expanded")'))
  box=m.locator('#inspector').bounding_box();stage=m.locator('#stage').bounding_box()
  check('compact inspector occupies less than 40 percent of world',box['height']<stage['height']*.4)

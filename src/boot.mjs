@@ -12,8 +12,8 @@ async function stylesReady(){
 }
 try{
   await stylesReady();
-  await import('./app.mjs?v=0.3.2');
-  if(window.simclone?.uiVersion!=='0.3.2')throw new Error('VERSION_MISMATCH');
+  await import('./app.mjs?v=0.3.3');
+  if(window.simclone?.uiVersion!=='0.3.3')throw new Error('VERSION_MISMATCH');
   if(screen)screen.remove();
 }catch(error){
   console.error('Simclone startup failed:',error);
