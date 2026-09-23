@@ -1,0 +1,241 @@
+import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt} from './engine.mjs';
+const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const SAVE_KEY='simclone:world:v1';
+let state=createWorld(),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe',canAutosave=true;
+let toastTimer,ground,cw=0,ch=0,dpr=1,zoom=innerWidth<700?1.12:1.25,pan={x:innerWidth>700?-120:0,y:38};
+let focus={x:11,y:12},follow=false,ghost=null,positions=new Map(),lastUi=0,lastFrame=0,accumulator=0;
+const hw=27,hh=13.5;
+const proj=(x,y)=>({x:(x-y)*hw,y:(x+y)*hh});
+function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),4200);}
+try{const stored=localStorage.getItem(SAVE_KEY);if(stored){state=restore(stored);toast('กลับสู่โลกเดิม · วันที่ '+day(state));}}catch{canAutosave=false;toast('อ่านบันทึกเดิมไม่ได้ จึงยังไม่เขียนทับ · เปิดเมนูเพื่อเริ่มโลกใหม่');}
+function save(manual=false){try{if(!canAutosave)throw new Error('protected');localStorage.setItem(SAVE_KEY,serialize(state));if(manual)toast('บันทึกโลกในเบราว์เซอร์นี้แล้ว');}catch{if(manual)toast('บันทึกไม่ได้ · ใช้ส่งออกไฟล์เพื่อเก็บโลกไว้');}}
+function portrait(a){const p=a.appearance;return `<svg class="portrait" viewBox="0 0 60 68" aria-label="${esc(a.name)}"><rect width="60" height="68" fill="#3b5747"/><circle cx="30" cy="31" r="27" fill="#667954" opacity=".35"/><path d="M7 69Q7 46 30 46Q53 46 53 69" fill="${p.coat}"/><path d="M25 43h10v10l-5 5-5-5" fill="${p.skin}"/><path d="M16 28Q12 10 30 9Q47 9 45 31L43 49H17Z" fill="${p.hair}"/><ellipse cx="30" cy="32" rx="12" ry="16" fill="${p.skin}"/><path d="${p.style===0?'M17 29Q13 9 31 10Q49 13 43 28L36 19 23 22Z':p.style===1?'M17 29Q12 12 30 10Q48 11 44 31L37 16 29 24Z':'M16 28Q12 8 31 9Q49 12 44 29L41 17 32 14 21 22Z'}" fill="${p.hair}"/><path d="M22 30h5m7 0h5" stroke="#4c392e" stroke-width="1.4"/><circle cx="25" cy="33" r="1.3" fill="#24352d"/><circle cx="36" cy="33" r="1.3" fill="#24352d"/><path d="M30 34v5h2M26 43q4 3 8 0" fill="none" stroke="#a66c54" stroke-width="1"/><path d="M19 52l11 7 11-7M30 59v10" stroke="#eee4ba88" stroke-width="1" fill="none"/></svg>`;}
+function polygon(c,points,fill,stroke=null){c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fillStyle=fill;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=.7;c.stroke();}}
+function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
+function line(c,points,color,width=1){c.strokeStyle=color;c.lineWidth=width;c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke();}
+function hash(x,y){return ((Math.imul(x+33,374761393)^Math.imul(y+41,668265263))>>>0)/4294967296;}
+function makeGround(){
+ ground=document.createElement('canvas');ground.width=(SIZE.w+SIZE.h)*hw+120;ground.height=(SIZE.w+SIZE.h)*hh+110;
+ const c=ground.getContext('2d');c.translate(SIZE.h*hw+60,32);
+ const corners=[proj(0,0),proj(SIZE.w,0),proj(SIZE.w,SIZE.h),proj(0,SIZE.h)].map(p=>[p.x,p.y]);
+ polygon(c,corners.map(([x,y])=>[x,y+20]),'#304b37');
+ for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
+  const p=proj(x,y),t=tileAt(state,x,y),r=hash(x,y);let color;
+  if(t==='water')color=['#467c7c','#49807d','#4b8380'][Math.floor(r*3)];
+  else if(t==='path')color=['#a5976e','#afa079','#a3946b'][Math.floor(r*3)];
+  else if(t==='bridge')color='#967b50';
+  else color=['#66834e','#6c8851','#708b53','#748e56','#6b864f'][Math.floor(r*5)];
+  polygon(c,[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],color);
+  if(t==='grass'){
+   for(let k=0;k<4;k++){
+    const dx=(hash(x+k*7,y+2)-.5)*32,dy=(hash(x,y+k*5)-.5)*12;
+    line(c,[[p.x+dx,p.y+dy],[p.x+dx-1,p.y+dy-3]],'#9ba66866',.8);
+   }
+   if(r>.87)for(let k=0;k<3;k++)ellipse(c,p.x+k*3-4,p.y+k%2,1.2,.7,'#dccb9e');
+  }
+  if(t==='water')for(let k=0;k<2;k++)line(c,[[p.x-10+k*14,p.y-2+k*4],[p.x-1+k*14,p.y-2+k*4]],'#98bca363',.8);
+  if(t==='bridge')for(let k=-2;k<=2;k++)line(c,[[p.x-19+k*4,p.y+k*3-4],[p.x+9+k*4,p.y+k*3+9]],'#d2b484',1.2);
+ }
+}
+function tree(c,n){
+ const p=proj(n.x,n.y),r=hash(n.x,n.y);c.save();c.translate(p.x,p.y);
+ ellipse(c,6,2,22,9,'#193c2840');
+ c.fillStyle='#695238';c.fillRect(-2,-28,5,30);
+ if(n.amount<=0){c.fillStyle='#bd9a65';c.fillRect(-5,-8,11,8);ellipse(c,.5,-8,5.5,2,'#dcc18a');c.restore();return;}
+ if(r>.42){
+  polygon(c,[[-24,-20],[0,-65],[25,-20]],'#294e36');polygon(c,[[-21,-35],[0,-77],[21,-35]],'#356044');polygon(c,[[-15,-51],[0,-86],[16,-51]],'#47734b');
+  polygon(c,[[0,-77],[0,-35],[21,-35]],'#254d37');polygon(c,[[-15,-51],[0,-86],[0,-51]],'#65874e');
+ }else{
+  ellipse(c,-14,-40,18,16,'#436538');ellipse(c,11,-42,21,17,'#3d6237');ellipse(c,0,-58,24,19,'#597b3e');
+  ellipse(c,-10,-64,15,11,'#6f8c46');ellipse(c,14,-54,13,12,'#4e7138');ellipse(c,-14,-46,13,10,'#668241');
+ }
+ c.restore();
+}
+function node(c,n){
+ if(n.type==='wood'){tree(c,n);return;}
+ const p=proj(n.x,n.y);c.save();c.translate(p.x,p.y);ellipse(c,2,2,18,7,'#21422833');
+ if(n.type==='food'){
+  if(n.amount>0){ellipse(c,-7,-5,11,8,'#375b37');ellipse(c,6,-8,13,10,'#466d3d');ellipse(c,-2,-13,11,9,'#5e8045');
+   for(const [x,y] of [[-7,-10],[2,-15],[9,-9],[-1,-5]]){ellipse(c,x,y,2.4,2.4,'#dc9d60');ellipse(c,x-.5,y-.6,.8,.8,'#ebcc93');}}
+  else{ellipse(c,0,-1,11,4,'#647c46');}
+ }else if(n.amount>0){
+  polygon(c,[[-18,0],[-13,-15],[0,-21],[14,-10],[20,3],[2,9]],'#88968b');polygon(c,[[-18,0],[-13,-15],[0,-21],[-1,-4]],'#bac0a5');polygon(c,[[0,-21],[14,-10],[20,3],[-1,-4]],'#9da997');
+  polygon(c,[[1,5],[11,-4],[20,2],[21,9],[8,12]],'#697e73');
+ }
+ c.restore();
+}
+function building(c,b,time){
+ const p=proj(b.x,b.y);c.save();c.translate(p.x,p.y);ellipse(c,3,10,38,16,'#1b362849');
+ if(!b.complete){
+  polygon(c,[[-29,-8],[0,-23],[29,-8],[0,8]],'#c8b78355','#ebd5a9');
+  for(const [x,y] of [[-24,-7],[0,5],[24,-7],[0,-20]]){c.fillStyle='#c4a16a';c.fillRect(x-2,y-26,4,26);}
+  line(c,[[-24,-33],[0,-21],[24,-33]],'#a28254',4);c.fillStyle='#18372a';c.fillRect(-24,15,48,4);c.fillStyle='#dfc187';c.fillRect(-24,15,48*b.progress/30,4);
+ }else if(b.type==='camp'){
+  polygon(c,[[-37,-13],[-16,-48],[6,-10]],'#d1c093');polygon(c,[[-16,-48],[7,-38],[26,-3],[6,-10]],'#a49369');polygon(c,[[-25,-12],[-16,-31],[-7,-10]],'#304639');
+  c.fillStyle='#805d3d';c.fillRect(18,-12,12,14);line(c,[[18,-6],[30,-6]],'#4f4634',2);
+  for(let i=0;i<7;i++){const a=i/7*Math.PI*2;ellipse(c,1+Math.cos(a)*11,16+Math.sin(a)*5,4,2.5,'#a9aa8e');}
+  line(c,[[-7,20],[7,13]],'#7c5437',4);line(c,[[-6,14],[8,20]],'#a57747',4);
+  const flicker=Math.sin(time*.006)*2;polygon(c,[[-6,17],[-3,5+flicker],[0,10],[4,-1-flicker],[7,17],[1,21]],'#df934d');polygon(c,[[-2,16],[2,6],[4,17],[0,20]],'#f4cd7b');
+  for(let i=0;i<3;i++)ellipse(c,8+Math.sin(time*.0008+i)*7,-12-i*12+(time*.004%10),3+i*2,4+i*2,'#e1dfb91e');
+  c.fillStyle='#8e7651';c.fillRect(32,-61,2,51);polygon(c,[[34,-61],[54,-58],[48,-48],[34,-49]],'#afbf93');
+ }else{
+  polygon(c,[[-28,-6],[0,9],[0,-25],[-28,-40]],'#b3a174');polygon(c,[[0,9],[29,-7],[29,-40],[0,-25]],'#8f815b');
+  for(let y=-28;y<0;y+=7)line(c,[[-27,y],[0,y+14],[28,y-1]],'#76644188',1);
+  polygon(c,[[-35,-39],[0,-61],[35,-41],[0,-20]],'#917349');polygon(c,[[-35,-39],[0,-61],[0,-43],[-20,-31]],'#b3935a');
+  for(let i=0;i<5;i++)line(c,[[-29+i*7,-42-i*3],[3+i*6,-24-i*3]],'#c1a47566',1.4);
+  polygon(c,[[8,4],[20,-3],[20,-25],[8,-18]],'#4a5138');polygon(c,[[-21,-25],[-10,-19],[-10,-9],[-21,-15]],'#dbbf75');line(c,[[-15,-22],[-15,-12]],'#8c794d',1.8);
+  c.fillStyle='#7a8070';c.fillRect(12,-62,8,14);ellipse(c,16,-62,4,1.5,'#c0b48d');
+  polygon(c,[[6,11],[23,2],[30,6],[13,15]],'#baad82');
+ }
+ c.restore();
+}
+function person(c,a,time){
+ let v=positions.get(a.id);if(!v){v={x:a.x,y:a.y};positions.set(a.id,v);}v.x+=(a.x-v.x)*.2;v.y+=(a.y-v.y)*.2;
+ const p=proj(v.x,v.y),ap=a.appearance,moving=a.task?.path.length>0;
+ const stride=moving?Math.sin(time*.012+a.id)*3:0;c.save();c.translate(p.x,p.y);
+ ellipse(c,1,2,10,4,'#19312755');
+ if(a.id===selected){c.strokeStyle='#efd299';c.lineWidth=1.5;c.beginPath();c.ellipse(0,1,15,7,0,0,Math.PI*2);c.stroke();}
+ line(c,[[-3,-9],[-4+stride,0]],'#344439',3);line(c,[[3,-9],[4-stride,0]],'#344439',3);
+ polygon(c,[[-6,-20],[5,-20],[7,-7],[-7,-7]],ap.coat);
+ line(c,[[-6,-18],[-9-stride*.6,-10]],ap.skin,3);line(c,[[6,-18],[9+stride*.6,-10]],ap.skin,3);
+ c.fillStyle='#eadcb28a';c.fillRect(-6,-10,12,1);
+ ellipse(c,0,-26,6.4,7.5,ap.skin);ellipse(c,0,-31,6.8,4.5,ap.hair);
+ if(ap.style===1)ellipse(c,-6,-28,2.5,5,ap.hair);
+ if(ap.style===2){c.fillStyle=ap.hair;c.fillRect(-6,-31,3,12);}
+ ellipse(c,-2,-26,1,.9,'#29392e');ellipse(c,3,-26,1,.9,'#29392e');
+ if(a.task?.kind==='WOODCUT'&&!moving){line(c,[[10,-12],[18,-23]],'#a69265',2);polygon(c,[[16,-24],[23,-21],[20,-16]],'#c4c9b4');}
+ if(a.task?.kind==='MINE'&&!moving)line(c,[[10,-12],[17,-26],[24,-24]],'#b5bba5',2);
+ if(a.id===selected||a.satiety<24){
+  const glyph=a.satiety<24?'!':({EAT:'●',REST:'z',BUILD:'⌂',FORAGE:'✦',WOODCUT:'╱',MINE:'◆',EXPLORE:'…'}[a.task?.kind]||'…');
+  c.fillStyle='#ece6cf';c.beginPath();c.roundRect(8,-53,24,17,5);c.fill();polygon(c,[[11,-37],[10,-32],[18,-37]],'#ece6cf');
+  c.fillStyle='#3a5039';c.font='12px Georgia';c.textAlign='center';c.fillText(glyph,20,-41);
+ }
+ c.restore();
+}
+function screenPoint(x,y){const p=proj(x,y),f=proj(focus.x,focus.y);return {x:cw/2+pan.x+(p.x-f.x)*zoom,y:ch/2+pan.y+(p.y-f.y)*zoom};}
+function worldPoint(x,y){const f=proj(focus.x,focus.y);const px=(x-cw/2-pan.x)/zoom+f.x,py=(y-ch/2-pan.y)/zoom+f.y;return {x:Math.round((px/hw+py/hh)/2),y:Math.round((py/hh-px/hw)/2)};}
+function resize(){const rect=canvas.getBoundingClientRect();cw=rect.width;ch=rect.height;dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(cw*dpr);canvas.height=Math.round(ch*dpr);}
+function render(time){
+ ctx.setTransform(dpr,0,0,dpr,0,0);
+ const bg=ctx.createLinearGradient(0,0,cw,ch);bg.addColorStop(0,'#4c654b');bg.addColorStop(1,'#314b3d');ctx.fillStyle=bg;ctx.fillRect(0,0,cw,ch);
+ if(follow){const a=state.agents.find(a=>a.id===selected&&a.alive);if(a){focus.x+=(a.x-focus.x)*.03;focus.y+=(a.y-focus.y)*.03;}}
+ ctx.save();ctx.translate(cw/2+pan.x,ch/2+pan.y);ctx.scale(zoom,zoom);const f=proj(focus.x,focus.y);ctx.translate(-f.x,-f.y);
+ ctx.drawImage(ground,-SIZE.h*hw-60,-32);
+ // Render-only ripples. They never consume simulation RNG.
+ for(let i=0;i<12;i++){const y=2+i*1.8,x=21+Math.round(Math.sin(y*.26)*2),p=proj(x,y);line(ctx,[[p.x-8+Math.sin(time*.001+i)*3,p.y],[p.x+8,p.y]],'#b4d5c640',1);}
+ const a=state.agents.find(a=>a.id===selected&&a.alive);
+ if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
+ const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
+ for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else person(ctx,o.data,time);}
+ if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
+ if(mode==='build'&&ghost){const p=proj(ghost.x,ghost.y);polygon(ctx,[[p.x,p.y-13],[p.x+27,p.y],[p.x,p.y+13],[p.x-27,p.y]],'#ecdb9b70','#f0d895');}
+ ctx.restore();
+ const h=hour(state);if(h>=19||h<6){ctx.fillStyle='#10294460';ctx.fillRect(0,0,cw,ch);}
+ // Gentle edge vignette keeps the central village legible.
+ const vignette=ctx.createRadialGradient(cw*.46,ch*.48,Math.min(cw,ch)*.22,cw*.5,ch*.5,Math.max(cw,ch)*.68);vignette.addColorStop(0,'#0b251500');vignette.addColorStop(1,'#12291e55');ctx.fillStyle=vignette;ctx.fillRect(0,0,cw,ch);
+}
+function actionText(a){if(!a.alive)return 'เสียชีวิตแล้ว';const task=a.task;return task?(task.path.length?'เดินไป':'กำลัง')+(LABELS[task.kind]||'พักรอ'):'กำลังเลือกงาน';}
+function inspect(){
+ const el=$('inspector'),a=state.agents.find(a=>a.id===selected);if(!a){el.hidden=true;return;}el.hidden=false;
+ const focused=el.contains(document.activeElement)?document.activeElement.dataset.ui:null;
+ const parent=state.agents.find(p=>p.id===a.parentId),t=a.task,chosen=a.trace.find(c=>c.status==='selected');
+ let content='';
+ if(tab==='skills')content=SKILLS.map(k=>`<div class="skill-row">${LABELS[k]}<span>Lv.${level(a.skills[k])} · ${a.skills[k]} XP</span></div>`).join('')+`<p class="source-note">ที่มา: ${esc(a.source)}<br>Clone ใหม่สืบทอด 35% ของ XP จากต้นแบบ แล้วฝึกต่อจากงานที่ทำ</p>`;
+ else if(tab==='memory')content=a.memory.slice().reverse().map(m=>`<div class="memory-item"><small>วันที่ ${1+Math.floor(m.tick/360)}</small>${esc(m.text)}</div>`).join('')||'<p class="source-note">ยังไม่มีความทรงจำสำคัญ</p>';
+ else if(tab==='why'){
+  const max=Math.max(1,...a.trace.map(t=>t.score));
+  content=a.trace.slice(0,6).map(c=>`<div class="trace-row ${c.status==='selected'?'selected':''}"><span>${c.status==='selected'?'● ':''}${LABELS[c.kind]} ${c.status==='no-path'?'· ไปไม่ถึง':''}</span><b>${c.score}</b><div class="scorebar"><i style="width:${Math.max(0,c.score/max*100)}%"></i></div></div>`).join('');
+  if(chosen)content+=`<div class="trace-detail">คะแนนตอนเลือกงาน (tick ${t?.started??state.tick})<br>พื้นฐาน ${chosen.factors.base} + ความต้องการ ${chosen.factors.need} + ความถนัด ${chosen.factors.goal} + ทักษะ ${chosen.factors.skill} − ระยะทาง ${Math.abs(chosen.factors.distance)}<br>นี่คือคะแนนจากกฎ CPU ไม่ใช่ข้อความจาก LLM</div>`;
+  if(!a.trace.length)content='<p class="source-note">จะมีเหตุผลเมื่อโลกเดิน tick แรก</p>';
+ }else content=`<div class="current-job"><small>CURRENT ACTION · ${t?.kind??'IDLE'}</small><b>${esc(actionText(a))}</b><p>${t?.path.length?'เหลืออีก '+t.path.length+' ช่องก่อนถึงเป้าหมาย':'ความต้องการ ทักษะ และระยะทางมีผลต่อการเลือกงาน'}${chosen?' · คะแนน '+chosen.score:''}</p></div><div class="source-note">ต้นแบบ: ${esc(parent?.name??'คนแรกของโลก')}<br>งานสำเร็จ ${a.workDone} ครั้ง · คลิก “เหตุผล” เพื่อดูว่าทำไมเลือกงานนี้</div>`;
+ el.innerHTML=`<div class="inspect-head"><span class="eyebrow">ONE CLONE. A DIFFERENT STORY.</span><button data-ui="close" aria-label="ปิดข้อมูลตัวละคร">×</button></div><div class="identity">${portrait(a)}<div><h2>${esc(a.name)} <sup style="font:9px system-ui;color:var(--muted)">#${a.id}</sup></h2><p>${a.generation===0?'ORIGINAL':'CLONE · รุ่น '+a.generation} · ${a.alive?'มีชีวิต':'เสียชีวิต'}</p><p class="role">ถนัด${LABELS[a.preference]}</p></div></div><div class="needs">${[['satiety','ความอิ่ม',''],['energy','พลังงาน','need-energy'],['hp','สุขภาพ','need-hp']].map(([k,label,cl])=>`<div class="${cl}"><div class="need-label"><span>${label}</span><b>${Math.round(a[k])}</b></div><div class="meter"><i style="width:${a[k]}%"></i></div></div>`).join('')}</div><div class="tabs">${[['about','ตอนนี้'],['skills','ทักษะ'],['why','เหตุผล'],['memory','ความทรงจำ']].map(([id,title])=>`<button data-ui="tab-${id}" data-tab="${id}" class="${tab===id?'active':''}">${title}</button>`).join('')}</div>${content}<button data-ui="follow" class="secondary follow">${follow?'หยุดติดตาม':'⌖ ติดตามตัวละครนี้'}</button>`;
+ if(focused)el.querySelector(`[data-ui="${focused}"]`)?.focus({preventScroll:true});
+}
+function updateUI(){
+ $('day').textContent='วันที่ '+day(state);const h=hour(state),mins=Math.floor(state.tick%15/15*60);$('clock').textContent=String(h).padStart(2,'0')+':'+String(mins).padStart(2,'0')+' · '+(h<6||h>=19?'กลางคืน':h<12?'เช้า':'บ่าย');
+ for(const type of ['food','wood','stone'])$(type).textContent=state.stock[type];
+ $('population').textContent=living(state).length+' / '+capacity(state);
+ $('pause').textContent=paused?'▶':'Ⅱ';$('pause').setAttribute('aria-label',paused?'เล่นต่อ':'หยุดเวลา');
+ $('world-status').textContent=paused||dialog.open?'หยุดเวลา · โลกยังอยู่ตรงนี้':'โลกกำลังดำเนินไปด้วยตัวเอง';
+ $('seed-label').textContent='SEED '+state.seed;
+ $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip" data-event="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · ${e.type.toUpperCase()}</small><p>${esc(e.text)}</p></button>`).join('');
+ inspect();
+}
+function selectAgent(id,center=false){selected=id;tab='about';mode='observe';$('mode-hint').hidden=true;$('build').classList.remove('active');$('observe').classList.add('active');const a=state.agents.find(a=>a.id===id);if(center&&a){focus={x:a.x,y:a.y};pan={x:innerWidth>700?-120:0,y:innerWidth>700?20:-80};}updateUI();}
+function openDialog(title,kicker,body){$('dialog-title').textContent=title;$('dialog-kicker').textContent=kicker;$('dialog-body').innerHTML=body;if(!dialog.open)dialog.showModal();updateUI();}
+function roster(){openDialog('คนในหมู่บ้าน','POPULATION · '+living(state).length+' LIVING',state.agents.map(a=>`<button class="person-row" data-person="${a.id}">${portrait(a)}<div><b>${esc(a.name)}</b><small>รุ่น ${a.generation} · ${esc(actionText(a))}</small></div><span class="badge">${a.alive?Math.round(a.satiety)+'% อิ่ม':'เสียชีวิต'}</span></button>`).join(''));}
+function history(){openDialog('ทุกชีวิตมีเรื่องราว','WORLD CHRONICLE',`<p>บันทึกเหตุการณ์จริงล่าสุด ${state.events.length} รายการ · แตะเหตุการณ์ของตัวละครเพื่อไปหาเขา (ยังไม่ใช่ระบบย้อนเวลา)</p>`+state.events.slice().reverse().map(e=>`<button class="history-event" data-story="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · TICK ${e.tick} · ${esc(e.type)}</small><p>${esc(e.text)}</p></button>`).join(''));}
+function cloneDialog(){
+ const parent=state.agents.find(a=>a.id===selected&&a.alive)||living(state)[0];if(!parent){toast('ไม่มีต้นแบบที่มีชีวิตอยู่');return;}selected=parent.id;
+ openDialog('ชีวิตใหม่ เริ่มจากใคร?','CREATE A CLONE',`<div class="identity">${portrait(parent)}<div><h2>${esc(parent.name)}</h2><p>ต้นแบบที่เลือก · รุ่น ${parent.generation}</p></div></div><p>Clone ใหม่จะเป็นรุ่น ${parent.generation+1} สืบทอด <b>35% ของ XP ทุกทักษะ</b> ของ ${esc(parent.name)} จากนั้นเลือกงานและฝึกฝนด้วยตัวเอง</p><p>ใช้ <b>อาหาร 8 · ไม้ 4</b> · ที่พัก ${living(state).length} / ${capacity(state)} คน<br>ต้นแบบรอบนี้ยังไม่มีวงจรเกิดและเติบโตอัตโนมัติ</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone">สร้าง Clone</button><button class="secondary" data-action="cancel">ยังไม่สร้าง</button></div>`);
+}
+function startBuild(){
+ if(dialog.open)dialog.close();selected=null;follow=false;mode='build';$('build').classList.add('active');$('observe').classList.remove('active');
+ $('mode-hint').hidden=false;$('mode-hint').textContent='แตะพื้นหญ้าว่างเพื่อวางบ้าน · ไม้ 12 + หิน 6 · กด “โลก” เพื่อยกเลิก';updateUI();
+}
+function menu(){openDialog('โลกของคุณ','SIMCLONE · ALPHA '+VERSION,`<div class="menu-grid"><button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>นี่คือต้นแบบ V0.1 ไม่ใช่ Living World V1.0 ที่ผ่านเกณฑ์ทั้งหมด</div>`);}
+function download(){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='simclone-day-'+day(state)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกไฟล์โลกแล้ว');}
+$('dialog-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{accumulator=0;updateUI();});
+$('dialog-body').addEventListener('click',e=>{
+ const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.person){dialog.close();selectAgent(Number(b.dataset.person),true);return;}
+ if(b.dataset.story){const ev=state.events.find(v=>v.id===Number(b.dataset.story));if(ev?.agentId){dialog.close();selectAgent(ev.agentId,true);}else toast('เหตุการณ์ระดับโลก · ยังไม่มีภาพย้อนหลังในรุ่นนี้');return;}
+ const action=b.dataset.action;
+ if(action==='cancel'){dialog.close();return;}
+ if(action==='confirm-clone'){const result=command(state,'CLONE',{parentId:selected});toast(result.message);if(result.ok){dialog.close();selectAgent(result.agentId,true);save();}return;}
+ if(action==='save'){save(true);return;}if(action==='export'){download();return;}
+ if(action==='import'){$('import-file').click();return;}
+ if(action==='reset'){openDialog('เริ่มโลกใหม่','NEW WORLD',`<p>โลกปัจจุบันในเบราว์เซอร์จะถูกแทนที่ ควรส่งออกไฟล์ก่อน กรอก seed เดิมเพื่อเริ่มด้วยแผนที่และตัวละครตั้งต้นเหมือนเดิม</p><label for="seed-input">World seed</label><input id="seed-input" class="seed-input" type="number" min="0" max="4294967295" value="${state.seed}"><div class="dialog-actions"><button class="primary" data-action="confirm-reset">เริ่มใหม่และแทนที่บันทึก</button><button class="secondary" data-action="export">ส่งออกโลกปัจจุบัน</button></div>`);return;}
+ if(action==='confirm-reset'){
+  const seed=Number($('seed-input').value);if(!Number.isInteger(seed)||seed<0||seed>4294967295){toast('กรอก seed เป็นจำนวนเต็ม 0–4294967295');return;}
+  state=createWorld(seed);canAutosave=true;paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus={x:11,y:12};pan={x:innerWidth>700?-120:0,y:38};makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
+ }
+ if(action==='help')openDialog('สังเกต เข้าใจ แล้วค่อยแทรกแซง','HOW TO PLAY',`<p><b>1. สังเกต</b><br>ลากแผนที่เพื่อเลื่อน ใช้ + / − หรือจีบนิ้วเพื่อซูม แตะคนเพื่อดูความอิ่ม พลังงาน และงานที่กำลังทำ</p><p><b>2. เข้าใจ</b><br>เปิดแท็บ “เหตุผล” ดูคะแนนจริงจาก CPU เปิด “ทักษะ” เพื่อดู XP และต้นแบบที่ถ่ายทอดความรู้</p><p><b>3. ช่วยให้โลกเติบโต</b><br>เลือกคนแล้วกดโคลน หรือวางแปลนบ้านบนหญ้าว่าง ตัวละครจะเลือกไปสร้างเองเมื่อทำได้</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น · Escape ยกเลิกวางบ้าน<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">รุ่นนี้ยังไม่มีวัยเด็ก ความชรา สังคม Faction และ Replay เต็มรูปแบบ · ภาพทั้งหมดวาดในเกม ไม่ใช้ภาพหน้าจอจำลอง</div>`);
+});
+$('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>2000000)throw new Error('ไฟล์ใหญ่เกิน 2 MB');const candidate=restore(await file.text());
+ openDialog('นำเข้าโลกที่บันทึกไว้','IMPORT WORLD',`<p>วันที่ ${day(candidate)} · ประชากร ${living(candidate).length} คน<br>การนำเข้าจะแทนที่โลกปัจจุบันในเบราว์เซอร์</p><div class="dialog-actions"><button id="confirm-import" class="primary">ยืนยันนำเข้า</button><button class="secondary" data-action="cancel">ยกเลิก</button></div>`);
+ $('confirm-import').onclick=()=>{state=candidate;canAutosave=true;selected=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus={x:11,y:12};pan={x:innerWidth>700?-120:0,y:38};makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
+ }catch(error){toast('นำเข้าไม่ได้: '+error.message);}});
+$('inspector').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.ui==='close'){selected=null;follow=false;}else if(b.dataset.tab)tab=b.dataset.tab;else if(b.dataset.ui==='follow'){follow=!follow;const a=state.agents.find(a=>a.id===selected);if(a){focus={x:a.x,y:a.y};pan={x:innerWidth>700?-120:0,y:innerWidth>700?20:-90};}}updateUI();});
+$('pause').onclick=()=>{paused=!paused;accumulator=0;updateUI();};
+for(const b of document.querySelectorAll('[data-speed]'))b.onclick=()=>{speed=Number(b.dataset.speed);document.querySelectorAll('[data-speed]').forEach(x=>x.classList.toggle('active',x===b));};
+$('clone').onclick=cloneDialog;$('build').onclick=startBuild;$('roster').onclick=roster;$('history').onclick=history;$('open-chronicle').onclick=history;$('menu').onclick=menu;
+function observe(){mode='observe';$('mode-hint').hidden=true;$('build').classList.remove('active');$('observe').classList.add('active');updateUI();}
+$('observe').onclick=observe;
+$('recent-events').onclick=e=>{const id=e.target.closest('[data-event]')?.dataset.event;if(!id)return;const ev=state.events.find(e=>e.id===Number(id));if(ev?.agentId)selectAgent(ev.agentId,true);else history();};
+for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===b));const n=b.dataset.nav;if(n==='people')roster();else if(n==='clone')cloneDialog();else if(n==='build')startBuild();else if(n==='history')history();else{selected=null;follow=false;observe();}};
+$('recenter').onclick=()=>{focus={x:11,y:12};pan={x:innerWidth>700?-120:0,y:38};follow=false;};
+const setZoom=z=>{zoom=Math.max(.5,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
+canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
+const pointers=new Map();let drag=null,pinch=0,multiTouch=false;
+canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});follow=false;
+ if(pointers.size===1){multiTouch=false;drag={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y,moved:false};}
+ if(pointers.size===2){multiTouch=true;const [a,b]=[...pointers.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y);}
+});
+canvas.addEventListener('pointermove',e=>{
+ const rect=canvas.getBoundingClientRect();ghost=worldPoint(e.clientX-rect.left,e.clientY-rect.top);
+ if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(pointers.size===2){const [a,b]=[...pointers.values()],d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch)setZoom(zoom*d/pinch);pinch=d;return;}
+ if(drag&&!multiTouch){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>6)drag.moved=true;pan.x=Math.max(-1800,Math.min(1800,drag.px+dx));pan.y=Math.max(-1200,Math.min(1200,drag.py+dy));}
+});
+canvas.addEventListener('pointerup',e=>{
+ pointers.delete(e.pointerId);if(!drag||drag.moved||multiTouch){if(!pointers.size){drag=null;multiTouch=false;}return;}
+ const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
+ if(mode==='build'){const p=worldPoint(sx,sy),result=command(state,'BUILD',p);toast(result.message);if(result.ok){observe();save();}}
+ else{let hit=null,best=30;for(const a of living(state)){const p=screenPoint(a.x,a.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{selected=null;follow=false;updateUI();}}
+ drag=null;
+});
+canvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);drag=null;multiTouch=false;});
+addEventListener('keydown',e=>{if(dialog.open||['INPUT','TEXTAREA','BUTTON'].includes(document.activeElement.tagName))return;if(e.code==='Space'){e.preventDefault();paused=!paused;accumulator=0;updateUI();}if(e.key==='Escape')observe();});
+addEventListener('resize',resize);document.addEventListener('visibilitychange',()=>{accumulator=0;lastFrame=0;if(document.hidden)save();});
+addEventListener('pagehide',()=>save());setInterval(()=>{if(!document.hidden)save();},10000);
+function frame(time){
+ const dt=lastFrame?Math.min(.2,(time-lastFrame)/1000):0;lastFrame=time;
+ if(!paused&&!document.hidden&&!dialog.open){accumulator+=dt*speed;let loops=0;while(accumulator>=.25&&loops<8){step(state);accumulator-=.25;loops++;}}
+ else accumulator=0;
+ render(time);if(time-lastUi>300){updateUI();lastUi=time;}requestAnimationFrame(frame);
+}
+makeGround();resize();updateUI();requestAnimationFrame(frame);
+// Read-only test hook. It returns copies, never mutable simulation state.
+window.simclone=Object.freeze({version:VERSION,snapshot:()=>JSON.parse(serialize(state)),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});

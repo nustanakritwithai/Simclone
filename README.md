@@ -1,19 +1,30 @@
 # Simclone — Autonomous Clone World
 
-แผนพัฒนาเกม **Autonomous Clone World**: Autonomous Society Simulation + Survival + Automation + Colony Sim + Emergent Narrative
+**Playable Alpha 0.1.0** — a seeded, CPU-driven colony simulation.
 
-## เปิดหน้าแผน
+Play: https://nustanakritwithai.github.io/Simclone/
 
-เมื่อ GitHub Pages เปิดใช้งาน:
-- https://nustanakritwithai.github.io/Simclone/
+Plan page: https://nustanakritwithai.github.io/Simclone/plan.html
 
-## เอกสารหลัก
+## What to try
 
-- [Development Plan Web](./index.html)
-- [GAME_PLAN.md](./GAME_PLAN.md)
+Select a character and open the reason/skill tabs. Clone the selected character, then place a house on free grass and watch the villagers construct it. Use pause, 1× / 2× / 5×, pan, zoom and camera follow. On mobile, use the bottom navigation. Save/export/import are in the top-right menu.
 
-## Core Principle
+No API key, account or paid model is required. Time stops when the tab is hidden or the page closes. Save data stays in the current browser unless exported.
 
-> Observe → Understand → Influence
+## Development
 
-โลกต้องดำเนินต่อได้แม้ผู้เล่นหยุดออกคำสั่งทุกคน
+Static HTML/CSS/ES modules; no runtime dependencies or build step.
+
+```sh
+npm test
+python -m http.server 8000
+```
+
+Open `http://localhost:8000`. Use an HTTP server, not a file URL, for ES modules.
+
+- [Master roadmap](GAME_PLAN.md)
+- [Implemented scope and verification limits](docs/STATUS.md)
+- [Agent handoff](AGENTS.md)
+
+This build is not the V1.0 100-day autonomy proof. Autonomous births/aging, social systems, cultural archives and replay remain future work.
