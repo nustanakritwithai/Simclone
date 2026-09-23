@@ -15,7 +15,7 @@ def boot(browser,width=390,height=844,saved=None,deny_get=False,deny_set=False,b
  page.set_content(fixture(True) if broken else HTML,wait_until='load')
  if broken:page.wait_for_function('document.querySelector("#boot-screen")?.dataset.status==="error"')
  else:
-  page.wait_for_function('window.simclone?.uiVersion==="0.2.0"')
+  page.wait_for_function('window.simclone?.uiVersion==="0.3.1"')
   page.wait_for_selector('#boot-screen',state='detached');page.wait_for_timeout(500)
   page.locator('#pause').click();page.wait_for_timeout(400)
  return page
@@ -23,7 +23,8 @@ def state(p):return p.evaluate('JSON.stringify(simclone.snapshot())')
 def is_visible_target(p):
  return p.evaluate('''()=>{const a=simclone.snapshot().agents.find(a=>a.id===2),v=simclone.screenPoint(a.x,a.y),r=simclone.safeFrame(),z=simclone.camera().zoom;return v.x-12*z>=r.left&&v.x+12*z<=r.right&&v.y-38*z>=r.top&&v.y+10*z<=r.bottom}''')
 with sync_playwright() as p:
- b=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+ exe='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None
+ b=p.chromium.launch(executable_path=exe,headless=True,args=['--no-sandbox'])
  m=boot(b);before=state(m)
  check('successful boot removes loader only after ready',m.locator('#boot-screen').count()==0)
  check('new world does not pretend to be saved',m.locator('#save-indicator').get_attribute('data-state')=='new')
@@ -43,7 +44,7 @@ with sync_playwright() as p:
  m.screenshot(path=str(OUT/'mobile-camera-sheet.png'))
  m.locator('[data-ui="close"]').tap();m.locator('#menu').tap();m.locator('[data-action="save"]').tap();m.wait_for_timeout(400)
  check('successful storage write updates badge',m.locator('#save-indicator').get_attribute('data-state')=='saved')
- saved=m.evaluate('localStorage.getItem("simclone:world:v1")');check('saved bytes retain original schema',json.loads(saved)['version']=='0.1.0')
+ saved=m.evaluate('localStorage.getItem("simclone:world:v1")');check('saved bytes retain original schema',json.loads(saved)['version']=='0.2.0')
  restored=boot(b,saved=saved);check('saved world restored in a fresh document',restored.evaluate('simclone.snapshot().seed')==json.loads(saved)['seed'] and restored.evaluate('simclone.saveStatus().kind')=='loaded')
  bad=boot(b,saved='original damaged save');check('corrupt save reported as protected',bad.locator('#save-indicator').get_attribute('data-state')=='protected')
  bad.locator('#menu').tap();check('exact original backup is available',bad.locator('[data-action="export-original"]').is_visible())

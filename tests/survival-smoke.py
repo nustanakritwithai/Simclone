@@ -9,13 +9,14 @@ def check(name,ok):
  assert ok,name
  checks.append(name);print('PASS',name,flush=True)
 with sync_playwright() as p:
- b=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+ exe='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None
+ b=p.chromium.launch(executable_path=exe,headless=True,args=['--no-sandbox'])
  page=b.new_page(viewport={'width':390,'height':844},has_touch=True,is_mobile=True)
  page.on('pageerror',lambda e:errors.append(str(e)))
  legacy=subprocess.check_output(['node','--input-type=module','-e',"import * as old from './tests/fixtures/legacy-engine-0.1.0.mjs';const s=old.createWorld(230926);old.step(s,87);console.log(old.serialize(s));"],cwd=ROOT,text=True).strip();storage(page,legacy)
- page.set_content(HTML,wait_until='load');page.wait_for_function("window.simclone?.version==='0.2.0'")
+ page.set_content(HTML,wait_until='load');page.wait_for_function("window.simclone?.version==='0.3.1'")
  page.wait_for_selector('#boot-screen',state='detached');page.wait_for_timeout(500);page.locator('#pause').tap()
- check('old world boots in new engine',page.evaluate('simclone.snapshot().version')=='0.1.0')
+ check('old world migrates into lifecycle save schema',page.evaluate('simclone.snapshot().version')=='0.2.0')
  before=page.evaluate('JSON.stringify(simclone.snapshot())')
  page.locator('.resources [role="button"]').tap()
  check('food tile opens survival summary',page.locator('#dialog-title').inner_text()=='หมู่บ้านอยู่รอดอย่างไร')
@@ -23,7 +24,7 @@ with sync_playwright() as p:
  values=page.locator('.life-summary b').all_inner_texts()
  check('summary free and reserved meals match engine jobs',values==[str(s['stock']['food']-reserved)+' หน่วย',str(reserved)+' หน่วย'])
  check('inspecting summary never changes the world',page.evaluate('JSON.stringify(simclone.snapshot())')==before)
- check('shared-stock and lifecycle limits disclosed','คลังรวม' in page.locator('#dialog-body').inner_text() and 'เกิด–โต–แก่' in page.locator('#dialog-body').inner_text())
+ check('shared-stock and lifecycle limits disclosed','คลังรวม' in page.locator('#dialog-body').inner_text() and 'การเกิดอัตโนมัติ' in page.locator('#dialog-body').inner_text())
  page.screenshot(path=str(OUT/'mobile-survival.png'))
  page.locator('#dialog-close').tap();page.locator('#menu').tap();page.locator('[data-action="survival"]').tap()
  check('menu also opens survival panel',page.locator('#dialog-title').inner_text()=='หมู่บ้านอยู่รอดอย่างไร')
