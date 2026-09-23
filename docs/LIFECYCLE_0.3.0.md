@@ -1,6 +1,6 @@
 # Simclone V0.3 — Lifecycle + Autonomous Generation Contract
 
-Status: **V0.3.0 Lifecycle Foundation candidate**. This document defines the V0.3 contracts before autonomous reproduction or age death are enabled.
+Status: **V0.3.1 Stage Gameplay verified candidate**. V0.3.0 lifecycle derivation/migration and V0.3.1 stage gameplay are implemented. Autonomous reproduction and age death remain future V0.3 gates.
 
 ## Product gate
 
@@ -31,9 +31,9 @@ Life stages:
 
 | Stage | Biological age | Contract |
 | --- | ---: | --- |
-| CHILD | 0–15 | Future V0.3.1: no full productive jobs; can satisfy basic needs. |
-| ADULT | 16–54 | Full productivity; future autonomous reproduction eligibility. |
-| ELDER | 55+ while alive | Future V0.3.1: reduced productivity; later teaching value. |
+| CHILD | 0–15 | Cannot take FORAGE / WOODCUT / MINE / BUILD; basic needs remain available. |
+| ADULT | 16–54 | Full productive work rate (1.0). |
+| ELDER | 55+ while alive | Productive work rate 0.75; later teaching value is still future work. |
 | DEAD | any | `alive=false` overrides age. No action execution. |
 
 Planned age-death window for V0.3.3 is 78–92 biological years, derived deterministically from world/agent identity. **Age death is not active in V0.3.0.**
@@ -129,3 +129,20 @@ initial adults
 ```
 
 Evidence must report births, stage transitions, age deaths, max generation, living population, resource bounds and validation results. UNKNOWN is not PASS. This proof remains narrower than V1.0 because culture, relationships, knowledge transfer and replay are still separate gates.
+
+
+## V0.3.1 verification evidence
+
+Candidate commit: `b6cd1fc26408f34a08bf58db2344dc53f586c809`
+
+Workflow run: `35887581535` — **SAT**
+
+- `npm test`: 69/69 PASS.
+- `npm run test:survival`: 18/18 SAT, including the five 100-day seed/population matrices and three 10-day empty-food crises.
+- Observation UI offline Chromium: 43 checks PASS.
+- Navigation/save recovery offline Chromium: 36 checks PASS.
+- Survival UI offline Chromium: 10 checks PASS.
+- Module-cache regression test forbids mixed versioned ES-module pins.
+- The 100-day survival fixtures exercise elder work-rate reduction after lifecycle aging and still satisfy their declared survival contracts.
+
+These browser suites use an explicit Storage test double. Native browser persistence and physical Android performance remain UNKNOWN until separately exercised. Autonomous generation continuity is not claimed by V0.3.1.

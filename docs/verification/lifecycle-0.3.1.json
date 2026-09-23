@@ -1,0 +1,54 @@
+{
+  "scope": "V0.3.1 stage gameplay; child productive-job gate, adult 1.0 rate, elder 0.75 productive rate, stage reason in UI, aligned versioned module cache pins. No autonomous birth or age death.",
+  "commit": "b6cd1fc26408f34a08bf58db2344dc53f586c809",
+  "workflowRun": 35887581535,
+  "result": "SAT",
+  "unitAsset": {
+    "tests": 69,
+    "passed": 69,
+    "failed": 0,
+    "result": "SAT"
+  },
+  "survivalRegression": {
+    "scenarios": 18,
+    "passed": 18,
+    "failed": 0,
+    "result": "SAT"
+  },
+  "offlineChromium": {
+    "observationUI": {
+      "checks": 43,
+      "passed": 43,
+      "result": "SAT"
+    },
+    "navigationSave": {
+      "checks": 36,
+      "passed": 36,
+      "result": "SAT"
+    },
+    "survivalUI": {
+      "checks": 10,
+      "passed": 10,
+      "result": "SAT"
+    },
+    "totalChecks": 89
+  },
+  "lifecycle": {
+    "child": "0-15; productive jobs blocked",
+    "adult": "16-54; productive work rate 1.0",
+    "elder": "55+; productive work rate 0.75",
+    "dead": "alive=false overrides age"
+  },
+  "save": {
+    "schema": "0.2.0",
+    "legacyAccepted": "0.1.0",
+    "storageKey": "simclone:world:v1"
+  },
+  "unknown": [
+    "native browser localStorage persistence",
+    "physical Android performance",
+    "public live HTTP fetch from this tool environment",
+    "autonomous generation continuity",
+    "age death"
+  ]
+}

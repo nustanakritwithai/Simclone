@@ -1,33 +1,40 @@
-# Simclone — current release 0.3.0
+# Simclone — current release 0.3.1
 
-Current implementation: **Lifecycle Foundation 0.3.0 + Survival Core 0.2.0 + Observation UI 0.2.0**. Saved-world schema is now 0.2.0 with explicit migration from 0.1.0. The master roadmap remains a plan, not a completion report.
+Current implementation: **Stage Gameplay 0.3.1 + Survival Core 0.2.0 + Observation UI 0.3.1**. Save schema remains 0.2.0 with explicit migration from 0.1.0. The master roadmap remains a plan, not a completion report.
 
 ## What works
 
-All 0.2.0 survival and observation behavior remains: seeded world, permanent identity, manual clone inheritance, real movement, exclusive resource jobs, two-builder construction, reserved meals, route-distance target selection, production-aware stock targets, hunger interruption, on-site eating, inspector/decision trace, minimap/camera and protected local-browser save flow.
+All V0.2 survival behavior remains: seeded world, permanent identity, manual clone inheritance, real movement, exclusive resource jobs, two-builder construction, reserved meals, route-distance target selection, production-aware stock targets, hunger interruption and on-site eating.
 
-V0.3.0 adds deterministic lifecycle state at the engine layer:
+Lifecycle is now gameplay-active:
 
-- 360 ticks = 1 simulated day = 1 biological year;
-- CHILD 0–15, ADULT 16–54, ELDER 55+, DEAD when `alive=false`;
-- new worlds and manual CLONE actions begin as age-18 ADULT;
-- each agent persists a lifecycle anchor;
-- a real 0.1.0 save fixture migrates to schema 0.2.0 at load without changing identity, lineage, appearance, skills or resources.
+- 360 ticks = 1 simulated day = 1 biological year.
+- CHILD 0–15 cannot take FORAGE / WOODCUT / MINE / BUILD.
+- ADULT 16–54 keeps full productive work rate.
+- ELDER 55+ performs productive work at deterministic 75% rate.
+- DEAD overrides age and cannot work.
+- Stage-ineligible in-flight productive tasks fail validation, lose their derived claim, and replan.
+- Inspector shows the engine-derived stage and age.
+- Decision Trace exposes `stage` as a concrete blocked reason.
+- Manual CLONE remains an age-18 Influence action. It is not autonomous birth.
 
-Stage currently has **no productivity or job restriction effect**. Autonomous birth and age death are still absent; the UI does not pretend they exist.
+V0.3.1 also fixes mixed-version ES-module cache pins so app, UX, navigation and engine use the same 0.3.1 asset version.
 
 ## Latest evidence
 
-Lifecycle candidate verification run `35885291046` on commit `c573e6fa63834b61a137c89875e88f507a98e402` completed successfully:
+Candidate commit `b6cd1fc26408f34a08bf58db2344dc53f586c809`, workflow `35887581535`: **SAT**.
 
-- `npm test`: **62/62 PASS**;
-- `npm run test:survival`: **18/18 SAT** — the same five seeds × populations 6/12/36 for 100 simulated days, plus three 10-day empty-food crisis fixtures.
+- `npm test`: **69/69 PASS**.
+- Survival regression: **18/18 SAT**.
+- Offline Chromium observation UI: **43 PASS**.
+- Offline Chromium navigation/save recovery: **36 PASS**.
+- Offline Chromium survival UI: **10 PASS**.
 
-The previous 88 offline Chromium UI assertions are retained as 0.2.0 UI evidence; no new UI behavior is claimed by V0.3.0. Public HTTP, native browser storage and physical Android performance are still not established by those offline fixtures. GitHub Pages deployment must be verified against the exact main commit workflow run.
+The survival matrix still uses fixture/manual population setup; it does not prove autonomous reproduction or generation continuity. Offline Chromium uses an explicit Storage test double. Native browser persistence and physical Android performance remain UNKNOWN. Exact GitHub Pages deployment must be verified for the main commit before release is called deployed.
 
 ## Save contract
 
-Engine version: `0.3.0`.
+Engine version: `0.3.1`.
 
 Save schema: `0.2.0`.
 
@@ -35,14 +42,14 @@ Accepted legacy schema: `0.1.0`.
 
 Storage key remains `simclone:world:v1`.
 
-On legacy migration, existing agents receive a lifecycle anchor at the loaded simulation tick and age 18. This prevents a long-running pre-lifecycle world from becoming instantly elderly when lifecycle rules are adopted. Corrupt/unreadable-save overwrite protection remains unchanged.
+No schema bump was required for V0.3.1 because stage capability and elder work rate are derived from existing lifecycle state.
 
 ## Still not implemented
 
-Stage-dependent work rules, autonomous reproduction, age death, generation-continuity proof, mentor teaching, cultural archive, local perception, social/faction/economy/conflict systems, replay and LLM integration.
+Autonomous reproduction, reproduction cooldown/pacing, age death, generation-continuity proof, mentor teaching, cultural archive, local perception, social/faction/economy/conflict systems, replay and LLM integration.
 
 The V1.0 autonomy gate is not claimed.
 
 ## Next gate
 
-**V0.3.1 — Stage gameplay.** CHILD must be excluded from full productive jobs, ADULT keeps current productivity, and ELDER receives a deterministic productivity reduction. Any stage transition that invalidates an in-flight task must release its task-derived reservation and replan. See [the lifecycle contract](LIFECYCLE_0.3.0.md).
+**V0.3.2 — Autonomous Birth.** Birth must be a separate engine transition from manual CLONE, require safe food/housing/resources, enforce deterministic pacing/cooldown, create a CHILD age 0, preserve lineage/inheritance, and never create a second mutable reservation registry.

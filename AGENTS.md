@@ -39,13 +39,14 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Run `npm test`, `npm run test:survival`, `python tests/ui-smoke.py`, `python tests/navigation-smoke.py`, `python tests/survival-smoke.py`. No long-run survival fixture implies autonomous births or the complete V1.0 proof.
 
 
-## Lifecycle Foundation 0.3.0 (current engine)
+## Lifecycle Stage Gameplay 0.3.1 (current engine)
 
 - Read `docs/LIFECYCLE_0.3.0.md` before changing age, stage, birth or death behavior.
-- Engine `VERSION=0.3.0`; save schema `SAVE_VERSION=0.2.0`; `restore()` explicitly migrates legacy 0.1.0 saves.
+- Engine `VERSION=0.3.1`; save schema `SAVE_VERSION=0.2.0`; `restore()` explicitly migrates legacy 0.1.0 saves.
 - Lifecycle is simulation-time only: 360 ticks = 1 biological year. No Date/time or Math.random belongs in lifecycle rules.
 - Stage boundaries are CHILD 0–15, ADULT 16–54, ELDER 55+, with DEAD overriding age.
 - Existing worlds and manual CLONE start lifecycle at age 18. Manual CLONE is an Influence action; it is not autonomous birth.
-- V0.3.0 does not yet change productivity, create autonomous children or cause age death. Do not surface those as implemented UI.
-- Candidate evidence: 62/62 unit/asset tests and 18/18 Survival Core scenarios passed on `c573e6fa63834b61a137c89875e88f507a98e402`.
+- CHILD cannot take productive resource/build jobs; ADULT work rate is 1.0; ELDER productive work rate is 0.75. Stage-ineligible saved tasks must replan through task validation.
+- V0.3.1 still does not create autonomous children or cause age death. Do not surface those as implemented.
+- Candidate evidence: 69/69 unit/asset tests, 18/18 Survival Core scenarios, and 89 offline Chromium assertions passed on `b6cd1fc26408f34a08bf58db2344dc53f586c809`.
 - Candidate branches are verified by `.github/workflows/verify.yml`; Pages deployment remains gated on exact `main` workflow success.
