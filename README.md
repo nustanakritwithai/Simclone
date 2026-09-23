@@ -1,16 +1,29 @@
 # Simclone — Autonomous Clone World
 
-**Survival Core 0.2.0** — seeded CPU-driven survival with an inspectable mobile-first UI.
+**Lifecycle Foundation 0.3.0** over **Survival Core 0.2.0** with Observation UI 0.2.0.
 
 Play: https://nustanakritwithai.github.io/Simclone/
 
 Plan: https://nustanakritwithai.github.io/Simclone/plan.html
 
-## Try it
+## Current engine gate
 
-Tap a portrait, then “ทำไม?” to inspect actual job scores and route lengths. Tap the food counter to see available/reserved food and assigned workers. Clone a selected parent, or preview/confirm a house and watch the workers construct it. Resource nodes have one worker each; houses allow two builders. Hungry foragers can eat one harvested food unit on site.
+V0.3.0 establishes deterministic lifecycle time and save migration before lifecycle behavior is allowed to affect survival.
 
-Pause / 1× / 2× / 5×, pan/zoom/follow, minimap, roster search and recent Chronicle are included. Save/export/import are in the menu. No account or AI API key is required. Time stops when hidden or closed. Saves stay in the current browser unless exported.
+- 360 ticks = 1 simulated day = 1 biological year.
+- CHILD: 0–15, ADULT: 16–54, ELDER: 55+, DEAD overrides age.
+- Fresh worlds and manual CLONE actions start as age-18 adults.
+- Save schema is now 0.2.0. Existing 0.1.0 saves migrate explicitly and start the V0.3 lifecycle clock at age 18 at load time.
+- Storage key remains `simclone:world:v1`.
+- Autonomous birth, child work restrictions, elder productivity changes and age death are **not enabled yet**.
+
+Survival behavior from 0.2.0 remains active: route-aware resource selection, task-derived reservations, one worker per resource node, two builders per site, reserved meals, stock targets, hunger interruption and on-site eating.
+
+## Verification
+
+Candidate evidence for the lifecycle engine: 62/62 unit/asset tests and 18/18 Survival Core scenarios passed. The survival proof is still a V0.2 regression fixture with manual population setup; it is not a generation-continuity proof.
+
+The prior 88 offline Chromium UI assertions belong to the 0.2.0 observation release. Native browser persistence, public HTTP delivery and physical Android performance remain separate evidence gates.
 
 ## Development
 
@@ -22,11 +35,12 @@ npm run test:survival
 python -m http.server 8000
 ```
 
-Use an HTTP server, not a file URL, for ES modules. Offline browser fixtures require Python Playwright and Chromium; they do not prove native localStorage or live HTTP delivery.
+Use an HTTP server, not a file URL, for ES modules.
 
 - [Current status](docs/STATUS.md)
-- [Survival rules and evidence](docs/SURVIVAL_0.2.0.md)
+- [Lifecycle V0.3 contract](docs/LIFECYCLE_0.3.0.md)
+- [Survival 0.2 rules/evidence](docs/SURVIVAL_0.2.0.md)
 - [Master roadmap](GAME_PLAN.md)
 - [Agent handoff](AGENTS.md)
 
-0.1.0 saved worlds remain readable. This is not the V1.0 autonomous lifecycle proof. Birth/aging, mentor/archive learning, social systems and full replay remain future work.
+Next engine milestone is V0.3.1 stage gameplay. Autonomous reproduction follows only after stage rules are deterministic and regression-safe.

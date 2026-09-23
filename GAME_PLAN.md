@@ -118,6 +118,10 @@ PLAY
 
 ## V0.3 — Clone + Lifecycle
 
+Concrete lifecycle/save contract: [docs/LIFECYCLE_0.3.0.md](docs/LIFECYCLE_0.3.0.md)
+
+Current clock contract: **360 ticks = 1 simulated day = 1 biological year**; CHILD 0–15, ADULT 16–54, ELDER 55+, DEAD overrides age. V0.3.0 establishes derivation/migration only; stage effects, autonomous birth and age death remain later V0.3 gates.
+
 ### Agent Identity
 - id
 - name

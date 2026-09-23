@@ -12,7 +12,7 @@ async function stylesReady(){
 }
 try{
   await stylesReady();
-  await import('./app.mjs?v=0.2.0');
+  await import('./app.mjs?v=0.3.0');
   if(window.simclone?.uiVersion!=='0.2.0')throw new Error('VERSION_MISMATCH');
   if(screen)screen.remove();
 }catch(error){

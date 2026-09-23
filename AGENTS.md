@@ -37,3 +37,15 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Resource nodes: one worker. Buildings: two workers. Meals: one claimant per available unit. Reserved meals are not spendable by CLONE.
 - Stock targets account for already-assigned output. On-site eating deducts one harvested item. Zero-output work earns no XP.
 - Run `npm test`, `npm run test:survival`, `python tests/ui-smoke.py`, `python tests/navigation-smoke.py`, `python tests/survival-smoke.py`. No long-run survival fixture implies autonomous births or the complete V1.0 proof.
+
+
+## Lifecycle Foundation 0.3.0 (current engine)
+
+- Read `docs/LIFECYCLE_0.3.0.md` before changing age, stage, birth or death behavior.
+- Engine `VERSION=0.3.0`; save schema `SAVE_VERSION=0.2.0`; `restore()` explicitly migrates legacy 0.1.0 saves.
+- Lifecycle is simulation-time only: 360 ticks = 1 biological year. No Date/time or Math.random belongs in lifecycle rules.
+- Stage boundaries are CHILD 0–15, ADULT 16–54, ELDER 55+, with DEAD overriding age.
+- Existing worlds and manual CLONE start lifecycle at age 18. Manual CLONE is an Influence action; it is not autonomous birth.
+- V0.3.0 does not yet change productivity, create autonomous children or cause age death. Do not surface those as implemented UI.
+- Candidate evidence: 62/62 unit/asset tests and 18/18 Survival Core scenarios passed on `c573e6fa63834b61a137c89875e88f507a98e402`.
+- Candidate branches are verified by `.github/workflows/verify.yml`; Pages deployment remains gated on exact `main` workflow success.

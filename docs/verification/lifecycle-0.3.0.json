@@ -1,0 +1,42 @@
+{
+  "scope": "V0.3.0 lifecycle foundation only; age/stage derivation + explicit 0.1.0 -> 0.2.0 save migration; no stage gameplay, autonomous birth or age death",
+  "coreCandidateCommit": "c573e6fa63834b61a137c89875e88f507a98e402",
+  "verificationRun": 35885291046,
+  "result": "SAT",
+  "unitAsset": {
+    "tests": 62,
+    "passed": 62,
+    "failed": 0,
+    "result": "SAT"
+  },
+  "survivalRegression": {
+    "scenarios": 18,
+    "passed": 18,
+    "result": "SAT",
+    "note": "Historical V0.2 survival fixtures: 5 seeds x populations 6/12/36 for 100 simulated days plus 3 empty-food crises for 10 days. Population is fixture/manual-clone initialized; this is not autonomous lifecycle proof."
+  },
+  "lifecycleContracts": {
+    "ticksPerBiologicalYear": 360,
+    "yearsPerSimulatedDay": 1,
+    "child": "0-15",
+    "adult": "16-54",
+    "elder": "55+ while alive",
+    "dead": "alive=false overrides age",
+    "legacyMigrationAge": 18,
+    "manualCloneAge": 18,
+    "plannedAgeDeathWindow": "78-92; not active in V0.3.0"
+  },
+  "save": {
+    "current": "0.2.0",
+    "legacyAccepted": "0.1.0",
+    "storageKey": "simclone:world:v1",
+    "migration": "explicit in restore()"
+  },
+  "uiEvidence": "No new UI behavior claimed. Prior V0.2.0 offline Chromium suite: 88 assertions PASS.",
+  "unknown": [
+    "native browser localStorage persistence after migration",
+    "physical Android performance",
+    "public live HTTP behavior until exact main Pages run is verified",
+    "autonomous generation continuity"
+  ]
+}
