@@ -58,3 +58,21 @@ After exact 0.5.0 release gates pass:
 5. then build the cross-generation cultural archive slice
 
 See [NEXT_STEPS.md](NEXT_STEPS.md).
+
+
+## Kingdom Sandbox utility import — K1 candidate
+
+The first Kingdom Sandbox extraction is intentionally narrow. It does **not** copy the donor simulator or enable its economy, migration, bandits, military, governance or factions.
+
+Imported behavior:
+
+- productive work receives a scarcity premium derived from Simclone stock targets;
+- the donor's +8 profession-continuity bonus is preserved;
+- the donor's small random utility variation is replaced by deterministic seed/agent/tick jitter in the same -4..4 range;
+- living agents now carry a current worker profession and a bounded eight-entry career tail;
+- when a different productive job wins and passes Simclone reservation/path validation, the agent may change profession;
+- Decision Trace exposes scarcity, profession and deterministic-jitter factors.
+
+Authority remains with Simclone: task eligibility, path reachability, reservations, lifecycle, stock mutation, skill provenance and personal knowledge are unchanged owners of their rules. Existing 0.5.0 saves may omit profession/career; those fields are optional and are initialized deterministically when the agent next plans. Save version therefore remains 0.5.0 for this K1 candidate.
+
+Verification is provided by `tests/kingdom-utility.test.mjs` plus the existing full regression suite. This is occupation/scarcity utility only, not the later Kingdom economy/faction/governance import.
