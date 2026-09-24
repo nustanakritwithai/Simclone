@@ -17,9 +17,18 @@ export function createFoodRegenerationImpact(state,regen=createResourceRegenerat
     authoritativeWriter:r.authoritativeWriter
   }));
   const counts={'very-low':0,low:0,medium:0,high:0};
-  let potential=0,missing=0;
-  for(const r of rows){counts[r.ecologyBand]++;potential+=r.ecologyRegenerationPotential;missing+=r.missing;}
+  let potential=0,missing=0,weightedPotential=0;
+  for(const r of rows){
+    counts[r.ecologyBand]++;potential+=r.ecologyRegenerationPotential;missing+=r.missing;
+    weightedPotential+=r.ecologyRegenerationPotential*r.missing;
+  }
   const sorted=[...rows].sort((a,b)=>b.ecologyRegenerationPotential-a.ecologyRegenerationPotential||a.id-b.id);
+  const ascending=[...rows].sort((a,b)=>a.ecologyRegenerationPotential-b.ecologyRegenerationPotential||a.id-b.id);
+  const median=ascending.length
+    ? ascending.length%2
+      ? ascending[(ascending.length-1)/2].ecologyRegenerationPotential
+      : (ascending[ascending.length/2-1].ecologyRegenerationPotential+ascending[ascending.length/2].ecologyRegenerationPotential)/2
+    : 0;
   return Object.freeze({
     version:FOOD_REGEN_IMPACT_VERSION,
     authority:Object.freeze({mode:'shadow-only',writer:'simclone-k6',unitFormula:'none'}),
@@ -27,6 +36,10 @@ export function createFoodRegenerationImpact(state,regen=createResourceRegenerat
     summary:Object.freeze({
       nodes:rows.length,
       averageEcologyPotential:rows.length?+(potential/rows.length).toFixed(4):0,
+      medianEcologyPotential:+median.toFixed(4),
+      minEcologyPotential:ascending.length?ascending[0].ecologyRegenerationPotential:0,
+      maxEcologyPotential:sorted.length?sorted[0].ecologyRegenerationPotential:0,
+      missingWeightedEcologyPotential:missing?+(weightedPotential/missing).toFixed(4):0,
       totalMissing:missing,
       bands:Object.freeze(counts)
     }),
