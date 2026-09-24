@@ -2,6 +2,7 @@
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {autonomousBirthFoodTarget,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.5.0';
 import {allPeople} from './history.mjs?v=0.5.0';
+import {kingdomEconomySnapshot} from './kingdom-economy.mjs?v=0.5.0';
 export const RULES = Object.freeze({
   width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
@@ -106,10 +107,11 @@ export function plannedStock(s,book){
 export function survivalSummary(s){
   const agents=s.agents.filter(a=>a.alive),{book}=reservations(s),target=stockTargets(s);
   const freeFood=Math.max(0,s.stock.food-book.meals.size),birth=birthPlan(s,freeFood);
+  const kingdomEconomy=kingdomEconomySnapshot({agents,stock:s.stock,unfinished:s.buildings.filter(b=>!b.complete).length});
   return {population:agents.length,hungry:agents.filter(a=>a.satiety<RULES.hungry).length,
     exhausted:agents.filter(a=>a.energy<RULES.exhausted).length,
     food:s.stock.food,reservedMeals:book.meals.size,freeFood,
     targets:target,projected:plannedStock(s,book),nodeJobs:book.nodes.size,builders:[...book.buildings.values()].reduce((sum,ids)=>sum+ids.size,0),
     unfinished:s.buildings.filter(b=>!b.complete).length,autonomousBirths:allPeople(s).filter(isAutonomousChild).length,birth:{...birth},
-    stock:{...s.stock}};
+    stock:{...s.stock},kingdomEconomy};
 }
