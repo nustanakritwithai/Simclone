@@ -11,7 +11,7 @@ const totals=p=>p.initialXP+p.inheritedXP+p.earnedXP+p.legacyUnattributedXP;
 
 test('V0.4.0 creates exact starting provenance for Original and initial descendants',()=>{
   const s=createWorld(42),original=s.agents[0];
-  assert.equal(VERSION,'0.4.0');assert.equal(SAVE_VERSION,'0.4.0');assert.equal(SKILL_PROVENANCE_VERSION,'0.4.0');
+  assert.equal(VERSION,'0.5.0');assert.equal(SAVE_VERSION,'0.5.0');assert.equal(SKILL_PROVENANCE_VERSION,'0.4.0');
   for(const k of SKILLS){
     const p=original.skillProvenance.bySkill[k];
     assert.equal(p.initialXP,original.skills[k]);assert.equal(p.inheritedXP,0);assert.equal(p.earnedXP,0);assert.equal(p.legacyUnattributedXP,0);
