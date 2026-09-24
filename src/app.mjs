@@ -1,10 +1,11 @@
 import {installUX,UI_VERSION} from './ux.mjs?v=0.5.0';
 import {createWorldStore,saveLabel} from './storage.mjs?v=0.5.0';
 import {installNavigation} from './navigation.mjs?v=0.5.0';
+import {createWorldMapView,WORLD_MAP_VERSION,MAP_AUTHORITY} from './worldsim-map.mjs?v=0.5.0';
 import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let ux=null,nav=null;
+let ux=null,nav=null,worldMapView=null;
 const store=createWorldStore({getStorage:()=>localStorage,serialize,restore});
 let state=createWorld(),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
 let toastTimer,ground,cw=0,ch=0,dpr=1,zoom=innerWidth<700?1.12:1.25,pan={x:0,y:0};
@@ -23,25 +24,25 @@ function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,
 function line(c,points,color,width=1){c.strokeStyle=color;c.lineWidth=width;c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke();}
 function hash(x,y){return ((Math.imul(x+33,374761393)^Math.imul(y+41,668265263))>>>0)/4294967296;}
 function makeGround(){
+ worldMapView=createWorldMapView(state);
  ground=document.createElement('canvas');ground.width=(SIZE.w+SIZE.h)*hw+120;ground.height=(SIZE.w+SIZE.h)*hh+110;
  const c=ground.getContext('2d');c.translate(SIZE.h*hw+60,32);
  const corners=[proj(0,0),proj(SIZE.w,0),proj(SIZE.w,SIZE.h),proj(0,SIZE.h)].map(p=>[p.x,p.y]);
  polygon(c,corners.map(([x,y])=>[x,y+20]),'#304b37');
  for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
-  const p=proj(x,y),t=tileAt(state,x,y),r=hash(x,y);let color;
-  if(t==='water')color=['#467c7c','#49807d','#4b8380'][Math.floor(r*3)];
-  else if(t==='path')color=['#a5976e','#afa079','#a3946b'][Math.floor(r*3)];
-  else if(t==='bridge')color='#967b50';
-  else color=['#66834e','#6c8851','#708b53','#748e56','#6b864f'][Math.floor(r*5)];
-  polygon(c,[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],color);
-  if(t==='grass'){
-   for(let k=0;k<4;k++){
+  const p=proj(x,y),cell=worldMapView.cells[y*SIZE.w+x],t=cell.terrainType,r=cell.detail;
+  polygon(c,[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],cell.color);
+  if(t==='grass'||t==='forest'){
+   for(let k=0;k<(t==='forest'?3:4);k++){
     const dx=(hash(x+k*7,y+2)-.5)*32,dy=(hash(x,y+k*5)-.5)*12;
-    line(c,[[p.x+dx,p.y+dy],[p.x+dx-1,p.y+dy-3]],'#9ba66866',.8);
+    line(c,[[p.x+dx,p.y+dy],[p.x+dx-1,p.y+dy-3]],t==='forest'?'#91ac7955':'#c0c88d66',.8);
    }
-   if(r>.87)for(let k=0;k<3;k++)ellipse(c,p.x+k*3-4,p.y+k%2,1.2,.7,'#dccb9e');
+   if(t==='grass'&&r>.87)for(let k=0;k<3;k++)ellipse(c,p.x+k*3-4,p.y+k%2,1.2,.7,'#e0cf9c');
   }
-  if(t==='water')for(let k=0;k<2;k++)line(c,[[p.x-10+k*14,p.y-2+k*4],[p.x-1+k*14,p.y-2+k*4]],'#98bca363',.8);
+  if(t==='deepWater'||t==='shallowWater')for(let k=0;k<2;k++)line(c,[[p.x-10+k*14,p.y-2+k*4],[p.x-1+k*14,p.y-2+k*4]],t==='deepWater'?'#8ebdce55':'#d0e3c477',.8);
+  if(t==='sand')for(let k=0;k<3;k++)ellipse(c,p.x-9+k*7,p.y-2+k%2,1.4,.7,'#e0cf9c88');
+  if(t==='rock')line(c,[[p.x-12,p.y+1],[p.x-4,p.y-4],[p.x+5,p.y-1],[p.x+10,p.y-3]],'#c6ccbb66',.8);
+  if(t==='path')line(c,[[p.x-8,p.y+2],[p.x+5,p.y-3]],'#d1c19366',.7);
   if(t==='bridge')for(let k=-2;k<=2;k++)line(c,[[p.x-19+k*4,p.y+k*3-4],[p.x+9+k*4,p.y+k*3+9]],'#d2b484',1.2);
  }
 }
@@ -132,8 +133,6 @@ function render(time){
  if(follow){const a=state.agents.find(a=>a.id===selected&&a.alive);if(a){focus.x+=(a.x-focus.x)*.03;focus.y+=(a.y-focus.y)*.03;}}
  ctx.save();ctx.translate(cameraOrigin().x+pan.x,cameraOrigin().y+pan.y);ctx.scale(zoom,zoom);const f=proj(focus.x,focus.y);ctx.translate(-f.x,-f.y);
  ctx.drawImage(ground,-SIZE.h*hw-60,-32);
- // Render-only ripples. They never consume simulation RNG.
- for(let i=0;i<12;i++){const y=2+i*1.8,x=21+Math.round(Math.sin(y*.26)*2),p=proj(x,y);line(ctx,[[p.x-8+Math.sin(time*.001+i)*3,p.y],[p.x+8,p.y]],'#b4d5c640',1);}
  const a=state.agents.find(a=>a.id===selected&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
  const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
@@ -240,10 +239,10 @@ ux=installUX({
  preview:(type,data)=>{const copy=JSON.parse(serialize(state)),result=command(copy,type,data);return {...result,agent:type==='CLONE'&&result.ok?copy.agents.at(-1):null};},
  execute:(type,data)=>{const result=command(state,type,data);updateUI();return result;},save
 });
-nav=installNavigation({read:()=>({state,selected,follow,mode,paused}),menu,center:centerCamera,worldPoint,focus:()=>({...focus}),zoom:()=>zoom,storageStatus:store.status,layoutChanged:()=>{const a=state.agents.find(a=>a.id===selected&&a.alive);if(a)focus={x:a.x,y:a.y};}});
+nav=installNavigation({mapView:()=>worldMapView,read:()=>({state,selected,follow,mode,paused}),menu,center:centerCamera,worldPoint,focus:()=>({...focus}),zoom:()=>zoom,storageStatus:store.status,layoutChanged:()=>{const a=state.agents.find(a=>a.id===selected&&a.alive);if(a)focus={x:a.x,y:a.y};}});
 updateUI();
 setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});
