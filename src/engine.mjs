@@ -1,13 +1,13 @@
-/** Simclone 0.3.5 — stable death history over generation continuity. */
+/** Simclone 0.3.6 — compact historical identity archive over stable death history. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
-  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs?v=0.3.5';
-import {LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs?v=0.3.5';
-import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.3.5';
-export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
-export const VERSION = '0.3.5';
+  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs?v=0.3.6';
+import {LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs?v=0.3.6';
+import {BIRTH_RULES,birthPlan,isAutonomousChild,autonomousChildrenOf} from './reproduction.mjs?v=0.3.6';
+export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild,autonomousChildrenOf};
+export const VERSION = '0.3.6';
 export const SAVE_VERSION = '0.2.0';
 export const LEGACY_SAVE_VERSION = '0.1.0';
-export const HISTORY_VERSION = '0.1.0';
+export const HISTORY_VERSION = '0.2.0';
 const DEATH_STATUSES = new Set(['recorded','legacy-evidence','legacy-unknown']);
 const DEATH_CAUSES = new Set(['age','starvation','unknown']);
 export const SIZE = { w: 30, h: 26 };
@@ -23,7 +23,7 @@ function rng(s) { s.rng = (Math.imul(1664525,s.rng)+1013904223)>>>0; return s.rn
 function event(s,type,text,agentId=null) {
   const e={id:s.nextEvent++,tick:s.tick,type,text,agentId};
   s.events.push(e); if(s.events.length>120)s.events.shift();
-  if(agentId){const a=s.agents.find(a=>a.id===agentId); if(a){a.memory.push({tick:s.tick,text});if(a.memory.length>8)a.memory.shift();}}
+  if(agentId){const a=personById(s,agentId); if(a){a.memory.push({tick:s.tick,text});if(a.memory.length>8)a.memory.shift();}}
 }
 function createAgent(s,parent,initial=false,mode='manual'){
   const id=s.nextAgent++, k=id-1,autonomous=mode==='birth';
@@ -57,8 +57,25 @@ function killAgent(s,a,cause){
     :a.name+' เสียชีวิตจากการขาดอาหารเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี';
   event(s,'death',text,a.id);return true;
 }
+function historicalIdentity(a){
+  return {
+    id:a.id,name:a.name,parentId:a.parentId,generation:a.generation,
+    x:a.x,y:a.y,hp:0,satiety:a.satiety,energy:a.energy,alive:false,
+    death:a.death?{...a.death}:null,
+    appearance:{...a.appearance},preference:a.preference,skills:{...a.skills},source:a.source,
+    memory:Array.isArray(a.memory)?a.memory.map(m=>({...m})):[],workDone:a.workDone,bornTick:a.bornTick,
+    life:a.life?{...a.life}:null
+  };
+}
+function archiveDeadAgents(s){
+  const dead=s.agents.filter(a=>!a.alive);if(!dead.length)return;
+  if(!Array.isArray(s.historyAgents))s.historyAgents=[];
+  const ids=new Set(s.historyAgents.map(a=>a.id));
+  for(const a of dead)if(!ids.has(a.id)){s.historyAgents.push(historicalIdentity(a));ids.add(a.id);}
+  s.agents=s.agents.filter(a=>a.alive);
+}
 export function createWorld(seed=230926){
-  const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
+  const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],historyAgents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
   let nid=1;
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
@@ -78,6 +95,8 @@ export function createWorld(seed=230926){
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
+export const people = s => [...s.agents,...(Array.isArray(s.historyAgents)?s.historyAgents:[])];
+export function personById(s,id){return s.agents.find(a=>a.id===id)??(Array.isArray(s.historyAgents)?s.historyAgents.find(a=>a.id===id):undefined);}
 export const capacity = s => s.buildings.filter(b=>b.complete).length*6;
 export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
@@ -86,7 +105,7 @@ export function command(s,type,data={}){
     const parent=s.agents.find(a=>a.id===data.parentId&&a.alive);
     if(!parent)return {ok:false,message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
     if(living(s).length>=Math.min(36,capacity(s)))return {ok:false,message:'ที่พักเต็มแล้ว สร้างบ้านให้เสร็จก่อน'};
-    if(s.agents.length>=200)return {ok:false,message:'ถึงขีดจำกัดประวัติตัวละครของต้นแบบนี้แล้ว'};
+    if(people(s).length>=BIRTH_RULES.maxRetainedAgents)return {ok:false,message:'ถึงขีดจำกัดประวัติตัวละครของต้นแบบนี้แล้ว'};
     const freeFood=survivalSummary(s).freeFood;
     if(freeFood<8||s.stock.wood<4)return {ok:false,message:'ต้องมีอาหารว่าง 8 และไม้ 4 · อาหารที่จองไว้ให้คนกินไม่นับเป็นอาหารว่าง'};
     s.stock.food-=8;s.stock.wood-=4;s.stats.cloned++;
@@ -213,6 +232,7 @@ export function step(s,count=1){
       if(shouldDieOfAge(s,a)){killAgent(s,a,'age');continue;}
       if(a.task&&interrupt(s,a)){a.task=null;a.moveTick=0;}
     }
+    archiveDeadAgents(s);
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
     const agents=living(s),rotation=s.tick%Math.max(1,agents.length);
@@ -240,9 +260,19 @@ export function validate(s){
   if(!Number.isInteger(s.tick)||s.tick<0||!Number.isInteger(s.rng)||!Number.isInteger(s.seed))bad('Clock/seed');
   if(!Array.isArray(s.tiles)||s.tiles.length!==SIZE.w*SIZE.h||s.tiles.some(t=>!['grass','water','path','bridge'].includes(t)))return ['Terrain'];
   if(!s.stock||['food','wood','stone'].some(k=>!finite(s.stock[k])||s.stock[k]<0||s.stock[k]>999))bad('Inventory');
-  if(!Array.isArray(s.agents)||s.agents.length<1||s.agents.length>200)return ['Agent count'];
-  const ids=new Set();
-  for(const a of s.agents){
+  if(!Array.isArray(s.agents)||s.agents.length>200)return ['Agent count'];
+  if(!Array.isArray(s.historyAgents)||s.historyAgents.length>BIRTH_RULES.maxRetainedAgents)return ['History agent count'];
+  if(s.agents.length+s.historyAgents.length<1||s.agents.length+s.historyAgents.length>BIRTH_RULES.maxRetainedAgents)return ['Identity count'];
+  const ids=new Set(),all=[...s.agents,...s.historyAgents];
+  const deathValid=d=>{
+    if(!d||!DEATH_STATUSES.has(d.status)||!DEATH_CAUSES.has(d.cause))return false;
+    if(d.tick!==null&&(!Number.isInteger(d.tick)||d.tick<0||d.tick>s.tick))return false;
+    if(d.ageYears!==null&&(!Number.isInteger(d.ageYears)||d.ageYears<0||d.ageYears>200))return false;
+    if(d.status==='recorded'&&(d.tick===null||d.ageYears===null||d.cause==='unknown'))return false;
+    if(d.status==='legacy-unknown'&&(d.tick!==null||d.ageYears!==null||d.cause!=='unknown'))return false;
+    return true;
+  };
+  const identityValid=a=>{
     if(!Number.isInteger(a.id)||ids.has(a.id))bad('Agent ID');ids.add(a.id);
     if(!walkable(s,a.x,a.y))bad('Agent position');
     if(['hp','satiety','energy'].some(k=>!finite(a[k])||a[k]<0||a[k]>100))bad('Agent needs');
@@ -250,30 +280,28 @@ export function validate(s){
     if(!a.skills||SKILLS.some(k=>!finite(a.skills[k])||a.skills[k]<0))bad('Skills');
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
-    if(!Array.isArray(a.trace)||a.trace.length>30||a.trace.some(t=>!LABELS[t.kind]||!finite(t.score)||!t.factors||Object.values(t.factors).some(v=>!finite(v))))bad('Trace');
-    if(!finite(a.moveTick)||!finite(a.workDone)||!finite(a.bornTick)||typeof a.source!=='string'||!SKILLS.includes(a.preference))bad('Agent bookkeeping');
+    if(!finite(a.workDone)||!finite(a.bornTick)||typeof a.source!=='string'||!SKILLS.includes(a.preference))bad('Agent bookkeeping');
     if(!a.life||!Number.isInteger(a.life.anchorTick)||a.life.anchorTick<0||a.life.anchorTick>s.tick||
       !Number.isInteger(a.life.ageAtAnchorYears)||a.life.ageAtAnchorYears<0||a.life.ageAtAnchorYears>200)bad('Lifecycle');
-    if(a.alive){
-      if(a.death!==null)bad('Death history');
-    }else{
-      const d=a.death;
-      if(!d||!DEATH_STATUSES.has(d.status)||!DEATH_CAUSES.has(d.cause))bad('Death history');
-      else{
-        if(d.tick!==null&&(!Number.isInteger(d.tick)||d.tick<0||d.tick>s.tick))bad('Death history');
-        if(d.ageYears!==null&&(!Number.isInteger(d.ageYears)||d.ageYears<0||d.ageYears>200))bad('Death history');
-        if(d.status==='recorded'&&(d.tick===null||d.ageYears===null||d.cause==='unknown'))bad('Death history');
-        if(d.status==='legacy-unknown'&&(d.tick!==null||d.ageYears!==null||d.cause!=='unknown'))bad('Death history');
-      }
-    }
+  };
+  for(const a of s.agents){
+    identityValid(a);
+    if(a.alive!==true||a.death!==null)bad('Active lifecycle');
+    if(!Array.isArray(a.trace)||a.trace.length>30||a.trace.some(t=>!LABELS[t.kind]||!finite(t.score)||!t.factors||Object.values(t.factors).some(v=>!finite(v))))bad('Trace');
+    if(!finite(a.moveTick))bad('Agent bookkeeping');
     if(a.task&&(!LABELS[a.task.kind]||!finite(a.task.work)||!Array.isArray(a.task.path)||a.task.path.length>SIZE.w*SIZE.h||a.task.path.some(p=>!walkable(s,p.x,p.y))))bad('Task');
   }
-  if(s.agents.some(a=>a.parentId!==null&&!ids.has(a.parentId)))bad('Parent reference');
+  for(const a of s.historyAgents){
+    identityValid(a);
+    if(a.alive!==false||!deathValid(a.death))bad('Historical lifecycle');
+    if('task' in a||'trace' in a||'moveTick' in a)bad('Historical execution state');
+  }
+  if(all.some(a=>a.parentId!==null&&!ids.has(a.parentId)))bad('Parent reference');
   if(!Array.isArray(s.nodes)||s.nodes.length>SIZE.w*SIZE.h||s.nodes.some(n=>!walkable(s,n.x,n.y)||!['food','wood','stone'].includes(n.type)||!finite(n.amount)||!finite(n.max)||n.amount<0||n.amount>n.max))bad('Resources');
   if(!Array.isArray(s.buildings)||s.buildings.length<1||s.buildings.length>12||s.buildings.some(b=>!walkable(s,b.x,b.y)||!['camp','shelter'].includes(b.type)||typeof b.complete!=='boolean'||!finite(b.progress)||b.progress<0||b.progress>30))bad('Buildings');
   if(!Array.isArray(s.events)||s.events.length>120||s.events.some(e=>typeof e.text!=='string'||!finite(e.tick)||!finite(e.id)))bad('Events');
   if(!s.stats||['gathered','built','cloned'].some(k=>!finite(s.stats[k])||s.stats[k]<0))bad('Stats');
-  if(!Number.isInteger(s.nextAgent)||s.nextAgent<=Math.max(...ids)||!Number.isInteger(s.nextEvent)||!Number.isInteger(s.nextBuilding))bad('Counters');
+  if(!Number.isInteger(s.nextAgent)||s.nextAgent<=Math.max(0,...ids)||!Number.isInteger(s.nextEvent)||!Number.isInteger(s.nextBuilding))bad('Counters');
   return errors;
 }
 function deathCauseFromText(text){
@@ -309,9 +337,14 @@ function migrateDeathRecord(s,a,sourceVersion){
   return {status:known?'legacy-evidence':'legacy-unknown',tick,cause,ageYears:age};
 }
 function migrateHistory(s,sourceVersion){
-  if(s?.historyVersion===HISTORY_VERSION)return s;
-  if(s?.historyVersion!==undefined&&s?.historyVersion!==null)return s;
-  if(Array.isArray(s?.agents))for(const a of s.agents)a.death=migrateDeathRecord(s,a,sourceVersion);
+  const hv=s?.historyVersion;
+  if(hv===HISTORY_VERSION)return s;
+  if(hv!==undefined&&hv!==null&&hv!=='0.1.0')return s;
+  if(hv===undefined||hv===null){
+    if(Array.isArray(s?.agents))for(const a of s.agents)a.death=migrateDeathRecord(s,a,sourceVersion);
+  }
+  if(!Array.isArray(s.historyAgents))s.historyAgents=[];
+  archiveDeadAgents(s);
   s.historyVersion=HISTORY_VERSION;
   return s;
 }
