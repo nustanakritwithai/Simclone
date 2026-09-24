@@ -37,3 +37,11 @@ test('station snapshot is detached',()=>{
   const s=world();addBuildItem(s,'FURNACE');placeStationFromItem(s,{agentId:1,itemId:'FURNACE',x:3,y:2});
   const snap=rustStationsSnapshot(s);snap.stations[0].x=99;assert.notEqual(s.rustStations.stations[0].x,99);
 });
+
+test('physical Crafting Table feeds RS2 Hammer crafting path',async()=>{
+  const s=world();addBuildItem(s,'CRAFTING_TABLE_LV1');
+  placeStationFromItem(s,{agentId:1,itemId:'CRAFTING_TABLE_LV1',x:2,y:3});
+  const mod=await import('../src/rust-possessions.mjs');
+  const q=mod.queueToolCraft(s,{agentId:1,recipeId:'HAMMER',stationId:1});
+  assert.equal(q.ok,true);
+});
