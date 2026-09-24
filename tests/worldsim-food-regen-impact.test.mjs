@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,serialize,step} from '../src/engine.mjs';
+import {K6_RESOURCE_REGEN} from '../src/worldsim-resource-policy.mjs?v=0.5.0';
 import {createFoodRegenerationImpact} from '../src/worldsim-food-regen-impact.mjs';
 
 test('WM4.2 impact report is deterministic and read-only',()=>{
@@ -9,7 +10,8 @@ test('WM4.2 impact report is deterministic and read-only',()=>{
   assert.deepEqual(a,b);assert.equal(serialize(s),before);
   assert.equal(a.authority.unitFormula,'none');
   assert.equal(a.authority.writer,'worldsim-wm4.1');
-  assert.deepEqual(a.legacy,{periodTicks:120,amount:3});
+  assert.equal(a.legacy,K6_RESOURCE_REGEN.food);
+  assert.equal(a.legacy.periodTicks,120);assert.equal(a.legacy.amount,3);assert.equal(a.legacy.renewable,true);
 });
 
 test('every food node is classified into exactly one ecology band',()=>{
