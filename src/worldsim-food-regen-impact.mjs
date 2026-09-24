@@ -17,10 +17,14 @@ export function createFoodRegenerationImpact(state,regen=createResourceRegenerat
     authoritativeWriter:r.authoritativeWriter
   }));
   const counts={'very-low':0,low:0,medium:0,high:0};
-  let potential=0,missing=0,depletedNodes=0,lowPotentialDepletedNodes=0;
+  let potential=0,missing=0,depletedNodes=0,lowPotentialDepletedNodes=0,projectedLegacyBoundaryUnits=0,projectedLowEcologyBoundaryUnits=0;
   for(const r of rows){
     counts[r.ecologyBand]++;potential+=r.ecologyRegenerationPotential;missing+=r.missing;
-    if(r.missing>0){depletedNodes++;if(r.ecologyRegenerationPotential<.5)lowPotentialDepletedNodes++;}
+    if(r.missing>0){
+      depletedNodes++;if(r.ecologyRegenerationPotential<.5)lowPotentialDepletedNodes++;
+      const projected=Math.min(r.legacyAmount,r.missing);projectedLegacyBoundaryUnits+=projected;
+      if(r.ecologyRegenerationPotential<.5)projectedLowEcologyBoundaryUnits+=projected;
+    }
   }
   const sorted=[...rows].sort((a,b)=>b.ecologyRegenerationPotential-a.ecologyRegenerationPotential||a.id-b.id);
   const asc=[...rows].sort((a,b)=>a.ecologyRegenerationPotential-b.ecologyRegenerationPotential||a.id-b.id);
@@ -35,6 +39,8 @@ export function createFoodRegenerationImpact(state,regen=createResourceRegenerat
       totalMissing:missing,
       depletedNodes,
       lowPotentialDepletedNodes,
+      projectedLegacyBoundaryUnits,
+      projectedLowEcologyBoundaryUnits,
       p10:+percentile(.10).toFixed(4),
       p50:+percentile(.50).toFixed(4),
       p90:+percentile(.90).toFixed(4),
