@@ -62,7 +62,7 @@ export function stationRequirementMet(s,recipeId,agentId){
 }
 
 export const RUST_PROCESSING_CATALOG=Object.freeze({
-  CHARCOAL:Object.freeze({id:'CHARCOAL',donorOut:'charcoal',station:CRAFT_STATIONS.FURNACE,input:Object.freeze({wood:2}),output:Object.freeze({charcoal:1}),live:false,reason:'charcoal-not-authoritative-yet'}),
+  CHARCOAL:Object.freeze({id:'CHARCOAL',donorOut:'charcoal',station:CRAFT_STATIONS.FURNACE,input:Object.freeze({wood:2}),output:Object.freeze({charcoal:1}),work:12,live:true,reason:null}),
   COOKED_MEAT:Object.freeze({id:'COOKED_MEAT',donorOut:'cooked_meat',station:CRAFT_STATIONS.FURNACE,input:Object.freeze({raw_meat:1}),output:Object.freeze({cooked_meat:1}),live:false,reason:'meat-ledger-not-authoritative-yet'}),
   CLEAN_WATER:Object.freeze({id:'CLEAN_WATER',donorOut:'clean_water',station:CRAFT_STATIONS.FURNACE,input:Object.freeze({dirty_water:1}),output:Object.freeze({clean_water:1}),live:false,reason:'water-ledger-not-authoritative-yet'})
 });
