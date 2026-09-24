@@ -1,74 +1,68 @@
-# Next build gates — Knowledge + Memory 0.5.0 candidate
+# Next build gates — Gameplay First / Character Life
 
-These are implementation gates, not proof by themselves. Exact candidate and exact main workflows remain authoritative.
+Replanned on 2026-09-24 at the user's request: add tangible character/gameplay systems before deeper cognition. Read [GAMEPLAY_FIRST_ROADMAP.md](GAMEPLAY_FIRST_ROADMAP.md) for scope, invariants and completion evidence.
 
-## Completed foundations
+This document changes delivery order, not runtime behavior. New features below are planned, not implemented. G1–G5 are work packages, not published version numbers. When old future version headings in `GAME_PLAN.md` or historical handoffs conflict with this order, use this revised queue while retaining the original long-term vision and acceptance requirements.
 
-- V0.3.5 Death History + Migration — immutable death evidence and honest legacy UNKNOWN handling
-- V0.3.6 Historical Identity — bounded retained ancestry separated from the living work set
-- V0.4.0 Skill Provenance — initial/inherited/earned/legacy-unattributed XP with bounded evidence
+## Retained baseline
 
-## V0.5.0 — First personal Knowledge + Memory slice
+- V0.3.5: stable death evidence and honest legacy UNKNOWN handling.
+- V0.3.6: bounded historical identities and cross-archive ancestry resolution.
+- V0.4.0: initial/inherited/earned/legacy-unattributed skill provenance.
+- V0.5.0: personal resource knowledge and explicit evidence-backed sharing.
 
-Current candidate under [KNOWLEDGE_MEMORY_0.5.0.md](KNOWLEDGE_MEMORY_0.5.0.md).
+Do not remove these systems. Current engine/save version remains 0.5.0 until a real implementation justifies a version change. Existing knowledge recording does not imply observation-limited planning.
 
-Implemented scope:
+## NOW — G1: Personal tool bag and one usable tool
 
-- productive FORAGE / WOODCUT / MINE outcome creates direct resource evidence
-- direct resource belief is CONFIRMED
-- explicit engine-mediated share transfers only one selected claim
-- recipient stores the claim as UNVERIFIED with sourceAgentId + originEvidenceId
-- unrelated world nodes do not appear in recipient knowledge
-- knowledge state is bounded and retained through historical archive/save-load
-- 0.4.0 migration creates empty knowledge rather than invented historical discovery
-- Inspector explains direct versus relayed knowledge
-
-Release is still gated on exact candidate/main verification.
-
-## V0.5.1 — Verification and belief revision
-
-Add direct re-observation of relayed claims:
+First playable loop:
 
 ```text
-UNVERIFIED message claim
-→ recipient reaches/experiences target
-→ CONFIRMED if supported
-→ STALE or REFUTED if contradicted under the defined evidence rule
+Timed crafting at the existing camp
+→ create one stone axe using declared shared materials
+→ put it in a personal tool bag
+→ equip it
+→ show its measured WOODCUT work-rate effect
+→ unequip / nearby transfer / camp storage
+→ preserve item identity through death and save/load
 ```
 
-Do not infer dishonesty merely from an outdated resource claim. Time/change and false claims must remain distinguishable.
+Proposed initial presentation: four tool-bag slots and one tool slot. Start with a stone axe only. Define recipe costs, duration, bonus/cap, cancellation behavior and item/storage bounds in the implementation contract before shipping them.
 
-## V0.5.2 — Local knowledge affects planning
+Keep Food/Wood/Stone in the existing shared stock; do not simultaneously count the same material in a bag. Equipping references a held unique item, not a copy. Cloning/birth does not duplicate possessions. Death moves possessions into a recoverable dropped container rather than erasing items or silently awarding inheritance.
 
-Replace remaining hidden-global resource choice with a staged boundary:
+No durability, full workshop, farming, new lethal needs, money or advanced belief work in this first package. Bare-handed survival remains available. Existing four skill totals/provenance remain authoritative; do not invent crafting XP.
 
-- known/observed resource candidates first
-- exploration when personal knowledge is insufficient
-- direct world validation still occurs at execution
-- no planner access to arbitrary resource nodes solely because they exist in authoritative state
+Completion requires real commands, world/Inspector feedback, item conservation and exclusivity tests, atomic failure, migration, deterministic continuation and all existing mandatory regression gates. Stop and summarize implementation/verification/deployment separately after the package.
 
-Definition of done: two agents with different experience can choose different plans under the same world truth for explainable reasons.
+## NEXT — G2: Home and usable furniture
 
-## V0.6 — Multi-step goals / learning
+Add home assignment, a bed/sleeping mat and storage chest using existing shelters first. Assignment differs from occupancy. One bed cannot be occupied by two people at once; missing beds keep the existing rest fallback. Do not silently replace current population capacity with bed count.
 
-Borrow AstraLife's structured plan idea after the knowledge boundary is stable:
+## THEN — G3: Production and food
 
-- goal
-- ordered steps
-- prerequisites
-- interrupt conditions
-- outcome verification
-- bounded lessons
+Expand tools; add a workshop, one crop and one cooked meal with explicit input/work/output accounting. Introduce durability only together with repair/replacement. Raw/cooked food conversion must not duplicate the existing shared meal supply.
 
-No LLM is required for the deterministic first implementation.
+## THEN — G4: Daily life and individuality
 
-## Later society imports
+Add hygiene/recreation/social needs one at a time with usable remedies. Add a few visible preferences and work/rest/free-time priorities. Emergency survival overrides routines. Do not change the compressed lifecycle clock as an incidental routine change.
 
-Only after personal knowledge and cooperation contracts are proven:
+## THEN — G5: Small social life
 
-- Kingdom Sandbox: occupation, scarcity/economy, governance, faction/rebellion
-- Pirate Fruit Living Economy: adaptive production/trader memory/reputation patterns
-- TestGE: proposal → verify → atomic commit → delta/replay hardening
-- PocketMonster/MonsterLifeServer: shared identity/materialization/server-authority patterns where relevant
+Conversations, actual gifts/shared activities, bounded familiarity/affinity, household ties and one simple personal goal. Every relationship/goal must affect observable behavior. Keep parent lineage separate from household membership; no full factions/economy/war yet.
 
-Do not copy whole donor repos into Simclone. Move contracts and verified behavior in vertical slices.
+## PARKED — C1/C2 and deeper cognition
+
+The previously immediate V0.5.1 belief-revision and V0.5.2 knowledge-planning slots are deferred, not deleted:
+
+- C1: direct re-observation supports/corrects a relayed claim; stale is not automatically dishonest.
+- C2: personal knowledge and exploration drive resource choices without hidden-world shortcuts.
+- Later: multi-step goals, intentional communication, trust, teaching and cultural archive.
+
+Bug fixes to existing knowledge are still allowed. Basic deterministic selection for the new actions is required; a complete cognitive architecture is not a prerequisite for using an axe or bed.
+
+## Later reuse and original goal
+
+Study donor contracts at the point of use, not whole-repo mergers: AstraLife for cognition, Kingdom-sandbox for later occupations/economy/society, TestGE for transactional/replay hardening. No federation dependency or per-tick LLM is required for G1/G2.
+
+The original autonomous-society/V1.0 acceptance requirements remain. The new priority is: **possess and use things → live and interact → learn and plan more deeply → society**.
