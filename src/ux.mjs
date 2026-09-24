@@ -2,6 +2,7 @@ import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 /** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
 import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
 import {professionLabel} from './kingdom-utility.mjs?v=0.5.0';
+import {createResourceEcologyShadow,shadowExistingResourcePressure} from './worldsim-resource-shadow.mjs?v=0.5.0';
 import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
@@ -197,7 +198,9 @@ export function installUX(api){
   api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">คำสั่งนี้สร้าง Clone วัยผู้ใหญ่อายุ 18 ปีทันที · การเกิดอัตโนมัติเป็นอีกระบบหนึ่ง เด็กเริ่มอายุ 0 ปีแล้วค่อยเติบโต</p>`);$('dialog').dataset.kind='clone';
  }
  function openSurvival(){
-  const s=api.read().state,v=survivalSummary(s);
+  const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s);
+  const topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
+  const topFood=eco.hotspots.food[0]??null,topWood=eco.hotspots.wood[0]??null,topStone=eco.hotspots.stone[0]??null;
   api.openDialog('หมู่บ้านอยู่รอดอย่างไร','SURVIVAL CORE · '+VERSION,
    `<div class="life-summary"><div><small>อาหารที่ใช้ได้ตอนนี้</small><b>${v.freeFood} หน่วย</b></div><div><small>จองไว้ให้คนกิน</small><b>${v.reservedMeals} หน่วย</b></div></div>
     <p>มีอาหารทั้งหมด ${v.food} หน่วย · เป้าสำรอง ${v.targets.food} หน่วย<br>คนความอิ่มต่ำกว่า 35: ${v.hungry} คน · พลังงานต่ำกว่า 12: ${v.exhausted} คน</p>
@@ -215,6 +218,9 @@ export function installUX(api){
     <div class="life-summary"><div><small>Kingdom K6 · ของแพงสุด</small><b>${escape(v.kingdomMarket.hottestGood??'—')} ×${v.kingdomMarket.hottestIndex}</b></div><div><small>โหมดตลาด</small><b>shadow only</b></div></div>
     <div class="clone-skills"><div><span>อาหาร · base 10</span><b>${v.kingdomMarket.prices.food}</b></div><div><span>ไม้ · base 8</span><b>${v.kingdomMarket.prices.wood}</b></div><div><span>หิน · base 15</span><b>${v.kingdomMarket.prices.stone}</b></div></div>
     <p class="source-note">K6 ใช้เส้นราคา Kingdom: base × scarcity^0.75 และ cap 0.3×–6× แต่ค่านี้เป็นดัชนีเงาเท่านั้น ยังไม่มีเงิน คลังเงิน ภาษี การซื้อขาย หรือพ่อค้า</p>
+    <div class="life-summary"><div><small>WorldSim WM3.0 · ecology shadow</small><b>read-only</b></div><div><small>regen pressure สูงสุด</small><b>${topPressure?escape(topPressure.type)+' #'+topPressure.id+' · '+topPressure.regenerationPressure:'—'}</b></div></div>
+    <div class="clone-skills"><div><span>Food hotspot</span><b>${topFood?topFood.x+', '+topFood.y+' · '+topFood.suitability:'—'}</b></div><div><span>Wood hotspot</span><b>${topWood?topWood.x+', '+topWood.y+' · '+topWood.suitability:'—'}</b></div><div><span>Stone hotspot</span><b>${topStone?topStone.x+', '+topStone.y+' · '+topStone.suitability:'—'}</b></div><div><span>Resource authority</span><b>K6 เดิม</b></div></div>
+    <p class="source-note">WM3.0 ใช้ terrain + elevation + moisture เพื่อคำนวณ suitability และ regeneration pressure แบบ shadow เท่านั้น · ไม่เพิ่ม node, ไม่เติม stock และไม่เปลี่ยน regeneration จริง จนกว่าจะมี Soil/Climate evidence และผ่าน Resource Authority Gate</p>
     <div class="clone-skills"><div><span>เกิดเองแล้ว</span><b>${v.autonomousBirths} คน</b></div><div><span>สถานะการเกิดอัตโนมัติ</span><b>${birthLabels[v.birth.reason]??v.birth.reason}</b></div></div>
     <div class="clone-skills"><div><span>ตัวตนที่ยังเก็บประวัติไว้</span><b>${retainedCount(s)} / ${HISTORY_LIMITS.maxRetained}</b></div><div><span>ย้ายเข้าคลังประวัติแล้ว</span><b>${s.archive.length} คน</b></div></div>
     <p class="source-note">คลังประวัติยังค้นต้นแบบและทักษะของคนตายได้ เมื่อจำนวนหรือพื้นที่ประวัติเต็ม ระบบหยุดเพิ่มคนโดยไม่ลบบรรพบุรุษ ไม่ใช่โลกที่เก็บประวัติได้ไม่จำกัด</p>
