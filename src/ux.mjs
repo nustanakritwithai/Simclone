@@ -1,7 +1,7 @@
-import {BIRTH_RULES} from './reproduction.mjs?v=0.4.0';
+import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 /** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
-import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.4.0';
-export const UI_VERSION='0.4.0';
+import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
+export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={
@@ -24,12 +24,12 @@ const paths={
  brain:'<path d="M12 4c-5-4-9 1-7 4-4 2-3 7 0 7-1 5 5 7 7 3m0-14c5-4 9 1 7 4 4 2 3 7 0 7 1 5-5 7-7 3ZM12 4v14M5 8l3 2M19 8l-3 2M5 15l3-2M19 15l-3-2"/>'
 };
 export const icon=name=>`<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths[name]||paths.eye}</svg>`;
-const events={birth:'ชีวิตใหม่',skill:'พัฒนาทักษะ',build:'สิ่งปลูกสร้าง',death:'สูญเสีย',day:'วันใหม่'};
+const events={birth:'ชีวิตใหม่',skill:'พัฒนาทักษะ',knowledge:'ถ่ายทอดความรู้',build:'สิ่งปลูกสร้าง',death:'สูญเสีย',day:'วันใหม่'};
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
 const stageLabels={CHILD:'เด็ก',ADULT:'ผู้ใหญ่',ELDER:'ผู้สูงวัย',DEAD:'เสียชีวิต'};
 const birthLabels={'history-capacity':'จำนวนประวัติถึงขีดจำกัด','history-storage':'พื้นที่คลังประวัติเต็ม','history-invalid':'ประวัติต้องตรวจสอบ','history-hot':'ชุดข้อมูลทำงานเต็ม',ready:'พร้อมเมื่อถึงรอบปี',housing:'ที่พักเต็ม',history:'ประวัติตัวละครเต็ม',pace:'รอครบระยะห่างการเกิด',parent:'ยังไม่มีผู้ใหญ่ที่พร้อม',food:'อาหารสำรองยังไม่พอ',wood:'ไม้สำรองยังไม่พอ'};
-const tabNames={about:'ตอนนี้',skills:'ทักษะ',why:'เหตุผล',memory:'ความทรงจำ'};
+const tabNames={about:'ตอนนี้',skills:'ทักษะ',knowledge:'ความรู้',why:'เหตุผล',memory:'ความทรงจำ'};
 function setText(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=value;}
 function replaceIfChanged(el,html){if(el.dataset.content!==html){const y=el.scrollTop;el.innerHTML=html;el.dataset.content=html;el.scrollTop=y;}}
 export function installUX(api){
@@ -40,7 +40,7 @@ export function installUX(api){
  for(const [id,key] of Object.entries(staticIcons)){const button=$(id);const span=button.querySelector('span');if(span)span.innerHTML=icon(key);else button.innerHTML=icon(key);}
  const navIcons={world:'eye',people:'people',clone:'clone',build:'home',history:'history'};
  document.querySelectorAll('[data-nav]').forEach(b=>b.querySelector('span').innerHTML=icon(navIcons[b.dataset.nav]));
- document.querySelector('.version').innerHTML=`SKILL PROVENANCE <b>${VERSION}</b>`;
+ document.querySelector('.version').innerHTML=`KNOWLEDGE + MEMORY <b>${VERSION}</b>`;
  document.querySelector('.brand').title='Simclone · UI '+UI_VERSION;
  const foodCard=$('food').parentElement;
  foodCard.setAttribute('role','button');foodCard.tabIndex=0;
@@ -71,6 +71,10 @@ export function installUX(api){
   if(b.dataset.ux==='expand'){expanded=!expanded;renderInspector();}
   if(b.dataset.ux==='why'){expanded=true;api.setTab('why');}
   if(b.dataset.ux==='clone')openClone();
+  if(b.dataset.ux==='share-knowledge'){
+    const result=api.execute('SHARE_KNOWLEDGE',{fromId:api.read().selected,key:b.dataset.key});
+    api.toast(result.message);if(result.ok)api.save();
+  }
  });
  inspector.addEventListener('keydown',e=>{
   if(e.target.getAttribute('role')!=='tab'||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
@@ -124,7 +128,18 @@ export function installUX(api){
    if(p?.initialXP)parts.push('ตั้งต้น '+p.initialXP);if(p?.inheritedXP)parts.push('สืบทอด '+p.inheritedXP);if(p?.earnedXP)parts.push('ทำงาน '+p.earnedXP);if(p?.legacyUnattributedXP)parts.push('เดิมไม่ทราบที่มา '+p.legacyUnattributedXP);
    const evidence=(p?.evidence??[]).slice(-2).reverse().map(e=>e.kind==='inheritance'?'สืบทอดจาก '+escape(findPerson(s,e.sourceAgentId)?.name??('#'+e.sourceAgentId))+' · tick '+e.tick:e.kind==='work'?'งาน '+escape(roles[e.action]??e.action)+' · +'+e.xp+' XP · tick '+e.tick:'ทักษะตั้งต้น · +'+e.xp+' XP · tick '+e.tick).join('<br>');
    return `<div class="skill-row"><b>${roles[k]}</b><span>Lv.${level(a.skills[k])} <small>${a.skills[k]} XP</small></span></div><p class="source-note">${parts.join(' · ')||'ไม่มี XP'}${evidence?'<br>'+evidence:''}</p>`;}).join('')+`<p class="source-note">XP สืบทอดคือ inheritance ไม่ใช่การสอน · XP จากงานเกิดหลังผลลัพธ์จริงเท่านั้น · ข้อมูลเซฟเก่าที่พิสูจน์ที่มาไม่ได้จะแสดงว่าเดิมไม่ทราบที่มา</p>`;
-  else if(tab==='memory')html=a.memory.slice().reverse().map(m=>`<div class="memory-item"><small>วันที่ ${1+Math.floor(m.tick/360)}</small>${escape(m.text)}</div>`).join('')||'<p class="empty-state">ยังไม่มีความทรงจำสำคัญ</p>';
+  else if(tab==='knowledge'){
+   const statusText={CONFIRMED:'ยืนยันจากประสบการณ์ตรง',UNVERIFIED:'ยังไม่ยืนยัน',STALE:'ข้อมูลเก่า',REFUTED:'ถูกหักล้าง'};
+   const typeText={food:'อาหาร',wood:'ไม้',stone:'หิน'},beliefs=a.knowledgeState?.beliefs??[];
+   html=beliefs.map(b=>{const source=b.sourceKind==='direct'?'ประสบการณ์ตรง':'ได้รับจาก '+escape(findPerson(s,b.sourceAgentId)?.name??('#'+b.sourceAgentId));
+    const share=a.alive&&b.status==='CONFIRMED'?'<button class="secondary" data-ux="share-knowledge" data-key="'+escape(b.key)+'">แชร์ให้คนใกล้สุด</button>':'';
+    return `<div class="memory-item"><small>${escape(statusText[b.status]??b.status)} · ${source}</small><b>${escape(typeText[b.value.type]??b.value.type)} #${b.value.resourceId}</b><br>ตำแหน่ง ${b.value.x}, ${b.value.y}<br><span class="source-note">origin: ${escape(b.originEvidenceId)}</span>${share}</div>`;}).join('')||
+    '<p class="empty-state">ยังไม่มีความรู้จากประสบการณ์จริง · Clone ต้องพบผลลัพธ์จากงานก่อน</p>';
+   html+='<p class="source-note">ความจริงของโลกไม่ถูกแจกให้ทุกคนอัตโนมัติ · ข้อมูลที่คนอื่นเล่าจะเริ่มเป็น “ยังไม่ยืนยัน”</p>';
+  }
+  else if(tab==='memory')html=(a.knowledgeState?.episodes??[]).slice().reverse().map(e=>`<div class="memory-item"><small>tick ${e.tick} · ${e.kind==='discovery'?'ประสบการณ์':'รับข้อมูล'}</small>${escape(e.event)}<br><span class="source-note">${escape(e.perceivedOutcome)}</span></div>`).join('')||
+    a.memory.slice().reverse().map(m=>`<div class="memory-item"><small>วันที่ ${1+Math.floor(m.tick/360)}</small>${escape(m.text)}</div>`).join('')||
+    '<p class="empty-state">ยังไม่มีความทรงจำสำคัญ</p>';
   else if(tab==='why'){
    const chosen=a.trace.find(t=>t.status==='selected'),max=Math.max(1,...a.trace.map(t=>t.score));
    if(chosen){html=`<div class="decision-callout">${icon('brain')}<div><small>เหตุผลจากการตัดสินใจล่าสุด</small><b>เลือก${LABELS[chosen.kind]} · ${chosen.score} คะแนน</b><p>เปรียบเทียบความต้องการ ความถนัด ทักษะ และระยะเดินจริง งานที่คนอื่นจองหรือทรัพยากรสำรองพอแล้วจะไม่ถูกเลือก</p></div></div>`;}
