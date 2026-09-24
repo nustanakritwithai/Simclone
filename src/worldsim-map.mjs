@@ -86,5 +86,8 @@ export function worldPathCellAt(state,x,y){
   return Object.freeze({x,y,gameplayTile,terrainType,walkable:gameplayTile!=='water'});
 }
 export function worldPathWalkable(state,x,y){
-  return worldPathCellAt(state,x,y)?.walkable===true;
+  const {w,h}=MAP_SIZE;
+  if(!state||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=w||y>=h)return false;
+  const gameplayTile=state.tiles?.[y*w+x];
+  return TILES.has(gameplayTile)&&gameplayTile!=='water';
 }
