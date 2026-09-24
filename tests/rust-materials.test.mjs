@@ -46,3 +46,10 @@ test('snapshot is detached',()=>{
   const s=world();queueProcessing(s,{agentId:1,processId:'CHARCOAL',stationId:1});
   const snap=rustMaterialsSnapshot(s);snap.orders[0].work=99;assert.notEqual(s.rustMaterials.orders[0].work,99);
 });
+
+test('tool reservation also blocks furnace overcommit',()=>{
+  const s=world();s.stock.wood=5;s.stock.stone=4;
+  assert.equal(queueToolCraft(s,{agentId:1,recipeId:'STONE_AXE'}).ok,true);
+  const q=queueProcessing(s,{agentId:2,processId:'CHARCOAL',stationId:1});
+  assert.equal(q.reason,'materials');
+});
