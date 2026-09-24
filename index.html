@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="./src/ux.css?v=0.1.1">
 <link rel="stylesheet" href="./src/navigation.css?v=0.2.0">
 </head>
-<body data-ui-version="0.5.0">
+<body data-ui-version="0.5.0" data-map-version="wm1-visual-1">
 <style id="boot-style">
 #boot-screen{position:fixed;inset:0;background:#142b26;color:#f0eee3;display:grid;place-items:center;z-index:1000;padding:24px;font:14px/1.8 system-ui,sans-serif}#boot-screen>div{max-width:380px;text-align:center}#boot-screen h2{font-size:24px;font-weight:500;margin:14px 0}#boot-screen p{color:#c9d3bd}#boot-screen small{color:#e8cfa0;letter-spacing:2px}#boot-screen button{padding:12px 22px;min-height:44px;border:1px solid #e8cfa0;border-radius:8px;background:#e8cfa0;color:#142b26;font:inherit;cursor:pointer}#boot-screen a{display:block;color:#e8cfa0;margin-top:18px}#boot-screen[data-status=error] h2{color:#f2bb9e}
 </style>
@@ -37,7 +37,7 @@
  <div id="mode-hint" class="mode-hint" hidden></div>
  <aside id="inspector" class="inspector" aria-label="ข้อมูลตัวละคร"></aside>
  <div class="camera"><button id="zoom-out" class="iconbtn" aria-label="ซูมออก">−</button><button id="recenter" class="iconbtn" aria-label="กลับหมู่บ้าน" title="กลับหมู่บ้าน">⌖</button><button id="zoom-in" class="iconbtn" aria-label="ซูมเข้า">+</button></div>
- <div class="map-note"><span>WORLDSIM · PHYSICAL WORLD</span><small>น้ำ · ภูมิประเทศ · ภูมิอากาศกำหนดโลกจริง</small></div>
+ <div class="map-note"><span>WORLDSIM · MAP VISUALS</span><small>ภาพแผนที่ใหม่ · เส้นทางและทรัพยากรยังใช้กฎเดิม</small></div>
  <section class="chronicle-strip" aria-label="เหตุการณ์ล่าสุด"><button id="open-chronicle"><span class="eyebrow">WORLD CHRONICLE</span><b>เรื่องราวของโลก <span>↗</span></b></button><div id="recent-events"></div><span class="seed" id="seed-label"></span></section>
 </main>
 <nav class="mobile-nav" aria-label="เมนูมือถือ"><button data-nav="world" class="active"><span>◎</span>โลก</button><button data-nav="people"><span>☷</span>ประชากร</button><button data-nav="clone"><span>♧</span>โคลน</button><button data-nav="build"><span>⌂</span>สร้าง</button><button data-nav="history"><span>◷</span>เรื่องราว</button></nav>
