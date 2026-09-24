@@ -45,3 +45,12 @@ test('observing food impact every tick cannot alter deterministic execution',()=
   for(let i=0;i<240;i++){createFoodRegenerationImpact(a);step(a);step(b);}
   assert.equal(serialize(a),serialize(b));
 });
+
+
+test('impact distribution summary is bounded and ordered',()=>{
+  const x=createFoodRegenerationImpact(createWorld(31415)),s=x.summary;
+  for(const k of ['averageEcologyPotential','medianEcologyPotential','minEcologyPotential','maxEcologyPotential','missingWeightedEcologyPotential'])
+    assert.ok(s[k]>=0&&s[k]<=1,k);
+  assert.ok(s.minEcologyPotential<=s.medianEcologyPotential);
+  assert.ok(s.medianEcologyPotential<=s.maxEcologyPotential);
+});
