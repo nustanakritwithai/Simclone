@@ -21,6 +21,11 @@ test('WM2 walkability is parity-equivalent to K6 topology for every cell across 
   }
 });
 
+test('WM2 walkability hot path stays allocation-free',()=>{
+  assert.equal(typeof worldPathWalkable(createWorld(1),11,12),'boolean');
+  assert.equal(worldPathWalkable.toString().includes('worldPathCellAt'),false);
+});
+
 test('WM2 cell contract is bounded and detached',()=>{
   const s=createWorld(77);
   assert.equal(worldPathCellAt(s,-1,0),null);
