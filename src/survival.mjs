@@ -6,7 +6,6 @@ import {kingdomEconomySnapshot} from './kingdom-economy.mjs?v=0.5.0';
 import {kingdomProductionSnapshot} from './kingdom-production.mjs?v=0.5.0';
 import {kingdomLaborMarketSnapshot} from './kingdom-labor-market.mjs?v=0.5.0';
 import {kingdomMarketSnapshot} from './kingdom-market.mjs?v=0.5.0';
-import {cellAt as worldCellAt,terrainWalkable} from './worldsim-map.mjs?v=0.5.0';
 export const RULES = Object.freeze({
   width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
