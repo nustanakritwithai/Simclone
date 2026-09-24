@@ -1,15 +1,17 @@
-/** Simclone 0.4.0 — evidence-based skill provenance over historical identity. */
+/** Simclone 0.5.0 — evidence-backed personal knowledge over skill provenance. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
-  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs?v=0.4.0';
-import {LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs?v=0.4.0';
-import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.4.0';
-import {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,retentionPlan,compactRetired} from './history.mjs?v=0.4.0';
-import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenance,recordEarnedSkill,validateSkillProvenance} from './skill-provenance.mjs?v=0.4.0';
-export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION};
+  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs?v=0.5.0';
+import {LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs?v=0.5.0';
+import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.5.0';
+import {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,retentionPlan,compactRetired} from './history.mjs?v=0.5.0';
+import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenance,recordEarnedSkill,validateSkillProvenance} from './skill-provenance.mjs?v=0.5.0';
+import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,recordResourceDiscovery,shareKnowledge,withinKnowledgeRange,validateKnowledgeState,activeKnowledge} from './knowledge.mjs?v=0.5.0';
+export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
-export const VERSION = '0.4.0';
-export const SAVE_VERSION = '0.4.0';
-export const PREVIOUS_SAVE_VERSION = '0.3.0';
+export const VERSION = '0.5.0';
+export const SAVE_VERSION = '0.5.0';
+export const PREVIOUS_SAVE_VERSION = '0.4.0';
+export const HISTORY_ARCHIVE_SAVE_VERSION = '0.3.0';
 export const DEATH_HISTORY_SAVE_VERSION = '0.2.0';
 export const LEGACY_SAVE_VERSION = '0.1.0';
 export const HISTORY_VERSION = '0.1.0';
@@ -37,7 +39,7 @@ function createAgent(s,parent,initial=false,mode='manual'){
   const a={id,name:names[k%names.length]+(k>=names.length?' '+id:''),parentId:parent?.id??null,generation:parent?parent.generation+1:0,
     x:9+k%4,y:11+Math.floor(k/4)%3,hp:100,satiety:85,energy:90,alive:true,death:null,
     appearance:{coat:palette[k%palette.length],skin:['#e5b38a','#c99064','#f1c9a6','#a97050'][k%4],hair:['#302a28','#5e3e2c','#d5ad6f','#312e3b'][k%4],style:k%3},
-    preference:SKILLS[k%4],skills,skillProvenance,source:parent?(autonomous?'สืบทอดเมื่อเกิดจาก '+parent.name:'Clone จาก '+parent.name):'ความรู้เริ่มต้นของ Original',
+    preference:SKILLS[k%4],skills,skillProvenance,knowledgeState:createKnowledgeState(),source:parent?(autonomous?'สืบทอดเมื่อเกิดจาก '+parent.name:'Clone จาก '+parent.name):'ความรู้เริ่มต้นของ Original',
     memory:[],task:null,trace:[],moveTick:0,workDone:0,bornTick:s.tick,life:autonomous?childLife(s.tick):adultLife(s.tick)};
   if(parent){a.x=parent.x;a.y=parent.y;}
   if(initial&&parent){a.x=9+k%4;a.y=10+Math.floor(k/4)*2;a.satiety=65+k*3;a.energy=72+k*3;}
@@ -99,6 +101,15 @@ export function command(s,type,data={}){
     if(!compactRetired(s).ok)return {ok:false,reason:'history-storage',message:'เก็บประวัติเพิ่มไม่ได้ · ไม่หักทรัพยากรและไม่ลบประวัติเดิม'};
     s.stock.food-=8;s.stock.wood-=4;s.stats.cloned++;
     const a=createAgent(s,parent);return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
+  }
+  if(type==='SHARE_KNOWLEDGE'){
+    const sender=s.agents.find(a=>a.id===data.fromId&&a.alive),receiver=s.agents.find(a=>a.id===data.toId&&a.alive);
+    if(!sender||!receiver||sender.id===receiver.id)return {ok:false,message:'เลือกผู้ส่งและผู้รับที่ยังมีชีวิต'};
+    if(!withinKnowledgeRange(sender,receiver))return {ok:false,message:'อยู่ไกลเกินระยะสื่อสารความรู้'};
+    const result=shareKnowledge(sender,receiver,data.key,s.tick);
+    if(!result.ok)return {ok:false,message:'ผู้ส่งยังไม่มีความรู้นี้ยืนยันจากประสบการณ์ตรง'};
+    event(s,'knowledge',sender.name+' ถ่ายทอด '+data.key+' ให้ '+receiver.name,sender.id);
+    return {ok:true,message:'ถ่ายทอดความรู้ให้ '+receiver.name+' แล้ว',fromId:sender.id,toId:receiver.id,key:data.key};
   }
   if(type==='BUILD'){
     const {x,y}=data;
@@ -196,6 +207,7 @@ function execute(s,a){
         s.stock[n.type]+=amount-meal;
         if(meal)a.satiety=clamp(a.satiety+RULES.mealSatiety);
         gain(s,a,t.kind,n.id);
+        if(!recordResourceDiscovery(a,n,s.tick,{action:t.kind,amount}))throw new Error('Knowledge evidence write failed');
       }
       a.task=null;
     }
@@ -269,6 +281,7 @@ export function validate(s){
     if(typeof a.alive!=='boolean'||!Number.isInteger(a.generation)||a.generation<0||typeof a.name!=='string'||a.name.length>50)bad('Agent identity');
     if(!a.skills||SKILLS.some(k=>!finite(a.skills[k])||a.skills[k]<0))bad('Skills');
     for(const e of validateSkillProvenance(a,SKILLS))bad(e);
+    for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
     if(!Array.isArray(a.trace)||a.trace.length>30||a.trace.some(t=>!LABELS[t.kind]||!finite(t.score)||!t.factors||Object.values(t.factors).some(v=>!finite(v))))bad('Trace');
@@ -291,6 +304,10 @@ export function validate(s){
     if(a.task&&(!LABELS[a.task.kind]||!finite(a.task.work)||!Array.isArray(a.task.path)||a.task.path.length>SIZE.w*SIZE.h||a.task.path.some(p=>!walkable(s,p.x,p.y))))bad('Task');
   }
   const byId=new Map(people.map(a=>[a.id,a]));
+  for(const a of people){
+    for(const b of a.knowledgeState.beliefs)if(b.sourceAgentId!==null&&!byId.has(b.sourceAgentId))bad('Knowledge source');
+    for(const e of a.knowledgeState.evidence)if(e.sourceAgentId!==null&&!byId.has(e.sourceAgentId))bad('Knowledge source');
+  }
   for(const a of people)if(a.parentId!==null){
     const parent=byId.get(a.parentId);
     if(!parent)bad('Parent reference');
@@ -346,6 +363,10 @@ function migrateSkillProvenance(s){
   for(const a of allPeople(s))if(!a.skillProvenance)a.skillProvenance=createLegacySkillProvenance(a.skills);
   return s;
 }
+function migrateKnowledge(s){
+  for(const a of allPeople(s))if(!a.knowledgeState)a.knowledgeState=createKnowledgeState();
+  return s;
+}
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
@@ -353,7 +374,11 @@ function migrateSave(s){
   if(sourceVersion===SAVE_VERSION)return s;
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
-    migrateSkillProvenance(s);s.version=SAVE_VERSION;return s;
+    migrateKnowledge(s);s.version=SAVE_VERSION;return s;
+  }
+  if(sourceVersion===HISTORY_ARCHIVE_SAVE_VERSION){
+    if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
+    migrateSkillProvenance(s);migrateKnowledge(s);s.version=SAVE_VERSION;return s;
   }
   if(![LEGACY_SAVE_VERSION,DEATH_HISTORY_SAVE_VERSION].includes(sourceVersion))return s;
   if(s.archive!==undefined||s.archiveVersion!==undefined)throw new Error('Unexpected archive in legacy save');
@@ -366,7 +391,7 @@ function migrateSave(s){
   if(Array.isArray(s.agents))for(const a of s.agents)if(a?.alive===false&&a.hp===0){a.task=null;a.moveTick=0;}
   migrateHistory(s,sourceVersion);
   s.archiveVersion=ARCHIVE_VERSION;s.archive=[];
-  migrateSkillProvenance(s);s.version=SAVE_VERSION;
+  migrateSkillProvenance(s);migrateKnowledge(s);s.version=SAVE_VERSION;
   return s;
 }
 export function restore(text){
