@@ -37,6 +37,9 @@ jobs:
       - name: Verify deterministic age death and cleanup
         run: npm run test:death
 
+      - name: Verify post-death generation continuity
+        run: npm run test:continuity
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
