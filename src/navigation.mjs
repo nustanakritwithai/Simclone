@@ -1,6 +1,7 @@
 /** Read-only map and layout-aware camera. No simulation mutations. */
 import {SIZE} from './engine.mjs?v=0.5.0';
 import {saveLabel} from './storage.mjs?v=0.5.0';
+import {cellAt as worldCellAt} from './worldsim-map.mjs?v=0.5.0';
 export function safeFrame(width,height,edges={}){
   const left=Math.max(8,Math.min(edges.left??12,width*.4));
   const right=Math.max(left+40,Math.min(edges.right??width-12,width-8));
@@ -52,7 +53,7 @@ export function installNavigation(api){
     if(panel.hidden)return;const s=api.read().state,sx=canvas.width/SIZE.w,sy=canvas.height/SIZE.h;
     c.clearRect(0,0,canvas.width,canvas.height);
     const colors={deepWater:'#315f70',shallowWater:'#4d8388',sand:'#b9a273',grass:'#66834e',forest:'#3f6543',rock:'#727a72'};
-    for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){const cell=s.worldMap?.cells[y*SIZE.w+x],terrain=cell?.terrainType??(s.tiles[y*SIZE.w+x]==='water'?'shallowWater':'grass');c.fillStyle=colors[terrain]??'#66834e';c.fillRect(x*sx,y*sy,sx,sy);}
+    for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){const cell=s.worldMap?worldCellAt(s.worldMap,x,y):null,terrain=cell?.terrainType??(s.tiles[y*SIZE.w+x]==='water'?'shallowWater':'grass');c.fillStyle=colors[terrain]??'#66834e';c.fillRect(x*sx,y*sy,sx,sy);}
     for(const n of s.nodes)if(n.amount>0){c.fillStyle=n.type==='food'?'#e2af67':n.type==='wood'?'#284d35':'#aab5a3';c.fillRect((n.x+.25)*sx,(n.y+.25)*sy,sx*.5,sy*.5);}
     for(const b of s.buildings){c.fillStyle=b.complete?'#f4e4b3':'#dd9d69';c.fillRect(b.x*sx,b.y*sy,sx,sy);}
     for(const a of s.agents)if(a.alive){c.fillStyle=a.id===api.read().selected?'#ffffff':a.appearance.coat;c.beginPath();c.arc((a.x+.5)*sx,(a.y+.5)*sy,a.id===api.read().selected?3:2,0,Math.PI*2);c.fill();}
