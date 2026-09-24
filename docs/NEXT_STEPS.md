@@ -1,3 +1,63 @@
+# Current Next Gates — WorldSim Resource Authority
+
+This section supersedes older priority ordering below. Older roadmap material remains retained for later work.
+
+## WM4.2 — Food Ecology Impact
+
+Observation only:
+
+- classify food-node ecology potential
+- p10 / p50 / p90 distribution
+- depleted-node count
+- low-ecology depleted-node count
+- projected legacy +3 boundary units
+- projected units landing in low-ecology nodes
+- no candidate increment
+- no node mutation
+
+Definition of done: exact candidate CI passes Engine, Survival, Birth, Death, history continuity and browser/UI gates.
+
+## WM4.3 — Food Formula Lab
+
+Before behavior authority, evaluate candidate formulas read-only.
+
+Hard constraints:
+
+- keep food cadence at 120 ticks for the first behavior gate
+- integer candidate increment only
+- bounded 0..3 units per food node
+- respect node.max / missing capacity
+- compare candidate units versus legacy units
+- report suppressed units and changed-node count
+- no writer mutation during formula evaluation
+
+A production formula is not selected until WM4.2 evidence is verified.
+
+## WM4.4 — Food Ecology Behavior Authority
+
+Only after a formula is proven in shadow:
+
+- WorldSim writer may use ecology for FOOD only
+- wood remains parity behavior
+- stone remains finite
+- continuity baseline changes must be explicit and versioned, never hidden by weakening old tests
+
+## WM4.5+ — Resource / navigation progression
+
+Then, one gate at a time:
+
+1. wood ecology impact
+2. wood ecology behavior
+3. resource spawn/distribution shadow
+4. resource spawn/distribution authority
+5. weighted-routing authority
+6. terrain gameplay effects
+7. real scheduled Climate/Hydrology/Soil/Vegetation state with single-reservoir ownership and save migration
+
+Rust Survival remains paused until the WorldSim resource/world authority boundary is stable.
+
+---
+
 # Next build gates — Knowledge + Memory 0.5.0 candidate
 
 These are implementation gates, not proof by themselves. Exact candidate and exact main workflows remain authoritative.
