@@ -3,7 +3,6 @@ import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
 import {professionLabel} from './kingdom-utility.mjs?v=0.5.0';
 import {createResourceEcologyShadow,shadowExistingResourcePressure} from './worldsim-resource-shadow.mjs?v=0.5.0';
-import {createHydrologyShadow} from './worldsim-hydrology-shadow.mjs?v=0.5.0';
 import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
@@ -199,7 +198,7 @@ export function installUX(api){
   api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">คำสั่งนี้สร้าง Clone วัยผู้ใหญ่อายุ 18 ปีทันที · การเกิดอัตโนมัติเป็นอีกระบบหนึ่ง เด็กเริ่มอายุ 0 ปีแล้วค่อยเติบโต</p>`);$('dialog').dataset.kind='clone';
  }
  function openSurvival(){
-  const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s),hydro=createHydrologyShadow(s);
+  const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s,eco),hydro={summary:eco.hydrologySummary};
   const topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
   const topFood=eco.hotspots.food[0]??null,topWood=eco.hotspots.wood[0]??null,topStone=eco.hotspots.stone[0]??null;
   const dominantSoil=Object.entries(eco.soilCounts??{}).filter(([type])=>type!=='none').sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))[0]??null;
