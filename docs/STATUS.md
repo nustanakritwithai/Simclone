@@ -66,13 +66,13 @@ The first Kingdom Sandbox extraction is intentionally narrow. It does **not** co
 
 Imported behavior:
 
-- productive work receives a scarcity premium derived from Simclone stock targets;
-- the donor's +8 profession-continuity bonus is preserved;
+- productive work computes a **shadow** scarcity premium derived from Simclone stock targets;
+- the donor's +8 profession-continuity bonus is preserved in the shadow utility model;
 - the donor's small random utility variation is replaced by deterministic seed/agent/tick jitter in the same -4..4 range;
-- living agents now carry a current worker profession and a bounded eight-entry career tail;
-- when a different productive job wins and passes Simclone reservation/path validation, the agent may change profession;
-- Decision Trace exposes scarcity, profession and deterministic-jitter factors.
+- living agents now carry a current worker profession and a bounded eight-entry career tail based on the authoritative task they actually win;
+- Kingdom K1 does **not** override Simclone's existing task ranking yet; this preserves the historical continuity baseline while collecting explainable evidence for a later authority switch;
+- Decision Trace exposes scarcity, profession and deterministic-jitter shadow factors separately from the authoritative score.
 
-Authority remains with Simclone: task eligibility, path reachability, reservations, lifecycle, stock mutation, skill provenance and personal knowledge are unchanged owners of their rules. Existing 0.5.0 saves may omit profession/career; those fields are optional and are initialized deterministically when the agent next plans. Save version therefore remains 0.5.0 for this K1 candidate.
+Authority remains with Simclone: existing task ranking, task eligibility, path reachability, reservations, lifecycle, stock mutation, skill provenance and personal knowledge are unchanged owners of their rules. This shadow-first boundary is intentional after an authoritative K1 attempt changed the 0.3.5 pre-archive continuity baseline; the gate was kept intact rather than rewritten. Existing 0.5.0 saves may omit profession/career; those fields are optional and are initialized deterministically when the agent next plans. Save version therefore remains 0.5.0 for this K1 candidate.
 
 Verification is provided by `tests/kingdom-utility.test.mjs` plus the existing full regression suite. This is occupation/scarcity utility only, not the later Kingdom economy/faction/governance import.
