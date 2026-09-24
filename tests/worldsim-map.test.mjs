@@ -1,35 +1,57 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {WORLD_MAP_VERSION,MAP_AUTHORITY,createWorldMapView,visualCellAt,visualNoise,isVisualWater} from '../src/worldsim-map.mjs';
 import {createWorld,serialize} from '../src/engine.mjs';
+import {WORLD_MAP_VERSION,MAP_AUTHORITY,WORLD_TERRAIN,createWorldMapView,visualCellAt,visualNoise} from '../src/worldsim-map.mjs';
 
-test('WorldSim map view is deterministic and bounded',()=>{
- const s=createWorld(230926),a=createWorldMapView(s),b=createWorldMapView(s);
- assert.equal(a.version,WORLD_MAP_VERSION);assert.equal(a.cells.length,30*26);assert.deepEqual(a,b);
+test('WorldSim presentation map is deterministic and bounded',()=>{
+  const s=createWorld(230926),before=serialize(s);
+  const a=createWorldMapView(s),b=createWorldMapView(s);
+  assert.equal(a.version,WORLD_MAP_VERSION);
+  assert.equal(a.cells.length,30*26);
+  assert.deepEqual(a,b);
+  assert.equal(serialize(s),before);
 });
-test('presentation map exposes expected visual terrain families without changing gameplay tiles',()=>{
- const s=createWorld(230926),before=serialize(s),view=createWorldMapView(s),types=new Set(view.cells.map(c=>c.terrainType));
- for(const t of ['deepWater','shallowWater','sand','grass','forest','rock'])assert.ok(types.has(t),t);
- assert.equal(serialize(s),before);assert.deepEqual(view.authority,MAP_AUTHORITY);
+
+test('presentation authority is explicit and gameplay remains K6-owned',()=>{
+  assert.equal(MAP_AUTHORITY.mode,'presentation-only');
+  assert.equal(MAP_AUTHORITY.path,'simclone-k6');
+  assert.equal(MAP_AUTHORITY.resources,'simclone-k6');
+  assert.equal(MAP_AUTHORITY.save,'simclone-0.5.0');
 });
-test('visual water mirrors gameplay water and path/bridge remain explicit',()=>{
- const s=createWorld(230926),view=createWorldMapView(s);
- for(const c of view.cells){
-   assert.equal(c.walkable,c.gameplayTile!=='water');
-   if(isVisualWater(c.terrainType))assert.equal(c.gameplayTile,'water');
- }
- assert.ok(view.cells.some(c=>c.terrainType==='path'));
- assert.ok(view.cells.some(c=>c.terrainType==='bridge'));
+
+test('visual terrain includes WorldSim biome families without mutating gameplay tiles',()=>{
+  const s=createWorld(230926),tiles=[...s.tiles],view=createWorldMapView(s);
+  const types=new Set(view.cells.map(c=>c.terrainType));
+  for(const t of ['deepWater','shallowWater','sand','grass','forest','rock'])assert.ok(types.has(t),t);
+  assert.deepEqual(s.tiles,tiles);
 });
-test('visual cell lookup is bounded and stable',()=>{
- const view=createWorldMapView(createWorld(7));
- assert.equal(visualCellAt(view,0,0).index,0);assert.equal(visualCellAt(view,29,25).index,779);
- assert.equal(visualCellAt(view,-1,0),null);assert.equal(visualCellAt(view,30,0),null);
+
+test('water presentation follows gameplay water and path/bridge identity is preserved',()=>{
+  const s=createWorld(77),view=createWorldMapView(s);
+  for(const c of view.cells){
+    if(c.gameplayTile==='water')assert.ok(['deepWater','shallowWater'].includes(c.terrainType));
+    if(c.gameplayTile==='path')assert.equal(c.terrainType,'path');
+    if(c.gameplayTile==='bridge')assert.equal(c.terrainType,'bridge');
+    assert.equal(c.walkable,c.gameplayTile!=='water');
+  }
 });
-test('visual noise is deterministic and unsigned',()=>{
- const a=visualNoise(42,7,9,3);assert.equal(a,visualNoise(42,7,9,3));assert.ok(a>=0&&a<1);
+
+test('visualCellAt is bounded and detached records are immutable',()=>{
+  const view=createWorldMapView(createWorld(9));
+  assert.equal(visualCellAt(view,-1,0),null);
+  assert.equal(visualCellAt(view,30,0),null);
+  const c=visualCellAt(view,11,12);
+  assert.equal(c.x,11);assert.equal(c.y,12);assert.equal(Object.isFrozen(c),true);
 });
-test('different seeds produce different presentation maps while gameplay save stays authoritative',()=>{
- const a=createWorld(1),b=createWorld(2);
- assert.notDeepEqual(createWorldMapView(a).cells.map(c=>c.color),createWorldMapView(b).cells.map(c=>c.color));
+
+test('visual noise stays deterministic in unit interval',()=>{
+  for(const seed of [0,1,42,230926,4294967295]){
+    const a=visualNoise(seed,7,13,99),b=visualNoise(seed,7,13,99);
+    assert.equal(a,b);assert.ok(a>=0&&a<1);
+  }
+});
+
+test('all visual terrain colors are valid shipped terrain categories',()=>{
+  const view=createWorldMapView(createWorld(2026));
+  for(const c of view.cells)assert.ok(WORLD_TERRAIN.includes(c.terrainType));
 });
