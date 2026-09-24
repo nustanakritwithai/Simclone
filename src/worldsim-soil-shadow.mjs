@@ -3,6 +3,7 @@
  * a second simulation reservoir. All values are normalized integration proxies.
  */
 import {createWorldMapView} from './worldsim-map.mjs?v=0.5.0';
+import {createClimateShadow} from './worldsim-climate-shadow.mjs?v=0.5.0';
 
 export const SOIL_SHADOW_VERSION='wm3.1-shadow-soil-1';
 export const SOIL_TYPES=Object.freeze(['none','coastal','sand','loam','clay','peat','rocky','wetland']);
@@ -41,11 +42,11 @@ export function classifySoilShadow(cell){
   return 'loam';
 }
 
-export function soilShadowForCell(cell,{occupied=false}={}){
+export function soilShadowForCell(cell,{occupied=false,climate=null}={}){
   const soilType=classifySoilShadow(cell),p=SOIL_PROFILE_PROXY[soilType];
   if(soilType==='none')return Object.freeze({
     soilType,active:false,depth:0,porosity:0,fieldCapacity:0,organicMatter:0,nutrient:0,
-    moistureComfort:0,compaction:0,salinity:0,acidityStress:0,health:0,fertility:0
+    moistureComfort:0,temperatureComfort:0,compaction:0,salinity:0,acidityStress:0,health:0,fertility:0
   });
   const m=clamp(cell.moisture??.5),terrain=cell.terrainType;
   const moistureComfort=clamp(1-Math.abs(m-p.moistureOpt)/Math.max(p.moistureWidth,Number.EPSILON));
@@ -56,28 +57,29 @@ export function soilShadowForCell(cell,{occupied=false}={}){
   const compaction=clamp(baseCompaction+(occupied&&terrain==='path'?.08:0));
   const salinity=clamp(p.baseSalinity+(soilType==='coastal'?m*.12:0));
   const acidityStress=clamp(p.acidityStress+(soilType==='peat'?(1-m)*.08:0));
+  const temperatureComfort=clamp(climate?.temperatureComfort??1);
   const health=clamp(
-    nutrient*.23+organicMatter*.20+moistureComfort*.20+(1-compaction)*.15+
-    (1-salinity)*.08+(1-acidityStress)*.06+p.depth*.08
+    nutrient*.21+organicMatter*.18+moistureComfort*.18+temperatureComfort*.10+(1-compaction)*.14+
+    (1-salinity)*.07+(1-acidityStress)*.05+p.depth*.07
   );
-  const fertility=clamp(health*(.52+nutrient*.28+p.fertilityPotential*.20));
+  const fertility=clamp(health*(.48+nutrient*.25+p.fertilityPotential*.17+temperatureComfort*.10));
   return Object.freeze({
     soilType,active:true,
     depth:round(p.depth),porosity:round(p.porosity),fieldCapacity:round(p.fieldCapacity),
-    organicMatter:round(organicMatter),nutrient:round(nutrient),moistureComfort:round(moistureComfort),
+    organicMatter:round(organicMatter),nutrient:round(nutrient),moistureComfort:round(moistureComfort),temperatureComfort:round(temperatureComfort),
     compaction:round(compaction),salinity:round(salinity),acidityStress:round(acidityStress),
     health:round(health),fertility:round(fertility)
   });
 }
 
-export function createSoilShadow(state,view=createWorldMapView(state)){
+export function createSoilShadow(state,view=createWorldMapView(state),climate=createClimateShadow(state,view)){
   const occupied=new Set((state.buildings??[]).filter(b=>b.complete!==false).map(b=>b.x+','+b.y));
   const counts=Object.fromEntries(SOIL_TYPES.map(t=>[t,0])),cells=[];
-  let active=0,health=0,fertility=0,nutrient=0,organicMatter=0,compaction=0;
+  let active=0,health=0,fertility=0,nutrient=0,organicMatter=0,compaction=0,temperatureComfort=0;
   for(const cell of view.cells){
-    const soil=soilShadowForCell(cell,{occupied:occupied.has(cell.x+','+cell.y)});
+    const climateCell=climate.cells[cell.index],soil=soilShadowForCell(cell,{occupied:occupied.has(cell.x+','+cell.y),climate:climateCell});
     counts[soil.soilType]++;
-    if(soil.active){active++;health+=soil.health;fertility+=soil.fertility;nutrient+=soil.nutrient;organicMatter+=soil.organicMatter;compaction+=soil.compaction;}
+    if(soil.active){active++;health+=soil.health;fertility+=soil.fertility;nutrient+=soil.nutrient;organicMatter+=soil.organicMatter;compaction+=soil.compaction;temperatureComfort+=soil.temperatureComfort;}
     cells.push(Object.freeze({index:cell.index,x:cell.x,y:cell.y,terrainType:cell.terrainType,...soil}));
   }
   const avg=n=>active?+(n/active).toFixed(4):0;
@@ -85,7 +87,8 @@ export function createSoilShadow(state,view=createWorldMapView(state)){
     version:SOIL_SHADOW_VERSION,
     authority:Object.freeze({mode:'shadow-only',soil:'worldsim-wm3.1',water:'not-owned',nutrients:'proxy-only'}),
     counts:Object.freeze(counts),
-    summary:Object.freeze({activeCells:active,averageHealth:avg(health),averageFertility:avg(fertility),averageNutrient:avg(nutrient),averageOrganicMatter:avg(organicMatter),averageCompaction:avg(compaction)}),
+    climateSummary:climate.summary,
+    summary:Object.freeze({activeCells:active,averageHealth:avg(health),averageFertility:avg(fertility),averageNutrient:avg(nutrient),averageOrganicMatter:avg(organicMatter),averageCompaction:avg(compaction),averageTemperatureComfort:avg(temperatureComfort)}),
     cells:Object.freeze(cells)
   });
 }
