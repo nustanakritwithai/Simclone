@@ -3,6 +3,7 @@ import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
 import {professionLabel} from './kingdom-utility.mjs?v=0.5.0';
 import {createResourceEcologyShadow,shadowExistingResourcePressure} from './worldsim-resource-shadow.mjs?v=0.5.0';
+import {createHydrologyShadow} from './worldsim-hydrology-shadow.mjs?v=0.5.0';
 import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
@@ -198,7 +199,7 @@ export function installUX(api){
   api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">คำสั่งนี้สร้าง Clone วัยผู้ใหญ่อายุ 18 ปีทันที · การเกิดอัตโนมัติเป็นอีกระบบหนึ่ง เด็กเริ่มอายุ 0 ปีแล้วค่อยเติบโต</p>`);$('dialog').dataset.kind='clone';
  }
  function openSurvival(){
-  const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s);
+  const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s),hydro=createHydrologyShadow(s);
   const topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
   const topFood=eco.hotspots.food[0]??null,topWood=eco.hotspots.wood[0]??null,topStone=eco.hotspots.stone[0]??null;
   const dominantSoil=Object.entries(eco.soilCounts??{}).filter(([type])=>type!=='none').sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))[0]??null;
@@ -228,6 +229,9 @@ export function installUX(api){
     <div class="life-summary"><div><small>WorldSim WM3.2 · climate shadow</small><b>${escape(eco.climateSummary.dominantWeather)}</b></div><div><small>อุณหภูมิเฉลี่ย</small><b>${eco.climateSummary.averageTemperatureC}°C</b></div></div>
     <div class="clone-skills"><div><span>Humidity</span><b>${eco.climateSummary.averageHumidity}</b></div><div><span>Cloud cover</span><b>${eco.climateSummary.averageCloudCover}</b></div><div><span>Rain potential</span><b>${eco.climateSummary.averageRainPotential}</b></div><div><span>Drought pressure</span><b>${eco.climateSummary.averageDroughtPressure}</b></div></div>
     <p class="source-note">WM3.2 ใช้ Simclone tick เป็น shadow cycle เท่านั้น · ไม่มี world-clock authority, atmospheric/cloud water reservoir, rainfall mutation หรือ Climate scheduler</p>
+    <div class="life-summary"><div><small>WorldSim WM3.3 · hydrology shadow</small><b>read-only</b></div><div><small>Flood-risk cells</small><b>${hydro.summary.floodRiskCells}</b></div></div>
+    <div class="clone-skills"><div><span>Water availability</span><b>${hydro.summary.averageWaterAvailability}</b></div><div><span>Infiltration</span><b>${hydro.summary.averageInfiltrationPotential}</b></div><div><span>Runoff</span><b>${hydro.summary.averageRunoffPotential}</b></div><div><span>Groundwater recharge</span><b>${hydro.summary.averageGroundwaterRechargePotential}</b></div><div><span>Evaporation</span><b>${hydro.summary.averageEvaporationPotential}</b></div><div><span>Soil-water comfort</span><b>${hydro.summary.averageSoilWaterComfort}</b></div></div>
+    <p class="source-note">WM3.3 เป็น evidence เท่านั้น: ไม่มี surface/soil/groundwater reservoir, ไม่มี scheduler และไม่มี conservation ledger เพราะยังไม่มีน้ำจริงให้บัญชี · resource authority ยังอยู่ K6</p>
     <div class="clone-skills"><div><span>เกิดเองแล้ว</span><b>${v.autonomousBirths} คน</b></div><div><span>สถานะการเกิดอัตโนมัติ</span><b>${birthLabels[v.birth.reason]??v.birth.reason}</b></div></div>
     <div class="clone-skills"><div><span>ตัวตนที่ยังเก็บประวัติไว้</span><b>${retainedCount(s)} / ${HISTORY_LIMITS.maxRetained}</b></div><div><span>ย้ายเข้าคลังประวัติแล้ว</span><b>${s.archive.length} คน</b></div></div>
     <p class="source-note">คลังประวัติยังค้นต้นแบบและทักษะของคนตายได้ เมื่อจำนวนหรือพื้นที่ประวัติเต็ม ระบบหยุดเพิ่มคนโดยไม่ลบบรรพบุรุษ ไม่ใช่โลกที่เก็บประวัติได้ไม่จำกัด</p>
