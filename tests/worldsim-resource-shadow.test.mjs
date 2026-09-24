@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {createWorld,serialize,step} from '../src/engine.mjs';
 import {createWorldMapView} from '../src/worldsim-map.mjs';
 import {createSoilShadow} from '../src/worldsim-soil-shadow.mjs';
+import {createClimateShadow} from '../src/worldsim-climate-shadow.mjs';
+import {createHydrologyShadow} from '../src/worldsim-hydrology-shadow.mjs';
+import {createVegetationShadow} from '../src/worldsim-vegetation-shadow.mjs';
 import {RESOURCE_ECOLOGY_SHADOW_VERSION,resourceSuitabilityForCell,createResourceEcologyShadow,shadowExistingResourcePressure} from '../src/worldsim-resource-shadow.mjs';
 
 test('resource ecology shadow is deterministic and read-only',()=>{
@@ -51,4 +54,28 @@ test('resource ecology consumes WM3.1 soil evidence without moving resource auth
   assert.equal(resourceCell.soilHealth,fertile.health);
   assert.equal(resourceCell.soilFertility,fertile.fertility);
   assert.equal(shadow.authority.resources,'simclone-k6');
+});
+
+
+test('resource ecology consumes WM3.4 vegetation evidence without moving resource authority',()=>{
+  const s=createWorld(230926),view=createWorldMapView(s),climate=createClimateShadow(s,view),
+    soil=createSoilShadow(s,view,climate),hydro=createHydrologyShadow(s,view,climate,soil),
+    vegetation=createVegetationShadow(s,view,climate,soil,hydro),shadow=createResourceEcologyShadow(s);
+  assert.deepEqual(shadow.vegetationSummary,vegetation.summary);
+  assert.deepEqual(shadow.hydrologySummary,hydro.summary);
+  const best=vegetation.cells.slice().sort((a,b)=>b.regenerationPotential-a.regenerationPotential||a.index-b.index)[0];
+  assert.equal(shadow.cells[best.index].vegetationRegenerationPotential,best.regenerationPotential);
+  assert.equal(shadow.authority.resources,'simclone-k6');
+});
+
+test('vegetation evidence scales food and wood but does not hijack geology',()=>{
+  const grass={terrainType:'grass',walkable:true,moisture:.58,elevation:.35},
+    rock={terrainType:'rock',walkable:true,moisture:.3,elevation:.8},
+    soil={active:true,fertility:.85,health:.88,soilType:'loam'};
+  const low={foodYieldPotential:0,woodYieldPotential:0,regenerationPotential:0},
+    high={foodYieldPotential:1,woodYieldPotential:1,regenerationPotential:1};
+  const gLow=resourceSuitabilityForCell(grass,soil,low),gHigh=resourceSuitabilityForCell(grass,soil,high);
+  const rLow=resourceSuitabilityForCell(rock,{...soil,soilType:'rocky'},low),rHigh=resourceSuitabilityForCell(rock,{...soil,soilType:'rocky'},high);
+  assert.ok(gHigh.food>gLow.food);assert.ok(gHigh.wood>gLow.wood);
+  assert.equal(rHigh.stone,rLow.stone);
 });
