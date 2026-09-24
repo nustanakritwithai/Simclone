@@ -5,7 +5,7 @@
 import {createResourceRegenerationShadow} from './worldsim-resource-regen-shadow.mjs?v=0.5.0';
 
 export const FOOD_REGEN_IMPACT_VERSION='wm4.2-food-impact-1';
-const bucket=p=>p<.25?'very-low':p<.5?'low':p<.75?'medium':'high';
+const bucket=p=>p<.04?'very-low':p<.08?'low':p<.12?'medium':'high';
 
 export function createFoodRegenerationImpact(state,regen=createResourceRegenerationShadow(state)){
   const rows=regen.rows.filter(r=>r.type==='food').map(r=>Object.freeze({
@@ -31,7 +31,7 @@ export function createFoodRegenerationImpact(state,regen=createResourceRegenerat
     : 0;
   return Object.freeze({
     version:FOOD_REGEN_IMPACT_VERSION,
-    authority:Object.freeze({mode:'shadow-only',writer:'simclone-k6',unitFormula:'none'}),
+    authority:Object.freeze({mode:'shadow-only',writer:regen.authority.writer,unitFormula:'none'}),
     legacy:Object.freeze({periodTicks:120,amount:3}),
     summary:Object.freeze({
       nodes:rows.length,
