@@ -1,4 +1,4 @@
-import {K6_RESOURCE_REGEN} from './worldsim-resource-regen-shadow.mjs?v=0.5.0';
+import {K6_RESOURCE_REGEN} from './worldsim-resource-policy.mjs?v=0.5.0';
 
 /** WM4.1 — authoritative resource-regeneration parity gate.
  * Ownership moves to WorldSim while behavior stays byte-for-byte equivalent
