@@ -1,4 +1,4 @@
-/** Skill provenance 0.4.0 — bounded evidence with exact XP accounting. */
+/** Skill provenance 0.5.0 — bounded evidence with exact XP accounting. */
 export const SKILL_PROVENANCE_VERSION='0.4.0';
 export const SKILL_EVIDENCE_LIMIT=2;
 
