@@ -2,6 +2,7 @@ import {installUX,UI_VERSION} from './ux.mjs?v=0.5.0';
 import {createWorldStore,saveLabel} from './storage.mjs?v=0.5.0';
 import {installNavigation} from './navigation.mjs?v=0.5.0';
 import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
+import {cellAt as worldCellAt} from './worldsim-map.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,nav=null;
@@ -28,7 +29,7 @@ function makeGround(){
  const corners=[proj(0,0),proj(SIZE.w,0),proj(SIZE.w,SIZE.h),proj(0,SIZE.h)].map(p=>[p.x,p.y]);
  polygon(c,corners.map(([x,y])=>[x,y+20]),'#304b37');
  for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
-  const p=proj(x,y),r=hash(x,y),wc=state.worldMap?.cells[y*SIZE.w+x],terrain=wc?.terrainType??(tileAt(state,x,y)==='water'?'shallowWater':'grass');
+  const p=proj(x,y),r=hash(x,y),wc=state.worldMap?worldCellAt(state.worldMap,x,y):null,terrain=wc?.terrainType??(tileAt(state,x,y)==='water'?'shallowWater':'grass');
   const palette={
     deepWater:['#315f70','#356878','#2e596a'],
     shallowWater:['#4d8388','#568d91','#477b82'],
@@ -156,7 +157,7 @@ function updateUI(){
  for(const type of ['food','wood','stone'])$(type).textContent=state.stock[type];
  $('population').textContent=living(state).length+' / '+capacity(state);
  $('pause').textContent=paused?'▶':'Ⅱ';$('pause').setAttribute('aria-label',paused?'เล่นต่อ':'หยุดเวลา');
- const homeClimate=state.worldMap?.cells[12*SIZE.w+11]?.climate,weather={clear:'ฟ้าเปิด',cloudy:'มีเมฆ',rain:'ฝนตก',heavyRain:'ฝนหนัก',hot:'ร้อน',dry:'แห้ง'}[homeClimate?.weatherType]??'สภาพอากาศปกติ';
+ const homeClimate=state.worldMap?worldCellAt(state.worldMap,11,12)?.climate:null,weather={clear:'ฟ้าเปิด',cloudy:'มีเมฆ',rain:'ฝนตก',heavyRain:'ฝนหนัก',hot:'ร้อน',dry:'แห้ง'}[homeClimate?.weatherType]??'สภาพอากาศปกติ';
  $('world-status').textContent=paused||dialog.open?'หยุดเวลา · โลกยังอยู่ตรงนี้':'WorldSim · '+weather;
  $('seed-label').textContent='SEED '+state.seed;
  $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip" data-event="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · ${e.type.toUpperCase()}</small><p>${esc(e.text)}</p></button>`).join('');
