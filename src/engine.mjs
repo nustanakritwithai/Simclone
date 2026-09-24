@@ -139,9 +139,9 @@ function candidates(s,a,book,field){
   const compare=(x,y)=>routeDistance(field,x)-routeDistance(field,y)||x.id-y.id;
   const homes=s.buildings.filter(b=>b.complete&&routeDistance(field,b)>=0).sort(compare);
   const home=homes[0];
-  function add(kind,target,base,need=0,goal=0,status='candidate',extra={},extraFactors={}){
+  function add(kind,target,base,need=0,goal=0,status='candidate',extra={}){
     const travel=routeDistance(field,target),skill=SKILLS.includes(kind)?level(a.skills[kind])*3:0;
-    const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(travel*.7),...extraFactors};
+    const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(travel*.7)};
     out.push({kind,targetId:target.id??null,x:target.x,y:target.y,
       score:Object.values(factors).reduce((sum,v)=>sum+v,0),factors,travelSteps:Math.max(0,travel),
       status:travel<0?'no-path':status,...extra});
@@ -161,11 +161,11 @@ function candidates(s,a,book,field){
     const shortage=projected[type]<targets[type]/2?40:18;
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind,resourceType:type,projected,targets});
     const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
-    add(kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{},kingdom);
+    add(kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom});
   }
   for(const b of s.buildings.filter(b=>!b.complete)){
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind:'BUILD',scarcityOverride:18});
-    add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved',{},kingdom);
+    add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved',{kingdomUtility:kingdom});
   }
   const tx=5+(a.id*7+Math.floor(s.tick/40))%13,ty=5+(a.id*3+Math.floor(s.tick/60))%16;
   add('EXPLORE',{x:tx,y:ty},3);
