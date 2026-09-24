@@ -138,3 +138,16 @@ Safety contract:
 - profession changes still occur only after the selected task successfully claims its reservation.
 
 This is an experiment, not a proven release. Historical continuity and browser gates remain unchanged. If the exact K5 candidate changes the established pre-archive boundary or causes survival/lifecycle regressions, K5 authority must be reduced or returned to shadow rather than weakening those gates.
+
+
+## Kingdom Sandbox market import — K6 shadow candidate
+
+K6 extracts the donor price curve without introducing currency or trade authority.
+
+- Simclone goods use donor base-price analogues: food 10, wood 8, stone (ore proxy) 15;
+- price index follows `base × scarcity^0.75`;
+- donor bounds remain 0.3× to 6× base;
+- optional danger/tax/crowding/siege modifiers exist only as pure parameters and are not wired to world state yet;
+- the Survival dialog shows the resulting shadow market index.
+
+K6 does not add money, treasury, wages, taxes, buying/selling, caravans or persistent market state. It is a read-only projection over K2 scarcity.
