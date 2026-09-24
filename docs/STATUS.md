@@ -121,3 +121,20 @@ K4 extracts the donor LaborMarketSystem's shortage-to-labor-offer boundary as a 
 - proposals are capped and sorted but have no IDs, expiry clocks or persistent recruitment state.
 
 Forager recruitment remains owned by Survival Core rather than being invented as a donor labor-market rule. K4 does not reassign professions, move agents, pay wages, create organizations or mutate the world.
+
+
+## Kingdom Sandbox labor authority — K5 bounded experiment
+
+K5 is the first Kingdom slice allowed to influence authoritative task scores.
+
+Safety contract:
+
+- only WOODCUT, MINE and BUILD can receive labor-market authority;
+- shortage must exceed the donor threshold `1.2` and current staffing must be below the role ideal;
+- the labor bonus is hard-capped at **+6**;
+- hunger below the Survival Core hungry threshold or energy below exhausted disables the bonus completely;
+- EAT, REST and FORAGE receive no K5 labor-market bonus;
+- path reachability, stage eligibility, reservations and resource satisfaction remain hard gates after scoring;
+- profession changes still occur only after the selected task successfully claims its reservation.
+
+This is an experiment, not a proven release. Historical continuity and browser gates remain unchanged. If the exact K5 candidate changes the established pre-archive boundary or causes survival/lifecycle regressions, K5 authority must be reduced or returned to shadow rather than weakening those gates.
