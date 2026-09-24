@@ -1,4 +1,4 @@
-import {CRAFT_STATIONS} from './crafting-catalog.mjs';
+import {CRAFT_STATIONS,RECIPE_CATALOG} from './crafting-catalog.mjs';
 import {RUST_PROCESSING_CATALOG,stationAt} from './rust-stations.mjs';
 
 export const RUST_MATERIALS_VERSION='RS4-0.1';
@@ -20,6 +20,14 @@ export function reservedProcessingMaterials(s){
   }
   return total;
 }
+function reservedToolMaterials(s){
+  const total={wood:0,stone:0};
+  for(const o of s.rustPossessions?.orders??[]){
+    const r=RECIPE_CATALOG[o.recipe];if(!r)continue;
+    for(const [k,n] of Object.entries(r.materials??{}))if(k in total)total[k]+=n;
+  }
+  return total;
+}
 
 export function queueProcessing(s,{agentId,processId,stationId}={}){
   const a=living(s,agentId),m=s.rustMaterials,p=RUST_PROCESSING_CATALOG[processId];
@@ -28,11 +36,11 @@ export function queueProcessing(s,{agentId,processId,stationId}={}){
   if(m.orders.length>=RUST_MATERIAL_LIMITS.orders||m.orders.some(o=>o.agentId===agentId))return {ok:false,reason:'busy-or-capacity'};
   const st=stationAt(s,stationId);
   if(!st||!st.complete||st.kind!==p.station)return {ok:false,reason:'station'};
-  const reserved=reservedProcessingMaterials(s);
+  const reserved=reservedProcessingMaterials(s),tools=reservedToolMaterials(s);
   const missing={};
   for(const [k,n] of Object.entries(p.input)){
     if(!(k in (s.stock??{})))return {ok:false,reason:'unsupported-input',material:k};
-    const free=s.stock[k]-(reserved[k]??0);
+    const free=s.stock[k]-(reserved[k]??0)-(tools[k]??0);
     if(free<n)missing[k]=n-free;
   }
   if(Object.keys(missing).length)return {ok:false,reason:'materials',missing};
