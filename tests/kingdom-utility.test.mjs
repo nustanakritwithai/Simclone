@@ -39,22 +39,33 @@ test('profession continuity bonus is explicit and careers stay bounded',()=>{
   assert.ok(agent.career.length<=8);
 });
 
-test('engine imports Kingdom scarcity utility and lets shortage override old profession',()=>{
-  const s=createWorld(230926),a=s.agents[0];
-  a.satiety=95;a.energy=95;a.preference='FORAGE';a.profession='forager';
-  s.stock.food=999;s.stock.stone=999;s.stock.wood=0;
-  step(s,1);
-  const selected=a.trace.find(c=>c.status==='selected');
-  assert.equal(selected.kind,'WOODCUT');
-  assert.equal(a.profession,'woodcutter');
-  const wood=a.trace.find(c=>c.kind==='WOODCUT');
-  assert.ok(wood.factors.scarcity>0);
-  assert.equal(typeof wood.factors.profession,'number');
-  assert.equal(typeof wood.factors.utilityJitter,'number');
+test('engine records Kingdom utility as shadow evidence without changing authoritative score math',()=>{
+  const s=createWorld(230926);step(s,1);
+  for(const a of s.agents){
+    for(const c of a.trace){
+      assert.equal(c.score,Object.values(c.factors).reduce((sum,v)=>sum+v,0));
+      if(['FORAGE','WOODCUT','MINE','BUILD'].includes(c.kind)){
+        assert.equal(typeof c.kingdomUtility?.scarcity,'number');
+        assert.equal(typeof c.kingdomUtility?.profession,'number');
+        assert.equal(typeof c.kingdomUtility?.utilityJitter,'number');
+      }
+    }
+  }
   assert.deepEqual(validate(s),[]);
 });
 
-test('Kingdom utility layer keeps same-seed execution deterministic',()=>{
+test('selected productive work updates profession but shadow utility does not own task validation',()=>{
+  const s=createWorld(77),a=s.agents[0];
+  a.preference='WOODCUT';a.profession='forager';s.stock.food=999;s.stock.stone=999;s.stock.wood=0;
+  step(s,1);
+  const chosen=a.trace.find(c=>c.status==='selected');
+  assert.equal(chosen.kind,'WOODCUT');
+  assert.equal(a.profession,'woodcutter');
+  assert.ok(a.career.some(c=>c.profession==='woodcutter'));
+  assert.deepEqual(validate(s),[]);
+});
+
+test('Kingdom shadow layer keeps same-seed execution deterministic',()=>{
   const a=createWorld(9191),b=createWorld(9191);
   step(a,720);for(let i=0;i<720;i++)step(b);
   assert.equal(serialize(a),serialize(b));
