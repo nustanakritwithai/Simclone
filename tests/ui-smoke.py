@@ -49,6 +49,15 @@ with sync_playwright() as p:
  desktop.locator('#menu').click();desktop.locator('[data-action="save"]').click();saved=desktop.evaluate('localStorage.getItem("simclone:world:v1")');desktop.locator('#dialog-close').click()
  reloadpage=b.new_page(viewport={'width':1440,'height':1000});boot(reloadpage,saved)
  check('old save schema retained and reload works with storage double',len(snap(reloadpage)['agents'])==7)
+ check('death history sub-schema persists through reload',snap(reloadpage)['historyVersion']=='0.1.0')
+ legacy_unknown=json.loads(saved);legacy_unknown.pop('historyVersion',None)
+ for a in legacy_unknown['agents']:a.pop('death',None)
+ dead=next(a for a in legacy_unknown['agents'] if a['id']==2);dead['alive']=False;dead['hp']=0;dead['task']=None;dead['moveTick']=0;dead['memory']=[]
+ legacy_unknown['events']=[e for e in legacy_unknown['events'] if not (e.get('type')=='death' and e.get('agentId')==2)]
+ deadpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(deadpage,json.dumps(legacy_unknown,ensure_ascii=False));paused(deadpage)
+ deadpage.locator('#roster').tap();deadpage.locator('[data-person="2"]').tap()
+ check('legacy death without evidence migrates to explicit unknown',snap(deadpage)['agents'][1]['death']['status']=='legacy-unknown')
+ check('dead inspector never substitutes lifespan for unknown death age','อายุไม่ทราบ' in deadpage.locator('#life-label').inner_text() and 'สาเหตุไม่ทราบ' in deadpage.locator('#life-label').inner_text())
  # Mobile
  m=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(m);paused(m)
  check('mobile world has no inspector covering it initially',not m.locator('#inspector').is_visible())
