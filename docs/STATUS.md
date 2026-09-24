@@ -76,3 +76,48 @@ Imported behavior:
 Authority remains with Simclone: existing task ranking, task eligibility, path reachability, reservations, lifecycle, stock mutation, skill provenance and personal knowledge are unchanged owners of their rules. This shadow-first boundary is intentional after an authoritative K1 attempt changed the 0.3.5 pre-archive continuity baseline; the gate was kept intact rather than rewritten. Existing 0.5.0 saves may omit profession/career; those fields are optional and are initialized deterministically when the agent next plans. Save version therefore remains 0.5.0 for this K1 candidate.
 
 Verification is provided by `tests/kingdom-utility.test.mjs` plus the existing full regression suite. This is occupation/scarcity utility only, not the later Kingdom economy/faction/governance import.
+
+
+## Kingdom Sandbox economy import — K2 shadow candidate
+
+K2 extracts the donor settlement-economy signals without giving them simulation authority yet.
+
+Implemented as a read-only projection:
+
+- Kingdom village demand adapted to Simclone goods: food, wood and stone (donor ore);
+- scarcity ratio with the donor 0.25–6 bounds;
+- labor premium target with the donor 1.0–1.8 bounds;
+- current worker specialization counts/shares and missing high-pressure roles;
+- unfinished construction produces a builder pressure signal;
+- the Survival dialog exposes these values as `Kingdom K2 · shadow economy`.
+
+K2 does **not** add money, prices, treasury, wages, trade, caravans, decay, tax, factions or migration. Calling the projection is required to be read-only and must not affect seed/replay/continuity. Authority remains with existing Simclone survival scoring while K1/K2 shadow evidence is verified.
+
+
+## Kingdom Sandbox production/labor import — K3 shadow candidate
+
+K3 extracts the donor `WorkSystem` productivity structure while preserving Simclone authority.
+
+Read-only factors:
+
+- skill multiplier: `1 + skillLevel × 0.15`;
+- satiety-derived hunger penalty: 1.0 / 0.8 / 0.5 using donor thresholds;
+- occupation crowding using donor ideal staffing and 0.2–1.0 bounds;
+- biological work-rate multiplier from Simclone lifecycle (adult 1.0, elder 0.75, child 0);
+- tool multiplier is explicitly fixed at 1.0 until possessions/tools are integrated;
+- effective worker units, average profession efficiency, labor gaps and a recommended high-pressure role.
+
+K3 does not change harvested amount, build progress, XP, stock, reservations or task ranking. The projection is surfaced in the Survival dialog and must remain observationally pure under repeated calls.
+
+
+## Kingdom Sandbox labor market import — K4 shadow candidate
+
+K4 extracts the donor LaborMarketSystem's shortage-to-labor-offer boundary as a read-only proposal layer.
+
+- specialist roles: woodcutter, miner and builder (builder is the current Simclone proxy for donor crafter);
+- donor shortage threshold `> 1.2`;
+- offer quantity capped at three workers per role;
+- priority combines scarcity, K2 premium, K3 labor gap and a no-worker bonus;
+- proposals are capped and sorted but have no IDs, expiry clocks or persistent recruitment state.
+
+Forager recruitment remains owned by Survival Core rather than being invented as a donor labor-market rule. K4 does not reassign professions, move agents, pay wages, create organizations or mutate the world.

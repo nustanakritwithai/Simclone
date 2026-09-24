@@ -21,7 +21,7 @@ with sync_playwright() as p:
  page.locator('.resources [role="button"]').tap()
  check('food tile opens survival summary',page.locator('#dialog-title').inner_text()=='หมู่บ้านอยู่รอดอย่างไร')
  s=json.loads(before);reserved=sum(1 for a in s['agents'] if a['alive'] and a['task'] and a['task']['kind']=='EAT')
- values=page.locator('.life-summary b').all_inner_texts()
+ values=page.locator('#dialog-body .life-summary').first.locator('b').all_inner_texts()
  check('summary free and reserved meals match engine jobs',values==[str(s['stock']['food']-reserved)+' หน่วย',str(reserved)+' หน่วย'])
  check('inspecting summary never changes the world',page.evaluate('JSON.stringify(simclone.snapshot())')==before)
  check('shared-stock, birth and age-death rules disclosed','คลังรวม' in page.locator('#dialog-body').inner_text() and 'สถานะการเกิดอัตโนมัติ' in page.locator('#dialog-body').inner_text() and 'parent คนเดิมพัก 4 ปี' in page.locator('#dialog-body').inner_text() and 'อายุขัย derive 78–92 ปี' in page.locator('#dialog-body').inner_text())
