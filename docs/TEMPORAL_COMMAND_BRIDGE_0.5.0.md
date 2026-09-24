@@ -47,3 +47,10 @@ The bridge still does not write rollback/replay state into localStorage. Existin
 - cross-session persisted temporal history
 
 Those remain blocked until this stacked branch and its parent adapter branch pass exact CI.
+
+
+## Verification state
+
+Candidate branch: `codex/temporal-command-bridge-v041-20260924`
+
+This combined candidate targets `main` for exact GitHub Actions verification. Until that workflow succeeds, release verdict remains **UNKNOWN** even if local/static contract tests look correct.
