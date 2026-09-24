@@ -28,7 +28,7 @@ export function generateWorldMap(seed=230926){
   const temp=clamp(.84-lat*.38-el*.32+(smooth(seed,x,y,91)-.5)*.14,0,1),fert=clamp(moist*.52+(1-el)*.24+smooth(seed,x,y,113)*.24,0,1);
   let t;
   if(radial>1.1)t='deepWater';else if(radial>.98)t='shallowWater';else if(radial>.9)t='sand';
-  else if(el>.72||ridge>.78)t='rock';
+  else if(el>.72||ridge>.78||hash(seed,x,y,173)>.91)t='rock';
   else if((moist>.46&&fert>.43)||hash(seed,x,y,151)>.73)t='forest';
   else t='grass';
   if(dCamp<=6)t='grass';
