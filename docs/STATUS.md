@@ -121,3 +121,16 @@ K4 extracts the donor LaborMarketSystem's shortage-to-labor-offer boundary as a 
 - proposals are capped and sorted but have no IDs, expiry clocks or persistent recruitment state.
 
 Forager recruitment remains owned by Survival Core rather than being invented as a donor labor-market rule. K4 does not reassign professions, move agents, pay wages, create organizations or mutate the world.
+
+
+## Kingdom Sandbox market import — K6 shadow candidate
+
+K6 extracts the donor price curve without introducing currency or trade authority.
+
+- Simclone goods use donor base-price analogues: food 10, wood 8, stone (ore proxy) 15;
+- price index follows `base × scarcity^0.75`;
+- donor bounds remain 0.3× to 6× base;
+- optional danger/tax/crowding/siege modifiers exist only as pure parameters and are not wired to world state yet;
+- the Survival dialog shows the resulting shadow market index.
+
+K6 does not add money, treasury, wages, taxes, buying/selling, caravans or persistent market state. It is a read-only projection over K2 scarcity.
