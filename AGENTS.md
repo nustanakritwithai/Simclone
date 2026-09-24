@@ -80,7 +80,7 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Release requires npm test, all four proof scripts, and all three offline Chromium suites on the exact candidate SHA. UNKNOWN is not PASS.
 
 
-## Historical Identity 0.3.6 (current candidate)
+## Historical Identity 0.3.6 (historical release)
 
 - Read docs/STATUS.md, docs/NEXT_STEPS.md and docs/HISTORY_LIMITS_0.3.5.md first. This is Phase 2 of that hardening plan, versioned 0.3.6 for unambiguous module cache pins.
 - Save schema 0.3.0; explicit migrations from 0.1.0/0.2.0; archiveVersion/historyVersion both 0.1.0. Never let old schema silently carry an ignored archive.
@@ -92,7 +92,7 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Publish only after exact candidate verification; recheck main, non-force update, verify exact main Pages test/upload/deploy. Do not edit workflows to evade a failing gate.
 
 
-## Skill Provenance 0.4.0 (current candidate)
+## Skill Provenance 0.4.0 (historical release)
 
 - Read `docs/SKILL_PROVENANCE_0.4.0.md` and `docs/STATUS.md` before changing skills or persistence.
 - Keep only FORAGE/WOODCUT/MINE/BUILD in this release. Existing XP/balance formulas remain authoritative.
@@ -102,3 +102,16 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Evidence is bounded: preserve structural origin and latest work evidence while cumulative counters remain exact. Do not add unbounded per-action history to archived identities.
 - Migration from save 0.3.0 marks existing XP legacy-unattributed. Missing provenance in a current 0.4.0 save is corruption, not silently repaired.
 - Next knowledge work may borrow AstraLife's Observation/Memory/Belief contracts, but cognition may consume only Observation + owned memory/belief + delivered messages. No per-tick LLM calls and no hidden World Truth shortcut.
+
+
+## Knowledge + Memory 0.5.0 (current candidate)
+
+- Read `docs/KNOWLEDGE_MEMORY_0.5.0.md`, `docs/STATUS.md` and `docs/NEXT_STEPS.md` before changing cognition/knowledge persistence.
+- World truth remains authoritative. A person's cognition may contain only direct experienced evidence, owned knowledge/memory and explicitly delivered claims. Do not expose arbitrary `state.nodes` as personal knowledge.
+- Productive FORAGE/WOODCUT/MINE output records a CONFIRMED resource claim only after non-zero output. Zero-output work writes neither XP nor knowledge.
+- `SHARE_KNOWLEDGE` is an engine command. It transfers one selected confirmed claim, validates communication range and writes recipient provenance. Relayed claims start UNVERIFIED.
+- Knowledge collections are bounded per retained person (4 beliefs, 8 evidence, 8 episodes). Do not add unbounded per-tick cognition logs to historical identities.
+- Save 0.4.0 migration creates empty knowledge. Never reverse-engineer historical knowledge from current skill XP, position, old memory text or global world truth.
+- Archive compaction must preserve `knowledgeState`; sourceAgentId must resolve through retained identity after the discoverer dies.
+- AstraLife is a donor for boundary/evidence contracts only in this slice. Do not import provider/LLM calls, trust scoring, faction or autonomous free-form messaging yet.
+- Release still requires exact candidate and exact main verification. UNKNOWN is not PASS.
