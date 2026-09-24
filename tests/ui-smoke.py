@@ -14,7 +14,7 @@ def boot(page,saved=None):
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.evaluate("saved=>{const m=new Map(saved?[['simclone:world:v1',saved]]:[]);Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v))}})}",saved)
  page.set_content(html,wait_until='load')
- page.wait_for_function("window.simclone?.uiVersion==='0.3.4'")
+ page.wait_for_function("window.simclone?.uiVersion==='0.3.5'")
  page.wait_for_timeout(400)
 def paused(page):
  if page.locator('#pause').get_attribute('aria-pressed')!='true':page.locator('#pause').click()
@@ -24,7 +24,7 @@ with sync_playwright() as p:
  exe='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None
  b=p.chromium.launch(executable_path=exe,headless=True,args=['--no-sandbox'])
  desktop=b.new_page(viewport={'width':1440,'height':1000});boot(desktop)
- check('desktop boot with UI 0.3.4 and engine 0.3.4',desktop.evaluate('simclone.version')=='0.3.4')
+ check('desktop boot with UI 0.3.5 and engine 0.3.5',desktop.evaluate('simclone.version')=='0.3.5')
  check('world actually advances',snap(desktop)['tick']>0)
  desktop.screenshot(path=str(OUT/'desktop-world.png'))
  paused(desktop);t=snap(desktop)['tick'];desktop.wait_for_timeout(700);check('pause freezes simulation',snap(desktop)['tick']==t)
@@ -49,6 +49,15 @@ with sync_playwright() as p:
  desktop.locator('#menu').click();desktop.locator('[data-action="save"]').click();saved=desktop.evaluate('localStorage.getItem("simclone:world:v1")');desktop.locator('#dialog-close').click()
  reloadpage=b.new_page(viewport={'width':1440,'height':1000});boot(reloadpage,saved)
  check('old save schema retained and reload works with storage double',len(snap(reloadpage)['agents'])==7)
+ check('death history sub-schema persists through reload',snap(reloadpage)['historyVersion']=='0.1.0')
+ legacy_unknown=json.loads(saved);legacy_unknown.pop('historyVersion',None)
+ for a in legacy_unknown['agents']:a.pop('death',None)
+ dead=next(a for a in legacy_unknown['agents'] if a['id']==2);dead['alive']=False;dead['hp']=0;dead['task']=None;dead['moveTick']=0;dead['memory']=[]
+ legacy_unknown['events']=[e for e in legacy_unknown['events'] if not (e.get('type')=='death' and e.get('agentId')==2)]
+ deadpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(deadpage,json.dumps(legacy_unknown,ensure_ascii=False));paused(deadpage)
+ deadpage.locator('[data-nav="people"]').tap();deadpage.locator('[data-person="2"]').tap()
+ check('legacy death without evidence migrates to explicit unknown',snap(deadpage)['agents'][1]['death']['status']=='legacy-unknown')
+ check('dead inspector never substitutes lifespan for unknown death age','อายุไม่ทราบ' in deadpage.locator('#life-label').inner_text() and 'สาเหตุไม่ทราบ' in deadpage.locator('#life-label').inner_text())
  # Mobile
  m=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(m);paused(m)
  check('mobile world has no inspector covering it initially',not m.locator('#inspector').is_visible())

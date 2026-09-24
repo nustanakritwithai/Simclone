@@ -1,4 +1,4 @@
-/** Lifecycle 0.3.4: deterministic age/stage, work capability and derived lifespan helpers. */
+/** Lifecycle 0.3.5: deterministic age/stage, stable death age, work capability and derived lifespan helpers. */
 export const LIFE = Object.freeze({
   ticksPerYear: 360,
   yearsPerSimDay: 1,
@@ -17,10 +17,16 @@ export const LIFE_STAGES = Object.freeze({
   DEAD:'DEAD',
 });
 
-export function ageYears(state,agent){
-  if(!agent?.life||!Number.isInteger(agent.life.anchorTick)||!Number.isInteger(agent.life.ageAtAnchorYears))return null;
-  const elapsedTicks=Math.max(0,state.tick-agent.life.anchorTick);
+export function ageYearsAtTick(state,agent,tick){
+  if(!agent?.life||!Number.isInteger(agent.life.anchorTick)||!Number.isInteger(agent.life.ageAtAnchorYears)||!Number.isInteger(tick))return null;
+  if(tick<agent.life.anchorTick)return null;
+  const elapsedTicks=tick-agent.life.anchorTick;
   return Math.max(0,agent.life.ageAtAnchorYears+Math.floor(elapsedTicks/LIFE.ticksPerYear)*LIFE.yearsPerSimDay);
+}
+
+export function ageYears(state,agent){
+  if(agent?.alive===false)return Number.isInteger(agent?.death?.ageYears)?agent.death.ageYears:null;
+  return ageYearsAtTick(state,agent,state?.tick);
 }
 
 export function lifeStage(state,agent){

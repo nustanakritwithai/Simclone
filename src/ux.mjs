@@ -1,7 +1,7 @@
-import {BIRTH_RULES} from './reproduction.mjs?v=0.3.4';
+import {BIRTH_RULES} from './reproduction.mjs?v=0.3.5';
 /** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
-import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears} from './engine.mjs?v=0.3.4';
-export const UI_VERSION='0.3.4';
+import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears} from './engine.mjs?v=0.3.5';
+export const UI_VERSION='0.3.5';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={
@@ -108,7 +108,10 @@ export function installUX(api){
   const toggle=inspector.querySelector('.sheet-expand');toggle.setAttribute('aria-expanded',String(expanded));toggle.setAttribute('aria-label',expanded?'ย่อข้อมูลตัวละคร':'ขยายข้อมูลตัวละคร');
   document.body.classList.toggle('sheet-expanded',expanded);
   const stage=lifeStage(s,a),age=ageYears(s,a),lifespan=lifespanYears(s,a);
-  setText('life-label',a.alive?`· ${stageLabels[stage]??stage} · อายุ ${age??'—'} ปี · อายุขัย ${lifespan??'—'} ปี`:`· เสียชีวิต · อายุขัย ${lifespan??'—'} ปี`);setText('ux-current-action',api.actionText(a));
+  const cause=a.death?.cause==='age'?'เสียชีวิตตามวัย':a.death?.cause==='starvation'?'ขาดอาหาร':'สาเหตุไม่ทราบ';
+  const deathAge=age===null?'อายุไม่ทราบ':`อายุ ${age} ปี`;
+  const deathTick=Number.isInteger(a.death?.tick)?` · tick ${a.death.tick}`:'';
+  setText('life-label',a.alive?`· ${stageLabels[stage]??stage} · อายุ ${age??'—'} ปี · อายุขัย ${lifespan??'—'} ปี`:`· เสียชีวิต · ${deathAge} · ${cause}${deathTick}`);setText('ux-current-action',api.actionText(a));
   setText('follow-label',follow?'หยุดติดตาม':'ติดตาม');
   inspector.querySelector('[data-ux="clone"]').disabled=!a.alive;
   for(const k of ['satiety','energy','hp']){setText('need-number-'+k,Math.round(a[k]));const el=$('need-meter-'+k);el.setAttribute('aria-valuenow',String(Math.round(a[k])));el.querySelector('i').style.width=a[k]+'%';el.classList.toggle('low',a[k]<25);}

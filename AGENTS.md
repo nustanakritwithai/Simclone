@@ -57,7 +57,7 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Candidate branches are verified by `.github/workflows/verify.yml`; Pages deployment remains gated on exact `main` workflow success.
 
 
-## Generation Continuity 0.3.4 (current)
+## Generation Continuity 0.3.4 (historical release)
 
 - Read docs/LIFECYCLE_0.3.4.md and docs/NEXT_STEPS.md first.
 - Engine/UI are 0.3.4. Save schema stays 0.2.0; storage key stays simclone:world:v1. Never reset ages on load.
@@ -67,3 +67,14 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Final evidence is tied to source SHA-256 manifest. Verify exact candidate and Pages commits separately. UNKNOWN is not PASS.
 - Existing saves preserve their demographic structure; previously collapsed colonies are not silently repopulated. Historical agent cap 200 still prevents unlimited continuation.
 - No mentor/archive, social relationship or V1.0 proof is claimed.
+
+
+## Death History 0.3.5 (current slice)
+
+- Read `docs/LIFECYCLE_0.3.5.md` and `docs/NEXT_STEPS.md` before changing lifecycle persistence.
+- Engine/UI are 0.3.5. World save schema remains 0.2.0; historical-lifecycle sub-schema is `historyVersion=0.1.0`; storage key remains `simclone:world:v1`.
+- New deaths persist immutable tick, cause and age-at-death. `ageYears()` for a dead agent must use recorded death age or UNKNOWN; never advance with the world clock and never substitute deterministic lifespan.
+- Old 0.2.0 saves may recover death facts only from retained event/memory + existing lifecycle evidence. Legacy 0.1.0 deaths must not derive historical age from the load-time age-18 migration anchor.
+- Missing evidence is `legacy-unknown`, not a guessed age/cause/tick. Corrupt/unreadable save protection remains unchanged.
+- This slice does not remove the 200 retained-agent cap or prove native HTTP storage/physical Android. Historical identity limits and bounded performance remain the next V0.3.5 gate.
+- Release requires npm test, all four proof scripts, and all three offline Chromium suites on the exact candidate SHA. UNKNOWN is not PASS.
