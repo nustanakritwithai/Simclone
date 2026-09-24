@@ -55,3 +55,12 @@ test('WM4.2 reports bounded ecology percentiles and depletion counts',()=>{
   assert.ok(x.summary.depletedNodes>=0&&x.summary.depletedNodes<=x.summary.nodes);
   assert.ok(x.summary.lowPotentialDepletedNodes>=0&&x.summary.lowPotentialDepletedNodes<=x.summary.depletedNodes);
 });
+
+
+test('WM4.2 quantifies legacy boundary units without proposing ecology units',()=>{
+  const x=createFoodRegenerationImpact(createWorld(6161));
+  assert.ok(x.summary.projectedLegacyBoundaryUnits>=0);
+  assert.ok(x.summary.projectedLowEcologyBoundaryUnits>=0);
+  assert.ok(x.summary.projectedLowEcologyBoundaryUnits<=x.summary.projectedLegacyBoundaryUnits);
+  assert.equal(x.authority.unitFormula,'none');
+});
