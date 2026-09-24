@@ -1,7 +1,7 @@
-import {BIRTH_RULES} from './reproduction.mjs?v=0.3.5';
+import {BIRTH_RULES} from './reproduction.mjs?v=0.3.6';
 /** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
-import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears} from './engine.mjs?v=0.3.5';
-export const UI_VERSION='0.3.5';
+import {VERSION,SKILLS,LABELS,level,day,living,people,personById,capacity,survivalSummary,ageYears,lifeStage,lifespanYears} from './engine.mjs?v=0.3.6';
+export const UI_VERSION='0.3.6';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={
@@ -95,7 +95,7 @@ export function installUX(api){
   $('confirm-placement').disabled=!placement.ok;
  }
  function renderInspector(){
-  const {state:s,selected,tab,follow}=api.read(),a=s.agents.find(a=>a.id===selected);
+  const {state:s,selected,tab,follow}=api.read(),a=personById(s,selected);
   inspector.hidden=!a;document.body.classList.toggle('has-selection',!!a);
   if(!a){identityKey='';expanded=false;document.body.classList.remove('sheet-expanded');return;}
   const key=JSON.stringify([a.id,a.name,a.appearance,a.parentId,a.generation]);
@@ -113,20 +113,22 @@ export function installUX(api){
   const deathTick=Number.isInteger(a.death?.tick)?` · tick ${a.death.tick}`:'';
   setText('life-label',a.alive?`· ${stageLabels[stage]??stage} · อายุ ${age??'—'} ปี · อายุขัย ${lifespan??'—'} ปี`:`· เสียชีวิต · ${deathAge} · ${cause}${deathTick}`);setText('ux-current-action',api.actionText(a));
   setText('follow-label',follow?'หยุดติดตาม':'ติดตาม');
+  inspector.querySelector('[data-ui="follow"]').disabled=!a.alive;
   inspector.querySelector('[data-ux="clone"]').disabled=!a.alive;
+  const trace=Array.isArray(a.trace)?a.trace:[];
   for(const k of ['satiety','energy','hp']){setText('need-number-'+k,Math.round(a[k]));const el=$('need-meter-'+k);el.setAttribute('aria-valuenow',String(Math.round(a[k])));el.querySelector('i').style.width=a[k]+'%';el.classList.toggle('low',a[k]<25);}
   for(const b of inspector.querySelectorAll('[role=tab]')){const active=b.dataset.tab===tab;b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;}
   const panel=$('ux-tab-content');panel.setAttribute('aria-labelledby','tab-'+tab);let html='';
   if(tab==='skills')html=SKILLS.map(k=>`<div class="skill-row"><b>${roles[k]}</b><span>Lv.${level(a.skills[k])} <small>${a.skills[k]} XP</small></span></div>`).join('')+`<p class="source-note">ที่มา: ${escape(a.source)}<br>นี่คือทักษะส่วนบุคคล ยังไม่มีระบบครูหรือคลังความรู้ในรุ่นนี้</p>`;
   else if(tab==='memory')html=a.memory.slice().reverse().map(m=>`<div class="memory-item"><small>วันที่ ${1+Math.floor(m.tick/360)}</small>${escape(m.text)}</div>`).join('')||'<p class="empty-state">ยังไม่มีความทรงจำสำคัญ</p>';
   else if(tab==='why'){
-   const chosen=a.trace.find(t=>t.status==='selected'),max=Math.max(1,...a.trace.map(t=>t.score));
+   const chosen=trace.find(t=>t.status==='selected'),max=Math.max(1,...trace.map(t=>t.score));
    if(chosen){html=`<div class="decision-callout">${icon('brain')}<div><small>เหตุผลจากการตัดสินใจล่าสุด</small><b>เลือก${LABELS[chosen.kind]} · ${chosen.score} คะแนน</b><p>เปรียบเทียบความต้องการ ความถนัด ทักษะ และระยะเดินจริง งานที่คนอื่นจองหรือทรัพยากรสำรองพอแล้วจะไม่ถูกเลือก</p></div></div>`;}
-   html+=(chosen?[chosen,...a.trace.filter(t=>t!==chosen).slice(0,5)]:a.trace.slice(0,6)).map(c=>`<div class="trace-row ${c.status==='selected'?'selected':''}"><span>${c.status==='selected'?'✓ ':''}${LABELS[c.kind]}${blockedLabels[c.status]?' · '+blockedLabels[c.status]:''}</span><b>${c.score}</b><div class="scorebar"><i style="width:${Math.max(0,c.score/max*100)}%"></i></div></div>`).join('');
+   html+=(chosen?[chosen,...trace.filter(t=>t!==chosen).slice(0,5)]:trace.slice(0,6)).map(c=>`<div class="trace-row ${c.status==='selected'?'selected':''}"><span>${c.status==='selected'?'✓ ':''}${LABELS[c.kind]}${blockedLabels[c.status]?' · '+blockedLabels[c.status]:''}</span><b>${c.score}</b><div class="scorebar"><i style="width:${Math.max(0,c.score/max*100)}%"></i></div></div>`).join('');
    if(chosen){const f=chosen.factors;html+=`<details class="score-details"><summary>ดูส่วนประกอบคะแนน</summary><dl>${[['พื้นฐาน',f.base],['ความต้องการ',f.need],['ความถนัด',f.goal],['ทักษะ',f.skill],['ระยะเดินจริง',f.distance]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details><p class="source-note">ระยะเดินตอนเลือก ${chosen.travelSteps??'—'} ช่อง · ${a.task?'เลือกเมื่อ tick '+a.task.started:'งานล่าสุดสิ้นสุดแล้ว'} · คะแนนนี้มาจากกฎ CPU ไม่ใช่ข้อความคิดจาก LLM</p>`;}
-   if(!a.trace.length)html='<p class="empty-state">รอโลกเดิน tick แรกเพื่อดูคะแนนจริง</p>';
+   if(!trace.length)html=a.alive?'<p class="empty-state">รอโลกเดิน tick แรกเพื่อดูคะแนนจริง</p>':'<p class="empty-state">ไม่มี execution trace หลังถูกเก็บเป็นประวัติศาสตร์</p>';
   }else{
-   const parent=s.agents.find(p=>p.id===a.parentId);
+   const parent=personById(s,a.parentId);
    html=`<div class="life-summary"><div><small>ต้นแบบ</small><b>${escape(parent?.name??'คนแรกของโลก')}</b></div><div><small>งานที่ได้ XP</small><b>${a.workDone} ครั้ง</b></div></div><p class="source-note">${a.task?.path.length?'กำลังเดิน เหลือ '+a.task.path.length+' ช่องก่อนถึงเป้าหมาย':'ตัวละครเลือกงานตามสถานการณ์ของตัวเอง'}<br>เปิด “เหตุผล” เพื่อดูงานที่พิจารณาและคะแนนจริง</p>`;
   }
   if(panel.dataset.content!==html){const oldOpen=panel.querySelector('details')?.open,scroll=inspector.scrollTop;replaceIfChanged(panel,html);if(oldOpen&&panel.querySelector('details'))panel.querySelector('details').open=true;inspector.scrollTop=scroll;}
