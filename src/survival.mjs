@@ -6,6 +6,7 @@ import {kingdomEconomySnapshot} from './kingdom-economy.mjs?v=0.5.0';
 import {kingdomProductionSnapshot} from './kingdom-production.mjs?v=0.5.0';
 import {kingdomLaborMarketSnapshot} from './kingdom-labor-market.mjs?v=0.5.0';
 import {kingdomMarketSnapshot} from './kingdom-market.mjs?v=0.5.0';
+import {cellAt as worldCellAt,terrainWalkable} from './worldsim-map.mjs';
 export const RULES = Object.freeze({
   width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
@@ -14,7 +15,8 @@ export const RULES = Object.freeze({
 export const skillLevel = xp => Math.min(10, 1 + Math.floor(Math.sqrt(xp / 20)));
 export const RESOURCE_ACTIONS = Object.freeze({FORAGE:'food',WOODCUT:'wood',MINE:'stone'});
 export const tileAt = (s,x,y) => s.tiles[y*RULES.width+x];
-export const walkable = (s,x,y) => Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<RULES.width&&y<RULES.height&&tileAt(s,x,y)!=='water';
+export const walkable = (s,x,y) => Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<RULES.width&&y<RULES.height&&
+  (s.worldMap?terrainWalkable(worldCellAt(s.worldMap,x,y)?.terrainType):tileAt(s,x,y)!=='water');
 
 /** One breadth-first search per decision; distances include bridges and detours. */
 export function routeField(s,start){
