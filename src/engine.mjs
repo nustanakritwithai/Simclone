@@ -383,6 +383,10 @@ function migrateKnowledge(s){
 function migrateWorldMap(s){
   if(s?.worldMapVersion===WORLD_MAP_VERSION&&validateWorldMap(s.worldMap).length===0)return s;
   if(!Number.isInteger(s?.seed))return s;
+  // Current saves intentionally omit the deterministic static map to preserve history budget.
+  if(s.worldMapVersion===WORLD_MAP_VERSION&&s.worldMap===undefined){
+    const worldMap=generateWorldMap(s.seed);s.worldMap=worldMap;s.tiles=compatibilityTiles(worldMap);return s;
+  }
   const worldMap=generateWorldMap(s.seed);
   s.worldMapVersion=WORLD_MAP_VERSION;s.worldMap=worldMap;s.tiles=compatibilityTiles(worldMap);
   const relocate=obj=>{
