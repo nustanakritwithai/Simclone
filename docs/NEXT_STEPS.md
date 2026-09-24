@@ -1,4 +1,4 @@
-# Next build gates — Historical Identity 0.3.6 candidate
+# Next build gates — Skill Provenance 0.4.0 candidate
 
 These are implementation gates, not proof by themselves. The exact candidate and main workflows remain authoritative for release status.
 
@@ -30,15 +30,19 @@ Definition of done for the broader V0.3.5 hardening phase: stable death history,
 
 ## V0.4 — Skill provenance before new skill families
 
-Keep the existing four skills. Distinguish inherited XP from earned XP with source parent/event/tick and explicit work-outcome evidence. Demonstrate real productivity effects and no XP for zero output. Preview must remain read-only. Persistent provenance requires a documented migration and size budget.
+Implemented as the current candidate under [SKILL_PROVENANCE_0.4.0.md](SKILL_PROVENANCE_0.4.0.md). Keep the existing four skills and their balance. Provenance distinguishes initial/inherited/earned/legacy-unattributed XP; source parent/tick and productive work outcome evidence are bounded and persistent. Old saves remain honest when the historical split cannot be proven.
 
-Definition of done: inspector can explain where a character's current skill came from, and inherited/earned evidence survives parent death and save/load. Do not claim mentor teaching merely because XP was copied at birth.
+Release is still gated on exact candidate and exact main verification. Do not call inheritance teaching.
 
-## V0.5 — First cross-generation knowledge transfer
+## V0.5 — First cross-generation Knowledge + Memory slice
 
-Start with one small teaching/archive vertical slice, not factions or a full economy. An agent learns a verified rule, records it with provenance, another agent acquires it through an explicit engine action, and it remains available after the original discoverer dies. Define permissions, costs, failure cases and verification before UI.
+Use AstraLife as a donor for contracts, not as a code dump. Adopt the boundary `Observation + Owned Memory/Belief + Delivered Messages`; world truth stays authoritative and hidden global facts must not leak into cognition.
 
-Definition of done: an automated test shows discoverer → recorded knowledge → learner → discoverer's death → knowledge still usable, with no unearned knowledge injection.
+Start with one narrow verified rule tied to existing gameplay. Suggested first rule: a productive resource-work discovery creates evidence-backed personal knowledge; an explicit engine-mediated share transfers that claim to another agent; the recipient stores source/provenance and must not gain unrelated world facts. Then the discoverer dies/is archived and the recipient still resolves the knowledge.
+
+Keep belief status minimal for this slice (`UNVERIFIED / CONFIRMED / STALE / REFUTED`) and bound evidence/memory from day one. Do not add LLM/provider calls yet.
+
+Definition of done: discoverer → evidence-backed knowledge → explicit transfer → learner → discoverer archived → knowledge still usable/explainable, with no hidden global knowledge injection and deterministic save/load.
 
 ## Later gates
 
