@@ -108,3 +108,16 @@ Read-only factors:
 - effective worker units, average profession efficiency, labor gaps and a recommended high-pressure role.
 
 K3 does not change harvested amount, build progress, XP, stock, reservations or task ranking. The projection is surfaced in the Survival dialog and must remain observationally pure under repeated calls.
+
+
+## Kingdom Sandbox labor market import — K4 shadow candidate
+
+K4 extracts the donor LaborMarketSystem's shortage-to-labor-offer boundary as a read-only proposal layer.
+
+- specialist roles: woodcutter, miner and builder (builder is the current Simclone proxy for donor crafter);
+- donor shortage threshold `> 1.2`;
+- offer quantity capped at three workers per role;
+- priority combines scarcity, K2 premium, K3 labor gap and a no-worker bonus;
+- proposals are capped and sorted but have no IDs, expiry clocks or persistent recruitment state.
+
+Forager recruitment remains owned by Survival Core rather than being invented as a donor labor-market rule. K4 does not reassign professions, move agents, pay wages, create organizations or mutate the world.
