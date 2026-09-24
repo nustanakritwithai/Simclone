@@ -30,7 +30,7 @@ export function validateWorldHydrology(h){
 function terrain(m,i){return WORLD_TERRAIN[m.terrain[i]];}
 function transferSurface(m,delta,i,j,amount){if(amount<=0)return 0;delta[i]-=amount;delta[j]+=amount;return amount;}
 
-export function stepWorldHydrology(worldMap,hydrology,steps=1){
+export function stepWorldHydrology(worldMap,hydrology,steps=1,climate=null){
   if(!Number.isInteger(steps)||steps<0||steps>10000)throw new Error('Invalid hydrology step count');
   const w=worldMap.width,h=worldMap.height,n=w*h;
   if(!hydrology||hydrology.version!==WORLD_HYDROLOGY_VERSION)throw new Error('Invalid hydrology state');
@@ -40,7 +40,7 @@ export function stepWorldHydrology(worldMap,hydrology,steps=1){
 
     // Climate rainfall is an explicit external water input.
     for(let i=0;i<n;i++){
-      const rain=clamp(worldMap.rainfall[i]*.04,0,.008);
+      const rain=climate?clamp(worldMap.rainfall[i],0,.02):clamp(worldMap.rainfall[i]*.04,0,.008);
       if(rain>0){const accepted=Math.min(rain,HYDROLOGY_RULES.maximumSurfaceWater-worldMap.surfaceWater[i]);worldMap.surfaceWater[i]+=accepted;rainAdded+=accepted;}
     }
 
@@ -77,6 +77,7 @@ export function stepWorldHydrology(worldMap,hydrology,steps=1){
       const t=terrain(worldMap,i),available=Math.max(0,worldMap.surfaceWater[i]-worldMap.baseSeaDepth[i]);
       const loss=Math.min(available,HYDROLOGY_RULES.evaporationRate*(EVAP[t]??1));
       worldMap.surfaceWater[i]-=loss;evaporated+=loss;
+      if(climate&&loss>0){climate.atmosphericWater[i]+=loss;climate.totalEvaporationReceived+=loss;climate.lastEvaporationReceived+=loss;}
       worldMap.flooded[i]=worldMap.surfaceWater[i]-worldMap.baseSeaDepth[i]>=HYDROLOGY_RULES.floodThreshold?1:0;
     }
 
