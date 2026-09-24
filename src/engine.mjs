@@ -262,9 +262,11 @@ export function step(s,count=1){
   return s;
 }
 export function serialize(s){
-  // WM1 terrain/climate baseline is deterministic from seed and is regenerated on restore.
-  // Do not spend the bounded history budget storing the same static physical map every save.
-  const snapshot={...s};delete snapshot.worldMap;
+  // Static WorldSim terrain is regenerated from seed; persist only dynamic hydrology fields.
+  const snapshot={...s,worldDynamicMap:{
+    surfaceWater:[...s.worldMap.surfaceWater],soilMoisture:[...s.worldMap.soilMoisture],
+    groundwater:[...s.worldMap.groundwater],flooded:[...s.worldMap.flooded]
+  }};delete snapshot.worldMap;
   const text=JSON.stringify(snapshot);
   if(text.length>HISTORY_LIMITS.maxSaveCharacters)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป · ไม่เขียนทับเซฟเดิม');
   return text;
@@ -388,7 +390,13 @@ function migrateWorldMap(s){
   if(!Number.isInteger(s?.seed))return s;
   // Current saves intentionally omit the deterministic static map to preserve history budget.
   if(s.worldMapVersion===WORLD_MAP_VERSION&&s.worldMap===undefined){
-    const worldMap=generateWorldMap(s.seed);s.worldMap=worldMap;if(!s.worldHydrology)s.worldHydrology=createWorldHydrology();s.tiles=compatibilityTiles(worldMap);return s;
+    const worldMap=generateWorldMap(s.seed);
+    if(s.worldDynamicMap){
+      for(const k of ['surfaceWater','soilMoisture','groundwater','flooded'])
+        if(Array.isArray(s.worldDynamicMap[k])&&s.worldDynamicMap[k].length===worldMap[k].length)worldMap[k]=[...s.worldDynamicMap[k]];
+      delete s.worldDynamicMap;
+    }
+    s.worldMap=worldMap;if(!s.worldHydrology)s.worldHydrology=createWorldHydrology();s.tiles=compatibilityTiles(worldMap);return s;
   }
   const worldMap=generateWorldMap(s.seed);
   s.worldMapVersion=WORLD_MAP_VERSION;s.worldMap=worldMap;s.worldHydrology=createWorldHydrology();s.tiles=compatibilityTiles(worldMap);
