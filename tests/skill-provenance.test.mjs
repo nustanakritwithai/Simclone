@@ -5,6 +5,7 @@ import {
   VERSION,SAVE_VERSION,SKILL_PROVENANCE_VERSION,SKILLS,
   createWorld,command,step,serialize,restore,validate,findPerson
 } from '../src/engine.mjs';
+import {RULES} from '../src/survival.mjs';
 
 const totals=p=>p.initialXP+p.inheritedXP+p.earnedXP+p.legacyUnattributedXP;
 
@@ -44,14 +45,15 @@ test('manual clone provenance records exact parent snapshot without changing inh
 test('real productive outcome records +5 earned XP and evidence exactly once',()=>{
   const s=createWorld(9),a=s.agents[0];
   s.tiles.fill('grass');s.nodes=[{id:1,type:'food',x:a.x,y:a.y,amount:10,max:10}];
-  s.stock.food=0;a.preference='FORAGE';a.satiety=80;a.energy=100;a.task=null;
+  s.stock.food=0;a.preference='FORAGE';a.satiety=80;a.energy=100;
+  a.task={policy:RULES.jobPolicy,kind:'FORAGE',targetId:1,x:a.x,y:a.y,path:[],work:100,score:100,started:s.tick};
   const before=a.skills.FORAGE,earned=a.skillProvenance.bySkill.FORAGE.earnedXP;
-  for(let i=0;i<30&&a.skills.FORAGE===before;i++)step(s);
+  step(s);
   assert.equal(a.skills.FORAGE,before+5);
   const p=a.skillProvenance.bySkill.FORAGE;
   assert.equal(p.earnedXP,earned+5);assert.equal(totals(p),a.skills.FORAGE);
   const work=p.evidence.filter(e=>e.kind==='work'&&e.action==='FORAGE');
-  assert.ok(work.length>=1);assert.equal(work.at(-1).xp,5);assert.equal(work.at(-1).targetId,1);
+  assert.equal(work.length,1);assert.equal(work.at(-1).xp,5);assert.equal(work.at(-1).targetId,1);
 });
 
 test('zero-output gathering creates neither XP nor provenance evidence',()=>{
