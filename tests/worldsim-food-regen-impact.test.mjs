@@ -54,3 +54,20 @@ test('impact distribution summary is bounded and ordered',()=>{
   assert.ok(s.minEcologyPotential<=s.medianEcologyPotential);
   assert.ok(s.medianEcologyPotential<=s.maxEcologyPotential);
 });
+
+
+test('canonical seeds emit bounded WM4.2 food impact evidence',()=>{
+  const report=[];
+  for(const seed of [1,42,2026,230926,90001]){
+    const x=createFoodRegenerationImpact(createWorld(seed)),s=x.summary;
+    report.push({
+      seed,nodes:s.nodes,avg:s.averageEcologyPotential,median:s.medianEcologyPotential,
+      min:s.minEcologyPotential,max:s.maxEcologyPotential,weighted:s.missingWeightedEcologyPotential,
+      bands:s.bands
+    });
+    assert.ok(s.nodes>0);
+    assert.ok(s.minEcologyPotential>=0&&s.maxEcologyPotential<=1);
+    assert.ok(s.minEcologyPotential<=s.averageEcologyPotential&&s.averageEcologyPotential<=s.maxEcologyPotential);
+  }
+  console.log('WM4.2_CANONICAL_FOOD_IMPACT '+JSON.stringify(report));
+});
