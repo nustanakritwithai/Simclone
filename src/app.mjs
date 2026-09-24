@@ -156,7 +156,8 @@ function updateUI(){
  for(const type of ['food','wood','stone'])$(type).textContent=state.stock[type];
  $('population').textContent=living(state).length+' / '+capacity(state);
  $('pause').textContent=paused?'▶':'Ⅱ';$('pause').setAttribute('aria-label',paused?'เล่นต่อ':'หยุดเวลา');
- $('world-status').textContent=paused||dialog.open?'หยุดเวลา · โลกยังอยู่ตรงนี้':'โลกกำลังดำเนินไปด้วยตัวเอง';
+ const homeClimate=state.worldMap?.cells[12*SIZE.w+11]?.climate,weather={clear:'ฟ้าเปิด',cloudy:'มีเมฆ',rain:'ฝนตก',heavyRain:'ฝนหนัก',hot:'ร้อน',dry:'แห้ง'}[homeClimate?.weatherType]??'สภาพอากาศปกติ';
+ $('world-status').textContent=paused||dialog.open?'หยุดเวลา · โลกยังอยู่ตรงนี้':'WorldSim · '+weather;
  $('seed-label').textContent='SEED '+state.seed;
  $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip" data-event="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · ${e.type.toUpperCase()}</small><p>${esc(e.text)}</p></button>`).join('');
  inspect();ux?.renderHUD();nav?.update();
@@ -168,7 +169,7 @@ function history(){ux?.openHistory();}
 function cloneDialog(){ux?.openClone();}
 function startBuild(){
  if(dialog.open)dialog.close();selected=null;follow=false;mode='build';$('build').classList.add('active');$('observe').classList.remove('active');
- $('mode-hint').hidden=false;$('mode-hint').textContent='แตะพื้นหญ้าว่างเพื่อวางบ้าน · ไม้ 12 + หิน 6 · กด “โลก” เพื่อยกเลิก';updateUI();
+ $('mode-hint').hidden=false;$('mode-hint').textContent='แตะพื้นโล่ง grass/sand เพื่อวางบ้าน · ไม้ 12 + หิน 6 · กด “โลก” เพื่อยกเลิก';updateUI();
 }
 function menu(){openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,`<p class="menu-save-note"><strong>${esc(saveLabel(store.status()))}</strong><br>เซฟอยู่ในเบราว์เซอร์นี้เท่านั้น ไม่ได้ซิงก์ขึ้นคลาวด์</p><div class="menu-grid"><button data-action="survival">ภาพรวมการอยู่รอด</button>${store.status().protected&&store.originalText()!==null?'<button data-action="export-original">สำรองไฟล์เซฟเดิมที่มีปัญหา</button>':''}<button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>Engine ปัจจุบันคือ V0.3.6 Ancestry Archive · รุ่นใหม่เกิดเองและทุกคนมีอายุขัย deterministic 78–92 ปี · ยังไม่ใช่ Living World V1.0</div>`);}
 function download(){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='simclone-day-'+day(state)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกไฟล์โลกแล้ว');}
