@@ -26,3 +26,14 @@ of WM4.2.
 The canonical multi-seed report samples ticks 120 / 240 / 360 and sets food
 nodes to a depleted test fixture before observation. This makes the
 missing-capacity weighted metric meaningful without changing production state.
+
+
+## 120-tick window evidence
+
+Future behavior selection must not bind directly to one instantaneous climate
+phase. WM4.2 therefore also supports a read-only 120-tick observation window
+sampled at five deterministic points. Canonical CI compares instantaneous
+boundary evidence with this window average.
+
+This window is evidence only. It is not state, is not persisted, and is not
+used by production regeneration in WM4.2.
