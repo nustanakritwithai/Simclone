@@ -15,6 +15,7 @@ export function applyWorldResourceRegeneration(state){
   const tick=state?.tick;
   if(!Number.isInteger(tick)||!Array.isArray(state?.nodes))throw new Error('Invalid resource regeneration state');
   let added=0;
+  if(tick===0)return 0;
   // Preserve the exact historical write order: food first, then wood.
   if(tick%RESOURCE_REGEN_AUTHORITY.food.periodTicks===0){
     for(const node of state.nodes)if(node.type==='food'){
