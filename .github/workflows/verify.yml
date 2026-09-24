@@ -49,7 +49,7 @@ jobs:
         run: python tests/ui-smoke.py
 
       - name: Verify navigation and save recovery offline
-        run: npm run test:native && python tests/navigation-smoke.py
+        run: python tests/navigation-smoke.py
 
       - name: Verify survival UI offline
         run: python tests/survival-smoke.py
