@@ -1,4 +1,5 @@
 import {CRAFT_STATIONS,ITEM_CATALOG,RECIPE_CATALOG,craftability} from './crafting-catalog.mjs';
+import {reservedProcessingMaterials} from './rust-materials.mjs';
 
 export const RUST_POSSESSIONS_VERSION='RS2-0.1';
 export const RUST_POSSESSION_LIMITS=Object.freeze({bag:4,items:128,orders:12});
@@ -27,8 +28,9 @@ export function reservedCraftMaterials(s){
   return total;
 }
 export function availableCraftMaterials(s){
-  const reserved=reservedCraftMaterials(s);
-  return {wood:(s.stock?.wood??0)-reserved.wood,stone:(s.stock?.stone??0)-reserved.stone};
+  const reserved=reservedCraftMaterials(s),processing=reservedProcessingMaterials(s);
+  return {wood:(s.stock?.wood??0)-reserved.wood-(processing.wood??0),
+    stone:(s.stock?.stone??0)-reserved.stone-(processing.stone??0)};
 }
 export function queueToolCraft(s,{agentId,recipeId,stationId=null}={}){
   const a=living(s,agentId),p=s.rustPossessions,r=toolRecipe(recipeId);
