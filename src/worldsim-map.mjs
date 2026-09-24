@@ -31,7 +31,14 @@ export function generateWorldMap(seed=230926){
   else if(el>.72||ridge>.78||hash(seed,x,y,173)>.91)t='rock';
   else if((moist>.46&&fert>.43)||hash(seed,x,y,151)>.73)t='forest';
   else t='grass';
-  if(dCamp<=6)t='grass';
+  const starter=[['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]];
+  let corridor=dCamp<=6,endpoint=null;
+  for(const [kind,tx,ty] of starter){
+    if((y===12&&x>=Math.min(11,tx)&&x<=Math.max(11,tx))||(x===tx&&y>=Math.min(12,ty)&&y<=Math.max(12,ty)))corridor=true;
+    if(x===tx&&y===ty)endpoint=kind;
+  }
+  if(corridor)t='grass';
+  if(endpoint==='wood')t='forest';else if(endpoint==='stone')t='rock';else if(endpoint==='food')t='grass';
   const sea=t==='deepWater'?clamp((1.2-radial)*-.6+.5,.28,1):t==='shallowWater'?clamp((1.02-radial)*-.5+.16,.08,.42):0;
   const sw=sea+(terrainWalkable(t)&&moist>.78?q(moist-.78):0),ah=clamp(moist*.72+sw*.18,0,1);
   const rain=clamp((ah-.48)*.18+(smooth(seed,x,y,137)-.5)*.03,0,.14),dry=clamp((.5-moist)*1.7+(temp-.65)*.8,0,1);
@@ -54,6 +61,6 @@ export function eachCell(m){const out=[];for(let y=0;y<m.height;y++)for(let x=0;
 export function nearestWalkable(m,start){const first=cellAt(m,start.x,start.y);if(first&&terrainWalkable(first.terrainType))return {x:start.x,y:start.y};const seen=new Set([start.x+','+start.y]),q=[{x:start.x,y:start.y}];while(q.length){const p=q.shift();for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){const n={x:p.x+dx,y:p.y+dy},key=n.x+','+n.y;if(seen.has(key))continue;seen.add(key);const c=cellAt(m,n.x,n.y);if(!c)continue;if(terrainWalkable(c.terrainType))return n;q.push(n);}}return null;}
 export function compatibilityTiles(m){return m.terrain.map(code=>compatibilityTile(WORLD_TERRAIN[code]));}
 export function resourceNodesFromWorldMap(m){const out=[];let id=1;for(const c of eachCell(m)){if(!terrainWalkable(c.terrainType))continue;const camp=Math.abs(c.x-11)+Math.abs(c.y-12)<=4;if(camp)continue;let type=null,amount=0;const roll=hash(m.seed,c.x,c.y,191);if(c.terrainType==='forest'&&roll<.72){type='wood';amount=35+Math.floor(c.fertility*25);}else if(['grass','forest'].includes(c.terrainType)&&c.fertility>.42&&roll<.38){type='food';amount=24+Math.floor(c.fertility*28);}else if(c.terrainType==='rock'&&roll<.7){type='stone';amount=45+Math.floor(c.elevation*35);}else if(c.terrainType==='sand'&&roll<.16){type='stone';amount=20+Math.floor(c.elevation*20);}if(type)out.push({id:id++,type,x:c.x,y:c.y,amount,max:amount,worldTerrain:c.terrainType});}
- for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]]){if(out.some(n=>n.x===x&&n.y===y))continue;const p=nearestWalkable(m,{x,y});if(!p)continue;out.push({id:id++,type,x:p.x,y:p.y,amount:45,max:45,worldTerrain:cellAt(m,p.x,p.y).terrainType});}return out;}
+ for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]]){const p=nearestWalkable(m,{x,y});if(!p)continue;for(let i=out.length-1;i>=0;i--)if(out[i].x===p.x&&out[i].y===p.y)out.splice(i,1);out.push({id:id++,type,x:p.x,y:p.y,amount:45,max:45,worldTerrain:cellAt(m,p.x,p.y).terrainType});}out.forEach((n,i)=>n.id=i+1);return out;}
 export function validateWorldMap(m){const n=MAP_SIZE.w*MAP_SIZE.h,errors=[];if(!m||m.version!==WORLD_MAP_VERSION)errors.push('World map version');if(m?.width!==MAP_SIZE.w||m?.height!==MAP_SIZE.h)return [...errors,'World map shape'];for(const k of ['terrain','elevation','temperature','humidity','fertility','baseSeaDepth','surfaceWater','soilMoisture','groundwater','flooded','atmosphericHumidity','rainfall','droughtPressure','weather'])if(!Array.isArray(m[k])||m[k].length!==n)errors.push('World map '+k);if(errors.length)return [...new Set(errors)];if(m.terrain.some(v=>!Number.isInteger(v)||v<0||v>=WORLD_TERRAIN.length)||m.weather.some(v=>!Number.isInteger(v)||v<0||v>=WEATHER.length))errors.push('World map codes');return errors;}
 export function worldMapSummary(m){if(validateWorldMap(m).length)return null;const avg=a=>+(a.reduce((s,v)=>s+v,0)/a.length).toFixed(4);return {version:m.version,terrainCounts:{...m.terrainCounts},averageElevation:avg(m.elevation),averageHumidity:avg(m.humidity),averageTemperature:avg(m.temperature),flooded:m.flooded.reduce((s,v)=>s+(v?1:0),0)};}
