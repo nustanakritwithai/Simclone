@@ -88,3 +88,22 @@ export function worldPathCellAt(state,x,y){
 export function worldPathWalkable(state,x,y){
   return worldPathCellAt(state,x,y)?.walkable===true;
 }
+
+export const SHADOW_MOVEMENT_COST=Object.freeze({
+  bridge:.85,path:.9,grass:1,sand:1.15,forest:1.25,rock:1.45,deepWater:null,shallowWater:null
+});
+/** WM2.1 read-only candidate movement cost. It never changes pathfinding or task scores. */
+export function shadowMovementCell(view,x,y){
+  const cell=visualCellAt(view,x,y);if(!cell)return null;
+  return Object.freeze({...cell,movementCost:SHADOW_MOVEMENT_COST[cell.terrainType]??null});
+}
+export function shadowRouteMovementCost(view,path=[]){
+  if(!Array.isArray(path))return null;
+  let cost=0,steps=0;
+  for(const p of path){
+    const cell=shadowMovementCell(view,p?.x,p?.y);
+    if(!cell||cell.movementCost===null)return null;
+    cost+=cell.movementCost;steps++;
+  }
+  return Object.freeze({steps,cost:+cost.toFixed(3),average:steps?+(cost/steps).toFixed(3):0});
+}
