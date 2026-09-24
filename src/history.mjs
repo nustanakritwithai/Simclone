@@ -1,4 +1,4 @@
-/** Historical identity storage. Pure simulation data: no clocks, I/O or secondary lineage registry. */
+/** Historical identity storage; preserves skill provenance fields verbatim. Pure simulation data: no clocks, I/O or secondary lineage registry. */
 export const ARCHIVE_VERSION='0.1.0';
 export const HISTORY_LIMITS=Object.freeze({
   hotRecords:64,
