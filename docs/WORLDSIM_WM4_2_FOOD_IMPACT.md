@@ -17,3 +17,14 @@ This evidence is required before any ecology-sensitive food regeneration gate.
 The next behavior gate must define and separately verify a bounded conversion
 from normalized ecology evidence into actual units; that conversion is not part
 of WM4.2.
+
+
+## Decision evidence
+
+The report also records:
+- p10 / p50 / p90 ecology regeneration potential
+- depleted food-node count
+- depleted nodes whose ecology potential is below 0.5
+
+These fields are evidence for the later unit-conversion design only. WM4.2 still
+has no candidate increment and cannot mutate a node.
