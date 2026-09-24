@@ -11,6 +11,26 @@ const hash=(seed,x,y,salt=0)=>{let n=(seed^Math.imul(x+101+salt,374761393)^Math.
 const smooth=(seed,x,y,salt=0)=>{let sum=0,w=0;for(let oy=-2;oy<=2;oy++)for(let ox=-2;ox<=2;ox++){const d=Math.abs(ox)+Math.abs(oy),weight=d===0?4:d===1?2:1;sum+=hash(seed,x+ox,y+oy,salt)*weight;w+=weight;}return sum/w;};
 const idx=(x,y)=>y*MAP_SIZE.w+x;
 const q=n=>+n.toFixed(4);
+export function legacyGameplayTiles(seed=230926){
+  const tiles=[];for(let y=0;y<MAP_SIZE.h;y++)for(let x=0;x<MAP_SIZE.w;x++){
+    const river=20+Math.round(Math.sin(y*.26)*2),wet=x>=river&&x<river+3,bridge=wet&&(y===13||y===14);
+    const road=(Math.abs(y-13)<1&&x>6&&x<27)||(Math.abs(x-11)<1&&y>7&&y<18);
+    tiles.push(bridge?'bridge':wet?'water':road?'path':'grass');
+  }return tiles;
+}
+export function legacyResourceNodes(seed=230926){
+  let rng=seed>>>0,nid=1;const nodes=[];
+  const next=()=>{rng=(Math.imul(1664525,rng)+1013904223)>>>0;return rng/4294967296;};
+  for(let y=0;y<MAP_SIZE.h;y++)for(let x=0;x<MAP_SIZE.w;x++){
+    const river=20+Math.round(Math.sin(y*.26)*2),wet=x>=river&&x<river+3;
+    const bridge=wet&&(y===13||y===14),road=(Math.abs(y-13)<1&&x>6&&x<27)||(Math.abs(x-11)<1&&y>7&&y<18);
+    const r=next(),inCamp=x>=7&&x<=15&&y>=8&&y<=17;
+    if(!wet&&!road&&!inCamp&&r<.23){const type=r<.14?'wood':r<.19?'food':'stone';nodes.push({id:nid++,type,x,y,amount:type==='stone'?70:35,max:type==='stone'?70:35});}
+  }
+  for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]])
+    nodes.push({id:nid++,type,x,y,amount:45,max:45});
+  return nodes;
+}
 export function terrainWalkable(type){return !['deepWater','shallowWater'].includes(type);}
 export function compatibilityTile(type){return terrainWalkable(type)?'grass':'water';}
 export function generateWorldMap(seed=230926){
