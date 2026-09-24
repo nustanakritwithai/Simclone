@@ -56,18 +56,23 @@ test('impact distribution summary is bounded and ordered',()=>{
 });
 
 
-test('canonical seeds emit bounded WM4.2 food impact evidence',()=>{
+test('canonical seeds emit bounded WM4.2 food-boundary ecology evidence',()=>{
   const report=[];
   for(const seed of [1,42,2026,230926,90001]){
-    const x=createFoodRegenerationImpact(createWorld(seed)),s=x.summary;
-    report.push({
-      seed,nodes:s.nodes,avg:s.averageEcologyPotential,median:s.medianEcologyPotential,
-      min:s.minEcologyPotential,max:s.maxEcologyPotential,weighted:s.missingWeightedEcologyPotential,
-      bands:s.bands
-    });
-    assert.ok(s.nodes>0);
-    assert.ok(s.minEcologyPotential>=0&&s.maxEcologyPotential<=1);
-    assert.ok(s.minEcologyPotential<=s.averageEcologyPotential&&s.averageEcologyPotential<=s.maxEcologyPotential);
+    const phases=[];
+    for(const tick of [120,240,360]){
+      const world=createWorld(seed);world.tick=tick;
+      const x=createFoodRegenerationImpact(world),s=x.summary;
+      phases.push({
+        tick,nodes:s.nodes,avg:s.averageEcologyPotential,median:s.medianEcologyPotential,
+        min:s.minEcologyPotential,max:s.maxEcologyPotential,weighted:s.missingWeightedEcologyPotential,
+        bands:s.bands
+      });
+      assert.ok(s.nodes>0);
+      assert.ok(s.minEcologyPotential>=0&&s.maxEcologyPotential<=1);
+      assert.ok(s.minEcologyPotential<=s.averageEcologyPotential&&s.averageEcologyPotential<=s.maxEcologyPotential);
+    }
+    report.push({seed,phases});
   }
-  console.log('WM4.2_CANONICAL_FOOD_IMPACT '+JSON.stringify(report));
+  console.log('WM4.2_CANONICAL_FOOD_BOUNDARY_IMPACT '+JSON.stringify(report));
 });
