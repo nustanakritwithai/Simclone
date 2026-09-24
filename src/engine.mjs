@@ -260,7 +260,10 @@ export function step(s,count=1){
   return s;
 }
 export function serialize(s){
-  const text=JSON.stringify(s);
+  // WM1 terrain/climate baseline is deterministic from seed and is regenerated on restore.
+  // Do not spend the bounded history budget storing the same static physical map every save.
+  const snapshot={...s};delete snapshot.worldMap;
+  const text=JSON.stringify(snapshot);
   if(text.length>HISTORY_LIMITS.maxSaveCharacters)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป · ไม่เขียนทับเซฟเดิม');
   return text;
 }
@@ -392,7 +395,6 @@ function migrateWorldMap(s){
   for(const b of s.buildings??[])relocate(b);
   for(const n of s.nodes??[]){relocate(n);const c=cellAt(worldMap,n.x,n.y);if(c)n.worldTerrain=c.terrainType;}
   if(!Array.isArray(s.nodes)||!s.nodes.length)s.nodes=resourceNodesFromWorldMap(worldMap);
-  if(Array.isArray(s.agents))for(const a of s.agents){a.task=null;a.moveTick=0;}
   if(Array.isArray(s.events)){
     const id=Number.isInteger(s.nextEvent)?s.nextEvent++:1;
     s.events.push({id,tick:s.tick??0,type:'world',text:'อัปเกรดโลกเป็น WorldSim physical map',agentId:null});
