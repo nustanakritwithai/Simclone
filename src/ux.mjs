@@ -3,6 +3,8 @@ import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
 import {professionLabel} from './kingdom-utility.mjs?v=0.5.0';
 import {createResourceEcologyShadow,shadowExistingResourcePressure} from './worldsim-resource-shadow.mjs?v=0.5.0';
+import {createResourceRegenerationShadow} from './worldsim-resource-regen-shadow.mjs?v=0.5.0';
+import {createFoodRegenerationImpact} from './worldsim-food-regen-impact.mjs?v=0.5.0';
 import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
@@ -198,7 +200,7 @@ export function installUX(api){
   api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">คำสั่งนี้สร้าง Clone วัยผู้ใหญ่อายุ 18 ปีทันที · การเกิดอัตโนมัติเป็นอีกระบบหนึ่ง เด็กเริ่มอายุ 0 ปีแล้วค่อยเติบโต</p>`);$('dialog').dataset.kind='clone';
  }
  function openSurvival(){
-  const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s,eco),hydro={summary:eco.hydrologySummary};
+  const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s,eco),hydro={summary:eco.hydrologySummary},regen=createResourceRegenerationShadow(s,eco),foodImpact=createFoodRegenerationImpact(s,regen);
   const topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
   const topFood=eco.hotspots.food[0]??null,topWood=eco.hotspots.wood[0]??null,topStone=eco.hotspots.stone[0]??null;
   const dominantSoil=Object.entries(eco.soilCounts??{}).filter(([type])=>type!=='none').sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))[0]??null;
@@ -234,6 +236,9 @@ export function installUX(api){
     <div class="life-summary"><div><small>WorldSim WM3.4 · vegetation shadow</small><b>read-only</b></div><div><small>Stressed cells</small><b>${eco.vegetationSummary.stressedCells}</b></div></div>
     <div class="clone-skills"><div><span>Living biomass</span><b>${eco.vegetationSummary.averageLivingBiomassPotential}</b></div><div><span>Food yield</span><b>${eco.vegetationSummary.averageFoodYieldPotential}</b></div><div><span>Wood yield</span><b>${eco.vegetationSummary.averageWoodYieldPotential}</b></div><div><span>Regeneration</span><b>${eco.vegetationSummary.averageRegenerationPotential}</b></div><div><span>Disturbance</span><b>${eco.vegetationSummary.averageDisturbanceStress}</b></div><div><span>Carrying capacity</span><b>${eco.vegetationSummary.averageCarryingCapacity}</b></div></div>
     <p class="source-note">WM3.4 ใช้ Climate + Soil + Hydrology เพื่อประเมิน biomass/yield/regeneration แบบ shadow เท่านั้น · ไม่มี living/dead/litter biomass store, plant nutrient store, growth scheduler หรือ resource mutation จริง</p>
+    <div class="life-summary"><div><small>WorldSim WM4.2 · food ecology impact</small><b>shadow only</b></div><div><small>Ecology potential เฉลี่ย</small><b>${foodImpact.summary.averageEcologyPotential}</b></div></div>
+    <div class="clone-skills"><div><span>Very low</span><b>${foodImpact.summary.bands['very-low']} nodes</b></div><div><span>Low</span><b>${foodImpact.summary.bands.low} nodes</b></div><div><span>Medium</span><b>${foodImpact.summary.bands.medium} nodes</b></div><div><span>High</span><b>${foodImpact.summary.bands.high} nodes</b></div><div><span>Current writer</span><b>WorldSim WM4.1</b></div><div><span>Legacy food regen</span><b>+3 / 120 ticks</b></div><div><span>Candidate unit formula</span><b>none</b></div></div>
+    <p class="source-note">WM4.2 วัด distribution ของ ecology regeneration potential เทียบกับ food contract เดิมเท่านั้น · writer อยู่ที่ WorldSim WM4.1 แล้ว แต่ยังไม่แปลง ecology เป็นจำนวนหน่วย, ไม่เปลี่ยน node.amount และไม่เปลี่ยน cadence</p>
     <div class="clone-skills"><div><span>เกิดเองแล้ว</span><b>${v.autonomousBirths} คน</b></div><div><span>สถานะการเกิดอัตโนมัติ</span><b>${birthLabels[v.birth.reason]??v.birth.reason}</b></div></div>
     <div class="clone-skills"><div><span>ตัวตนที่ยังเก็บประวัติไว้</span><b>${retainedCount(s)} / ${HISTORY_LIMITS.maxRetained}</b></div><div><span>ย้ายเข้าคลังประวัติแล้ว</span><b>${s.archive.length} คน</b></div></div>
     <p class="source-note">คลังประวัติยังค้นต้นแบบและทักษะของคนตายได้ เมื่อจำนวนหรือพื้นที่ประวัติเต็ม ระบบหยุดเพิ่มคนโดยไม่ลบบรรพบุรุษ ไม่ใช่โลกที่เก็บประวัติได้ไม่จำกัด</p>
