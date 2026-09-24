@@ -1,14 +1,16 @@
-/** Simclone 0.3.6 — stable death history over generation continuity. */
+/** Simclone 0.4.0 — evidence-based skill provenance over historical identity. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
-  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs?v=0.3.6';
-import {LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs?v=0.3.6';
-import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.3.6';
-import {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,retentionPlan,compactRetired} from './history.mjs?v=0.3.6';
-export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount};
+  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs?v=0.4.0';
+import {LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs?v=0.4.0';
+import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.4.0';
+import {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,retentionPlan,compactRetired} from './history.mjs?v=0.4.0';
+import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenance,recordEarnedSkill,validateSkillProvenance} from './skill-provenance.mjs?v=0.4.0';
+export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
-export const VERSION = '0.3.6';
-export const SAVE_VERSION = '0.3.0';
-export const PREVIOUS_SAVE_VERSION = '0.2.0';
+export const VERSION = '0.4.0';
+export const SAVE_VERSION = '0.4.0';
+export const PREVIOUS_SAVE_VERSION = '0.3.0';
+export const DEATH_HISTORY_SAVE_VERSION = '0.2.0';
 export const LEGACY_SAVE_VERSION = '0.1.0';
 export const HISTORY_VERSION = '0.1.0';
 const DEATH_STATUSES = new Set(['recorded','legacy-evidence','legacy-unknown']);
@@ -31,10 +33,11 @@ function event(s,type,text,agentId=null) {
 function createAgent(s,parent,initial=false,mode='manual'){
   const id=s.nextAgent++, k=id-1,autonomous=mode==='birth';
   const skills=Object.fromEntries(SKILLS.map(key=>[key,parent?Math.floor(parent.skills[key]*.35):60]));
+  const skillProvenance=createSkillProvenance(id,skills,{kind:parent?'inheritance':'initial',sourceAgentId:parent?.id??null,tick:s.tick});
   const a={id,name:names[k%names.length]+(k>=names.length?' '+id:''),parentId:parent?.id??null,generation:parent?parent.generation+1:0,
     x:9+k%4,y:11+Math.floor(k/4)%3,hp:100,satiety:85,energy:90,alive:true,death:null,
     appearance:{coat:palette[k%palette.length],skin:['#e5b38a','#c99064','#f1c9a6','#a97050'][k%4],hair:['#302a28','#5e3e2c','#d5ad6f','#312e3b'][k%4],style:k%3},
-    preference:SKILLS[k%4],skills,source:parent?(autonomous?'สืบทอดเมื่อเกิดจาก '+parent.name:'Clone จาก '+parent.name):'ความรู้เริ่มต้นของ Original',
+    preference:SKILLS[k%4],skills,skillProvenance,source:parent?(autonomous?'สืบทอดเมื่อเกิดจาก '+parent.name:'Clone จาก '+parent.name):'ความรู้เริ่มต้นของ Original',
     memory:[],task:null,trace:[],moveTick:0,workDone:0,bornTick:s.tick,life:autonomous?childLife(s.tick):adultLife(s.tick)};
   if(parent){a.x=parent.x;a.y=parent.y;}
   if(initial&&parent){a.x=9+k%4;a.y=10+Math.floor(k/4)*2;a.satiety=65+k*3;a.energy=72+k*3;}
@@ -158,9 +161,10 @@ function decide(s,a,book){
     c.status='selected';a.moveTick=0;return;
   }
 }
-function gain(s,a,key){
+function gain(s,a,key,targetId=null){
   if(!SKILLS.includes(key))return;
   const old=level(a.skills[key]);a.skills[key]+=5;a.workDone++;
+  if(!recordEarnedSkill(a,key,5,s.tick,{action:key,targetId}))throw new Error('Skill provenance write failed');
   if(level(a.skills[key])>old)event(s,'skill',a.name+' พัฒนา '+LABELS[key]+' เป็นระดับ '+level(a.skills[key]),a.id);
 }
 function execute(s,a){
@@ -179,7 +183,7 @@ function execute(s,a){
     const b=s.buildings.find(b=>b.id===t.targetId);
     if(!b||b.complete){a.task=null;return;}
     b.progress=Math.min(30,b.progress+(.35+level(a.skills.BUILD)*.08)*workRate);
-    if(b.progress>=30){b.complete=true;s.stats.built++;gain(s,a,'BUILD');event(s,'build',a.name+' สร้างบ้านสำเร็จ · ที่พักเพิ่ม 6 คน',a.id);a.task=null;}
+    if(b.progress>=30){b.complete=true;s.stats.built++;gain(s,a,'BUILD',b.id);event(s,'build',a.name+' สร้างบ้านสำเร็จ · ที่พักเพิ่ม 6 คน',a.id);a.task=null;}
   }else if(SKILLS.includes(t.kind)){
     const n=s.nodes.find(n=>n.id===t.targetId);
     if(!n||n.amount<=0){a.task=null;return;}
@@ -191,7 +195,7 @@ function execute(s,a){
         const meal=t.kind==='FORAGE'&&a.satiety<RULES.hungry&&amount>=1?1:0;
         s.stock[n.type]+=amount-meal;
         if(meal)a.satiety=clamp(a.satiety+RULES.mealSatiety);
-        gain(s,a,t.kind);
+        gain(s,a,t.kind,n.id);
       }
       a.task=null;
     }
@@ -264,6 +268,7 @@ export function validate(s){
     if(['hp','satiety','energy'].some(k=>!finite(a[k])||a[k]<0||a[k]>100))bad('Agent needs');
     if(typeof a.alive!=='boolean'||!Number.isInteger(a.generation)||a.generation<0||typeof a.name!=='string'||a.name.length>50)bad('Agent identity');
     if(!a.skills||SKILLS.some(k=>!finite(a.skills[k])||a.skills[k]<0))bad('Skills');
+    for(const e of validateSkillProvenance(a,SKILLS))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
     if(!Array.isArray(a.trace)||a.trace.length>30||a.trace.some(t=>!LABELS[t.kind]||!finite(t.score)||!t.factors||Object.values(t.factors).some(v=>!finite(v))))bad('Trace');
@@ -326,7 +331,7 @@ function migrateDeathRecord(s,a,sourceVersion){
   const tick=Number.isInteger(evidence.tick)&&evidence.tick>=0&&evidence.tick<=s.tick?evidence.tick:null;
   const cause=deathCauseFromText(evidence.text);
   let age=deathAgeFromText(evidence.text);
-  if(age===null&&sourceVersion===PREVIOUS_SAVE_VERSION&&tick!==null)age=ageYearsAtTick(s,a,tick);
+  if(age===null&&sourceVersion===DEATH_HISTORY_SAVE_VERSION&&tick!==null)age=ageYearsAtTick(s,a,tick);
   const known=tick!==null||cause!=='unknown'||age!==null;
   return {status:known?'legacy-evidence':'legacy-unknown',tick,cause,ageYears:age};
 }
@@ -337,12 +342,20 @@ function migrateHistory(s,sourceVersion){
   s.historyVersion=HISTORY_VERSION;
   return s;
 }
+function migrateSkillProvenance(s){
+  for(const a of allPeople(s))if(!a.skillProvenance)a.skillProvenance=createLegacySkillProvenance(a.skills);
+  return s;
+}
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
-  // Current schema must contain its own archive/history metadata; absence is corruption.
+  // Current schema must contain its own provenance/archive/history metadata; absence is corruption.
   if(sourceVersion===SAVE_VERSION)return s;
-  if(![LEGACY_SAVE_VERSION,PREVIOUS_SAVE_VERSION].includes(sourceVersion))return s;
+  if(sourceVersion===PREVIOUS_SAVE_VERSION){
+    if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
+    migrateSkillProvenance(s);s.version=SAVE_VERSION;return s;
+  }
+  if(![LEGACY_SAVE_VERSION,DEATH_HISTORY_SAVE_VERSION].includes(sourceVersion))return s;
   if(s.archive!==undefined||s.archiveVersion!==undefined)throw new Error('Unexpected archive in legacy save');
   if(sourceVersion===LEGACY_SAVE_VERSION){
     const anchor=Number.isInteger(s.tick)&&s.tick>=0?s.tick:0;
@@ -352,7 +365,8 @@ function migrateSave(s){
   // Normalize execution-only state; do not rewrite identity or historical death facts.
   if(Array.isArray(s.agents))for(const a of s.agents)if(a?.alive===false&&a.hp===0){a.task=null;a.moveTick=0;}
   migrateHistory(s,sourceVersion);
-  s.version=SAVE_VERSION;s.archiveVersion=ARCHIVE_VERSION;s.archive=[];
+  s.archiveVersion=ARCHIVE_VERSION;s.archive=[];
+  migrateSkillProvenance(s);s.version=SAVE_VERSION;
   return s;
 }
 export function restore(text){

@@ -1,7 +1,7 @@
-import {BIRTH_RULES} from './reproduction.mjs?v=0.3.6';
+import {BIRTH_RULES} from './reproduction.mjs?v=0.4.0';
 /** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
-import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.3.6';
-export const UI_VERSION='0.3.6';
+import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.4.0';
+export const UI_VERSION='0.4.0';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={
@@ -40,7 +40,7 @@ export function installUX(api){
  for(const [id,key] of Object.entries(staticIcons)){const button=$(id);const span=button.querySelector('span');if(span)span.innerHTML=icon(key);else button.innerHTML=icon(key);}
  const navIcons={world:'eye',people:'people',clone:'clone',build:'home',history:'history'};
  document.querySelectorAll('[data-nav]').forEach(b=>b.querySelector('span').innerHTML=icon(navIcons[b.dataset.nav]));
- document.querySelector('.version').innerHTML=`ANCESTRY ARCHIVE <b>${VERSION}</b>`;
+ document.querySelector('.version').innerHTML=`SKILL PROVENANCE <b>${VERSION}</b>`;
  document.querySelector('.brand').title='Simclone · UI '+UI_VERSION;
  const foodCard=$('food').parentElement;
  foodCard.setAttribute('role','button');foodCard.tabIndex=0;
@@ -120,7 +120,10 @@ export function installUX(api){
   for(const k of ['satiety','energy','hp']){setText('need-number-'+k,Math.round(a[k]));const el=$('need-meter-'+k);el.setAttribute('aria-valuenow',String(Math.round(a[k])));el.querySelector('i').style.width=a[k]+'%';el.classList.toggle('low',a[k]<25);}
   for(const b of inspector.querySelectorAll('[role=tab]')){const active=b.dataset.tab===tab;b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;}
   const panel=$('ux-tab-content');panel.setAttribute('aria-labelledby','tab-'+tab);let html='';
-  if(tab==='skills')html=SKILLS.map(k=>`<div class="skill-row"><b>${roles[k]}</b><span>Lv.${level(a.skills[k])} <small>${a.skills[k]} XP</small></span></div>`).join('')+`<p class="source-note">ที่มา: ${escape(a.source)}<br>นี่คือทักษะส่วนบุคคล ยังไม่มีระบบครูหรือคลังความรู้ในรุ่นนี้</p>`;
+  if(tab==='skills')html=SKILLS.map(k=>{const p=a.skillProvenance?.bySkill?.[k],parts=[];
+   if(p?.initialXP)parts.push('ตั้งต้น '+p.initialXP);if(p?.inheritedXP)parts.push('สืบทอด '+p.inheritedXP);if(p?.earnedXP)parts.push('ทำงาน '+p.earnedXP);if(p?.legacyUnattributedXP)parts.push('เดิมไม่ทราบที่มา '+p.legacyUnattributedXP);
+   const evidence=(p?.evidence??[]).slice(-2).reverse().map(e=>e.kind==='inheritance'?'สืบทอดจาก '+escape(findPerson(s,e.sourceAgentId)?.name??('#'+e.sourceAgentId))+' · tick '+e.tick:e.kind==='work'?'งาน '+escape(roles[e.action]??e.action)+' · +'+e.xp+' XP · tick '+e.tick:'ทักษะตั้งต้น · +'+e.xp+' XP · tick '+e.tick).join('<br>');
+   return `<div class="skill-row"><b>${roles[k]}</b><span>Lv.${level(a.skills[k])} <small>${a.skills[k]} XP</small></span></div><p class="source-note">${parts.join(' · ')||'ไม่มี XP'}${evidence?'<br>'+evidence:''}</p>`;}).join('')+`<p class="source-note">XP สืบทอดคือ inheritance ไม่ใช่การสอน · XP จากงานเกิดหลังผลลัพธ์จริงเท่านั้น · ข้อมูลเซฟเก่าที่พิสูจน์ที่มาไม่ได้จะแสดงว่าเดิมไม่ทราบที่มา</p>`;
   else if(tab==='memory')html=a.memory.slice().reverse().map(m=>`<div class="memory-item"><small>วันที่ ${1+Math.floor(m.tick/360)}</small>${escape(m.text)}</div>`).join('')||'<p class="empty-state">ยังไม่มีความทรงจำสำคัญ</p>';
   else if(tab==='why'){
    const chosen=a.trace.find(t=>t.status==='selected'),max=Math.max(1,...a.trace.map(t=>t.score));

@@ -14,7 +14,7 @@ def boot(page,saved=None):
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.evaluate("saved=>{const m=new Map(saved?[['simclone:world:v1',saved]]:[]);Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v))}})}",saved)
  page.set_content(html,wait_until='load')
- page.wait_for_function("window.simclone?.uiVersion==='0.3.6'")
+ page.wait_for_function("window.simclone?.uiVersion==='0.4.0'")
  page.wait_for_timeout(400)
 def paused(page):
  if page.locator('#pause').get_attribute('aria-pressed')!='true':page.locator('#pause').click()
@@ -24,7 +24,7 @@ with sync_playwright() as p:
  exe='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None
  b=p.chromium.launch(executable_path=exe,headless=True,args=['--no-sandbox'])
  desktop=b.new_page(viewport={'width':1440,'height':1000});boot(desktop)
- check('desktop boot with UI 0.3.6 and engine 0.3.6',desktop.evaluate('simclone.version')=='0.3.6')
+ check('desktop boot with UI 0.4.0 and engine 0.4.0',desktop.evaluate('simclone.version')=='0.4.0')
  check('world actually advances',snap(desktop)['tick']>0)
  desktop.screenshot(path=str(OUT/'desktop-world.png'))
  paused(desktop);t=snap(desktop)['tick'];desktop.wait_for_timeout(700);check('pause freezes simulation',snap(desktop)['tick']==t)
@@ -51,7 +51,7 @@ with sync_playwright() as p:
  check('old save schema retained and reload works with storage double',len(snap(reloadpage)['agents'])==7)
  check('death history sub-schema persists through reload',snap(reloadpage)['historyVersion']=='0.1.0')
  legacy_unknown=json.loads(saved);legacy_unknown['version']='0.2.0';legacy_unknown.pop('archive',None);legacy_unknown.pop('archiveVersion',None);legacy_unknown.pop('historyVersion',None)
- for a in legacy_unknown['agents']:a.pop('death',None)
+ for a in legacy_unknown['agents']:a.pop('death',None);a.pop('skillProvenance',None)
  dead=next(a for a in legacy_unknown['agents'] if a['id']==2);dead['alive']=False;dead['hp']=0;dead['task']=None;dead['moveTick']=0;dead['memory']=[]
  legacy_unknown['events']=[e for e in legacy_unknown['events'] if not (e.get('type')=='death' and e.get('agentId')==2)]
  deadpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(deadpage,json.dumps(legacy_unknown,ensure_ascii=False));paused(deadpage)

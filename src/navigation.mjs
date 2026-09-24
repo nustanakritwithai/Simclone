@@ -1,6 +1,6 @@
 /** Read-only map and layout-aware camera. No simulation mutations. */
-import {SIZE} from './engine.mjs?v=0.3.6';
-import {saveLabel} from './storage.mjs?v=0.3.6';
+import {SIZE} from './engine.mjs?v=0.4.0';
+import {saveLabel} from './storage.mjs?v=0.4.0';
 export function safeFrame(width,height,edges={}){
   const left=Math.max(8,Math.min(edges.left??12,width*.4));
   const right=Math.max(left+40,Math.min(edges.right??width-12,width-8));

@@ -1,23 +1,49 @@
-# Simclone — Historical Identity 0.3.6 candidate
+# Simclone — Skill Provenance 0.4.0 candidate
 
-This implements the historical-identity portion of the V0.3.5 hardening plan on top of main `f2edda01af049ca8090f651d84376c29a8f32490`. Engine/UI 0.3.6, save schema 0.3.0, archiveVersion 0.1.0 and historyVersion 0.1.0. Both legacy 0.1.0 and former 0.2.0 saves use explicit migrations; browser key is unchanged.
+Engine/UI and save schema target 0.4.0 on top of Historical Identity 0.3.6. The storage key remains `simclone:world:v1`; archive/history semantics remain bounded and deterministic.
 
 ## Implemented
 
-A buffered dead-identity archive separates historical retention from living work. All lineage, birth-origin/cooldown evidence, death facts, skills and retained memories remain resolvable. Temporary decision-score traces are omitted only when archived and explicitly disclosed in the inspector. Living capacity stays 36 (subject to housing); hot records target 64, total retained identities cap 1024 and explicit character budgets prevent unbounded retention. This is not simply 200 changed to a larger number, and not unlimited history.
+The existing four skills remain FORAGE, WOODCUT, MINE and BUILD. Their balance formulas are unchanged.
 
-The mobile roster searches archived people, paginates by 80 and resolves parents across the archive. Dead ancestors cannot be followed or cloned. Native file import accounts for UTF-8 byte size separately from save-string size.
+Every person now carries exact per-skill provenance buckets:
 
-## Local evidence, not release status
+```text
+current XP
+= initial XP
++ inherited XP
++ earned XP
++ legacy-unattributed XP
+```
 
-The frozen 0.3.5 baseline really hit its 200-person cap at years 1444–1480 in five seeds with only 10–11 people alive and no subsequent births in a 20-year window. The new five-seed proof reaches 1800 years with 242–246 retained identities, 11–12 living people, generations 60–61 and continuing births beyond that old boundary. There is no manual cloning, resource injection, age reset, extra housing or resurrection in that proof. Population minimum is 6 in all five runs, with no starvation or extinction in these fixtures.
+New Original starting XP is recorded as initial. Manual Clone and autonomous birth still copy exactly `floor(parent XP × 0.35)`, now with the parent's entity ID and child birth tick recorded as inheritance evidence. Successful productive work still grants +5 XP exactly where the previous engine granted it; the same transition increments earned XP and records action/target evidence. Zero-output work adds neither XP nor evidence.
 
-See [contract](HISTORY_LIMITS_0.3.5.md), [baseline measurements](verification/history-baseline-0.3.5.json) and [candidate evidence](verification/history-0.3.6.json). Results are tied to source hashes. Exact candidate Actions and exact main Pages run are still the release authority; this document alone never proves deployment.
+Evidence is intentionally bounded: each skill retains structural origin plus the latest productive work evidence while cumulative counters remain authoritative. This prevents historical skill evidence from growing once per work action forever.
 
-## Limits and next work
+Old 0.3.0 saves cannot prove how existing XP was split historically, so migration records it as `legacyUnattributedXP` instead of reverse-engineering a fictional parent/work history. Earlier 0.2.0/0.1.0 migration keeps the established lifecycle/death/archive rules first, then attributes existing XP as legacy-unattributed.
 
-The finite 1024-identity/archive budget still eventually blocks creation without deleting ancestry. Fresh-world proof at the new full-capacity boundary, imported-age-cohort cases and physical Android performance are not claimed. A 1800-year seeded fixture is not an infinite-world proof.
+Historical archive compaction preserves skill provenance and inheritance source IDs. The Skills inspector exposes inherited, earned, initial and legacy-unattributed XP and never calls inheritance teaching.
 
-Offline browser checks use a Storage double. Local native HTTP testing was blocked by administrator policy and remains UNKNOWN in that environment; a separate real HTTP/storage/process-restart test runs on CI. CI success is not proof of public live browser operation or physical-device performance.
+Contract: [SKILL_PROVENANCE_0.4.0.md](SKILL_PROVENANCE_0.4.0.md).
 
-No mentor teaching, cultural knowledge archive, skill provenance, social relationships, factions, replay or V1.0 claim. Continue [NEXT_STEPS.md](NEXT_STEPS.md).
+## Donor architecture used
+
+This milestone borrows AstraLife's evidence/provenance discipline only. It does not import Astra providers or call an LLM per tick.
+
+The next knowledge slice will adopt the stricter AstraLife principle:
+
+```text
+Agent cognition = Observation + Owned Memory/Belief + Delivered Messages
+```
+
+World truth remains authoritative in Simclone; cognition must not gain hidden global knowledge merely because the engine can access it.
+
+## Verification limits
+
+Exact candidate and exact main workflows remain release authority. Historical Identity 0.3.6 source is on main but its latest Pages deploy failed only at the final Pages action because that rerun contained two artifacts named `github-pages`; all source verification/browser/upload steps passed. A fresh main push must establish a new exact Pages result.
+
+Native public-browser behavior and physical Android performance remain separate claims.
+
+## Next
+
+After exact V0.4 candidate/main release gates pass, build the first cross-generation Knowledge + Memory vertical slice before factions/economy. See [NEXT_STEPS.md](NEXT_STEPS.md).

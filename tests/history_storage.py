@@ -39,6 +39,7 @@ for(let id=7;id<=200;id++)s.agents.push({...structuredClone(template),id,name:'A
  death:{status:'recorded',tick:s.tick,cause:'starvation',ageYears:18},memory:[{tick:s.tick,text:'Synthetic boundary fixture'}]});
 s.nextAgent=201;s.stock.food=100;s.stock.wood=100;
 s.version='0.2.0';delete s.archive;delete s.archiveVersion;
+for(const a of s.agents)delete a.skillProvenance;
 console.log(JSON.stringify(s));
 """
     return subprocess.check_output(['node', '--input-type=module', '-e', code], cwd=ROOT, text=True).strip()
@@ -69,7 +70,7 @@ def run_native_storage():
             def loaded(page):
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.goto(origin + '/index.html', wait_until='load')
-                page.wait_for_function("window.simclone?.version==='0.3.6'")
+                page.wait_for_function("window.simclone?.version==='0.4.0'")
                 page.wait_for_selector('#boot-screen', state='detached')
                 if page.locator('#pause').get_attribute('aria-pressed') != 'true':
                     page.locator('#pause').tap()
@@ -83,7 +84,7 @@ def run_native_storage():
                 'location.protocol==="http:" && Object.getPrototypeOf(localStorage)===Storage.prototype'))
             initial = page.evaluate('simclone.snapshot()')
             check('0.2.0 fixture migrates without discarding any of the 200 identities',
-                initial['version'] == '0.3.0' and len(initial['agents']) == 200 and initial['archive'] == [])
+                initial['version'] == '0.4.0' and len(initial['agents']) == 200 and initial['archive'] == [])
             page.locator('[data-quick-person="2"]').tap()
             before = page.evaluate('JSON.stringify(simclone.snapshot())')
             page.locator('[data-nav="clone"]').tap()

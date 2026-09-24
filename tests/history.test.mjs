@@ -19,7 +19,7 @@ function coldFixture(count){
 const facts=a=>[a.id,a.name,a.parentId,a.generation,a.appearance,a.skills,a.source,a.preference,a.bornTick,a.life,a.death,a.workDone,a.memory];
 
 test('historical storage is explicitly versioned separately from living capacity',()=>{
- const s=createWorld();assert.equal(VERSION,'0.3.6');assert.equal(SAVE_VERSION,'0.3.0');
+ const s=createWorld();assert.equal(VERSION,'0.4.0');assert.equal(SAVE_VERSION,'0.4.0');
  assert.equal(s.archiveVersion,ARCHIVE_VERSION);assert.deepEqual(s.archive,[]);assert.equal(retainedCount(s),6);
  assert.equal(HISTORY_LIMITS.hotRecords,64);assert.equal(HISTORY_LIMITS.maxRetained,1024);
 });
@@ -106,7 +106,7 @@ test('archive validation rejects live records, dangling/cyclic parents, duplicat
 
 test('real save 0.2.0 explicitly adopts archive schema without rewriting life or identity',()=>{
  const raw=JSON.parse(readFileSync(new URL('./fixtures/legacy-0.3.3-save.json',import.meta.url),'utf8'));
- const migrated=restore(JSON.stringify(raw));assert.equal(raw.version,'0.2.0');assert.equal(migrated.version,'0.3.0');
+ const migrated=restore(JSON.stringify(raw));assert.equal(raw.version,'0.2.0');assert.equal(migrated.version,'0.4.0');
  assert.equal(migrated.archiveVersion,ARCHIVE_VERSION);assert.deepEqual(migrated.archive,[]);
  for(let i=0;i<raw.agents.length;i++)for(const k of ['id','parentId','generation','skills','appearance','bornTick','life'])assert.deepEqual(migrated.agents[i][k],raw.agents[i][k]);
  assert.equal(migrated.tick,raw.tick);assert.equal(migrated.seed,raw.seed);
