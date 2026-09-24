@@ -8,7 +8,7 @@ import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenan
 import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,recordResourceDiscovery,shareKnowledge,withinKnowledgeRange,validateKnowledgeState,activeKnowledge} from './knowledge.mjs?v=0.5.0';
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
-import {WORLD_MAP_VERSION,generateWorldMap,compatibilityTiles,resourceNodesFromWorldMap,nearestWalkable,cellAt,validateWorldMap} from './worldsim-map.mjs?v=0.5.0';
+import {WORLD_MAP_VERSION,generateWorldMap,legacyGameplayTiles,legacyResourceNodes,nearestWalkable,cellAt,validateWorldMap} from './worldsim-map.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
@@ -72,7 +72,7 @@ function killAgent(s,a,cause){
 export function createWorld(seed=230926){
   const worldMap=generateWorldMap(seed);
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,
-    worldMapVersion:WORLD_MAP_VERSION,worldMap,tiles:compatibilityTiles(worldMap),nodes:resourceNodesFromWorldMap(worldMap),agents:[],events:[],
+    worldMapVersion:WORLD_MAP_VERSION,worldMap,tiles:legacyGameplayTiles(seed),nodes:legacyResourceNodes(seed),agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
   const original=createAgent(s,null);for(let i=0;i<5;i++)createAgent(s,original,true);
   return s;
@@ -385,10 +385,10 @@ function migrateWorldMap(s){
   if(!Number.isInteger(s?.seed))return s;
   // Current saves intentionally omit the deterministic static map to preserve history budget.
   if(s.worldMapVersion===WORLD_MAP_VERSION&&s.worldMap===undefined){
-    const worldMap=generateWorldMap(s.seed);s.worldMap=worldMap;s.tiles=compatibilityTiles(worldMap);return s;
+    const worldMap=generateWorldMap(s.seed);s.worldMap=worldMap;s.tiles=legacyGameplayTiles(s.seed);return s;
   }
   const worldMap=generateWorldMap(s.seed);
-  s.worldMapVersion=WORLD_MAP_VERSION;s.worldMap=worldMap;s.tiles=compatibilityTiles(worldMap);
+  s.worldMapVersion=WORLD_MAP_VERSION;s.worldMap=worldMap;s.tiles=legacyGameplayTiles(s.seed);
   const relocate=obj=>{
     if(!obj||!Number.isInteger(obj.x)||!Number.isInteger(obj.y))return;
     const cell=cellAt(worldMap,obj.x,obj.y);
