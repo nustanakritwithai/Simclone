@@ -3,13 +3,16 @@
  * terrain + elevation + moisture. It never mutates K6 resources or stock.
  */
 import {createWorldMapView,visualCellAt} from './worldsim-map.mjs?v=0.5.0';
+import {createClimateShadow} from './worldsim-climate-shadow.mjs?v=0.5.0';
 import {createSoilShadow} from './worldsim-soil-shadow.mjs?v=0.5.0';
+import {createHydrologyShadow} from './worldsim-hydrology-shadow.mjs?v=0.5.0';
+import {createVegetationShadow} from './worldsim-vegetation-shadow.mjs?v=0.5.0';
 
 export const RESOURCE_ECOLOGY_SHADOW_VERSION='wm3.0-shadow-resource-1';
 const clamp=n=>Math.max(0,Math.min(1,n));
 const bell=(x,opt,width)=>clamp(1-Math.abs(x-opt)/Math.max(width,Number.EPSILON));
 
-export function resourceSuitabilityForCell(cell,soil=null){
+export function resourceSuitabilityForCell(cell,soil=null,vegetation=null){
   if(!cell||!cell.walkable)return Object.freeze({food:0,wood:0,stone:0});
   const moisture=clamp(cell.moisture??.5),elevation=clamp(cell.elevation??.5),t=cell.terrainType;
   const foodTerrain=t==='grass'?1:t==='forest'?.72:t==='sand'?.18:t==='rock'?.08:t==='path'?.1:t==='bridge'?0:0;
@@ -30,16 +33,26 @@ export function resourceSuitabilityForCell(cell,soil=null){
     food*=vegetationSoil;wood*=vegetationSoil;
     stone*=clamp(.85+(1-soil.health)*.15+(soil.soilType==='rocky'?.10:0));
   }
+  if(vegetation){
+    const foodVegetation=clamp(.38+vegetation.foodYieldPotential*.37+vegetation.regenerationPotential*.25);
+    const woodVegetation=clamp(.38+vegetation.woodYieldPotential*.40+vegetation.regenerationPotential*.22);
+    food*=foodVegetation;wood*=woodVegetation;
+  }
   food=clamp(food);wood=clamp(wood);stone=clamp(stone);
   return Object.freeze({food:+food.toFixed(4),wood:+wood.toFixed(4),stone:+stone.toFixed(4)});
 }
 
 export function createResourceEcologyShadow(state){
-  const view=createWorldMapView(state),soil=createSoilShadow(state,view),cells=view.cells.map(cell=>{
-    const soilCell=soil.cells[cell.index],suitability=resourceSuitabilityForCell(cell,soilCell);
-    return Object.freeze({index:cell.index,x:cell.x,y:cell.y,terrainType:cell.terrainType,
-      soilType:soilCell.soilType,soilHealth:soilCell.health,soilFertility:soilCell.fertility,suitability});
-  });
+  const view=createWorldMapView(state),climate=createClimateShadow(state,view),soil=createSoilShadow(state,view,climate),
+    hydrology=createHydrologyShadow(state,view,climate,soil),vegetation=createVegetationShadow(state,view,climate,soil,hydrology),
+    cells=view.cells.map(cell=>{
+      const soilCell=soil.cells[cell.index],vegetationCell=vegetation.cells[cell.index],
+        suitability=resourceSuitabilityForCell(cell,soilCell,vegetationCell);
+      return Object.freeze({index:cell.index,x:cell.x,y:cell.y,terrainType:cell.terrainType,
+        soilType:soilCell.soilType,soilHealth:soilCell.health,soilFertility:soilCell.fertility,
+        foodYieldPotential:vegetationCell.foodYieldPotential,woodYieldPotential:vegetationCell.woodYieldPotential,
+        vegetationRegenerationPotential:vegetationCell.regenerationPotential,suitability});
+    });
   const totals={food:0,wood:0,stone:0},hotspots={food:[],wood:[],stone:[]};
   for(const c of cells)for(const type of ['food','wood','stone'])totals[type]+=c.suitability[type];
   for(const type of ['food','wood','stone']){
@@ -50,21 +63,23 @@ export function createResourceEcologyShadow(state){
     version:RESOURCE_ECOLOGY_SHADOW_VERSION,
     authority:Object.freeze({mode:'shadow-only',resources:'simclone-k6'}),
     totals:Object.freeze(Object.fromEntries(Object.entries(totals).map(([k,v])=>[k,+v.toFixed(4)]))),
-    soilSummary:soil.summary,soilCounts:soil.counts,climateSummary:soil.climateSummary,
+    soilSummary:soil.summary,soilCounts:soil.counts,climateSummary:climate.summary,
+    hydrologySummary:hydrology.summary,vegetationSummary:vegetation.summary,
     hotspots:Object.freeze({food:Object.freeze(hotspots.food),wood:Object.freeze(hotspots.wood),stone:Object.freeze(hotspots.stone)}),
     cells:Object.freeze(cells)
   });
 }
 
-export function shadowExistingResourcePressure(state){
-  const shadow=createResourceEcologyShadow(state),view=createWorldMapView(state),soil=createSoilShadow(state,view),rows=[];
+export function shadowExistingResourcePressure(state,shadow=createResourceEcologyShadow(state),view=createWorldMapView(state)){
+  const rows=[];
   for(const node of state.nodes??[]){
-    const cell=visualCellAt(view,node.x,node.y),soilCell=cell?soil.cells[cell.index]:null,
-      suitability=cell?resourceSuitabilityForCell(cell,soilCell)[node.type]??0:0;
+    const cell=visualCellAt(view,node.x,node.y),shadowCell=cell?shadow.cells[cell.index]:null,
+      suitability=shadowCell?.suitability?.[node.type]??0;
     const depletion=node.max>0?clamp(1-node.amount/node.max):0;
     rows.push(Object.freeze({
       id:node.id,type:node.type,x:node.x,y:node.y,
-      terrainType:cell?.terrainType??null,soilType:soilCell?.soilType??null,soilHealth:soilCell?.health??0,
+      terrainType:cell?.terrainType??null,soilType:shadowCell?.soilType??null,soilHealth:shadowCell?.soilHealth??0,
+      vegetationRegenerationPotential:shadowCell?.vegetationRegenerationPotential??0,
       suitability:+suitability.toFixed(4),
       depletion:+depletion.toFixed(4),
       regenerationPressure:+clamp(suitability*depletion).toFixed(4)
