@@ -201,6 +201,7 @@ export function installUX(api){
   const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s);
   const topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
   const topFood=eco.hotspots.food[0]??null,topWood=eco.hotspots.wood[0]??null,topStone=eco.hotspots.stone[0]??null;
+  const dominantSoil=Object.entries(eco.soilCounts??{}).filter(([type])=>type!=='none').sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))[0]??null;
   api.openDialog('หมู่บ้านอยู่รอดอย่างไร','SURVIVAL CORE · '+VERSION,
    `<div class="life-summary"><div><small>อาหารที่ใช้ได้ตอนนี้</small><b>${v.freeFood} หน่วย</b></div><div><small>จองไว้ให้คนกิน</small><b>${v.reservedMeals} หน่วย</b></div></div>
     <p>มีอาหารทั้งหมด ${v.food} หน่วย · เป้าสำรอง ${v.targets.food} หน่วย<br>คนความอิ่มต่ำกว่า 35: ${v.hungry} คน · พลังงานต่ำกว่า 12: ${v.exhausted} คน</p>
@@ -220,7 +221,10 @@ export function installUX(api){
     <p class="source-note">K6 ใช้เส้นราคา Kingdom: base × scarcity^0.75 และ cap 0.3×–6× แต่ค่านี้เป็นดัชนีเงาเท่านั้น ยังไม่มีเงิน คลังเงิน ภาษี การซื้อขาย หรือพ่อค้า</p>
     <div class="life-summary"><div><small>WorldSim WM3.0 · ecology shadow</small><b>read-only</b></div><div><small>regen pressure สูงสุด</small><b>${topPressure?escape(topPressure.type)+' #'+topPressure.id+' · '+topPressure.regenerationPressure:'—'}</b></div></div>
     <div class="clone-skills"><div><span>Food hotspot</span><b>${topFood?topFood.x+', '+topFood.y+' · '+topFood.suitability:'—'}</b></div><div><span>Wood hotspot</span><b>${topWood?topWood.x+', '+topWood.y+' · '+topWood.suitability:'—'}</b></div><div><span>Stone hotspot</span><b>${topStone?topStone.x+', '+topStone.y+' · '+topStone.suitability:'—'}</b></div><div><span>Resource authority</span><b>K6 เดิม</b></div></div>
-    <p class="source-note">WM3.0 ใช้ terrain + elevation + moisture เพื่อคำนวณ suitability และ regeneration pressure แบบ shadow เท่านั้น · ไม่เพิ่ม node, ไม่เติม stock และไม่เปลี่ยน regeneration จริง จนกว่าจะมี Soil/Climate evidence และผ่าน Resource Authority Gate</p>
+    <p class="source-note">WM3.0 ใช้ terrain + elevation + moisture และตอนนี้รับ soil evidence จาก WM3.1 เพื่อคำนวณ suitability / regeneration pressure แบบ shadow เท่านั้น · ไม่เพิ่ม node, ไม่เติม stock และไม่เปลี่ยน regeneration จริง</p>
+    <div class="life-summary"><div><small>WorldSim WM3.1 · soil health</small><b>${eco.soilSummary.averageHealth}</b></div><div><small>ดินเด่น</small><b>${dominantSoil?escape(dominantSoil[0])+' · '+dominantSoil[1]+' ช่อง':'—'}</b></div></div>
+    <div class="clone-skills"><div><span>Fertility เฉลี่ย</span><b>${eco.soilSummary.averageFertility}</b></div><div><span>Nutrient proxy</span><b>${eco.soilSummary.averageNutrient}</b></div><div><span>Organic matter</span><b>${eco.soilSummary.averageOrganicMatter}</b></div><div><span>Compaction</span><b>${eco.soilSummary.averageCompaction}</b></div></div>
+    <p class="source-note">WM3.1 จำแนก none/coastal/sand/loam/clay/peat/rocky/wetland ตาม terrain + elevation + moisture แบบ deterministic แล้วคำนวณ soil health/fertility เป็น normalized proxy เท่านั้น · ยังไม่มี Soil scheduler, N/P/K reservoir, water ownership หรือ save state ใหม่</p>
     <div class="clone-skills"><div><span>เกิดเองแล้ว</span><b>${v.autonomousBirths} คน</b></div><div><span>สถานะการเกิดอัตโนมัติ</span><b>${birthLabels[v.birth.reason]??v.birth.reason}</b></div></div>
     <div class="clone-skills"><div><span>ตัวตนที่ยังเก็บประวัติไว้</span><b>${retainedCount(s)} / ${HISTORY_LIMITS.maxRetained}</b></div><div><span>ย้ายเข้าคลังประวัติแล้ว</span><b>${s.archive.length} คน</b></div></div>
     <p class="source-note">คลังประวัติยังค้นต้นแบบและทักษะของคนตายได้ เมื่อจำนวนหรือพื้นที่ประวัติเต็ม ระบบหยุดเพิ่มคนโดยไม่ลบบรรพบุรุษ ไม่ใช่โลกที่เก็บประวัติได้ไม่จำกัด</p>
