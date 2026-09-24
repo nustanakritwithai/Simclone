@@ -2,6 +2,7 @@
  * Captures the existing K6 regeneration behavior exactly and compares it with
  * WM3.4 ecology evidence. It never mutates node.amount.
  */
+import {MAP_SIZE} from './worldsim-map.mjs?v=0.5.0';
 import {createResourceEcologyShadow} from './worldsim-resource-shadow.mjs?v=0.5.0';
 
 export const RESOURCE_REGEN_SHADOW_VERSION='wm4.0-shadow-regen-contract-1';
@@ -22,7 +23,7 @@ export function createResourceRegenerationShadow(state,resourceShadow=createReso
   const tick=Number.isInteger(state?.tick)?state.tick:0,rows=[];
   for(const node of state.nodes??[]){
     const policy=K6_RESOURCE_REGEN[node.type];if(!policy)continue;
-    const shadowCell=resourceShadow.cells[node.y*30+node.x]??null;
+    const shadowCell=resourceShadow.cells[node.y*MAP_SIZE.w+node.x]??null;
     const missing=Math.max(0,node.max-node.amount);
     const boundary=tick>0&&policy.periodTicks!==null&&tick%policy.periodTicks===0;
     const legacyIncrement=boundary?Math.min(policy.amount,missing):0;
