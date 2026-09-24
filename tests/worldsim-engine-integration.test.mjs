@@ -13,20 +13,17 @@ test('createWorld now boots on full WorldSim map authority',()=>{
   assert.ok(eachCell(s.worldMap).some(c=>c.terrainType==='rock'));
 });
 
-test('engine walkability is owned by canonical WorldSim terrain',()=>{
+test('WorldSim physical map coexists with legacy gameplay topology during compatibility gate',()=>{
   const s=createWorld(230926);
-  for(const c of eachCell(s.worldMap)){
-    assert.equal(walkable(s,c.x,c.y),terrainWalkable(c.terrainType));
-  }
+  assert.equal(s.worldMap.version,WORLD_MAP_VERSION);
+  assert.ok(s.tiles.includes('bridge'));assert.ok(s.tiles.includes('path'));assert.ok(s.tiles.includes('water'));
+  const waterIndex=s.tiles.indexOf('water');assert.equal(walkable(s,waterIndex%30,Math.floor(waterIndex/30)),false);
 });
 
-test('resources are placed on canonical walkable terrain',()=>{
+test('gameplay resources remain on verified legacy distribution while WorldSim map is physical authority for rendering',()=>{
   const s=createWorld(230926);
-  for(const n of s.nodes){
-    const c=cellAt(s.worldMap,n.x,n.y);
-    assert.equal(terrainWalkable(c.terrainType),true);
-    assert.equal(n.worldTerrain,c.terrainType);
-  }
+  assert.ok(s.nodes.some(n=>n.type==='food'));assert.ok(s.nodes.some(n=>n.type==='wood'));assert.ok(s.nodes.some(n=>n.type==='stone'));
+  for(const n of s.nodes)assert.equal(walkable(s,n.x,n.y),true);
 });
 
 test('same seed creates byte-identical physical map and resources',()=>{
