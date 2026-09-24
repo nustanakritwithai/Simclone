@@ -24,7 +24,7 @@ test('impact report never proposes a replacement unit increment',()=>{
     assert.equal('candidateIncrement' in r,false);
     assert.equal(r.legacyAmount,3);
     assert.equal(r.legacyPeriodTicks,120);
-    assert.equal(r.authoritativeWriter,'simclone-k6');
+    assert.equal(r.authoritativeWriter,'worldsim-wm4.1');
   }
 });
 
@@ -61,7 +61,7 @@ test('canonical seeds emit bounded WM4.2 food-boundary ecology evidence',()=>{
   for(const seed of [1,42,2026,230926,90001]){
     const phases=[];
     for(const tick of [120,240,360]){
-      const world=createWorld(seed);world.tick=tick;
+      const world=createWorld(seed);world.tick=tick;for(const n of world.nodes)if(n.type==='food')n.amount=0;
       const x=createFoodRegenerationImpact(world),s=x.summary;
       phases.push({
         tick,nodes:s.nodes,avg:s.averageEcologyPotential,median:s.medianEcologyPotential,
@@ -74,5 +74,19 @@ test('canonical seeds emit bounded WM4.2 food-boundary ecology evidence',()=>{
     }
     report.push({seed,phases});
   }
-  console.log('WM4.2_CANONICAL_FOOD_BOUNDARY_IMPACT '+JSON.stringify(report));
+  console.log('WM4.2_CANONICAL_DEPLETED_FOOD_BOUNDARY_IMPACT '+JSON.stringify(report));
+});
+
+
+test('WM4.2 diagnostic bands match the observed ecology scale but are not a unit formula',()=>{
+  const s=createWorld(5150);for(const n of s.nodes)if(n.type==='food')n.amount=0;
+  const x=createFoodRegenerationImpact(s);
+  assert.equal(x.authority.writer,'worldsim-wm4.1');
+  assert.equal(x.authority.unitFormula,'none');
+  for(const r of x.rows){
+    const expected=r.ecologyRegenerationPotential<.04?'very-low':
+      r.ecologyRegenerationPotential<.08?'low':
+      r.ecologyRegenerationPotential<.12?'medium':'high';
+    assert.equal(r.ecologyBand,expected);
+  }
 });
