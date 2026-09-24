@@ -1,7 +1,8 @@
 import {installUX,UI_VERSION} from './ux.mjs?v=0.5.0';
 import {createWorldStore,saveLabel} from './storage.mjs?v=0.5.0';
 import {installNavigation} from './navigation.mjs?v=0.5.0';
-import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
+import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,validate,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
+import {createTemporalHistory} from './temporal-history.mjs?v=0.5.0-history';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,nav=null;
@@ -13,6 +14,11 @@ const hw=27,hh=13.5;
 const proj=(x,y)=>({x:(x-y)*hw,y:(x+y)*hh});
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),4200);}
 const loaded=store.load();if(loaded)state=loaded;
+let temporal=createTemporalHistory({world:state,serialize,restore,validate,step,command});
+temporal.checkpoint('session-start');
+function resetTemporal(next,label='session-start'){state=next;temporal=createTemporalHistory({world:state,serialize,restore,validate,step,command});temporal.checkpoint(label);return state;}
+function executeWorldCommand(type,data={}){const result=temporal.executeCommand(type,data);state=temporal.world;return result;}
+function advanceWorld(count=1){temporal.advance(count);state=temporal.world;return state;}
 if(store.status().kind==='protected')toast('เซฟเดิมมีปัญหา จึงยังไม่เขียนทับ · สำรองไฟล์เดิมได้ในเมนู');
 else if(store.status().kind==='unavailable')toast('เบราว์เซอร์ไม่ให้เข้าถึงบันทึก · ส่งออกไฟล์เพื่อเก็บโลกไว้');
 else if(loaded)toast('กลับสู่โลกเดิม · วันที่ '+day(state));
@@ -176,20 +182,20 @@ $('dialog-body').addEventListener('click',e=>{
  const action=b.dataset.action;
  if(action==='survival'){ux.openSurvival();return;}
  if(action==='cancel'){dialog.close();return;}
- if(action==='confirm-clone'){const result=command(state,'CLONE',{parentId:selected});toast(result.message);if(result.ok){dialog.close();selectAgent(result.agentId,true);save();}return;}
+ if(action==='confirm-clone'){const result=executeWorldCommand('CLONE',{parentId:selected});toast(result.message);if(result.ok){dialog.close();selectAgent(result.agentId,true);save();}return;}
  if(action==='export-original'){const text=store.originalText();if(text!==null){const url=URL.createObjectURL(new Blob([text],{type:'text/plain'})),a=document.createElement('a');a.href=url;a.download='simclone-recovery-original.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกเซฟเดิมโดยไม่แก้ไขแล้ว');}return;}
  if(action==='save'){save(true);return;}if(action==='export'){download();return;}
  if(action==='import'){$('import-file').click();return;}
  if(action==='reset'){openDialog('เริ่มโลกใหม่','NEW WORLD',`<p>โลกปัจจุบันในเบราว์เซอร์จะถูกแทนที่ ควรส่งออกไฟล์ก่อน กรอก seed เดิมเพื่อเริ่มด้วยแผนที่และตัวละครตั้งต้นเหมือนเดิม</p><label for="seed-input">World seed</label><input id="seed-input" class="seed-input" type="number" min="0" max="4294967295" value="${state.seed}"><div class="dialog-actions"><button class="primary" data-action="confirm-reset">เริ่มใหม่และแทนที่บันทึก</button><button class="secondary" data-action="export">ส่งออกโลกปัจจุบัน</button></div>`);return;}
  if(action==='confirm-reset'){
   const seed=Number($('seed-input').value);if(!Number.isInteger(seed)||seed<0||seed>4294967295){toast('กรอก seed เป็นจำนวนเต็ม 0–4294967295');return;}
-  state=createWorld(seed);store.allowReplacement();paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
+  resetTemporal(createWorld(seed),'reset');store.allowReplacement();paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
  }
  if(action==='help')openDialog('สังเกต เข้าใจ แล้วค่อยแทรกแซง','HOW TO PLAY',`<p><b>1. สังเกต</b><br>ลากแผนที่เพื่อเลื่อน ใช้ + / − หรือจีบนิ้วเพื่อซูม แตะคนเพื่อดูความอิ่ม พลังงาน และงานที่กำลังทำ</p><p><b>2. เข้าใจ</b><br>เปิดแท็บ “เหตุผล” ดูคะแนนจริงจาก CPU เปิด “ทักษะ” เพื่อดู XP และต้นแบบที่ถ่ายทอดความรู้</p><p><b>3. ช่วยให้โลกเติบโต</b><br>เลือกคนแล้วกดโคลน หรือวางแปลนบ้านบนหญ้าว่าง ตัวละครจะเลือกไปสร้างเองเมื่อทำได้</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น · Escape ยกเลิกวางบ้าน<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">รุ่นนี้มีการเกิด เติบโต และเสียชีวิตแล้ว แต่ยังไม่มีสังคม Faction และ Replay เต็มรูปแบบ · ภาพทั้งหมดวาดในเกม ไม่ใช้ภาพหน้าจอจำลอง</div>`);
 });
 $('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>HISTORY_LIMITS.maxSaveCharacters*3)throw new Error('ไฟล์ใหญ่เกินงบการนำเข้า');const candidate=restore(await file.text());
  openDialog('นำเข้าโลกที่บันทึกไว้','IMPORT WORLD',`<p>วันที่ ${day(candidate)} · ประชากร ${living(candidate).length} คน<br>การนำเข้าจะแทนที่โลกปัจจุบันในเบราว์เซอร์</p><div class="dialog-actions"><button id="confirm-import" class="primary">ยืนยันนำเข้า</button><button class="secondary" data-action="cancel">ยกเลิก</button></div>`);
- $('confirm-import').onclick=()=>{state=candidate;store.allowReplacement();selected=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
+ $('confirm-import').onclick=()=>{resetTemporal(candidate,'import');store.allowReplacement();selected=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
  }catch(error){toast('นำเข้าไม่ได้: '+error.message);}});
 $('inspector').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.ui==='close'){selected=null;follow=false;}else if(b.dataset.tab){tab=b.dataset.tab;frameSelected();}else if(b.dataset.ui==='follow'){follow=!follow;const a=state.agents.find(a=>a.id===selected);if(a){focus={x:a.x,y:a.y};pan={x:0,y:0};}}updateUI();});
 $('pause').onclick=()=>{paused=!paused;accumulator=0;updateUI();};
@@ -216,7 +222,7 @@ canvas.addEventListener('pointermove',e=>{
 canvas.addEventListener('pointerup',e=>{
  pointers.delete(e.pointerId);if(!drag||drag.moved||multiTouch){if(!pointers.size){drag=null;multiTouch=false;}return;}
  const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
- if(mode==='build'){const p=worldPoint(sx,sy);if(ux)ux.choosePlacement(p);else{const result=command(state,'BUILD',p);toast(result.message);if(result.ok){observe();save();}}}
+ if(mode==='build'){const p=worldPoint(sx,sy);if(ux)ux.choosePlacement(p);else{const result=executeWorldCommand('BUILD',p);toast(result.message);if(result.ok){observe();save();}}}
  else{let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{selected=null;follow=false;updateUI();}}
  drag=null;
 });
@@ -226,7 +232,7 @@ addEventListener('resize',resize);document.addEventListener('visibilitychange',(
 addEventListener('pagehide',()=>save());
 function frame(time){
  const dt=lastFrame?Math.min(.2,(time-lastFrame)/1000):0;lastFrame=time;
- if(!paused&&!document.hidden&&!dialog.open){accumulator+=dt*speed;let loops=0;while(accumulator>=.25&&loops<8){step(state);accumulator-=.25;loops++;}}
+ if(!paused&&!document.hidden&&!dialog.open){accumulator+=dt*speed;let loops=0;while(accumulator>=.25&&loops<8){advanceWorld(1);accumulator-=.25;loops++;}}
  else accumulator=0;
  render(time);if(time-lastUi>300){updateUI();lastUi=time;}requestAnimationFrame(frame);
 }
@@ -238,7 +244,7 @@ ux=installUX({
  select:selectAgent,setTab:value=>{tab=value;frameSelected();updateUI();},observe,
  setGhost:p=>{ghost=p;},center:centerCamera,
  preview:(type,data)=>{const copy=JSON.parse(serialize(state)),result=command(copy,type,data);return {...result,agent:type==='CLONE'&&result.ok?copy.agents.at(-1):null};},
- execute:(type,data)=>{const result=command(state,type,data);updateUI();return result;},save
+ execute:(type,data)=>{const result=executeWorldCommand(type,data);updateUI();return result;},save
 });
 nav=installNavigation({read:()=>({state,selected,follow,mode,paused}),menu,center:centerCamera,worldPoint,focus:()=>({...focus}),zoom:()=>zoom,storageStatus:store.status,layoutChanged:()=>{const a=state.agents.find(a=>a.id===selected&&a.alive);if(a)focus={x:a.x,y:a.y};}});
 updateUI();
