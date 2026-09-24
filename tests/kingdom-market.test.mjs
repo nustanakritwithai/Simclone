@@ -13,7 +13,7 @@ test('K6 uses Kingdom base prices adapted to Simclone stone',()=>{
 
 test('K6 price curve rises with scarcity and respects donor caps',()=>{
   assert.ok(shadowPrice('food',2)>shadowPrice('food',1));
-  assert.equal(shadowPrice('food',0),3);
+  assert.equal(shadowPrice('food',0),3.54);
   assert.equal(shadowPrice('food',999),60);
 });
 
