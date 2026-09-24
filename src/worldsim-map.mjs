@@ -63,7 +63,7 @@ export function createWorldMapView(state){
     counts[terrainType]++;
     cells.push(Object.freeze({index:i,x,y,terrainType,gameplayTile,
       walkable:gameplayTile!=='water',color:tint(TERRAIN_COLORS[terrainType],shade),
-      elevation:clamp(elevation),detail}));
+      elevation:clamp(elevation),moisture:clamp(moisture),detail}));
   }
   return Object.freeze({version:WORLD_MAP_VERSION,seed:state.seed,width,height,
     authority:MAP_AUTHORITY,cells:Object.freeze(cells),terrainCounts:Object.freeze(counts)});
