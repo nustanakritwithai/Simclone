@@ -108,6 +108,20 @@ export function resourceNodesFromWorldMap(worldMap){
   }
   return out;
 }
+export function validateWorldMap(worldMap){
+  const errors=[];
+  if(!worldMap||worldMap.version!==WORLD_MAP_VERSION)errors.push('World map version');
+  if(worldMap?.width!==MAP_SIZE.w||worldMap?.height!==MAP_SIZE.h||!Array.isArray(worldMap?.cells)||worldMap.cells.length!==MAP_SIZE.w*MAP_SIZE.h)return [...errors,'World map shape'];
+  for(let i=0;i<worldMap.cells.length;i++){
+    const c=worldMap.cells[i];
+    if(!c||c.index!==i||c.x!==i%MAP_SIZE.w||c.y!==Math.floor(i/MAP_SIZE.w)||!WORLD_TERRAIN.includes(c.terrainType)){errors.push('World map cell');break;}
+    for(const k of ['elevation','temperature','humidity','fertility','baseSeaDepth','surfaceWater','soilMoisture','groundwater'])
+      if(typeof c[k]!=='number'||!Number.isFinite(c[k])){errors.push('World map physics');break;}
+    if(!c.climate||typeof c.climate.weatherType!=='string'){errors.push('World map climate');break;}
+  }
+  return [...new Set(errors)];
+}
+
 export function worldMapSummary(worldMap){
   const cells=worldMap?.cells??[];if(!cells.length)return null;
   const avg=k=>+(cells.reduce((s,c)=>s+c[k],0)/cells.length).toFixed(4);
