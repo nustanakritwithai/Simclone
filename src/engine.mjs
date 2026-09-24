@@ -274,6 +274,7 @@ export function validate(s){
   if(!Number.isInteger(s.tick)||s.tick<0||!Number.isInteger(s.rng)||!Number.isInteger(s.seed))bad('Clock/seed');
   if(s.worldMapVersion!==WORLD_MAP_VERSION||validateWorldMap(s.worldMap).length)return ['World map'];
   if(!Array.isArray(s.tiles)||s.tiles.length!==SIZE.w*SIZE.h||s.tiles.some(t=>!['grass','water'].includes(t)))return ['Terrain'];
+  if(JSON.stringify(s.tiles)!==JSON.stringify(compatibilityTiles(s.worldMap)))bad('Terrain projection');
   if(!s.stock||['food','wood','stone'].some(k=>!finite(s.stock[k])||s.stock[k]<0||s.stock[k]>999))bad('Inventory');
   if(!Array.isArray(s.agents)||s.agents.length>HISTORY_LIMITS.maxImportedHotRecords||retainedCount(s)<1||retainedCount(s)>HISTORY_LIMITS.maxRetained)return ['Agent count'];
   const people=[...s.agents,...s.archive];
