@@ -37,20 +37,20 @@ export function generateWorldMap(seed=230926){
     let elevation=clamp((continent-.42)*1.55+ridge*.18,0,1);
     // Keep the original settlement basin safe and connected.
     const dCamp=Math.abs(x-11)+Math.abs(y-12);
-    if(dCamp<=4)elevation=Math.max(elevation,.46);
+    if(dCamp<=6)elevation=Math.max(elevation,.46);
     const moisture=clamp(smooth(seed,x,y,71)*.72+(1-elevation)*.18,0,1);
     const latitude=Math.abs((y/(MAP_SIZE.h-1))*2-1);
     const temperature=clamp(0.84-latitude*.38-elevation*.32+(smooth(seed,x,y,91)-.5)*.14,0,1);
     const fertility=clamp(moisture*.52+(1-elevation)*.24+smooth(seed,x,y,113)*.24,0,1);
     let terrainType;
     if(elevation<.18)terrainType='deepWater';
-    else if(elevation<.28)terrainType='shallowWater';
-    else if(elevation<.34)terrainType='sand';
-    else if(elevation>.78||ridge>.82)terrainType='rock';
-    else if(moisture>.58&&fertility>.52)terrainType='forest';
+    else if(elevation<.36)terrainType='shallowWater';
+    else if(elevation<.42)terrainType='sand';
+    else if(elevation>.72||ridge>.78)terrainType='rock';
+    else if(moisture>.48&&fertility>.45)terrainType='forest';
     else terrainType='grass';
-    if(dCamp<=3)terrainType='grass';
-    const baseSeaDepth=terrainType==='deepWater'?clamp((.18-elevation)*3.2+.28,.28,1):terrainType==='shallowWater'?clamp((.28-elevation)*2.2+.08,.08,.42):0;
+    if(dCamp<=6)terrainType='grass';
+    const baseSeaDepth=terrainType==='deepWater'?clamp((.18-elevation)*3.2+.28,.28,1):terrainType==='shallowWater'?clamp((.36-elevation)*2.2+.08,.08,.42):0;
     const surfaceWater=baseSeaDepth+(terrainType!=='deepWater'&&terrainType!=='shallowWater'&&moisture>.78?+(moisture-.78).toFixed(3):0);
     const atmosphericHumidity=clamp(moisture*.72+surfaceWater*.18,0,1);
     const rainfall=clamp((atmosphericHumidity-.48)*.18+(smooth(seed,x,y,137)-.5)*.03,0,.14);
