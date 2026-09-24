@@ -13,8 +13,8 @@ test('WorldSim presentation map is deterministic and bounded',()=>{
 });
 
 test('presentation authority is explicit and gameplay remains K6-owned',()=>{
-  assert.equal(MAP_AUTHORITY.mode,'presentation-only');
-  assert.equal(MAP_AUTHORITY.path,'simclone-k6');
+  assert.equal(MAP_AUTHORITY.mode,'path-authority-gate-1');
+  assert.equal(MAP_AUTHORITY.path,'worldsim-wm2');
   assert.equal(MAP_AUTHORITY.resources,'simclone-k6');
   assert.equal(MAP_AUTHORITY.save,'simclone-0.5.0');
 });

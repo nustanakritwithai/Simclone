@@ -4,7 +4,7 @@
 export const WORLD_MAP_VERSION='wm1-visual-1';
 export const MAP_SIZE=Object.freeze({w:30,h:26});
 export const WORLD_TERRAIN=Object.freeze(['deepWater','shallowWater','sand','grass','forest','rock','path','bridge']);
-export const MAP_AUTHORITY=Object.freeze({mode:'presentation-only',path:'simclone-k6',resources:'simclone-k6',save:'simclone-0.5.0'});
+export const MAP_AUTHORITY=Object.freeze({mode:'path-authority-gate-1',path:'worldsim-wm2',resources:'simclone-k6',save:'simclone-0.5.0'});
 export const TERRAIN_COLORS=Object.freeze({deepWater:'#315f70',shallowWater:'#589496',sand:'#baa77a',grass:'#738f58',forest:'#426948',rock:'#889187',path:'#b4a37a',bridge:'#a18455'});
 const WATER=new Set(['deepWater','shallowWater']);
 const TILES=new Set(['grass','water','path','bridge']);
@@ -71,4 +71,23 @@ export function createWorldMapView(state){
 export function visualCellAt(view,x,y){
   if(!view||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=view.width||y>=view.height)return null;
   return view.cells[y*view.width+x]??null;
+}
+
+/** WM2 path authority. Gate 1 intentionally preserves K6 topology exactly:
+ * deep/shallow water are blocked; all non-water gameplay cells remain walkable.
+ * Future movement-cost gates may differentiate forest/rock/sand without changing this contract.
+ */
+export function worldPathCellAt(state,x,y){
+  const {w,h}=MAP_SIZE;
+  if(!state||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=w||y>=h)return null;
+  const gameplayTile=state.tiles?.[y*w+x];
+  if(!TILES.has(gameplayTile))return null;
+  const terrainType=gameplayTile==='water'?'shallowWater':gameplayTile;
+  return Object.freeze({x,y,gameplayTile,terrainType,walkable:gameplayTile!=='water'});
+}
+export function worldPathWalkable(state,x,y){
+  const {w,h}=MAP_SIZE;
+  if(!state||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=w||y>=h)return false;
+  const gameplayTile=state.tiles?.[y*w+x];
+  return TILES.has(gameplayTile)&&gameplayTile!=='water';
 }
