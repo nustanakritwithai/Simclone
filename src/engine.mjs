@@ -7,6 +7,7 @@ import {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,retent
 import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenance,recordEarnedSkill,validateSkillProvenance} from './skill-provenance.mjs?v=0.5.0';
 import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,recordResourceDiscovery,shareKnowledge,withinKnowledgeRange,validateKnowledgeState,activeKnowledge} from './knowledge.mjs?v=0.5.0';
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
+import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
@@ -141,7 +142,8 @@ function candidates(s,a,book,field){
   const home=homes[0];
   function add(kind,target,base,need=0,goal=0,status='candidate',extra={}){
     const travel=routeDistance(field,target),skill=SKILLS.includes(kind)?level(a.skills[kind])*3:0;
-    const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(travel*.7)};
+    const laborMarket=Number(extra.laborAuthority?.bonus??0);
+    const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(travel*.7),...(laborMarket?{laborMarket}: {})};
     out.push({kind,targetId:target.id??null,x:target.x,y:target.y,
       score:Object.values(factors).reduce((sum,v)=>sum+v,0),factors,travelSteps:Math.max(0,travel),
       status:travel<0?'no-path':status,...extra});
@@ -160,12 +162,14 @@ function candidates(s,a,book,field){
     const hungerBonus=kind==='FORAGE'&&a.satiety<RULES.hungry&&freeFood<=0?210:0;
     const shortage=projected[type]<targets[type]/2?40:18;
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind,resourceType:type,projected,targets});
+    const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock:s.stock,unfinished:s.buildings.filter(b=>!b.complete).length,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
     const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
-    add(kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom});
+    add(kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority});
   }
   for(const b of s.buildings.filter(b=>!b.complete)){
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind:'BUILD',scarcityOverride:18});
-    add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved',{kingdomUtility:kingdom});
+    const laborAuthority=laborAuthoritySignal({kind:'BUILD',agent:a,agents:s.agents,stock:s.stock,unfinished:s.buildings.filter(x=>!x.complete).length,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
+    add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved',{kingdomUtility:kingdom,laborAuthority});
   }
   const tx=5+(a.id*7+Math.floor(s.tick/40))%13,ty=5+(a.id*3+Math.floor(s.tick/60))%16;
   add('EXPLORE',{x:tx,y:ty},3);
