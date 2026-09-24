@@ -1,7 +1,7 @@
-import {installUX,UI_VERSION} from './ux.mjs?v=0.4.0';
-import {createWorldStore,saveLabel} from './storage.mjs?v=0.4.0';
-import {installNavigation} from './navigation.mjs?v=0.4.0';
-import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.4.0';
+import {installUX,UI_VERSION} from './ux.mjs?v=0.5.0';
+import {createWorldStore,saveLabel} from './storage.mjs?v=0.5.0';
+import {installNavigation} from './navigation.mjs?v=0.5.0';
+import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,nav=null;
