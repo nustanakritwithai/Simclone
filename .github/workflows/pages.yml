@@ -16,7 +16,9 @@ concurrency:
 
 jobs:
   deploy:
-    timeout-minutes: 10
+    # Five 1800-year continuity runs plus native browser storage need more than 10 minutes on some runners.
+    # Preserve every existing verification and deployment step; only the execution budget changes.
+    timeout-minutes: 20
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
