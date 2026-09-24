@@ -1,13 +1,17 @@
 /** Skill provenance 0.4.0 — bounded evidence with exact XP accounting. */
 export const SKILL_PROVENANCE_VERSION='0.4.0';
-export const SKILL_EVIDENCE_LIMIT=48;
+export const SKILL_EVIDENCE_LIMIT=2;
 
 const finiteNonNegative=n=>typeof n==='number'&&Number.isFinite(n)&&n>=0;
 const makeBucket=()=>({initialXP:0,inheritedXP:0,earnedXP:0,legacyUnattributedXP:0,evidence:[]});
 const clone=v=>JSON.parse(JSON.stringify(v));
 
 function trimEvidence(bucket){
-  if(bucket.evidence.length>SKILL_EVIDENCE_LIMIT)bucket.evidence.splice(0,bucket.evidence.length-SKILL_EVIDENCE_LIMIT);
+  if(bucket.evidence.length<=SKILL_EVIDENCE_LIMIT)return;
+  const structural=bucket.evidence.find(e=>e.kind==='initial'||e.kind==='inheritance')??null;
+  const room=SKILL_EVIDENCE_LIMIT-(structural?1:0);
+  const work=bucket.evidence.filter(e=>e.kind==='work').slice(-Math.max(0,room));
+  bucket.evidence.splice(0,bucket.evidence.length,...(structural?[structural]:[]),...work);
 }
 function addEvidence(agentId,skill,bucket,{kind,xp,tick,sourceAgentId=null,action=null,targetId=null}){
   const id=`skill:${agentId}:${skill}:${kind}:${tick}:${bucket.initialXP+bucket.inheritedXP+bucket.earnedXP+bucket.legacyUnattributedXP}`;
