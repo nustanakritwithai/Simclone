@@ -46,7 +46,7 @@ export function soilShadowForCell(cell,{occupied=false,climate=null}={}){
   const soilType=classifySoilShadow(cell),p=SOIL_PROFILE_PROXY[soilType];
   if(soilType==='none')return Object.freeze({
     soilType,active:false,depth:0,porosity:0,fieldCapacity:0,organicMatter:0,nutrient:0,
-    moistureComfort:0,compaction:0,salinity:0,acidityStress:0,health:0,fertility:0
+    moistureComfort:0,temperatureComfort:0,compaction:0,salinity:0,acidityStress:0,health:0,fertility:0
   });
   const m=clamp(cell.moisture??.5),terrain=cell.terrainType;
   const moistureComfort=clamp(1-Math.abs(m-p.moistureOpt)/Math.max(p.moistureWidth,Number.EPSILON));
