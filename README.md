@@ -1,16 +1,29 @@
 # Simclone — Autonomous Clone World
 
-**Historical Identity 0.3.6 candidate** — preserve ancestry while living generations continue beyond the old 200-person history cap. Exact candidate and main Actions determine release status.
+**Knowledge Continuity 1** adds personal evidence revision, an opt-in local-resource planner, and a bounded cultural archive to the existing deterministic colony simulation. Exact branch and main GitHub Actions runs determine verification and deployment; this page is not a claim that the whole master roadmap is complete.
 
 Play: https://nustanakritwithai.github.io/Simclone/
 
-People live, work, inherit skills and die. Dead identities can move into a bounded archive without losing parent/generation, death facts, skills or retained memories. The roster searches both living and historical people. Temporary decision-score traces are omitted on archival and labelled honestly. This is not mentor teaching or a cultural archive.
+## Try the new gameplay
 
-The living limit remains min(housing,36); retained history is separately capped at 1024 with character budgets. Birth cost, four-year pacing, parent cooldown and 35% XP inheritance stay unchanged. Manual cloning creates an adult, autonomous birth creates a child.
+Open the food summary and select **ใช้ความรู้ส่วนตัว**. People can use nearby resource observations and their own remembered locations, but must visit a remembered location before treating its remote contents as available. Exploration can beat waiting idle; actual travel and survival interruptions still apply.
 
-Save schema 0.3.0 explicitly migrates 0.1.0 and 0.2.0, preserving old lifecycle evidence and unknown death facts. Storage key remains simclone:world:v1. Export a backup before upgrading; the new save schema is not readable by old engines.
+In the same panel, **สร้างคลัง** upgrades the existing camp for **wood 6 + stone 2**. People within four cells can publish personally confirmed knowledge or read stored claims. Automatic publication/reading performs at most one successful operation every 120 simulation ticks and can be paused. The Knowledge inspector provides explicit verification and publication controls.
+
+Reading does not grant XP or confirm a claim. Stored knowledge can outlive its writer. Empty resources are stale, not evidence that a messenger lied. Original discovery and sender identity remain attributable after re-observation.
+
+## Compatibility and boundaries
+
+Engine/UI and the base save format remain `0.5.0`; storage key remains `simclone:world:v1`. The optional planner and culture records have their own explicit schema identifiers. Existing saves keep the legacy resource-planning policy until the player opts in; the archive is not created or paid for silently. Export a backup before changing releases, and do not use older engines to continue worlds with these extensions.
+
+The living limit remains 36, retained identity limit 1024, archive knowledge limit 16 publications with three prior revisions per entry. This is finite storage, not an unlimited-history claim. Shared stock and navigation terrain are still public simulation information. Private terrain memory, social factions, complete markets, full replay, an LLM runtime and the full V1.0/V2.0 game are not claimed.
+
+Kingdom K5 labor scoring is active; K1 profession/career records are real, but the other imported economic projections remain shadow/read-only. WorldSim WM4.1 remains the resource-regeneration writer with the original food cadence. WM4.3 calibration and Formula Lab do not activate a new food formula. Rust crafting/stations are separate pending integrations.
+
+## Verify
 
 ```sh
+node scripts/pin-assets.mjs  # after changing any src/*.mjs file
 npm test
 npm run test:survival
 npm run test:lifecycle
@@ -21,8 +34,6 @@ python tests/navigation-smoke.py
 python tests/survival-smoke.py
 ```
 
-Continuity includes the old 120-year proof and five untouched 1800-year worlds. Navigation includes separately labelled offline and real HTTP/native-storage tests. A blocked local HTTP environment is UNKNOWN, not native persistence PASS. CI/mobile emulation is not physical Android or public Pages browser verification.
+Node and Python are required; browser checks also need Playwright and Chromium. `npm test` includes a separate five-seed 120-year knowledge/archive proof, not a replacement for the original 120/1800-year baseline proofs. The offline fixture loads each source module once through an import map and explicitly doubles Storage. Native HTTP/storage/restart tests remain a separately labelled scope; a policy-blocked environment is UNKNOWN, not PASS. Physical Android and the public website require independent observation.
 
-[Status](docs/STATUS.md) · [Contract](docs/HISTORY_LIMITS_0.3.5.md) · [Evidence](docs/verification/history-0.3.6.json) · [Next steps](docs/NEXT_STEPS.md) · [Master plan](GAME_PLAN.md)
-
-Finite storage still stops new births eventually. Imported-age cohorts, device performance, knowledge transfer, social systems and full replay remain separate gates. V1.0 is not claimed.
+[Status](docs/STATUS.md) · [Knowledge contract](docs/KNOWLEDGE_CONTINUITY_1.md) · [Next gates](docs/NEXT_STEPS.md) · [Master vision](GAME_PLAN.md)

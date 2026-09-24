@@ -1,3 +1,6 @@
+import {cultureCommand,stepCulture,validateCulture} from './cultural-archive.mjs?v=0.5.0';
+import {setPlanningPolicy,personalResourceCandidates,personalExplorationTarget,rememberPlanSelection,finishPersonalExploration,recordPlanProduction,validatePersonalPlanning} from './personal-planning.mjs?v=0.5.0';
+import {verifyResourceKnowledge,ageKnowledge} from './knowledge-revision.mjs?v=0.5.0';
 /** Simclone 0.5.0 — evidence-backed personal knowledge over skill provenance. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
   skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs?v=0.5.0';
@@ -94,6 +97,8 @@ export const capacity = s => s.buildings.filter(b=>b.complete).length*6;
 export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){
+  const cultural=cultureCommand(s,type,data);if(cultural)return cultural;
+  if(type==='SET_PLANNING_POLICY')return setPlanningPolicy(s,data.policy);
   if(type==='CLONE'){
     const parent=s.agents.find(a=>a.id===data.parentId&&a.alive);
     if(!parent)return {ok:false,message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
@@ -105,6 +110,16 @@ export function command(s,type,data={}){
     if(!compactRetired(s).ok)return {ok:false,reason:'history-storage',message:'เก็บประวัติเพิ่มไม่ได้ · ไม่หักทรัพยากรและไม่ลบประวัติเดิม'};
     s.stock.food-=8;s.stock.wood-=4;s.stats.cloned++;
     const a=createAgent(s,parent);return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
+  }
+  if(type==='VERIFY_KNOWLEDGE'){
+    const result=verifyResourceKnowledge(s,data.agentId,data.key);
+    const messages={actor:'เลือกผู้ตรวจสอบที่ยังมีชีวิต',knowledge:'ตัวละครยังไม่เคยรับรู้ข้อมูลนี้',
+      'out-of-range':'ต้องอยู่ห่างจากตำแหน่งที่รู้ไม่เกิน 4 ช่อง',
+      'locally-observed':'ตรวจพบแหล่งทรัพยากรแล้ว · ยืนยันด้วยการสังเกตตรง',
+      'temporarily-depleted':'แหล่งนี้หมดชั่วคราว · ข้อมูลเก่า ไม่ได้แปลว่าผู้ส่งโกหก',
+      'not-at-observed-location':'ตรวจตำแหน่งนี้แล้ว ไม่พบแหล่งที่ระบุ',
+      'different-resource':'สิ่งที่พบไม่ตรงกับข้อมูลเดิม'};
+    return {...result,message:messages[result.reason]??'ตรวจสอบข้อมูลไม่ได้'};
   }
   if(type==='SHARE_KNOWLEDGE'){
     const sender=s.agents.find(a=>a.id===data.fromId&&a.alive);
@@ -142,9 +157,13 @@ function candidates(s,a,book,field){
   const homes=s.buildings.filter(b=>b.complete&&routeDistance(field,b)>=0).sort(compare);
   const home=homes[0];
   function add(kind,target,base,need=0,goal=0,status='candidate',extra={}){
-    const travel=routeDistance(field,target),skill=SKILLS.includes(kind)?level(a.skills[kind])*3:0;
+    const travel=routeDistance(field,target),skillKind=extra.purposeKind??kind,skill=SKILLS.includes(skillKind)?level(a.skills[skillKind])*3:0;
     const laborMarket=Number(extra.laborAuthority?.bonus??0);
-    const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(travel*.7),...(laborMarket?{laborMarket}: {})};
+    // Information-seeking must outrank doing nothing even when its waypoint is far.
+    // Only the optional personal planner bounds this soft cost; execution still
+    // pays the full route and hunger/energy interruptions remain authoritative.
+    const distanceCost=extra.informationSeeking?Math.min(travel,8):travel;
+    const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(distanceCost*.7),...(laborMarket?{laborMarket}: {})};
     out.push({kind,targetId:target.id??null,x:target.x,y:target.y,
       score:Object.values(factors).reduce((sum,v)=>sum+v,0),factors,travelSteps:Math.max(0,travel),
       status:travel<0?'no-path':status,...extra});
@@ -156,16 +175,17 @@ function candidates(s,a,book,field){
     add('REST',fieldRest?a:home,0,(100-a.energy)*1.2+(a.energy<RULES.exhausted?80:0),0,'candidate',{fieldRest});
   }
   for(const [kind,type] of Object.entries(RESOURCE_ACTIONS)){
-    const all=s.nodes.filter(n=>n.type===type&&n.amount>0);
+    const all=personalResourceCandidates(s,a,type);
     const reachable=all.filter(n=>routeDistance(field,n)>=0).sort(compare);
-    const available=reachable.filter(n=>!book.nodes.has(n.id));
+    const available=reachable.filter(n=>n.perception==='memory'||!book.nodes.has(n.id));
     const target=available[0]??reachable[0]??all[0];if(!target)continue;
     const hungerBonus=kind==='FORAGE'&&a.satiety<RULES.hungry&&freeFood<=0?210:0;
     const shortage=projected[type]<targets[type]/2?40:18;
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind,resourceType:type,projected,targets});
     const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock:s.stock,unfinished:s.buildings.filter(b=>!b.complete).length,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
     const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
-    add(kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority});
+    add(target.perception==='memory'?'EXPLORE':kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority,
+      ...(target.perception?{purposeKind:kind,perception:target.perception,...(target.knowledgeKey?{knowledgeKey:target.knowledgeKey}:{})}: {})});
   }
   for(const b of s.buildings.filter(b=>!b.complete)){
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind:'BUILD',scarcityOverride:18});
@@ -173,7 +193,8 @@ function candidates(s,a,book,field){
     add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved',{kingdomUtility:kingdom,laborAuthority});
   }
   const tx=5+(a.id*7+Math.floor(s.tick/40))%13,ty=5+(a.id*3+Math.floor(s.tick/60))%16;
-  add('EXPLORE',{x:tx,y:ty},3);
+  const exploration=personalExplorationTarget(s,a,target=>routeDistance(field,target)>=0);
+  add('EXPLORE',exploration??{x:tx,y:ty},exploration?8:3,0,0,'candidate',exploration?{exploreCursor:exploration.exploreCursor,informationSeeking:true}:{});
   add('IDLE',a,0);
   return out.sort((x,y)=>y.score-x.score||(x.kind<y.kind?-1:x.kind>y.kind?1:0)||(x.targetId??0)-(y.targetId??0));
 }
@@ -183,8 +204,11 @@ function decide(s,a,book){
   for(const c of choices){
     if(c.status!=='candidate')continue;
     a.task={kind:c.kind,targetId:c.targetId,x:c.x,y:c.y,path:routeTo(field,c),work:0,
-      score:c.score,started:s.tick,policy:RULES.jobPolicy,fieldRest:c.fieldRest===true};
+      score:c.score,started:s.tick,policy:RULES.jobPolicy,fieldRest:c.fieldRest===true,
+      ...(c.purposeKind?{purposeKind:c.purposeKind}:{}),...(c.knowledgeKey?{knowledgeKey:c.knowledgeKey}:{}),
+      ...(Number.isInteger(c.exploreCursor)?{exploreCursor:c.exploreCursor}:{})};
     if(!claim(book,s,a)){c.status='reserved';a.task=null;continue;}
+    rememberPlanSelection(s,a,c);
     const career=adoptProfession(a,c.kind,s.tick);
     if(career.changed&&s.tick-(a.lastCareerEventTick??-999)>=60){event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);a.lastCareerEventTick=s.tick;}
     c.status='selected';a.moveTick=0;return;
@@ -212,7 +236,7 @@ function execute(s,a){
     const b=s.buildings.find(b=>b.id===t.targetId);
     if(!b||b.complete){a.task=null;return;}
     b.progress=Math.min(30,b.progress+(.35+level(a.skills.BUILD)*.08)*workRate);
-    if(b.progress>=30){b.complete=true;s.stats.built++;gain(s,a,'BUILD',b.id);event(s,'build',a.name+' สร้างบ้านสำเร็จ · ที่พักเพิ่ม 6 คน',a.id);a.task=null;}
+    if(b.progress>=30){b.complete=true;s.stats.built++;gain(s,a,'BUILD',b.id);recordPlanProduction(s,a,t,1);event(s,'build',a.name+' สร้างบ้านสำเร็จ · ที่พักเพิ่ม 6 คน',a.id);a.task=null;}
   }else if(SKILLS.includes(t.kind)){
     const n=s.nodes.find(n=>n.id===t.targetId);
     if(!n||n.amount<=0){a.task=null;return;}
@@ -226,10 +250,11 @@ function execute(s,a){
         if(meal)a.satiety=clamp(a.satiety+RULES.mealSatiety);
         gain(s,a,t.kind,n.id);
         if(!recordResourceDiscovery(a,n,s.tick,{action:t.kind,amount}))throw new Error('Knowledge evidence write failed');
+        recordPlanProduction(s,a,t,amount);
       }
       a.task=null;
     }
-  }else if(t.work>=6){a.task=null;}
+  }else if(t.work>=6){finishPersonalExploration(s,a,t);a.task=null;}
 }
 function interrupt(s,a){
   const t=a.task;if(!taskValid(s,a))return true;
@@ -249,6 +274,7 @@ export function step(s,count=1){
       if(a.satiety===0)a.hp=clamp(a.hp-.28);
       if(a.hp===0){killAgent(s,a,'starvation');continue;}
       if(shouldDieOfAge(s,a)){killAgent(s,a,'age');continue;}
+      ageKnowledge(a,s.tick);
       if(a.task&&interrupt(s,a)){a.task=null;a.moveTick=0;}
     }
     const {book,rejected}=reservations(s);
@@ -263,6 +289,8 @@ export function step(s,count=1){
       const task=a.task;
       if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
     }
+    const cultural=stepCulture(s);
+    if(cultural)event(s,'knowledge',cultural.message,cultural.agentId);
     if(s.tick%DAY_TICKS===0){
       attemptAutonomousBirth(s);
       event(s,'day','เริ่มวันที่ '+day(s)+' · ประชากร '+living(s).length+' คน · อาหาร '+s.stock.food);
@@ -338,6 +366,8 @@ export function validate(s){
   if(!Array.isArray(s.events)||s.events.length>120||s.events.some(e=>typeof e.text!=='string'||!finite(e.tick)||!finite(e.id)))bad('Events');
   if(!s.stats||['gathered','built','cloned'].some(k=>!finite(s.stats[k])||s.stats[k]<0))bad('Stats');
   if(!Number.isInteger(s.nextAgent)||s.nextAgent<=Math.max(...ids)||!Number.isInteger(s.nextEvent)||!Number.isInteger(s.nextBuilding))bad('Counters');
+  for(const e of validatePersonalPlanning(s))bad(e);
+  for(const e of validateCulture(s))bad(e);
   return errors;
 }
 function deathCauseFromText(text){

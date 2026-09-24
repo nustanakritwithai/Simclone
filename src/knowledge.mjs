@@ -55,14 +55,16 @@ export function recordResourceDiscovery(agent,node,tick,{action=null,amount=null
   if(!ensure(agent)||!agent.alive||!node||!Number.isInteger(node.id)||!['food','wood','stone'].includes(node.type)||
     !Number.isInteger(node.x)||!Number.isInteger(node.y)||!validTick(tick))return null;
   const key=`resource:${node.id}`,evidenceId=`know:obs:${agent.id}:${node.id}:${tick}`;
+  const previous=agent.knowledgeState.beliefs.find(b=>b.key===key);
+  const originEvidenceId=previous?.originEvidenceId??evidenceId;
   const evidence=addEvidence(agent,{
-    evidenceId,type:'observation',ownerAgentId:agent.id,sourceAgentId:null,tick,key,originEvidenceId:evidenceId
+    evidenceId,type:'observation',ownerAgentId:agent.id,sourceAgentId:null,tick,key,originEvidenceId
   });
   const value={resourceId:node.id,type:node.type,x:node.x,y:node.y};
   const belief=addBelief(agent,{
     beliefId:`belief:${agent.id}:${key}`,key,value,status:BELIEF_STATUS.CONFIRMED,confidence:1,
-    sourceKind:'direct',sourceAgentId:null,originEvidenceId:evidenceId,evidenceIds:[evidenceId],
-    observedTick:tick,receivedTick:null
+    sourceKind:'direct',sourceAgentId:previous?.sourceAgentId??null,originEvidenceId,evidenceIds:[evidenceId],
+    observedTick:tick,receivedTick:previous?.receivedTick??null
   });
   addEpisode(agent,{
     episodeId:`episode:${agent.id}:discovery:${node.id}`,tick,kind:'discovery',
