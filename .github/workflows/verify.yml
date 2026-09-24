@@ -13,7 +13,8 @@ permissions:
 
 jobs:
   verify:
-    timeout-minutes: 10
+    # Keep the entire long-run and browser suite; allow runner-speed variation.
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -48,7 +49,7 @@ jobs:
         run: python tests/ui-smoke.py
 
       - name: Verify navigation and save recovery offline
-        run: python tests/navigation-smoke.py
+        run: npm run test:native && python tests/navigation-smoke.py
 
       - name: Verify survival UI offline
         run: python tests/survival-smoke.py
