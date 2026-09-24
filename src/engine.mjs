@@ -8,7 +8,6 @@ import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenan
 import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,recordResourceDiscovery,shareKnowledge,withinKnowledgeRange,validateKnowledgeState,activeKnowledge} from './knowledge.mjs?v=0.5.0';
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
-import {WORLD_MAP_VERSION,generateWorldMap,legacyGameplayTiles,legacyResourceNodes,nearestWalkable,cellAt,validateWorldMap} from './worldsim-map.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
@@ -70,10 +69,22 @@ function killAgent(s,a,cause){
   event(s,'death',text,a.id);return true;
 }
 export function createWorld(seed=230926){
-  const worldMap=generateWorldMap(seed);
-  const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,
-    worldMapVersion:WORLD_MAP_VERSION,worldMap,tiles:legacyGameplayTiles(seed),nodes:legacyResourceNodes(seed),agents:[],events:[],
+  const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
+  let nid=1;
+  for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
+    const river=20+Math.round(Math.sin(y*.26)*2), wet=x>=river&&x<river+3;
+    const bridge=wet&&(y===13||y===14);
+    const road=(Math.abs(y-13)<1&&x>6&&x<27)||(Math.abs(x-11)<1&&y>7&&y<18);
+    s.tiles.push(bridge?'bridge':wet?'water':road?'path':'grass');
+    const r=rng(s),inCamp=x>=7&&x<=15&&y>=8&&y<=17;
+    if(!wet&&!road&&!inCamp&&r<.23){
+      const type=r<.14?'wood':r<.19?'food':'stone';
+      s.nodes.push({id:nid++,type,x,y,amount:type==='stone'?70:35,max:type==='stone'?70:35});
+    }
+  }
+  for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]])
+    s.nodes.push({id:nid++,type,x,y,amount:45,max:45});
   const original=createAgent(s,null);for(let i=0;i<5;i++)createAgent(s,original,true);
   return s;
 }
@@ -109,8 +120,8 @@ export function command(s,type,data={}){
     return {ok:true,message:'ถ่ายทอดความรู้ให้ '+receiver.name+' แล้ว',fromId:sender.id,toId:receiver.id,key:data.key};
   }
   if(type==='BUILD'){
-    const {x,y}=data,terrain=cellAt(s.worldMap,x,y)?.terrainType;
-    if(!walkable(s,x,y)||!['grass','sand'].includes(terrain))return {ok:false,message:'วางบ้านบนพื้นโล่ง grass/sand เท่านั้น'};
+    const {x,y}=data;
+    if(!walkable(s,x,y)||tileAt(s,x,y)!=='grass')return {ok:false,message:'วางบ้านบนพื้นหญ้าที่ว่างเท่านั้น'};
     if(s.buildings.some(b=>distance(b,{x,y})<2)||s.nodes.some(n=>n.x===x&&n.y===y))return {ok:false,message:'พื้นที่นี้มีสิ่งปลูกสร้างหรือทรัพยากรอยู่'};
     if(s.buildings.length>=12)return {ok:false,message:'ต้นแบบนี้รองรับสิ่งปลูกสร้าง 12 แห่ง'};
     if(s.stock.wood<12||s.stock.stone<6)return {ok:false,message:'ต้องมีไม้ 12 และหิน 6'};
@@ -260,10 +271,7 @@ export function step(s,count=1){
   return s;
 }
 export function serialize(s){
-  // WM1 terrain/climate baseline is deterministic from seed and is regenerated on restore.
-  // Do not spend the bounded history budget storing the same static physical map every save.
-  const snapshot={...s};delete snapshot.worldMap;
-  const text=JSON.stringify(snapshot);
+  const text=JSON.stringify(s);
   if(text.length>HISTORY_LIMITS.maxSaveCharacters)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป · ไม่เขียนทับเซฟเดิม');
   return text;
 }
@@ -275,7 +283,6 @@ export function validate(s){
   if(!Array.isArray(s.archive)||s.archive.length>HISTORY_LIMITS.maxRetained)return ['Archive'];
   if(JSON.stringify(s.archive).length>HISTORY_LIMITS.maxArchiveCharacters)bad('Archive size');
   if(!Number.isInteger(s.tick)||s.tick<0||!Number.isInteger(s.rng)||!Number.isInteger(s.seed))bad('Clock/seed');
-  if(s.worldMapVersion!==WORLD_MAP_VERSION||validateWorldMap(s.worldMap).length)return ['World map'];
   if(!Array.isArray(s.tiles)||s.tiles.length!==SIZE.w*SIZE.h||s.tiles.some(t=>!['grass','water','path','bridge'].includes(t)))return ['Terrain'];
   if(!s.stock||['food','wood','stone'].some(k=>!finite(s.stock[k])||s.stock[k]<0||s.stock[k]>999))bad('Inventory');
   if(!Array.isArray(s.agents)||s.agents.length>HISTORY_LIMITS.maxImportedHotRecords||retainedCount(s)<1||retainedCount(s)>HISTORY_LIMITS.maxRetained)return ['Agent count'];
@@ -380,44 +387,18 @@ function migrateKnowledge(s){
   for(const a of allPeople(s))if(!a.knowledgeState)a.knowledgeState=createKnowledgeState();
   return s;
 }
-function migrateWorldMap(s){
-  if(s?.worldMapVersion===WORLD_MAP_VERSION&&validateWorldMap(s.worldMap).length===0)return s;
-  if(!Number.isInteger(s?.seed))return s;
-  // Current saves intentionally omit the deterministic static map to preserve history budget.
-  if(s.worldMapVersion===WORLD_MAP_VERSION&&s.worldMap===undefined){
-    const worldMap=generateWorldMap(s.seed);s.worldMap=worldMap;s.tiles=legacyGameplayTiles(s.seed);return s;
-  }
-  const worldMap=generateWorldMap(s.seed);
-  s.worldMapVersion=WORLD_MAP_VERSION;s.worldMap=worldMap;s.tiles=legacyGameplayTiles(s.seed);
-  const relocate=obj=>{
-    if(!obj||!Number.isInteger(obj.x)||!Number.isInteger(obj.y))return;
-    const cell=cellAt(worldMap,obj.x,obj.y);
-    if(cell&&cell.terrainType!=='deepWater'&&cell.terrainType!=='shallowWater')return;
-    const p=nearestWalkable(worldMap,{x:obj.x,y:obj.y});if(p){obj.x=p.x;obj.y=p.y;}
-  };
-  for(const a of [...(s.agents??[]),...(s.archive??[])])relocate(a);
-  for(const b of s.buildings??[])relocate(b);
-  for(const n of s.nodes??[]){relocate(n);const c=cellAt(worldMap,n.x,n.y);if(c)n.worldTerrain=c.terrainType;}
-  if(!Array.isArray(s.nodes)||!s.nodes.length)s.nodes=resourceNodesFromWorldMap(worldMap);
-  if(Array.isArray(s.events)){
-    const id=Number.isInteger(s.nextEvent)?s.nextEvent++:1;
-    s.events.push({id,tick:s.tick??0,type:'world',text:'อัปเกรดโลกเป็น WorldSim physical map',agentId:null});
-    if(s.events.length>120)s.events.shift();
-  }
-  return s;
-}
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
   // Current schema must contain its own provenance/archive/history metadata; absence is corruption.
-  if(sourceVersion===SAVE_VERSION){migrateWorldMap(s);return s;}
+  if(sourceVersion===SAVE_VERSION)return s;
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
-    migrateKnowledge(s);migrateWorldMap(s);s.version=SAVE_VERSION;return s;
+    migrateKnowledge(s);s.version=SAVE_VERSION;return s;
   }
   if(sourceVersion===HISTORY_ARCHIVE_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
-    migrateSkillProvenance(s);migrateKnowledge(s);migrateWorldMap(s);s.version=SAVE_VERSION;return s;
+    migrateSkillProvenance(s);migrateKnowledge(s);s.version=SAVE_VERSION;return s;
   }
   if(![LEGACY_SAVE_VERSION,DEATH_HISTORY_SAVE_VERSION].includes(sourceVersion))return s;
   if(s.archive!==undefined||s.archiveVersion!==undefined)throw new Error('Unexpected archive in legacy save');
@@ -430,7 +411,7 @@ function migrateSave(s){
   if(Array.isArray(s.agents))for(const a of s.agents)if(a?.alive===false&&a.hp===0){a.task=null;a.moveTick=0;}
   migrateHistory(s,sourceVersion);
   s.archiveVersion=ARCHIVE_VERSION;s.archive=[];
-  migrateSkillProvenance(s);migrateKnowledge(s);migrateWorldMap(s);s.version=SAVE_VERSION;
+  migrateSkillProvenance(s);migrateKnowledge(s);s.version=SAVE_VERSION;
   return s;
 }
 export function restore(text){
