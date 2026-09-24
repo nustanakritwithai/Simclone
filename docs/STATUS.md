@@ -76,3 +76,19 @@ Imported behavior:
 Authority remains with Simclone: existing task ranking, task eligibility, path reachability, reservations, lifecycle, stock mutation, skill provenance and personal knowledge are unchanged owners of their rules. This shadow-first boundary is intentional after an authoritative K1 attempt changed the 0.3.5 pre-archive continuity baseline; the gate was kept intact rather than rewritten. Existing 0.5.0 saves may omit profession/career; those fields are optional and are initialized deterministically when the agent next plans. Save version therefore remains 0.5.0 for this K1 candidate.
 
 Verification is provided by `tests/kingdom-utility.test.mjs` plus the existing full regression suite. This is occupation/scarcity utility only, not the later Kingdom economy/faction/governance import.
+
+
+## Kingdom Sandbox economy import — K2 shadow candidate
+
+K2 extracts the donor settlement-economy signals without giving them simulation authority yet.
+
+Implemented as a read-only projection:
+
+- Kingdom village demand adapted to Simclone goods: food, wood and stone (donor ore);
+- scarcity ratio with the donor 0.25–6 bounds;
+- labor premium target with the donor 1.0–1.8 bounds;
+- current worker specialization counts/shares and missing high-pressure roles;
+- unfinished construction produces a builder pressure signal;
+- the Survival dialog exposes these values as `Kingdom K2 · shadow economy`.
+
+K2 does **not** add money, prices, treasury, wages, trade, caravans, decay, tax, factions or migration. Calling the projection is required to be read-only and must not affect seed/replay/continuity. Authority remains with existing Simclone survival scoring while K1/K2 shadow evidence is verified.
