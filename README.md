@@ -1,52 +1,26 @@
 # Simclone — Autonomous Clone World
 
-**Age Death 0.3.3** — autonomous birth, growth, stage-dependent work and deterministic age death.
+**Generation Continuity 0.3.4** — autonomous birth, growth, work and deterministic age death.
 
 Play: https://nustanakritwithai.github.io/Simclone/
 
-Plan: https://nustanakritwithai.github.io/Simclone/plan.html
+Births are at least four simulated years apart when conditions allow. Same-parent cooldown is four years. Birth costs Food 8 + Wood 4 and protects survival reserves. Manual Clone remains a separate Influence action that creates an age-18 adult; automatic birth creates an age-zero child.
 
-## Current lifecycle
+The release gate uses five fresh seeded worlds for 120 years with no player Clone commands, real aging/death, and saved checkpoint continuation. It requires productive living descendants after the initial six die. This is NOT unlimited-time or full V1.0 proof.
 
-- 360 ticks = 1 biological year.
-- CHILD 0–15: no productive resource/build jobs.
-- ADULT 16–54: 100% productive work.
-- ELDER 55+: 75% productive work.
-- Deterministic lifespan: 78–92 years.
-- Autonomous birth: max 1/year, same-parent cooldown 4 years.
-- Birth cost: Food 8 + Wood 4, with survival reserves protected.
-- Dead agents stop actions and release all task-derived reservations.
-- Manual CLONE remains a separate player Influence action.
-
-## Verification
-
-V0.3.3 candidate:
-
-- 81/81 unit/asset PASS.
-- 18/18 Survival regression SAT.
-- 5/5 Autonomous Birth proof SAT.
-- 5/5 Age Death/Cleanup proof SAT over 90 simulated years.
-- 0 starvation deaths in the age-death proof.
-- Offline Chromium: 89 checks PASS.
-
-This does not yet prove multi-generation continuity after the original generation dies. That is V0.3.4.
-
-## Development
+Save schema stays 0.2.0, with legacy 0.1.0 migration and `simclone:world:v1` storage key unchanged. Existing ages are preserved, not silently reset.
 
 ```sh
 npm test
 npm run test:survival
 npm run test:lifecycle
 npm run test:death
+npm run test:continuity
 python tests/ui-smoke.py
 python tests/navigation-smoke.py
 python tests/survival-smoke.py
 ```
 
-- [Current status](docs/STATUS.md)
-- [Lifecycle V0.3 contract](docs/LIFECYCLE_0.3.0.md)
-- [Survival 0.2 rules/evidence](docs/SURVIVAL_0.2.0.md)
-- [Master roadmap](GAME_PLAN.md)
-- [Agent handoff](AGENTS.md)
+[Current status](docs/STATUS.md) · [Release contract](docs/LIFECYCLE_0.3.4.md) · [Verification](docs/verification/lifecycle-0.3.4.json) · [Next steps](docs/NEXT_STEPS.md) · [Master roadmap](GAME_PLAN.md)
 
-Next: **V0.3.4 Generation Continuity Proof**.
+Offline Chromium uses an explicit Storage double. Physical Android/native browser persistence and full V1.0 social/knowledge/replay requirements remain separate gates. The 200-agent history cap still limits very long runs.
