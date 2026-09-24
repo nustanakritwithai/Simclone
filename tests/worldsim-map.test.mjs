@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {WORLD_MAP_VERSION,generateWorldMap,cellAt,terrainWalkable,compatibilityTiles,nearestWalkable,resourceNodesFromWorldMap,worldMapSummary} from '../src/worldsim-map.mjs';
+import {WORLD_MAP_VERSION,generateWorldMap,cellAt,eachCell,terrainWalkable,compatibilityTiles,nearestWalkable,resourceNodesFromWorldMap,worldMapSummary} from '../src/worldsim-map.mjs';
 
 test('full WorldSim map is deterministic and bounded',()=>{
  const a=generateWorldMap(230926),b=generateWorldMap(230926);assert.equal(a.version,WORLD_MAP_VERSION);
- assert.equal(a.cells.length,780);assert.deepEqual(a,b);
+ assert.equal(a.terrain.length,780);assert.deepEqual(a,b);
 });
 test('map exposes all WorldSim terrain families needed by Simclone',()=>{
- const m=generateWorldMap(230926),types=new Set(m.cells.map(c=>c.terrainType));
+ const m=generateWorldMap(230926),types=new Set(eachCell(m).map(c=>c.terrainType));
  for(const t of ['deepWater','shallowWater','sand','grass','forest','rock'])assert.ok(types.has(t),t);
 });
 test('central settlement basin is always walkable',()=>{
@@ -19,7 +19,7 @@ test('compatibility tiles preserve one-cell-per-world-cell mapping',()=>{
  assert.ok(tiles.every(t=>t==='grass'||t==='water'));
 });
 test('nearest walkable relocation is deterministic',()=>{
- const m=generateWorldMap(123),water=m.cells.find(c=>!terrainWalkable(c.terrainType));
+ const m=generateWorldMap(123),water=eachCell(m).find(c=>!terrainWalkable(c.terrainType));
  assert.deepEqual(nearestWalkable(m,{x:water.x,y:water.y}),nearestWalkable(m,{x:water.x,y:water.y}));
 });
 test('resource generation follows terrain and is deterministic',()=>{
