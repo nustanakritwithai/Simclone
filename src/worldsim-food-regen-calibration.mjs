@@ -56,3 +56,6 @@ export function calibrateFoodEcology(
     rows:Object.freeze(rows)
   });
 }
+
+// Public factory name used by the observation UI; keep the original API stable.
+export const createFoodEcologyCalibration=calibrateFoodEcology;
