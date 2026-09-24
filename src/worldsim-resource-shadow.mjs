@@ -17,10 +17,15 @@ export function resourceSuitabilityForCell(cell){
 
   // Proxy version of the Living World limiting-factor idea.
   // WM3.0 intentionally does not invent nutrients/soil-health/temperature authority.
-  const food=foodTerrain*bell(moisture,.58,.48)*(1-elevation*.28);
-  const wood=woodTerrain*bell(moisture,.62,.55)*(0.7+elevation*.15);
-  const stone=stoneTerrain*(0.55+elevation*.45)*(0.9+Math.max(0,.45-moisture)*.2);
-  return Object.freeze({food:+clamp(food).toFixed(4),wood:+clamp(wood).toFixed(4),stone:+clamp(stone).toFixed(4)});
+  let food=foodTerrain*bell(moisture,.58,.48)*(1-elevation*.28);
+  let wood=woodTerrain*bell(moisture,.62,.55)*(0.7+elevation*.15);
+  let stone=stoneTerrain*(0.55+elevation*.45)*(0.9+Math.max(0,.45-moisture)*.2);
+  // Preserve biome specialization even under poor local conditions.
+  if(t==='grass')wood=Math.min(wood,food*.7);
+  if(t==='forest')food=Math.min(food,wood*.85);
+  if(t==='rock')food=Math.min(food,stone*.25);
+  food=clamp(food);wood=clamp(wood);stone=clamp(stone);
+  return Object.freeze({food:+food.toFixed(4),wood:+wood.toFixed(4),stone:+stone.toFixed(4)});
 }
 
 export function createResourceEcologyShadow(state){
