@@ -69,7 +69,7 @@ initialXP + inheritedXP + earnedXP + legacyUnattributedXP === skills[skill]
 
 ### Evidence
 
-Evidence entries are bounded and explain recent/structural provenance:
+Evidence entries are bounded and explain structural origin plus the latest productive outcome. The authoritative XP counters remain exact even when older work evidence is compacted:
 
 ```js
 {
@@ -83,7 +83,7 @@ Evidence entries are bounded and explain recent/structural provenance:
 }
 ```
 
-The summary counters are authoritative. Evidence may be bounded/compacted, but trimming evidence must never change XP totals.
+The summary counters are authoritative. Each skill keeps at most 2 evidence records: one structural `initial`/`inheritance` record when applicable, plus the latest `work` record. Trimming older work evidence must never change XP totals. This bound is required because provenance is retained across historical identities.
 
 ## New-world rules
 
@@ -183,3 +183,8 @@ python tests/ui-smoke.py
 python tests/navigation-smoke.py
 python tests/survival-smoke.py
 ```
+
+
+## Storage budget note
+
+Historical Identity 0.3.6 used a 1,000,000-character archive budget before per-skill provenance existed. V0.4 raises the archive-only character budget to 1,800,000 while keeping the whole-save guard at 2,000,000 characters. The evidence ring is reduced to two records per skill so provenance cannot grow linearly with every successful work action. The retained-identity count remains 1024 and may still be blocked earlier by the finite archive/save budget; no unlimited-history claim is made.
