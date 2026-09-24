@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,step,serialize} from '../src/engine.mjs';
+import {K6_RESOURCE_REGEN} from '../src/worldsim-resource-regen-shadow.mjs';
 import {RESOURCE_REGEN_AUTHORITY,applyWorldResourceRegeneration} from '../src/worldsim-resource-authority.mjs';
 
 function legacyOracle(s){
@@ -13,10 +14,16 @@ function fixture(tick){
   return s;
 }
 
-test('WM4.1 policy is exact K6 parity',()=>{
-  assert.deepEqual(RESOURCE_REGEN_AUTHORITY.food,{periodTicks:120,amount:3});
-  assert.deepEqual(RESOURCE_REGEN_AUTHORITY.wood,{periodTicks:720,amount:1});
-  assert.deepEqual(RESOURCE_REGEN_AUTHORITY.stone,{periodTicks:null,amount:0});
+test('WM4.1 policy is exact K6 parity from one shared contract',()=>{
+  assert.equal(RESOURCE_REGEN_AUTHORITY.food,K6_RESOURCE_REGEN.food);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.wood,K6_RESOURCE_REGEN.wood);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.stone,K6_RESOURCE_REGEN.stone);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.food.periodTicks,120);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.food.amount,3);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.wood.periodTicks,720);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.wood.amount,1);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.stone.periodTicks,null);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.stone.amount,0);
   assert.equal(RESOURCE_REGEN_AUTHORITY.behavior,'k6-parity');
 });
 
