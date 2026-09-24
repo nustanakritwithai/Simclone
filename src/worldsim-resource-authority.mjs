@@ -1,3 +1,5 @@
+import {K6_RESOURCE_REGEN} from './worldsim-resource-regen-shadow.mjs?v=0.5.0';
+
 /** WM4.1 — authoritative resource-regeneration parity gate.
  * Ownership moves to WorldSim while behavior stays byte-for-byte equivalent
  * to the previous K6 inline schedule. No ecology multiplier is active here.
@@ -6,9 +8,9 @@ export const RESOURCE_REGEN_AUTHORITY_VERSION='wm4.1-regen-parity-1';
 export const RESOURCE_REGEN_AUTHORITY=Object.freeze({
   writer:'worldsim-wm4.1',
   behavior:'k6-parity',
-  food:Object.freeze({periodTicks:120,amount:3}),
-  wood:Object.freeze({periodTicks:720,amount:1}),
-  stone:Object.freeze({periodTicks:null,amount:0})
+  food:K6_RESOURCE_REGEN.food,
+  wood:K6_RESOURCE_REGEN.wood,
+  stone:K6_RESOURCE_REGEN.stone
 });
 
 export function applyWorldResourceRegeneration(state){
