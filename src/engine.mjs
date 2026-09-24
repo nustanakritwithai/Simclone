@@ -6,6 +6,7 @@ import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.5.
 import {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,retentionPlan,compactRetired} from './history.mjs?v=0.5.0';
 import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenance,recordEarnedSkill,validateSkillProvenance} from './skill-provenance.mjs?v=0.5.0';
 import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,recordResourceDiscovery,shareKnowledge,withinKnowledgeRange,validateKnowledgeState,activeKnowledge} from './knowledge.mjs?v=0.5.0';
+import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
@@ -35,11 +36,12 @@ function event(s,type,text,agentId=null) {
 function createAgent(s,parent,initial=false,mode='manual'){
   const id=s.nextAgent++, k=id-1,autonomous=mode==='birth';
   const skills=Object.fromEntries(SKILLS.map(key=>[key,parent?Math.floor(parent.skills[key]*.35):60]));
+  const preference=SKILLS[k%4],profession=professionForAction(preference);
   const skillProvenance=createSkillProvenance(id,skills,{kind:parent?'inheritance':'initial',sourceAgentId:parent?.id??null,tick:s.tick});
   const a={id,name:names[k%names.length]+(k>=names.length?' '+id:''),parentId:parent?.id??null,generation:parent?parent.generation+1:0,
     x:9+k%4,y:11+Math.floor(k/4)%3,hp:100,satiety:85,energy:90,alive:true,death:null,
     appearance:{coat:palette[k%palette.length],skin:['#e5b38a','#c99064','#f1c9a6','#a97050'][k%4],hair:['#302a28','#5e3e2c','#d5ad6f','#312e3b'][k%4],style:k%3},
-    preference:SKILLS[k%4],skills,skillProvenance,knowledgeState:createKnowledgeState(),source:parent?(autonomous?'สืบทอดเมื่อเกิดจาก '+parent.name:'Clone จาก '+parent.name):'ความรู้เริ่มต้นของ Original',
+    preference,profession,professionSinceTick:s.tick,career:[{tick:s.tick,profession}],skills,skillProvenance,knowledgeState:createKnowledgeState(),source:parent?(autonomous?'สืบทอดเมื่อเกิดจาก '+parent.name:'Clone จาก '+parent.name):'ความรู้เริ่มต้นของ Original',
     memory:[],task:null,trace:[],moveTick:0,workDone:0,bornTick:s.tick,life:autonomous?childLife(s.tick):adultLife(s.tick)};
   if(parent){a.x=parent.x;a.y=parent.y;}
   if(initial&&parent){a.x=9+k%4;a.y=10+Math.floor(k/4)*2;a.satiety=65+k*3;a.energy=72+k*3;}
@@ -131,6 +133,7 @@ export function command(s,type,data={}){
 }
 /** One reachable destination per job family; busy nodes never hide a free alternative. */
 function candidates(s,a,book,field){
+  ensureProfession(a,s.tick);
   const out=[],targets=stockTargets(s),projected=plannedStock(s,book),freeFood=s.stock.food-book.meals.size;
   const productive=canPerformProductiveWork(s,a);
   const compare=(x,y)=>routeDistance(field,x)-routeDistance(field,y)||x.id-y.id;
@@ -156,11 +159,14 @@ function candidates(s,a,book,field){
     const target=available[0]??reachable[0]??all[0];if(!target)continue;
     const hungerBonus=kind==='FORAGE'&&a.satiety<RULES.hungry&&freeFood<=0?210:0;
     const shortage=projected[type]<targets[type]/2?40:18;
+    const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind,resourceType:type,projected,targets});
     const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
-    add(kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status);
+    add(kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom});
   }
-  for(const b of s.buildings.filter(b=>!b.complete))
-    add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved');
+  for(const b of s.buildings.filter(b=>!b.complete)){
+    const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind:'BUILD',scarcityOverride:18});
+    add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved',{kingdomUtility:kingdom});
+  }
   const tx=5+(a.id*7+Math.floor(s.tick/40))%13,ty=5+(a.id*3+Math.floor(s.tick/60))%16;
   add('EXPLORE',{x:tx,y:ty},3);
   add('IDLE',a,0);
@@ -174,6 +180,8 @@ function decide(s,a,book){
     a.task={kind:c.kind,targetId:c.targetId,x:c.x,y:c.y,path:routeTo(field,c),work:0,
       score:c.score,started:s.tick,policy:RULES.jobPolicy,fieldRest:c.fieldRest===true};
     if(!claim(book,s,a)){c.status='reserved';a.task=null;continue;}
+    const career=adoptProfession(a,c.kind,s.tick);
+    if(career.changed&&s.tick-(a.lastCareerEventTick??-999)>=60){event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);a.lastCareerEventTick=s.tick;}
     c.status='selected';a.moveTick=0;return;
   }
 }
@@ -285,6 +293,9 @@ export function validate(s){
     if(['hp','satiety','energy'].some(k=>!finite(a[k])||a[k]<0||a[k]>100))bad('Agent needs');
     if(typeof a.alive!=='boolean'||!Number.isInteger(a.generation)||a.generation<0||typeof a.name!=='string'||a.name.length>50)bad('Agent identity');
     if(!a.skills||SKILLS.some(k=>!finite(a.skills[k])||a.skills[k]<0))bad('Skills');
+    if(a.profession!==undefined&&!isKingdomProfession(a.profession))bad('Profession');
+    if(a.professionSinceTick!==undefined&&(!Number.isInteger(a.professionSinceTick)||a.professionSinceTick<0||a.professionSinceTick>s.tick))bad('Profession');
+    if(a.career!==undefined&&(!Array.isArray(a.career)||a.career.length>8||a.career.some(c=>!c||!Number.isInteger(c.tick)||c.tick<0||c.tick>s.tick||!isKingdomProfession(c.profession))))bad('Career');
     for(const e of validateSkillProvenance(a,SKILLS))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
