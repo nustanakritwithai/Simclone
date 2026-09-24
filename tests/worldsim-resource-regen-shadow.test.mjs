@@ -46,3 +46,18 @@ test('observing WM4.0 every tick cannot change deterministic execution',()=>{
   for(let i=0;i<360;i++){createResourceRegenerationShadow(a);step(a);step(b);}
   assert.equal(serialize(a),serialize(b));
 });
+
+
+test('wood boundary is exactly +1 at tick 720 and food remains +3',()=>{
+  const s=createWorld(123);for(const n of s.nodes)n.amount=0;s.tick=720;
+  const x=createResourceRegenerationShadow(s);
+  const food=x.rows.filter(r=>r.type==='food'),wood=x.rows.filter(r=>r.type==='wood');
+  assert.ok(food.every(r=>r.boundaryTick&&r.legacyIncrement===3));
+  assert.ok(wood.every(r=>r.boundaryTick&&r.legacyIncrement===1));
+});
+
+test('full nodes propose zero increment even on a regeneration boundary',()=>{
+  const s=createWorld(456);for(const n of s.nodes)n.amount=n.max;s.tick=720;
+  const x=createResourceRegenerationShadow(s);
+  assert.ok(x.rows.every(r=>r.legacyIncrement===0));
+});
