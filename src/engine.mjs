@@ -109,8 +109,8 @@ export function command(s,type,data={}){
     return {ok:true,message:'ถ่ายทอดความรู้ให้ '+receiver.name+' แล้ว',fromId:sender.id,toId:receiver.id,key:data.key};
   }
   if(type==='BUILD'){
-    const {x,y}=data;
-    if(!walkable(s,x,y)||tileAt(s,x,y)!=='grass')return {ok:false,message:'วางบ้านบนพื้นหญ้าที่ว่างเท่านั้น'};
+    const {x,y}=data,terrain=cellAt(s.worldMap,x,y)?.terrainType;
+    if(!walkable(s,x,y)||!['grass','sand'].includes(terrain))return {ok:false,message:'วางบ้านบนพื้นโล่ง grass/sand เท่านั้น'};
     if(s.buildings.some(b=>distance(b,{x,y})<2)||s.nodes.some(n=>n.x===x&&n.y===y))return {ok:false,message:'พื้นที่นี้มีสิ่งปลูกสร้างหรือทรัพยากรอยู่'};
     if(s.buildings.length>=12)return {ok:false,message:'ต้นแบบนี้รองรับสิ่งปลูกสร้าง 12 แห่ง'};
     if(s.stock.wood<12||s.stock.stone<6)return {ok:false,message:'ต้องมีไม้ 12 และหิน 6'};
