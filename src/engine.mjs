@@ -9,6 +9,7 @@ import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,re
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {WORLD_MAP_VERSION,generateWorldMap,compatibilityTiles,resourceNodesFromWorldMap,nearestWalkable,cellAt,validateWorldMap} from './worldsim-map.mjs?v=0.5.0';
+import {createWorldHydrology,stepWorldHydrology,validateWorldHydrology} from './worldsim-hydrology.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
@@ -72,7 +73,7 @@ function killAgent(s,a,cause){
 export function createWorld(seed=230926){
   const worldMap=generateWorldMap(seed);
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,
-    worldMapVersion:WORLD_MAP_VERSION,worldMap,tiles:compatibilityTiles(worldMap),nodes:resourceNodesFromWorldMap(worldMap),agents:[],events:[],
+    worldMapVersion:WORLD_MAP_VERSION,worldMap,worldHydrology:createWorldHydrology(),tiles:compatibilityTiles(worldMap),nodes:resourceNodesFromWorldMap(worldMap),agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
   const original=createAgent(s,null);for(let i=0;i<5;i++)createAgent(s,original,true);
   return s;
@@ -230,6 +231,7 @@ export function step(s,count=1){
   if(!Number.isInteger(count)||count<0||count>100000)throw new Error('Invalid tick count');
   for(let i=0;i<count;i++){
     s.tick++;
+    stepWorldHydrology(s.worldMap,s.worldHydrology);
     if(s.tick%120===0)for(const n of s.nodes)if(n.type==='food')n.amount=Math.min(n.max,n.amount+3);
     if(s.tick%720===0)for(const n of s.nodes)if(n.type==='wood')n.amount=Math.min(n.max,n.amount+1);
     for(const a of s.agents){
@@ -276,6 +278,7 @@ export function validate(s){
   if(JSON.stringify(s.archive).length>HISTORY_LIMITS.maxArchiveCharacters)bad('Archive size');
   if(!Number.isInteger(s.tick)||s.tick<0||!Number.isInteger(s.rng)||!Number.isInteger(s.seed))bad('Clock/seed');
   if(s.worldMapVersion!==WORLD_MAP_VERSION||validateWorldMap(s.worldMap).length)return ['World map'];
+  if(validateWorldHydrology(s.worldHydrology).length)return ['World hydrology'];
   if(!Array.isArray(s.tiles)||s.tiles.length!==SIZE.w*SIZE.h||s.tiles.some(t=>!['grass','water'].includes(t)))return ['Terrain'];
   if(!s.stock||['food','wood','stone'].some(k=>!finite(s.stock[k])||s.stock[k]<0||s.stock[k]>999))bad('Inventory');
   if(!Array.isArray(s.agents)||s.agents.length>HISTORY_LIMITS.maxImportedHotRecords||retainedCount(s)<1||retainedCount(s)>HISTORY_LIMITS.maxRetained)return ['Agent count'];
@@ -381,14 +384,14 @@ function migrateKnowledge(s){
   return s;
 }
 function migrateWorldMap(s){
-  if(s?.worldMapVersion===WORLD_MAP_VERSION&&validateWorldMap(s.worldMap).length===0)return s;
+  if(s?.worldMapVersion===WORLD_MAP_VERSION&&validateWorldMap(s.worldMap).length===0){if(!s.worldHydrology)s.worldHydrology=createWorldHydrology();return s;}
   if(!Number.isInteger(s?.seed))return s;
   // Current saves intentionally omit the deterministic static map to preserve history budget.
   if(s.worldMapVersion===WORLD_MAP_VERSION&&s.worldMap===undefined){
-    const worldMap=generateWorldMap(s.seed);s.worldMap=worldMap;s.tiles=compatibilityTiles(worldMap);return s;
+    const worldMap=generateWorldMap(s.seed);s.worldMap=worldMap;if(!s.worldHydrology)s.worldHydrology=createWorldHydrology();s.tiles=compatibilityTiles(worldMap);return s;
   }
   const worldMap=generateWorldMap(s.seed);
-  s.worldMapVersion=WORLD_MAP_VERSION;s.worldMap=worldMap;s.tiles=compatibilityTiles(worldMap);
+  s.worldMapVersion=WORLD_MAP_VERSION;s.worldMap=worldMap;s.worldHydrology=createWorldHydrology();s.tiles=compatibilityTiles(worldMap);
   const relocate=obj=>{
     if(!obj||!Number.isInteger(obj.x)||!Number.isInteger(obj.y))return;
     const cell=cellAt(worldMap,obj.x,obj.y);
