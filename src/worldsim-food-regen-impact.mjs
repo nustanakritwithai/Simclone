@@ -17,9 +17,14 @@ export function createFoodRegenerationImpact(state,regen=createResourceRegenerat
     authoritativeWriter:'worldsim-wm4.1'
   }));
   const counts={'very-low':0,low:0,medium:0,high:0};
-  let potential=0,missing=0;
-  for(const r of rows){counts[r.ecologyBand]++;potential+=r.ecologyRegenerationPotential;missing+=r.missing;}
+  let potential=0,missing=0,depletedNodes=0,lowPotentialDepletedNodes=0;
+  for(const r of rows){
+    counts[r.ecologyBand]++;potential+=r.ecologyRegenerationPotential;missing+=r.missing;
+    if(r.missing>0){depletedNodes++;if(r.ecologyRegenerationPotential<.5)lowPotentialDepletedNodes++;}
+  }
   const sorted=[...rows].sort((a,b)=>b.ecologyRegenerationPotential-a.ecologyRegenerationPotential||a.id-b.id);
+  const asc=[...rows].sort((a,b)=>a.ecologyRegenerationPotential-b.ecologyRegenerationPotential||a.id-b.id);
+  const percentile=p=>asc.length?asc[Math.min(asc.length-1,Math.max(0,Math.floor((asc.length-1)*p)))].ecologyRegenerationPotential:0;
   return Object.freeze({
     version:FOOD_REGEN_IMPACT_VERSION,
     authority:Object.freeze({mode:'shadow-only',writer:'worldsim-wm4.1',unitFormula:'none'}),
@@ -28,6 +33,11 @@ export function createFoodRegenerationImpact(state,regen=createResourceRegenerat
       nodes:rows.length,
       averageEcologyPotential:rows.length?+(potential/rows.length).toFixed(4):0,
       totalMissing:missing,
+      depletedNodes,
+      lowPotentialDepletedNodes,
+      p10:+percentile(.10).toFixed(4),
+      p50:+percentile(.50).toFixed(4),
+      p90:+percentile(.90).toFixed(4),
       bands:Object.freeze(counts)
     }),
     highest:Object.freeze(sorted.slice(0,8)),
