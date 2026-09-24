@@ -1,49 +1,74 @@
-# Next build gates — Skill Provenance 0.4.0 candidate
+# Next build gates — Knowledge + Memory 0.5.0 candidate
 
-These are implementation gates, not proof by themselves. The exact candidate and main workflows remain authoritative for release status.
+These are implementation gates, not proof by themselves. Exact candidate and exact main workflows remain authoritative.
 
-## V0.3.5 Phase 1 — Death History + Migration
+## Completed foundations
 
-Implemented in the current 0.3.5 slice under [LIFECYCLE_0.3.5.md](LIFECYCLE_0.3.5.md):
+- V0.3.5 Death History + Migration — immutable death evidence and honest legacy UNKNOWN handling
+- V0.3.6 Historical Identity — bounded retained ancestry separated from the living work set
+- V0.4.0 Skill Provenance — initial/inherited/earned/legacy-unattributed XP with bounded evidence
 
-- immutable death tick/cause/age-at-death for new age and starvation deaths
-- explicit `historyVersion=0.1.0` while world save schema remains 0.2.0
-- evidence-based migration for historical 0.2.0 deaths
-- explicit `legacy-unknown` where retained evidence is insufficient
-- legacy 0.1.0 rule that load-time age-18 adoption is not historical death-age evidence
-- inspector disclosure of known versus unknown death history
-- stable save/load continuation and retained corrupt/unreadable-save protection
+## V0.5.0 — First personal Knowledge + Memory slice
 
-Phase 1 was deployed by main f2edda01af049ca8090f651d84376c29a8f32490, Pages run 35960844010. Its historical schema notes above describe that release, not current save 0.3.0.
+Current candidate under [KNOWLEDGE_MEMORY_0.5.0.md](KNOWLEDGE_MEMORY_0.5.0.md).
 
-## V0.3.5 Phase 2 — Historical identity / limits
+Implemented scope:
 
-Implemented as the 0.3.6 candidate in [HISTORY_LIMITS_0.3.5.md](HISTORY_LIMITS_0.3.5.md). Explicit save 0.3.0 migration, buffered dead archive, shared parent/lineage resolution and bounded 1024 retention replace the old 200-hot-record coupling. Exact candidate/main verification is still required before release. No unlimited history claim.
+- productive FORAGE / WOODCUT / MINE outcome creates direct resource evidence
+- direct resource belief is CONFIRMED
+- explicit engine-mediated share transfers only one selected claim
+- recipient stores the claim as UNVERIFIED with sourceAgentId + originEvidenceId
+- unrelated world nodes do not appear in recipient knowledge
+- knowledge state is bounded and retained through historical archive/save-load
+- 0.4.0 migration creates empty knowledge rather than invented historical discovery
+- Inspector explains direct versus relayed knowledge
 
-## V0.3.5 Phase 3 — Extended proof / persistence
+Release is still gated on exact candidate/main verification.
 
-The 0.3.6 candidate includes five unmodified 1800-year runs crossing the old 200-history boundary. Next add imported-age-cohort cases and evaluate the new full-retention exhaustion path over longer horizons. Do not synthesize new adults to repair extinct saves. Report population minima/extinction, births/deaths, starvation, lineage validity, save size and execution cost rather than only endpoint survivors.
+## V0.5.1 — Verification and belief revision
 
-The candidate adds a separate native HTTP/localStorage/process-restart check to the existing CI navigation entry point. Local HTTP is blocked by administrator policy, so do not infer local PASS; inspect exact CI output. Keep physical Android performance as a separate device test; offline Storage doubles are not evidence for either.
+Add direct re-observation of relayed claims:
 
-Definition of done for the broader V0.3.5 hardening phase: stable death history, lineage resolution across many deaths, deterministic save continuation, retained-history boundary behavior, and measured memory/performance/save-size evidence.
+```text
+UNVERIFIED message claim
+→ recipient reaches/experiences target
+→ CONFIRMED if supported
+→ STALE or REFUTED if contradicted under the defined evidence rule
+```
 
-## V0.4 — Skill provenance before new skill families
+Do not infer dishonesty merely from an outdated resource claim. Time/change and false claims must remain distinguishable.
 
-Implemented as the current candidate under [SKILL_PROVENANCE_0.4.0.md](SKILL_PROVENANCE_0.4.0.md). Keep the existing four skills and their balance. Provenance distinguishes initial/inherited/earned/legacy-unattributed XP; source parent/tick and productive work outcome evidence are bounded and persistent. Old saves remain honest when the historical split cannot be proven.
+## V0.5.2 — Local knowledge affects planning
 
-Release is still gated on exact candidate and exact main verification. Do not call inheritance teaching.
+Replace remaining hidden-global resource choice with a staged boundary:
 
-## V0.5 — First cross-generation Knowledge + Memory slice
+- known/observed resource candidates first
+- exploration when personal knowledge is insufficient
+- direct world validation still occurs at execution
+- no planner access to arbitrary resource nodes solely because they exist in authoritative state
 
-Use AstraLife as a donor for contracts, not as a code dump. Adopt the boundary `Observation + Owned Memory/Belief + Delivered Messages`; world truth stays authoritative and hidden global facts must not leak into cognition.
+Definition of done: two agents with different experience can choose different plans under the same world truth for explainable reasons.
 
-Start with one narrow verified rule tied to existing gameplay. Suggested first rule: a productive resource-work discovery creates evidence-backed personal knowledge; an explicit engine-mediated share transfers that claim to another agent; the recipient stores source/provenance and must not gain unrelated world facts. Then the discoverer dies/is archived and the recipient still resolves the knowledge.
+## V0.6 — Multi-step goals / learning
 
-Keep belief status minimal for this slice (`UNVERIFIED / CONFIRMED / STALE / REFUTED`) and bound evidence/memory from day one. Do not add LLM/provider calls yet.
+Borrow AstraLife's structured plan idea after the knowledge boundary is stable:
 
-Definition of done: discoverer → evidence-backed knowledge → explicit transfer → learner → discoverer archived → knowledge still usable/explainable, with no hidden global knowledge injection and deterministic save/load.
+- goal
+- ordered steps
+- prerequisites
+- interrupt conditions
+- outcome verification
+- bounded lessons
 
-## Later gates
+No LLM is required for the deterministic first implementation.
 
-Local perception/belief, relationships and full replay are still required before the master's V1.0 claim. Do not expand 3D, faction, conflict or per-agent LLM calls to compensate for failures in lifecycle/persistence/knowledge contracts.
+## Later society imports
+
+Only after personal knowledge and cooperation contracts are proven:
+
+- Kingdom Sandbox: occupation, scarcity/economy, governance, faction/rebellion
+- Pirate Fruit Living Economy: adaptive production/trader memory/reputation patterns
+- TestGE: proposal → verify → atomic commit → delta/replay hardening
+- PocketMonster/MonsterLifeServer: shared identity/materialization/server-authority patterns where relevant
+
+Do not copy whole donor repos into Simclone. Move contracts and verified behavior in vertical slices.

@@ -118,7 +118,7 @@ PLAY
 
 ## V0.3 — Clone + Lifecycle
 
-Current lifecycle-history contract: [V0.3.5](docs/LIFECYCLE_0.3.5.md). Current next steps: [NEXT_STEPS](docs/NEXT_STEPS.md). V0.3.4 generation continuity is the retained baseline; earlier release descriptions below are historical.
+Current knowledge contract: [V0.5.0](docs/KNOWLEDGE_MEMORY_0.5.0.md). Current next steps: [NEXT_STEPS](docs/NEXT_STEPS.md). Lifecycle/history and skill provenance remain retained foundations; earlier release descriptions below are historical.
 
 Concrete lifecycle/save contract: [docs/LIFECYCLE_0.3.0.md](docs/LIFECYCLE_0.3.0.md)
 
@@ -185,6 +185,8 @@ Skill level ต้องมีผลต่อ gameplay จริง เช่น
 ---
 
 ## V0.5 — Memory + Cultural Knowledge
+
+Current implementation starts with personal evidence-backed resource knowledge and explicit person-to-person transfer. Cultural Archive remains a later V0.5 slice; personal knowledge must not read hidden global world truth.
 
 ### Memory Types
 - Episodic Memory

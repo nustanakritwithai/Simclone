@@ -2,6 +2,7 @@
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from browser_fixture import HTML, storage
+from browser_release import RELEASE, wait_for_release
 from history_storage import boundary_fixture
 import json
 
@@ -24,11 +25,11 @@ def run_archive_ui():
         page.on('pageerror', lambda error: errors.append(str(error)))
         storage(page, fixture)
         page.set_content(HTML, wait_until='load')
-        page.wait_for_function("window.simclone?.version==='0.4.0'")
+        wait_for_release(page)
         page.wait_for_selector('#boot-screen', state='detached')
         page.locator('#pause').tap()
         initial = page.evaluate('simclone.snapshot()')
-        check('legacy boundary preserves 200 identities before an admitted birth', initial['version']=='0.4.0' and len(initial['agents'])==200 and initial['archive']==[])
+        check('legacy boundary preserves 200 identities before an admitted birth', initial['version']==RELEASE['save'] and len(initial['agents'])==200 and initial['archive']==[])
         page.locator('[data-quick-person="2"]').tap()
         before = page.evaluate('JSON.stringify(simclone.snapshot())')
         page.locator('[data-nav="clone"]').tap()

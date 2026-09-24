@@ -15,7 +15,7 @@ def boot(browser,width=390,height=844,saved=None,deny_get=False,deny_set=False,b
  page.set_content(fixture(True) if broken else HTML,wait_until='load')
  if broken:page.wait_for_function('document.querySelector("#boot-screen")?.dataset.status==="error"')
  else:
-  page.wait_for_function('window.simclone?.uiVersion==="0.4.0"')
+  page.wait_for_function('window.simclone?.uiVersion==="0.5.0"')
   page.wait_for_selector('#boot-screen',state='detached');page.wait_for_timeout(500)
   page.locator('#pause').click();page.wait_for_timeout(400)
  return page
@@ -44,7 +44,7 @@ with sync_playwright() as p:
  m.screenshot(path=str(OUT/'mobile-camera-sheet.png'))
  m.locator('[data-ui="close"]').tap();m.locator('#menu').tap();m.locator('[data-action="save"]').tap();m.wait_for_timeout(400)
  check('successful storage write updates badge',m.locator('#save-indicator').get_attribute('data-state')=='saved')
- saved=m.evaluate('localStorage.getItem("simclone:world:v1")');check('saved bytes declare the migrated archive schema',json.loads(saved)['version']=='0.4.0')
+ saved=m.evaluate('localStorage.getItem("simclone:world:v1")');check('saved bytes declare the migrated archive schema',json.loads(saved)['version']=='0.5.0')
  restored=boot(b,saved=saved);check('saved world restored in a fresh document',restored.evaluate('simclone.snapshot().seed')==json.loads(saved)['seed'] and restored.evaluate('simclone.saveStatus().kind')=='loaded')
  bad=boot(b,saved='original damaged save');check('corrupt save reported as protected',bad.locator('#save-indicator').get_attribute('data-state')=='protected')
  bad.locator('#menu').tap();check('exact original backup is available',bad.locator('[data-action="export-original"]').is_visible())

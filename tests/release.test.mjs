@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {VERSION,SAVE_VERSION,HISTORY_VERSION,SKILL_PROVENANCE_VERSION,restore,serialize,step,validate} from '../src/engine.mjs';
+import {VERSION,SAVE_VERSION,HISTORY_VERSION,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,restore,serialize,step,validate} from '../src/engine.mjs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const version=JSON.parse(read('package.json')).version;
 test('release metadata and the entire runtime module graph agree',()=>{
- assert.equal(VERSION,version);assert.equal(version,'0.4.0');assert.equal(SAVE_VERSION,'0.4.0');assert.equal(HISTORY_VERSION,'0.1.0');assert.equal(SKILL_PROVENANCE_VERSION,'0.4.0');
+ assert.equal(VERSION,version);assert.equal(version,'0.5.0');assert.equal(SAVE_VERSION,'0.5.0');assert.equal(HISTORY_VERSION,'0.1.0');assert.equal(SKILL_PROVENANCE_VERSION,'0.4.0');assert.equal(KNOWLEDGE_VERSION,'0.5.0');
  const ux=read('src/ux.mjs'),boot=read('src/boot.mjs'),html=read('index.html');
  assert.ok(ux.includes("UI_VERSION='"+version+"'"));
  assert.ok(boot.includes("window.simclone?.version!=='"+version+"'"));
