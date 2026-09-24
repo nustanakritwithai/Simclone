@@ -90,3 +90,15 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - `npm run test:continuity` runs both the original 120-year and the new five-seed 1800-year proofs. Synthetic capacity tests are separate from those untouched seeded worlds.
 - Navigation smoke retains offline tests and then separately runs archive UI and native HTTP/storage/process-restart tests. Local HTTP policy blocks native testing; report UNKNOWN locally, inspect exact CI for CI-only evidence. No administrator-policy bypass and no physical Android inference.
 - Publish only after exact candidate verification; recheck main, non-force update, verify exact main Pages test/upload/deploy. Do not edit workflows to evade a failing gate.
+
+
+## Skill Provenance 0.4.0 (current candidate)
+
+- Read `docs/SKILL_PROVENANCE_0.4.0.md` and `docs/STATUS.md` before changing skills or persistence.
+- Keep only FORAGE/WOODCUT/MINE/BUILD in this release. Existing XP/balance formulas remain authoritative.
+- Every current skill XP total must equal initial + inherited + earned + legacy-unattributed XP.
+- Inheritance remains exactly floor(parent XP × 0.35) and is not teaching. Record source parent + birth tick; never infer old inheritance from a parent's current XP.
+- Work provenance is written only after the existing engine produces a real output. Zero output means zero XP and zero evidence.
+- Evidence is bounded: preserve structural origin and latest work evidence while cumulative counters remain exact. Do not add unbounded per-action history to archived identities.
+- Migration from save 0.3.0 marks existing XP legacy-unattributed. Missing provenance in a current 0.4.0 save is corruption, not silently repaired.
+- Next knowledge work may borrow AstraLife's Observation/Memory/Belief contracts, but cognition may consume only Observation + owned memory/belief + delivered messages. No per-tick LLM calls and no hidden World Truth shortcut.
