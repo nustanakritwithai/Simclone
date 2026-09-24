@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,serialize,step} from '../src/engine.mjs';
-import {createFoodRegenerationImpact} from '../src/worldsim-food-regen-impact.mjs';
+import {createFoodRegenerationImpact,createFoodRegenerationWindowImpact} from '../src/worldsim-food-regen-impact.mjs';
 
 test('WM4.2 impact report is deterministic and read-only',()=>{
   const s=createWorld(230926),before=serialize(s);
@@ -89,4 +89,43 @@ test('WM4.2 diagnostic bands match the observed ecology scale but are not a unit
       r.ecologyRegenerationPotential<.12?'medium':'high';
     assert.equal(r.ecologyBand,expected);
   }
+});
+
+
+test('120-tick ecology window is deterministic, bounded and read-only',()=>{
+  const s=createWorld(888),before=serialize(s);for(const n of s.nodes)if(n.type==='food')n.amount=0;s.tick=360;
+  const frozen=serialize(s),a=createFoodRegenerationWindowImpact(s),b=createFoodRegenerationWindowImpact(s);
+  assert.deepEqual(a,b);assert.equal(serialize(s),frozen);assert.notEqual(frozen,before);
+  assert.deepEqual(a.window.sampleTicks,[240,270,300,330,360]);
+  assert.equal(a.authority.unitFormula,'none');
+  assert.equal(a.authority.aggregation,'window-average-observation');
+  for(const r of a.rows){
+    assert.ok(r.windowEcologyPotential>=0&&r.windowEcologyPotential<=1);
+    assert.ok(r.minEcologyPotential<=r.windowEcologyPotential);
+    assert.ok(r.windowEcologyPotential<=r.maxEcologyPotential);
+  }
+});
+
+test('canonical food boundaries emit instantaneous and 120-tick window evidence',()=>{
+  const report=[];
+  for(const seed of [1,42,2026,230926,90001]){
+    const phases=[];
+    for(const tick of [120,240,360]){
+      const world=createWorld(seed);for(const n of world.nodes)if(n.type==='food')n.amount=0;world.tick=tick;
+      const instant=createFoodRegenerationImpact(world),window=createFoodRegenerationWindowImpact(world);
+      phases.push({
+        tick,
+        instantAvg:instant.summary.averageEcologyPotential,
+        instantMedian:instant.summary.medianEcologyPotential,
+        windowAvg:window.summary.averageWindowEcologyPotential,
+        windowMin:window.summary.minWindowEcologyPotential,
+        windowMax:window.summary.maxWindowEcologyPotential,
+        sampleTicks:window.window.sampleTicks
+      });
+      assert.ok(window.summary.nodes===instant.summary.nodes);
+      assert.ok(window.summary.minWindowEcologyPotential>=0&&window.summary.maxWindowEcologyPotential<=1);
+    }
+    report.push({seed,phases});
+  }
+  console.log('WM4.2_CANONICAL_FOOD_WINDOW_IMPACT '+JSON.stringify(report));
 });
