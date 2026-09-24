@@ -37,15 +37,20 @@ jobs:
           python tests/ui-smoke.py
           python tests/navigation-smoke.py
           python tests/survival-smoke.py
-      - name: Record tested manifest and commit only to maintenance branch
+      - name: Record tested manifest and commit source only
         run: |
           test "$GITHUB_REF" = 'refs/heads/maintenance/simclone-034-repair'
+          find tests -type d -name __pycache__ -prune -exec rm -rf {} +
           node scripts/record-034.mjs
-          rm scripts/prepare-034.mjs scripts/record-034.mjs .github/workflows/prepare-034.yml
-          git add src index.html tests scripts .github/workflows docs AGENTS.md README.md GAME_PLAN.md
+          rm scripts/prepare-034.mjs scripts/record-034.mjs
+          # The runner cannot write workflows. Preserve their tested hashes in the
+          # report; an authorized connector must apply those exact workflow bytes.
+          git restore --source=HEAD -- .github/workflows
+          git add src index.html tests scripts docs AGENTS.md README.md GAME_PLAN.md
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
           git diff --cached --check
-          git commit -m 'fix(release): align 0.3.4 assets and prove saved generation continuity'
+          test -z "$(git diff --cached --name-only -- .github/workflows)"
+          git commit -m 'fix(release): align 0.3.4 source and prove saved generation continuity'
           git push origin HEAD:refs/heads/maintenance/simclone-034-repair
           git rev-parse HEAD
