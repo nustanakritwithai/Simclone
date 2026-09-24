@@ -32,7 +32,7 @@ export function createFoodRegenerationImpact(state,regen=createResourceRegenerat
   return Object.freeze({
     version:FOOD_REGEN_IMPACT_VERSION,
     authority:Object.freeze({mode:'shadow-only',writer:regen.authority.writer,unitFormula:'none'}),
-    legacy:Object.freeze({periodTicks:120,amount:3}),
+    legacy:regen.policy.food,
     summary:Object.freeze({
       nodes:rows.length,
       averageEcologyPotential:rows.length?+(potential/rows.length).toFixed(4):0,
