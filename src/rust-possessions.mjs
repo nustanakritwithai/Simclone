@@ -8,6 +8,8 @@ const living=(s,id)=>s.agents?.find(a=>a.id===id&&a.alive===true);
 const held=(p,id)=>p.items.filter(i=>i.location.kind==='bag'&&i.location.agentId===id);
 const stationBuilding=(s,recipe,stationId)=>{
   if(recipe.station===CRAFT_STATIONS.HAND)return null;
+  const physical=s.rustStations?.stations?.find(st=>st.id===stationId&&st.complete===true&&st.kind===recipe.station);
+  if(physical)return physical;
   if(recipe.station===CRAFT_STATIONS.CRAFTING_TABLE_LV1)
     return s.buildings?.find(b=>b.id===stationId&&b.complete===true&&b.type==='crafting_table'&&(b.tier??1)>=1)??null;
   return null;
