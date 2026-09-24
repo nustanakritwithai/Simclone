@@ -1,4 +1,4 @@
-/** Lifecycle 0.3.3: deterministic age/stage, work capability and derived lifespan helpers. */
+/** Lifecycle 0.3.4: deterministic age/stage, work capability and derived lifespan helpers. */
 export const LIFE = Object.freeze({
   ticksPerYear: 360,
   yearsPerSimDay: 1,

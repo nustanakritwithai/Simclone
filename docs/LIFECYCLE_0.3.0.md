@@ -1,5 +1,7 @@
 # Simclone V0.3 — Lifecycle + Autonomous Generation Contract
 
+Historical contracts/evidence through V0.3.3. Current V0.3.4 rules and proof boundaries: [LIFECYCLE_0.3.4.md](LIFECYCLE_0.3.4.md). The former one-year global birth gap is superseded by four years; parent cooldown is still four years.
+
 Status: **V0.3.3 Age Death verified candidate**. Lifecycle derivation, stage gameplay, autonomous birth and deterministic age death/cleanup are implemented. Post-death generation continuity remains the V0.3.4 gate.
 
 ## Product gate

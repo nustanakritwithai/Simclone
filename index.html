@@ -9,16 +9,16 @@
 <link rel="stylesheet" href="./src/ux.css?v=0.1.1">
 <link rel="stylesheet" href="./src/navigation.css?v=0.2.0">
 </head>
-<body data-ui-version="0.3.3">
+<body data-ui-version="0.3.4">
 <style id="boot-style">
 #boot-screen{position:fixed;inset:0;background:#142b26;color:#f0eee3;display:grid;place-items:center;z-index:1000;padding:24px;font:14px/1.8 system-ui,sans-serif}#boot-screen>div{max-width:380px;text-align:center}#boot-screen h2{font-size:24px;font-weight:500;margin:14px 0}#boot-screen p{color:#c9d3bd}#boot-screen small{color:#e8cfa0;letter-spacing:2px}#boot-screen button{padding:12px 22px;min-height:44px;border:1px solid #e8cfa0;border-radius:8px;background:#e8cfa0;color:#142b26;font:inherit;cursor:pointer}#boot-screen a{display:block;color:#e8cfa0;margin-top:18px}#boot-screen[data-status=error] h2{color:#f2bb9e}
 </style>
-<section id="boot-screen" role="status" aria-live="polite"><div><small>SIMCLONE · AGE DEATH 0.3.3</small><h2 id="boot-title">กำลังเปิดโลกของคุณ</h2><p id="boot-detail">กำลังโหลดเกมและหน้าจอ ข้อมูลเซฟเดิมจะไม่ถูกลบ</p><button type="button" onclick="location.reload()">โหลดใหม่</button><a href="./plan.html">อ่านแผนพัฒนา</a><noscript>ต้องเปิด JavaScript เพื่อเล่นเกมนี้</noscript></div></section>
+<section id="boot-screen" role="status" aria-live="polite"><div><small>SIMCLONE · GENERATION CONTINUITY 0.3.4</small><h2 id="boot-title">กำลังเปิดโลกของคุณ</h2><p id="boot-detail">กำลังโหลดเกมและหน้าจอ ข้อมูลเซฟเดิมจะไม่ถูกลบ</p><button type="button" onclick="location.reload()">โหลดใหม่</button><a href="./plan.html">อ่านแผนพัฒนา</a><noscript>ต้องเปิด JavaScript เพื่อเล่นเกมนี้</noscript></div></section>
 <header class="topbar">
  <a class="brand" href="./" aria-label="Simclone หน้าหลัก"><span class="brandmark">◇</span><span>SIMCLONE<small>AUTONOMOUS CLONE WORLD</small></span></a>
  <div class="timeblock"><span class="sun">☀</span><div><b id="day">วันที่ 1</b><small id="clock">08:00 · เช้า</small></div></div>
  <div class="time-controls" aria-label="ควบคุมเวลา"><button id="pause" class="iconbtn" aria-label="หยุดเวลา" title="หยุด / เล่น · Space">Ⅱ</button><button class="speed active" data-speed="1">1×</button><button class="speed" data-speed="2">2×</button><button class="speed" data-speed="5">5×</button></div>
- <span class="version">AGE DEATH <b>0.3.3</b></span><button id="menu" class="iconbtn" aria-label="เมนูและบันทึกเกม">☰</button>
+ <span class="version">GENERATION CONTINUITY <b>0.3.4</b></span><button id="menu" class="iconbtn" aria-label="เมนูและบันทึกเกม">☰</button>
 </header>
 <main id="stage">
  <canvas id="world" aria-label="แผนที่โลก ใช้เมนูประชากรเพื่อเลือกและติดตาม Clone ด้วยคีย์บอร์ด"></canvas>
@@ -45,5 +45,5 @@
 <div id="toast" role="status" aria-live="polite"></div>
 <input id="import-file" type="file" accept="application/json,.json" hidden>
 <noscript><div class="noscript">เปิด JavaScript เพื่อเล่นเกมนี้ · <a href="./plan.html">อ่านแผนพัฒนา</a></div></noscript>
-<script type="module" src="./src/boot.mjs?v=0.3.3" onerror="document.getElementById('boot-screen').dataset.status='error';document.getElementById('boot-title').textContent='โหลดไฟล์เริ่มเกมไม่ได้';document.getElementById('boot-detail').textContent='กดโหลดใหม่เพื่อลองอีกครั้ง ข้อมูลเซฟเดิมไม่ได้ถูกลบ'"></script>
+<script type="module" src="./src/boot.mjs?v=0.3.4" onerror="document.getElementById('boot-screen').dataset.status='error';document.getElementById('boot-title').textContent='โหลดไฟล์เริ่มเกมไม่ได้';document.getElementById('boot-detail').textContent='กดโหลดใหม่เพื่อลองอีกครั้ง ข้อมูลเซฟเดิมไม่ได้ถูกลบ'"></script>
 </body></html>

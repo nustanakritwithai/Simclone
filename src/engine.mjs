@@ -1,8 +1,8 @@
 /** Simclone 0.3.4 — generation continuity pacing over autonomous lifecycle. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
-  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs';
-import {LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs';
-import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs';
+  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs?v=0.3.4';
+import {LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs?v=0.3.4';
+import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.3.4';
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.3.4';
 export const SAVE_VERSION = '0.2.0';

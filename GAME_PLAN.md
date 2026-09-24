@@ -118,6 +118,8 @@ PLAY
 
 ## V0.3 — Clone + Lifecycle
 
+Current release contract: [V0.3.4](docs/LIFECYCLE_0.3.4.md). Current next steps: [NEXT_STEPS](docs/NEXT_STEPS.md). The earlier release descriptions below are historical.
+
 Concrete lifecycle/save contract: [docs/LIFECYCLE_0.3.0.md](docs/LIFECYCLE_0.3.0.md)
 
 Current clock contract: **360 ticks = 1 simulated day = 1 biological year**; CHILD 0–15, ADULT 16–54, ELDER 55+, DEAD overrides age. V0.3.1 stage effects and V0.3.2 autonomous birth are active. V0.3.3 deterministic lifespan 78–92 and age-death cleanup are active. V0.3.4 generation continuity remains the next gate.

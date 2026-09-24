@@ -1,0 +1,12 @@
+{
+  "releaseCommit": "d88c1d3ba8ddf3cc61b187086954732fd8935fa0",
+  "sourceBlobs": {
+    "src/engine.mjs": "7d812a77e0d67b90e3cdbf874f58ed824dc7b95d",
+    "src/survival.mjs": "bd804b71bf7ee10fe87993ec19908d3ac2add2e6",
+    "src/lifecycle.mjs": "711c2ed72cce14b7e55291c969d920b578b16c62",
+    "src/reproduction.mjs": "6efe639082ffaede936368815cda2ec465d7a32c"
+  },
+  "seed": 42,
+  "ticks": 720,
+  "sha256": "52fa6c0b6eb097b218af59e15f225d98151f09f86bfd737ccf5ce569abc28c46"
+}

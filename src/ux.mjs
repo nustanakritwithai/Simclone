@@ -1,6 +1,7 @@
+import {BIRTH_RULES} from './reproduction.mjs?v=0.3.4';
 /** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
-import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears} from './engine.mjs?v=0.3.3';
-export const UI_VERSION='0.3.3';
+import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears} from './engine.mjs?v=0.3.4';
+export const UI_VERSION='0.3.4';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={
@@ -27,7 +28,7 @@ const events={birth:'ชีวิตใหม่',skill:'พัฒนาทั�
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
 const stageLabels={CHILD:'เด็ก',ADULT:'ผู้ใหญ่',ELDER:'ผู้สูงวัย',DEAD:'เสียชีวิต'};
-const birthLabels={ready:'พร้อมเมื่อถึงรอบปี',housing:'ที่พักเต็ม',history:'ประวัติตัวละครเต็ม',pace:'รอรอบปีถัดไป',parent:'ยังไม่มีผู้ใหญ่ที่พร้อม',food:'อาหารสำรองยังไม่พอ',wood:'ไม้สำรองยังไม่พอ'};
+const birthLabels={ready:'พร้อมเมื่อถึงรอบปี',housing:'ที่พักเต็ม',history:'ประวัติตัวละครเต็ม',pace:'รอครบระยะห่างการเกิด',parent:'ยังไม่มีผู้ใหญ่ที่พร้อม',food:'อาหารสำรองยังไม่พอ',wood:'ไม้สำรองยังไม่พอ'};
 const tabNames={about:'ตอนนี้',skills:'ทักษะ',why:'เหตุผล',memory:'ความทรงจำ'};
 function setText(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=value;}
 function replaceIfChanged(el,html){if(el.dataset.content!==html){const y=el.scrollTop;el.innerHTML=html;el.dataset.content=html;el.scrollTop=y;}}
@@ -160,7 +161,7 @@ export function installUX(api){
   const s=api.read().state,parent=s.agents.find(a=>a.id===api.read().selected&&a.alive)||living(s)[0];
   if(!parent){api.toast('ยังไม่มีต้นแบบที่มีชีวิตอยู่');return;}
   api.select(parent.id,false);const p=api.preview('CLONE',{parentId:parent.id});
-  api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">รุ่นนี้โคลนด้วยคำสั่งผู้เล่น ยังไม่มีการเกิดหรือเติบโตอัตโนมัติ</p>`);$('dialog').dataset.kind='clone';
+  api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">คำสั่งนี้สร้าง Clone วัยผู้ใหญ่อายุ 18 ปีทันที · การเกิดอัตโนมัติเป็นอีกระบบหนึ่ง เด็กเริ่มอายุ 0 ปีแล้วค่อยเติบโต</p>`);$('dialog').dataset.kind='clone';
  }
  function openSurvival(){
   const s=api.read().state,v=survivalSummary(s);
@@ -170,7 +171,7 @@ export function installUX(api){
     <div class="clone-skills"><div><span>แหล่งทรัพยากรที่มีคนจอง</span><b>${v.nodeJobs} จุด</b></div><div><span>คนที่จองงานก่อสร้าง</span><b>${v.builders} คน</b></div><div><span>บ้านที่กำลังสร้าง</span><b>${v.unfinished} หลัง</b></div><div><span>ไม้ / เป้าสำรอง</span><b>${v.stock.wood} / ${v.targets.wood}</b></div><div><span>หิน / เป้าสำรอง</span><b>${v.stock.stone} / ${v.targets.stone}</b></div></div>
     <p class="source-note">แหล่งทรัพยากรรับคนทำงานครั้งละ 1 คน · บ้านรับคนสร้างได้ 2 คนพร้อมกัน<br>เลือกแหล่งที่ไปถึงได้ตามระยะเดินจริง ไม่วัดแค่ความใกล้บนจอ<br>เมื่อหิว คนเก็บอาหารกินผลผลิต 1 หน่วยที่จุดเก็บได้ ส่วนที่เหลือเข้าคลังรวม<br>คิดเป้าสำรองรวมผลผลิตของงานที่มีคนจองแล้ว งานชุดสุดท้ายอาจทำให้เกินเป้าได้เล็กน้อย</p>
     <div class="clone-skills"><div><span>เกิดเองแล้ว</span><b>${v.autonomousBirths} คน</b></div><div><span>สถานะการเกิดอัตโนมัติ</span><b>${birthLabels[v.birth.reason]??v.birth.reason}</b></div></div>
-    <p class="source-note">เงื่อนไขเกิดเอง: ที่พักต้องว่าง · ต้องมีผู้ใหญ่พร้อม · อาหารว่างต้องพอจ่าย 8 แล้วยังเหลือถึงเป้ารุ่นถัดไป · ไม้จ่าย 4 แล้วยังเหลืออย่างน้อย 12 · เกิดได้สูงสุด 1 คนต่อปีจำลอง และ parent คนเดิมพัก 4 ปี<br>ช่วงวัยทำงานแล้ว: เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัยทำงานผลิตที่ 75% · อายุขัย derive 78–92 ปีและเสียชีวิตตามวัยแบบ deterministic</p>`);
+    <p class="source-note">เงื่อนไขเกิดเอง: ที่พักต้องว่าง · ต้องมีผู้ใหญ่พร้อม · อาหารว่างต้องพอจ่าย 8 แล้วยังเหลือถึงเป้ารุ่นถัดไป · ไม้จ่าย 4 แล้วยังเหลืออย่างน้อย 12 · เว้นการเกิดอย่างน้อย ${BIRTH_RULES.globalIntervalYears} ปีจำลอง และ parent คนเดิมพัก ${BIRTH_RULES.parentCooldownYears} ปี<br>ช่วงวัยทำงานแล้ว: เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัยทำงานผลิตที่ 75% · อายุขัย derive 78–92 ปีและเสียชีวิตตามวัยแบบ deterministic</p>`);
   $('dialog').dataset.kind='survival';
  }
  function openGuide(){api.openDialog('เริ่มจากการรู้จักคนหนึ่งคน','OBSERVE → UNDERSTAND → INFLUENCE',`<div class="guide-step"><span>01</span><div><b>แตะหน้า เลือกคน</b><p>ใช้แถวตัวละครด้านล่าง หรือแตะคนในโลก การ์ดย่อจะบอกว่ากำลังทำอะไร โดยไม่บังแผนที่</p></div></div><div class="guide-step"><span>02</span><div><b>ถามว่า “ทำไม?”</b><p>ดูคะแนนงานจริง หรือเปิดทักษะเพื่อดูสิ่งที่เขาเรียนรู้มาต่างจากคนอื่น</p></div></div><div class="guide-step"><span>03</span><div><b>สร้างเงื่อนไขให้ชีวิตใหม่</b><p>เลือกต้นแบบก่อนโคลน หรือเลือกจุดวางบ้าน ตรวจตัวอย่าง แล้วค่อยยืนยันหักวัสดุ</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างนี้หยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">เริ่มสังเกตโลก</button></div>`);$('dialog').dataset.kind='guide';}

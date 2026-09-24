@@ -1,5 +1,5 @@
 /** Autonomous Birth 0.3.4 — deterministic pacing avoids synchronized generation collapse. */
-import {LIFE,LIFE_STAGES,lifeStage} from './lifecycle.mjs';
+import {LIFE,LIFE_STAGES,lifeStage} from './lifecycle.mjs?v=0.3.4';
 
 export const BIRTH_RULES=Object.freeze({
   foodCost:8,

@@ -1,6 +1,6 @@
 /** Survival 0.2 + Lifecycle 0.3.1: routing/reservations also enforce stage work eligibility. */
-import {canPerformProductiveWork} from './lifecycle.mjs';
-import {autonomousBirthFoodTarget,birthPlan,isAutonomousChild} from './reproduction.mjs';
+import {canPerformProductiveWork} from './lifecycle.mjs?v=0.3.4';
+import {autonomousBirthFoodTarget,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.3.4';
 export const RULES = Object.freeze({
   width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,

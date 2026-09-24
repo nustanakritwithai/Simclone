@@ -7,7 +7,7 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - `src/game.css`: responsive skin. Preserve mobile canvas, touch controls and inspector close button.
 - `index.html`: playable game. `plan.html`: preserved original development page.
 - Run `npm test` before changing a deployment branch. New requirements need success contracts and deterministic regression tests.
-- Current skill transfer is manual cloning only, not mentor/archive/culture. The event list is not a replay system.
+- Current skill transfer copies 35% XP at manual cloning and autonomous birth, not mentor/archive/culture. The event list is not a replay system.
 - Known verification limitations are in `docs/STATUS.md`; UNKNOWN is never PASS.
 - Preserve seed, parent identity, save compatibility and permanent appearance. Save version changes require a migration or explicit rejection.
 - Do not rewrite the engine just to change UI. Do not add LLM calls to every tick.
@@ -29,7 +29,7 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Tests: `npm test`, `python tests/ui-smoke.py`, `python tests/navigation-smoke.py`. Browser fixtures share `tests/browser_fixture.py`; they are offline and use a Storage double.
 - Details and limitations: `docs/UX_UI_0.1.2.md`. Pages now gates deployment on unit and local asset tests, not on physical-device or public-browser tests.
 
-## Survival Core 0.2.0 (current)
+## Survival Core 0.2.0 (historical release)
 
 - Read `docs/SURVIVAL_0.2.0.md`. Engine is now 0.2.0; earlier "engine unchanged" statements describe historical UI-only releases, not this one.
 - `SAVE_VERSION=0.1.0` is independent of `VERSION=0.2.0`. Preserve the existing storage key. Old jobs are replanned on the next tick; do not erase the world.
@@ -39,7 +39,7 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Run `npm test`, `npm run test:survival`, `python tests/ui-smoke.py`, `python tests/navigation-smoke.py`, `python tests/survival-smoke.py`. No long-run survival fixture implies autonomous births or the complete V1.0 proof.
 
 
-## Age Death 0.3.3 (current engine)
+## Age Death 0.3.3 (historical release)
 
 - Read `docs/LIFECYCLE_0.3.0.md` before changing age, stage, birth or death behavior.
 - Engine `VERSION=0.3.3`; save schema `SAVE_VERSION=0.2.0`; `restore()` explicitly migrates legacy 0.1.0 saves.
@@ -55,3 +55,15 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Candidate evidence: 81/81 unit/asset, 18/18 Survival, 5/5 autonomous-birth, 5/5 age-death seeds and 89 offline Chromium assertions passed on `8dbbb2c16c4dba6920036028ec002419cefc51ee`.
 - V0.3.4 continuity is still unproven; surviving agents after 90 years is not enough.
 - Candidate branches are verified by `.github/workflows/verify.yml`; Pages deployment remains gated on exact `main` workflow success.
+
+
+## Generation Continuity 0.3.4 (current)
+
+- Read docs/LIFECYCLE_0.3.4.md and docs/NEXT_STEPS.md first.
+- Engine/UI are 0.3.4. Save schema stays 0.2.0; storage key stays simclone:world:v1. Never reset ages on load.
+- Global autonomous birth gap is FOUR simulated years; parent cooldown is also four. One/year was the older policy. UI reads BIRTH_RULES, not duplicate literals.
+- Run npm test, npm run test:survival, npm run test:lifecycle, npm run test:death, npm run test:continuity and all three Python UI suites before release.
+- The continuity proof runs unmodified fresh worlds for 120 years with real aging/death, no manual CLONE, and save/load plus single/batch continuation checks. The survival-only fixture still caps biological age; never call it continuity proof.
+- Final evidence is tied to source SHA-256 manifest. Verify exact candidate and Pages commits separately. UNKNOWN is not PASS.
+- Existing saves preserve their demographic structure; previously collapsed colonies are not silently repopulated. Historical agent cap 200 still prevents unlimited continuation.
+- No mentor/archive, social relationship or V1.0 proof is claimed.

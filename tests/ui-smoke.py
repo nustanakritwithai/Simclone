@@ -14,7 +14,7 @@ def boot(page,saved=None):
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.evaluate("saved=>{const m=new Map(saved?[['simclone:world:v1',saved]]:[]);Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v))}})}",saved)
  page.set_content(html,wait_until='load')
- page.wait_for_function("window.simclone?.uiVersion==='0.3.3'")
+ page.wait_for_function("window.simclone?.uiVersion==='0.3.4'")
  page.wait_for_timeout(400)
 def paused(page):
  if page.locator('#pause').get_attribute('aria-pressed')!='true':page.locator('#pause').click()
@@ -24,7 +24,7 @@ with sync_playwright() as p:
  exe='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None
  b=p.chromium.launch(executable_path=exe,headless=True,args=['--no-sandbox'])
  desktop=b.new_page(viewport={'width':1440,'height':1000});boot(desktop)
- check('desktop boot with UI 0.3.3 and engine 0.3.3',desktop.evaluate('simclone.version')=='0.3.3')
+ check('desktop boot with UI 0.3.4 and engine 0.3.4',desktop.evaluate('simclone.version')=='0.3.4')
  check('world actually advances',snap(desktop)['tick']>0)
  desktop.screenshot(path=str(OUT/'desktop-world.png'))
  paused(desktop);t=snap(desktop)['tick'];desktop.wait_for_timeout(700);check('pause freezes simulation',snap(desktop)['tick']==t)
@@ -41,6 +41,7 @@ with sync_playwright() as p:
  desktop.locator('#people-search').fill('not-a-person');check('empty state shown',desktop.locator('#roster-list .empty-state').is_visible())
  desktop.locator('#people-search').fill('kira');desktop.locator('[data-person="3"]').click()
  desktop.locator('#clone').click();check('clone preview correct parent', 'Kira' in desktop.locator('.clone-lineage').inner_text())
+ check('manual clone is distinguished from autonomous birth', 'อายุ 18 ปี' in desktop.locator('#dialog-body').inner_text() and 'เด็กเริ่มอายุ 0 ปี' in desktop.locator('#dialog-body').inner_text())
  s=snap(desktop);desktop.wait_for_timeout(350);check('clone preview spends no resources',snap(desktop)==s)
  desktop.locator('[data-action="confirm-clone"]').click();s2=snap(desktop)
  check('clone commits once from selected Kira',len(s2['agents'])==7 and s2['agents'][-1]['parentId']==3 and s2['stock']['food']==s['stock']['food']-8)

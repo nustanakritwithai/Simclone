@@ -15,7 +15,7 @@ def boot(browser,width=390,height=844,saved=None,deny_get=False,deny_set=False,b
  page.set_content(fixture(True) if broken else HTML,wait_until='load')
  if broken:page.wait_for_function('document.querySelector("#boot-screen")?.dataset.status==="error"')
  else:
-  page.wait_for_function('window.simclone?.uiVersion==="0.3.3"')
+  page.wait_for_function('window.simclone?.uiVersion==="0.3.4"')
   page.wait_for_selector('#boot-screen',state='detached');page.wait_for_timeout(500)
   page.locator('#pause').click();page.wait_for_timeout(400)
  return page
