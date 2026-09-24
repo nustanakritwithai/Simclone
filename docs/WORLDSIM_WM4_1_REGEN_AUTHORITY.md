@@ -35,3 +35,10 @@ No stock changes beyond the same historical regeneration.
 The WorldSim function is compared against a literal legacy oracle across ordinary and boundary ticks. Existing Survival, birth, death, history-continuity and browser gates must remain SAT.
 
 Only after parity is proven may a later gate make **food** regeneration ecology-sensitive. Wood follows separately. Stone remains finite unless a separate geology design explicitly changes that contract.
+
+
+## Observer metadata
+
+After this gate, `createResourceRegenerationShadow()` must report the
+authoritative writer as `worldsim-wm4.1`. The observer remains read-only; only
+the writer identity changes together with the authority transfer.
