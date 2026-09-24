@@ -3,15 +3,11 @@
  * WM3.4 ecology evidence. It never mutates node.amount.
  */
 import {MAP_SIZE} from './worldsim-map.mjs?v=0.5.0';
+import {K6_RESOURCE_REGEN} from './worldsim-resource-policy.mjs?v=0.5.0';
 import {createResourceEcologyShadow} from './worldsim-resource-shadow.mjs?v=0.5.0';
+export {K6_RESOURCE_REGEN};
 
 export const RESOURCE_REGEN_SHADOW_VERSION='wm4.0-shadow-regen-contract-1';
-export const K6_RESOURCE_REGEN=Object.freeze({
-  food:Object.freeze({periodTicks:120,amount:3,renewable:true}),
-  wood:Object.freeze({periodTicks:720,amount:1,renewable:true}),
-  stone:Object.freeze({periodTicks:null,amount:0,renewable:false})
-});
-
 const clamp=n=>Math.max(0,Math.min(1,n));
 function nextBoundary(tick,period){
   if(!period)return null;
