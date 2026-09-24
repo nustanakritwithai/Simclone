@@ -2,6 +2,7 @@ import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 /** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
 import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
 import {professionLabel} from './kingdom-utility.mjs?v=0.5.0';
+import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -34,7 +35,7 @@ const tabNames={about:'ตอนนี้',skills:'ทักษะ',why:'เห�
 function setText(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=value;}
 function replaceIfChanged(el,html){if(el.dataset.content!==html){const y=el.scrollTop;el.innerHTML=html;el.dataset.content=html;el.scrollTop=y;}}
 export function installUX(api){
- let expanded=false,identityKey='',tabKey='',candidate=null,lastPreview='',placement=null,railKey='',rosterFilter='all',historyFilter='all',rosterLimit=80;
+ let expanded=false,identityKey='',tabKey='',candidate=null,lastPreview='',placement=null,railKey='',rosterFilter='all',historyFilter='all',rosterLimit=80,routeShadowKey='',routeShadow=null;
  const inspector=$('inspector'),stage=$('stage'),body=$('dialog-body');
  document.body.classList.add('ux-v2');
  const staticIcons={observe:'eye',clone:'clone',build:'home',roster:'people',history:'history',recenter:'focus'};
@@ -145,7 +146,13 @@ export function installUX(api){
    const chosen=a.trace.find(t=>t.status==='selected'),max=Math.max(1,...a.trace.map(t=>t.score));
    if(chosen){html=`<div class="decision-callout">${icon('brain')}<div><small>เหตุผลจากการตัดสินใจล่าสุด</small><b>เลือก${LABELS[chosen.kind]} · ${chosen.score} คะแนน</b><p>Planner หลักยังเปรียบเทียบความต้องการ ความถนัด ทักษะ และระยะเดินจริง ส่วน K1 คำนวณ scarcity + อาชีพแบบ Kingdom เป็น shadow score เพื่อพิสูจน์ก่อนให้มีอำนาจเลือกงาน</p></div></div>`;}
    html+=(chosen?[chosen,...a.trace.filter(t=>t!==chosen).slice(0,5)]:a.trace.slice(0,6)).map(c=>`<div class="trace-row ${c.status==='selected'?'selected':''}"><span>${c.status==='selected'?'✓ ':''}${LABELS[c.kind]}${blockedLabels[c.status]?' · '+blockedLabels[c.status]:''}</span><b>${c.score}</b><div class="scorebar"><i style="width:${Math.max(0,c.score/max*100)}%"></i></div></div>`).join('');
-   if(chosen){const f=chosen.factors,k=chosen.kingdomUtility;html+=`<details class="score-details"><summary>ดูส่วนประกอบคะแนน</summary><dl>${[['พื้นฐาน',f.base],['ความต้องการ',f.need],['ความถนัด',f.goal],['ทักษะ',f.skill],['ระยะเดินจริง',f.distance]].map(([key,v])=>`<div><dt>${key}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details>${k?`<details class="score-details"><summary>Kingdom K1 · shadow utility</summary><dl>${[['scarcity',k.scarcity],['อาชีพเดิม',k.profession],['deterministic jitter',k.utilityJitter]].map(([key,v])=>`<div><dt>${key}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details>`:''}<p class="source-note">ระยะเดินตอนเลือก ${chosen.travelSteps??'—'} ช่อง · ${a.task?'เลือกเมื่อ tick '+a.task.started:'งานล่าสุดสิ้นสุดแล้ว'} · planner หลักยังเป็น authority; Kingdom K1 เป็น shadow evidence จนกว่าจะผ่าน continuity gate</p>`;}
+   if(chosen){
+    const f=chosen.factors,k=chosen.kingdomUtility;
+    const routeKey=JSON.stringify([a.id,a.x,a.y,a.task?.x,a.task?.y,a.task?.path]);
+    if(routeKey!==routeShadowKey){routeShadowKey=routeKey;routeShadow=a.task?compareShadowRouting(s,{x:a.x,y:a.y},{x:a.task.x,y:a.task.y},a.task.path):null;}
+    const worldShadow=routeShadow?.weighted?`<details class="score-details"><summary>WorldSim WM2.2 · shadow route</summary><dl><div><dt>เส้นทางปัจจุบัน</dt><dd>${routeShadow.current?.cost??'—'}</dd></div><div><dt>weighted candidate</dt><dd>${routeShadow.weighted.cost}</dd></div><div><dt>candidate steps</dt><dd>${routeShadow.weighted.steps}</dd></div><div><dt>shadow savings</dt><dd>${routeShadow.savings??'—'}</dd></div></dl><p class="source-note">ค่านี้ใช้สังเกตเท่านั้น · ยังไม่เปลี่ยน task, score, path หรือ movement จริง</p></details>`:'';
+    html+=`<details class="score-details"><summary>ดูส่วนประกอบคะแนน</summary><dl>${[['พื้นฐาน',f.base],['ความต้องการ',f.need],['ความถนัด',f.goal],['ทักษะ',f.skill],['ระยะเดินจริง',f.distance]].map(([key,v])=>`<div><dt>${key}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details>${k?`<details class="score-details"><summary>Kingdom K1 · shadow utility</summary><dl>${[['scarcity',k.scarcity],['อาชีพเดิม',k.profession],['deterministic jitter',k.utilityJitter]].map(([key,v])=>`<div><dt>${key}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details>`:''}${worldShadow}<p class="source-note">ระยะเดินตอนเลือก ${chosen.travelSteps??'—'} ช่อง · ${a.task?'เลือกเมื่อ tick '+a.task.started:'งานล่าสุดสิ้นสุดแล้ว'} · planner หลักยังเป็น authority; Kingdom K1 และ WorldSim weighted route ยังเป็น shadow evidence</p>`;
+   }
    if(!a.trace.length)html=a.archived?'<p class="empty-state">คลังประวัติเก็บตัวตน ทักษะ และความทรงจำ แต่ไม่เก็บคะแนนตัดสินใจชั่วคราว</p>':'<p class="empty-state">รอโลกเดิน tick แรกเพื่อดูคะแนนจริง</p>';
   }else{
    const parent=findPerson(s,a.parentId);
