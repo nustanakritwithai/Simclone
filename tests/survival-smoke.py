@@ -14,7 +14,7 @@ with sync_playwright() as p:
  page=b.new_page(viewport={'width':390,'height':844},has_touch=True,is_mobile=True)
  page.on('pageerror',lambda e:errors.append(str(e)))
  legacy=subprocess.check_output(['node','--input-type=module','-e',"import * as old from './tests/fixtures/legacy-engine-0.1.0.mjs';const s=old.createWorld(230926);old.step(s,87);console.log(old.serialize(s));"],cwd=ROOT,text=True).strip();storage(page,legacy)
- page.set_content(HTML,wait_until='load');page.wait_for_function("window.simclone?.version==='0.3.4'")
+ page.set_content(HTML,wait_until='load');page.wait_for_function("window.simclone?.version==='0.3.5'")
  page.wait_for_selector('#boot-screen',state='detached');page.wait_for_timeout(500);page.locator('#pause').tap()
  check('old world migrates into lifecycle save schema',page.evaluate('simclone.snapshot().version')=='0.2.0')
  before=page.evaluate('JSON.stringify(simclone.snapshot())')
