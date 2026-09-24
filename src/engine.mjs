@@ -103,8 +103,13 @@ export function command(s,type,data={}){
     const a=createAgent(s,parent);return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
   }
   if(type==='SHARE_KNOWLEDGE'){
-    const sender=s.agents.find(a=>a.id===data.fromId&&a.alive),receiver=s.agents.find(a=>a.id===data.toId&&a.alive);
-    if(!sender||!receiver||sender.id===receiver.id)return {ok:false,message:'เลือกผู้ส่งและผู้รับที่ยังมีชีวิต'};
+    const sender=s.agents.find(a=>a.id===data.fromId&&a.alive);
+    if(!sender)return {ok:false,message:'เลือกผู้ส่งที่ยังมีชีวิตก่อน'};
+    const receiver=data.toId!=null
+      ?s.agents.find(a=>a.id===data.toId&&a.alive)
+      :s.agents.filter(a=>a.alive&&a.id!==sender.id&&withinKnowledgeRange(sender,a))
+        .sort((a,b)=>distance(sender,a)-distance(sender,b)||a.id-b.id)[0];
+    if(!receiver||sender.id===receiver.id)return {ok:false,message:'ไม่มีผู้รับที่ยังมีชีวิตในระยะสื่อสาร'};
     if(!withinKnowledgeRange(sender,receiver))return {ok:false,message:'อยู่ไกลเกินระยะสื่อสารความรู้'};
     const result=shareKnowledge(sender,receiver,data.key,s.tick);
     if(!result.ok)return {ok:false,message:'ผู้ส่งยังไม่มีความรู้นี้ยืนยันจากประสบการณ์ตรง'};
