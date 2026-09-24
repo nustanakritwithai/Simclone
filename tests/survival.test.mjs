@@ -20,7 +20,7 @@ function assertExclusive(s){
  assert.ok([...builders.values()].every(n=>n<=2));
  assert.ok(active.filter(a=>a.task.kind==='EAT').length<=s.stock.food);
 }
-test('engine version advances while lifecycle save schema stays stable',()=>{assert.equal(VERSION,'0.3.5');assert.equal(createWorld().version,SAVE_VERSION);assert.equal(SAVE_VERSION,'0.2.0');});
+test('engine version advances while lifecycle save schema stays stable',()=>{assert.equal(VERSION,'0.3.6');assert.equal(createWorld().version,SAVE_VERSION);assert.equal(SAVE_VERSION,'0.3.0');});
 test('real pre-update save retains identity, resources, seed and skills; old jobs replan on tick',()=>{
  const old=legacyWorld(230926);legacyStep(old,87);const text=legacySerialize(old),s=restore(text);
  assert.equal(s.version,SAVE_VERSION);assert.notEqual(serialize(s),text);

@@ -1,5 +1,6 @@
-/** Autonomous Birth 0.3.5 — deterministic pacing avoids synchronized generation collapse. */
-import {LIFE,LIFE_STAGES,lifeStage} from './lifecycle.mjs?v=0.3.5';
+/** Autonomous Birth 0.3.6 — deterministic pacing avoids synchronized generation collapse. */
+import {LIFE,LIFE_STAGES,lifeStage} from './lifecycle.mjs?v=0.3.6';
+import {HISTORY_LIMITS,allPeople,retainedCount,retentionPlan} from './history.mjs?v=0.3.6';
 
 export const BIRTH_RULES=Object.freeze({
   foodCost:8,
@@ -8,14 +9,14 @@ export const BIRTH_RULES=Object.freeze({
   globalIntervalYears:4,
   parentCooldownYears:4,
   maxPopulation:36,
-  maxAgents:200,
+  maxRetainedIdentities:HISTORY_LIMITS.maxRetained,
 });
 
 export const isAutonomousChild=a=>a?.parentId!==null&&a?.life?.ageAtAnchorYears===0;
 
 const living=s=>s.agents.filter(a=>a.alive);
 const capacity=s=>s.buildings.filter(b=>b.complete).length*6;
-const autoChildren=s=>s.agents.filter(isAutonomousChild);
+const autoChildren=s=>allPeople(s).filter(isAutonomousChild);
 const lastTick=items=>items.length?Math.max(...items.map(a=>a.bornTick)):-Infinity;
 
 export function autonomousChildrenOf(s,parentId){
@@ -37,7 +38,7 @@ export function eligibleBirthParents(s){
 /** Food reserve that lets the colony pay birth cost and still hold the next population's food target. */
 export function autonomousBirthFoodTarget(s){
   const pop=living(s).length,cap=Math.min(BIRTH_RULES.maxPopulation,capacity(s));
-  if(pop>=cap||s.agents.length>=BIRTH_RULES.maxAgents)return 0;
+  if(pop>=cap||retainedCount(s)>=HISTORY_LIMITS.maxRetained)return 0;
   if(!living(s).some(a=>lifeStage(s,a)===LIFE_STAGES.ADULT))return 0;
   return BIRTH_RULES.foodCost+Math.max(24,(pop+1)*4);
 }
@@ -47,7 +48,8 @@ export function birthPlan(s,freeFood){
   const base={population:pop,capacity:cap,freeFood,foodCost:BIRTH_RULES.foodCost,woodCost:BIRTH_RULES.woodCost,
     woodSafetyFloor:BIRTH_RULES.woodSafetyFloor,nextFoodTarget:Math.max(24,(pop+1)*4)};
   if(pop>=cap)return {...base,ok:false,reason:'housing'};
-  if(s.agents.length>=BIRTH_RULES.maxAgents)return {...base,ok:false,reason:'history'};
+  const retention=retentionPlan(s);
+  if(!retention.ok)return {...base,ok:false,reason:retention.reason};
   const last=lastTick(autoChildren(s)),interval=BIRTH_RULES.globalIntervalYears*LIFE.ticksPerYear;
   if(Number.isFinite(last)&&s.tick-last<interval)return {...base,ok:false,reason:'pace',lastBirthTick:last};
   const parents=eligibleBirthParents(s);

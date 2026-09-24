@@ -1,0 +1,161 @@
+{
+  "baselineCommit": "f2edda01af049ca8090f651d84376c29a8f32490",
+  "engine": "0.3.5",
+  "node": "v22.16.0",
+  "maxYears": 1800,
+  "rows": [
+    {
+      "seed": 230926,
+      "result": "MEASURED",
+      "boundary": {
+        "year": 1448,
+        "living": 11,
+        "births": 194,
+        "saveCharacters": 347764,
+        "saveUtf8Bytes": 396753,
+        "v8Bytes": 363880,
+        "estimatedCloneHeapBytes": 673508,
+        "planReason": "history",
+        "sizeOnlyProjection": {
+          "retainedDead": 189,
+          "saveCharacters": 200266,
+          "saveUtf8Bytes": 249255,
+          "v8Bytes": 219715,
+          "estimatedCloneHeapBytes": 392463
+        }
+      },
+      "finalYear": 1468,
+      "retained": 200,
+      "living": 9,
+      "minPopulation": 6,
+      "extinct": false,
+      "birthsIn20YearsAfterBoundary": 0,
+      "finalBirthReason": "history",
+      "elapsedMs": 41518
+    },
+    {
+      "seed": 1,
+      "result": "MEASURED",
+      "boundary": {
+        "year": 1456,
+        "living": 11,
+        "births": 194,
+        "saveCharacters": 345852,
+        "saveUtf8Bytes": 394716,
+        "v8Bytes": 361708,
+        "estimatedCloneHeapBytes": 668513,
+        "planReason": "history",
+        "sizeOnlyProjection": {
+          "retainedDead": 189,
+          "saveCharacters": 198631,
+          "saveUtf8Bytes": 247495,
+          "v8Bytes": 218156,
+          "estimatedCloneHeapBytes": 388796
+        }
+      },
+      "finalYear": 1476,
+      "retained": 200,
+      "living": 9,
+      "minPopulation": 6,
+      "extinct": false,
+      "birthsIn20YearsAfterBoundary": 0,
+      "finalBirthReason": "history",
+      "elapsedMs": 38051
+    },
+    {
+      "seed": 42,
+      "result": "MEASURED",
+      "boundary": {
+        "year": 1444,
+        "living": 11,
+        "births": 194,
+        "saveCharacters": 346939,
+        "saveUtf8Bytes": 396127,
+        "v8Bytes": 363374,
+        "estimatedCloneHeapBytes": 671440,
+        "planReason": "history",
+        "sizeOnlyProjection": {
+          "retainedDead": 189,
+          "saveCharacters": 199205,
+          "saveUtf8Bytes": 248393,
+          "v8Bytes": 219040,
+          "estimatedCloneHeapBytes": 390578
+        }
+      },
+      "finalYear": 1464,
+      "retained": 200,
+      "living": 9,
+      "minPopulation": 6,
+      "extinct": false,
+      "birthsIn20YearsAfterBoundary": 0,
+      "finalBirthReason": "history",
+      "elapsedMs": 38758
+    },
+    {
+      "seed": 2026,
+      "result": "MEASURED",
+      "boundary": {
+        "year": 1459,
+        "living": 11,
+        "births": 194,
+        "saveCharacters": 347869,
+        "saveUtf8Bytes": 396895,
+        "v8Bytes": 363954,
+        "estimatedCloneHeapBytes": 673191,
+        "planReason": "history",
+        "sizeOnlyProjection": {
+          "retainedDead": 189,
+          "saveCharacters": 199980,
+          "saveUtf8Bytes": 249006,
+          "v8Bytes": 219508,
+          "estimatedCloneHeapBytes": 392005
+        }
+      },
+      "finalYear": 1479,
+      "retained": 200,
+      "living": 9,
+      "minPopulation": 6,
+      "extinct": false,
+      "birthsIn20YearsAfterBoundary": 0,
+      "finalBirthReason": "history",
+      "elapsedMs": 41493
+    },
+    {
+      "seed": 90001,
+      "result": "MEASURED",
+      "boundary": {
+        "year": 1480,
+        "living": 10,
+        "births": 194,
+        "saveCharacters": 348157,
+        "saveUtf8Bytes": 397709,
+        "v8Bytes": 364650,
+        "estimatedCloneHeapBytes": 674309,
+        "planReason": "history",
+        "sizeOnlyProjection": {
+          "retainedDead": 190,
+          "saveCharacters": 199989,
+          "saveUtf8Bytes": 249541,
+          "v8Bytes": 219916,
+          "estimatedCloneHeapBytes": 392540
+        }
+      },
+      "finalYear": 1500,
+      "retained": 200,
+      "living": 9,
+      "minPopulation": 6,
+      "extinct": false,
+      "birthsIn20YearsAfterBoundary": 0,
+      "finalBirthReason": "history",
+      "elapsedMs": 43151
+    }
+  ],
+  "manifest": {
+    "src/engine.mjs": "dba8c7f178ba25ac2962801ee30f878f1d6656feec0cb4654613e327e2146eff",
+    "src/survival.mjs": "7ed2f464baa3d9a54b64b4ac36892db544ab6446152e8249e021222f4e1c65d4",
+    "src/lifecycle.mjs": "47b1e5a3139bd8c5d5e8ddbeb889caa29bbd65122ca508959359ce01ee1fb662",
+    "src/reproduction.mjs": "99fb3c91cdcdcf3466ad4c1978812c690db5cb0b865201ebf6cda3cb9df47b0e"
+  },
+  "scope": "Five fresh seeded 0.3.5 worlds. No resource injection, age reset, manual clone, extra housing or revival. Checks each year; 20-year boundary window.",
+  "memoryScope": "V8 serialization is a storage proxy; heap estimate uses 12 structuredClone copies and explicit GC, is noisy and not browser/Android memory. Compaction projection estimates sizes only; it does not prove archive gameplay."
+}

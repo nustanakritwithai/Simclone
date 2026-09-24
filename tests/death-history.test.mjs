@@ -13,9 +13,9 @@ function oneAgent(seed=1){
   return s;
 }
 
-test('V0.3.5 declares an explicit historical lifecycle sub-schema',()=>{
-  assert.equal(VERSION,'0.3.5');
-  assert.equal(SAVE_VERSION,'0.2.0');
+test('V0.3.6 declares an explicit historical lifecycle sub-schema',()=>{
+  assert.equal(VERSION,'0.3.6');
+  assert.equal(SAVE_VERSION,'0.3.0');
   assert.equal(HISTORY_VERSION,'0.1.0');
   const s=createWorld(5);
   assert.equal(s.historyVersion,HISTORY_VERSION);
@@ -51,10 +51,11 @@ test('0.2.0 migration recovers death facts from retained evidence',()=>{
   a.life=adultLife(0,41);s.tick=100;a.satiety=0;a.hp=.1;
   step(s);
   const raw=JSON.parse(serialize(s));
+  raw.version="0.2.0";delete raw.archive;delete raw.archiveVersion;
   delete raw.historyVersion;
   for(const x of raw.agents)delete x.death;
   const migrated=restore(JSON.stringify(raw)),m=migrated.agents[0];
-  assert.equal(migrated.version,'0.2.0');
+  assert.equal(migrated.version,'0.3.0');
   assert.equal(migrated.historyVersion,HISTORY_VERSION);
   assert.equal(m.alive,false);
   assert.deepEqual(m.death,{status:'legacy-evidence',tick:101,cause:'starvation',ageYears:41});
@@ -66,6 +67,7 @@ test('dead 0.2.0 agent without retained evidence remains explicitly unknown',()=
   a.alive=false;a.hp=0;a.task=null;a.moveTick=0;a.memory=[];
   s.events=s.events.filter(e=>e.agentId!==a.id||e.type!=='death');
   const raw=JSON.parse(serialize(s));
+  raw.version="0.2.0";delete raw.archive;delete raw.archiveVersion;
   delete raw.historyVersion;
   for(const x of raw.agents)delete x.death;
   const migrated=restore(JSON.stringify(raw)),m=migrated.agents[0];
@@ -80,7 +82,7 @@ test('real V0.3.3 save fixture migrates history metadata without identity drift'
   const raw=JSON.parse(text),migrated=restore(text);
   assert.equal(raw.version,'0.2.0');
   assert.equal(raw.historyVersion,undefined);
-  assert.equal(migrated.version,'0.2.0');
+  assert.equal(migrated.version,'0.3.0');
   assert.equal(migrated.historyVersion,HISTORY_VERSION);
   assert.deepEqual(
     migrated.agents.map(a=>[a.id,a.parentId,a.generation,a.appearance,a.skills,a.bornTick]),

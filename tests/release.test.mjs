@@ -6,7 +6,7 @@ import {VERSION,SAVE_VERSION,HISTORY_VERSION,restore,serialize,step,validate} fr
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const version=JSON.parse(read('package.json')).version;
 test('release metadata and the entire runtime module graph agree',()=>{
- assert.equal(VERSION,version);assert.equal(version,'0.3.5');assert.equal(SAVE_VERSION,'0.2.0');assert.equal(HISTORY_VERSION,'0.1.0');
+ assert.equal(VERSION,version);assert.equal(version,'0.3.6');assert.equal(SAVE_VERSION,'0.3.0');assert.equal(HISTORY_VERSION,'0.1.0');
  const ux=read('src/ux.mjs'),boot=read('src/boot.mjs'),html=read('index.html');
  assert.ok(ux.includes("UI_VERSION='"+version+"'"));
  assert.ok(boot.includes("window.simclone?.version!=='"+version+"'"));

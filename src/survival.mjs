@@ -1,6 +1,7 @@
 /** Survival 0.2 + Lifecycle 0.3.1: routing/reservations also enforce stage work eligibility. */
-import {canPerformProductiveWork} from './lifecycle.mjs?v=0.3.5';
-import {autonomousBirthFoodTarget,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.3.5';
+import {canPerformProductiveWork} from './lifecycle.mjs?v=0.3.6';
+import {autonomousBirthFoodTarget,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.3.6';
+import {allPeople} from './history.mjs?v=0.3.6';
 export const RULES = Object.freeze({
   width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
@@ -109,6 +110,6 @@ export function survivalSummary(s){
     exhausted:agents.filter(a=>a.energy<RULES.exhausted).length,
     food:s.stock.food,reservedMeals:book.meals.size,freeFood,
     targets:target,projected:plannedStock(s,book),nodeJobs:book.nodes.size,builders:[...book.buildings.values()].reduce((sum,ids)=>sum+ids.size,0),
-    unfinished:s.buildings.filter(b=>!b.complete).length,autonomousBirths:s.agents.filter(isAutonomousChild).length,birth:{...birth},
+    unfinished:s.buildings.filter(b=>!b.complete).length,autonomousBirths:allPeople(s).filter(isAutonomousChild).length,birth:{...birth},
     stock:{...s.stock}};
 }

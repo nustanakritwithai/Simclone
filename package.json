@@ -1,6 +1,6 @@
 {
   "name": "simclone",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,8 @@
     "test:survival": "node scripts/survival-proof.mjs",
     "test:lifecycle": "node scripts/birth-proof.mjs",
     "test:death": "node scripts/death-proof.mjs",
-    "test:continuity": "node scripts/continuity-proof.mjs"
+    "test:continuity": "node scripts/continuity-proof.mjs && node scripts/history-proof.mjs",
+    "test:history": "node scripts/history-proof.mjs",
+    "test:native": "python tests/history_storage.py"
   }
 }

@@ -1,14 +1,14 @@
 # Simclone — Autonomous Clone World
 
-**Generation Continuity 0.3.4** — autonomous birth, growth, work and deterministic age death.
+**Historical Identity 0.3.6 candidate** — preserve ancestry while living generations continue beyond the old 200-person history cap. Exact candidate and main Actions determine release status.
 
 Play: https://nustanakritwithai.github.io/Simclone/
 
-Births are at least four simulated years apart when conditions allow. Same-parent cooldown is four years. Birth costs Food 8 + Wood 4 and protects survival reserves. Manual Clone remains a separate Influence action that creates an age-18 adult; automatic birth creates an age-zero child.
+People live, work, inherit skills and die. Dead identities can move into a bounded archive without losing parent/generation, death facts, skills or retained memories. The roster searches both living and historical people. Temporary decision-score traces are omitted on archival and labelled honestly. This is not mentor teaching or a cultural archive.
 
-The release gate uses five fresh seeded worlds for 120 years with no player Clone commands, real aging/death, and saved checkpoint continuation. It requires productive living descendants after the initial six die. This is NOT unlimited-time or full V1.0 proof.
+The living limit remains min(housing,36); retained history is separately capped at 1024 with character budgets. Birth cost, four-year pacing, parent cooldown and 35% XP inheritance stay unchanged. Manual cloning creates an adult, autonomous birth creates a child.
 
-Save schema stays 0.2.0, with legacy 0.1.0 migration and `simclone:world:v1` storage key unchanged. Existing ages are preserved, not silently reset.
+Save schema 0.3.0 explicitly migrates 0.1.0 and 0.2.0, preserving old lifecycle evidence and unknown death facts. Storage key remains simclone:world:v1. Export a backup before upgrading; the new save schema is not readable by old engines.
 
 ```sh
 npm test
@@ -21,6 +21,8 @@ python tests/navigation-smoke.py
 python tests/survival-smoke.py
 ```
 
-[Current status](docs/STATUS.md) · [Release contract](docs/LIFECYCLE_0.3.4.md) · [Verification](docs/verification/lifecycle-0.3.4.json) · [Next steps](docs/NEXT_STEPS.md) · [Master roadmap](GAME_PLAN.md)
+Continuity includes the old 120-year proof and five untouched 1800-year worlds. Navigation includes separately labelled offline and real HTTP/native-storage tests. A blocked local HTTP environment is UNKNOWN, not native persistence PASS. CI/mobile emulation is not physical Android or public Pages browser verification.
 
-Offline Chromium uses an explicit Storage double. Physical Android/native browser persistence and full V1.0 social/knowledge/replay requirements remain separate gates. The 200-agent history cap still limits very long runs.
+[Status](docs/STATUS.md) · [Contract](docs/HISTORY_LIMITS_0.3.5.md) · [Evidence](docs/verification/history-0.3.6.json) · [Next steps](docs/NEXT_STEPS.md) · [Master plan](GAME_PLAN.md)
+
+Finite storage still stops new births eventually. Imported-age cohorts, device performance, knowledge transfer, social systems and full replay remain separate gates. V1.0 is not claimed.

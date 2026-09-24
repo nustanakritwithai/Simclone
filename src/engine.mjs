@@ -1,11 +1,14 @@
-/** Simclone 0.3.5 — stable death history over generation continuity. */
+/** Simclone 0.3.6 — stable death history over generation continuity. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
-  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs?v=0.3.5';
-import {LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs?v=0.3.5';
-import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.3.5';
+  skillLevel,plannedStock,stockTargets,taskValid,reservations,claim,release,survivalSummary} from './survival.mjs?v=0.3.6';
+import {LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge} from './lifecycle.mjs?v=0.3.6';
+import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.3.6';
+import {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,retentionPlan,compactRetired} from './history.mjs?v=0.3.6';
+export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
-export const VERSION = '0.3.5';
-export const SAVE_VERSION = '0.2.0';
+export const VERSION = '0.3.6';
+export const SAVE_VERSION = '0.3.0';
+export const PREVIOUS_SAVE_VERSION = '0.2.0';
 export const LEGACY_SAVE_VERSION = '0.1.0';
 export const HISTORY_VERSION = '0.1.0';
 const DEATH_STATUSES = new Set(['recorded','legacy-evidence','legacy-unknown']);
@@ -43,7 +46,7 @@ function attemptAutonomousBirth(s){
   const {book}=reservations(s),freeFood=Math.max(0,s.stock.food-book.meals.size),plan=birthPlan(s,freeFood);
   if(!plan.ok)return null;
   const parent=s.agents.find(a=>a.id===plan.parentId&&a.alive);
-  if(!parent)return null;
+  if(!parent||!compactRetired(s).ok)return null;
   s.stock.food-=BIRTH_RULES.foodCost;s.stock.wood-=BIRTH_RULES.woodCost;
   return createAgent(s,parent,false,'birth');
 }
@@ -58,7 +61,7 @@ function killAgent(s,a,cause){
   event(s,'death',text,a.id);return true;
 }
 export function createWorld(seed=230926){
-  const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
+  const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
   let nid=1;
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
@@ -86,9 +89,11 @@ export function command(s,type,data={}){
     const parent=s.agents.find(a=>a.id===data.parentId&&a.alive);
     if(!parent)return {ok:false,message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
     if(living(s).length>=Math.min(36,capacity(s)))return {ok:false,message:'ที่พักเต็มแล้ว สร้างบ้านให้เสร็จก่อน'};
-    if(s.agents.length>=200)return {ok:false,message:'ถึงขีดจำกัดประวัติตัวละครของต้นแบบนี้แล้ว'};
+    const retention=retentionPlan(s);
+    if(!retention.ok)return {ok:false,reason:retention.reason,message:'พื้นที่ประวัติตัวละครเต็ม · หยุดเพิ่มคนโดยไม่ลบบรรพบุรุษ'};
     const freeFood=survivalSummary(s).freeFood;
     if(freeFood<8||s.stock.wood<4)return {ok:false,message:'ต้องมีอาหารว่าง 8 และไม้ 4 · อาหารที่จองไว้ให้คนกินไม่นับเป็นอาหารว่าง'};
+    if(!compactRetired(s).ok)return {ok:false,reason:'history-storage',message:'เก็บประวัติเพิ่มไม่ได้ · ไม่หักทรัพยากรและไม่ลบประวัติเดิม'};
     s.stock.food-=8;s.stock.wood-=4;s.stats.cloned++;
     const a=createAgent(s,parent);return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
   }
@@ -232,18 +237,29 @@ export function step(s,count=1){
   }
   return s;
 }
-export function serialize(s){return JSON.stringify(s);}
+export function serialize(s){
+  const text=JSON.stringify(s);
+  if(text.length>HISTORY_LIMITS.maxSaveCharacters)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป · ไม่เขียนทับเซฟเดิม');
+  return text;
+}
 export function validate(s){
   const errors=[];const bad=x=>errors.push(x),finite=n=>typeof n==='number'&&Number.isFinite(n);
   if(!s||s.version!==SAVE_VERSION)return ['Unsupported save version'];
   if(s.historyVersion!==HISTORY_VERSION)bad('History version');
+  if(s.archiveVersion!==ARCHIVE_VERSION)bad('Archive version');
+  if(!Array.isArray(s.archive)||s.archive.length>HISTORY_LIMITS.maxRetained)return ['Archive'];
+  if(JSON.stringify(s.archive).length>HISTORY_LIMITS.maxArchiveCharacters)bad('Archive size');
   if(!Number.isInteger(s.tick)||s.tick<0||!Number.isInteger(s.rng)||!Number.isInteger(s.seed))bad('Clock/seed');
   if(!Array.isArray(s.tiles)||s.tiles.length!==SIZE.w*SIZE.h||s.tiles.some(t=>!['grass','water','path','bridge'].includes(t)))return ['Terrain'];
   if(!s.stock||['food','wood','stone'].some(k=>!finite(s.stock[k])||s.stock[k]<0||s.stock[k]>999))bad('Inventory');
-  if(!Array.isArray(s.agents)||s.agents.length<1||s.agents.length>200)return ['Agent count'];
+  if(!Array.isArray(s.agents)||s.agents.length>HISTORY_LIMITS.maxImportedHotRecords||retainedCount(s)<1||retainedCount(s)>HISTORY_LIMITS.maxRetained)return ['Agent count'];
+  const people=[...s.agents,...s.archive];
+  if(people.some(a=>!a||typeof a!=='object'||Array.isArray(a)))return ['Agent record'];
+  if(s.archive.some(a=>a.archived!==true||a.alive!==false||a.hp!==0||a.task!==null||a.moveTick!==0||!Array.isArray(a.trace)||a.trace.length!==0))bad('Archived runtime');
+  if(s.agents.some(a=>a.archived!==undefined))bad('Hot archive marker');
   const ids=new Set();
-  for(const a of s.agents){
-    if(!Number.isInteger(a.id)||ids.has(a.id))bad('Agent ID');ids.add(a.id);
+  for(const a of people){
+    if(!Number.isSafeInteger(a.id)||a.id<1||ids.has(a.id))bad('Agent ID');ids.add(a.id);
     if(!walkable(s,a.x,a.y))bad('Agent position');
     if(['hp','satiety','energy'].some(k=>!finite(a[k])||a[k]<0||a[k]>100))bad('Agent needs');
     if(typeof a.alive!=='boolean'||!Number.isInteger(a.generation)||a.generation<0||typeof a.name!=='string'||a.name.length>50)bad('Agent identity');
@@ -257,6 +273,7 @@ export function validate(s){
     if(a.alive){
       if(a.death!==null)bad('Death history');
     }else{
+      if(a.hp!==0||a.task!==null||a.moveTick!==0)bad('Dead runtime');
       const d=a.death;
       if(!d||!DEATH_STATUSES.has(d.status)||!DEATH_CAUSES.has(d.cause))bad('Death history');
       else{
@@ -268,7 +285,12 @@ export function validate(s){
     }
     if(a.task&&(!LABELS[a.task.kind]||!finite(a.task.work)||!Array.isArray(a.task.path)||a.task.path.length>SIZE.w*SIZE.h||a.task.path.some(p=>!walkable(s,p.x,p.y))))bad('Task');
   }
-  if(s.agents.some(a=>a.parentId!==null&&!ids.has(a.parentId)))bad('Parent reference');
+  const byId=new Map(people.map(a=>[a.id,a]));
+  for(const a of people)if(a.parentId!==null){
+    const parent=byId.get(a.parentId);
+    if(!parent)bad('Parent reference');
+    else if(a.parentId===a.id||a.generation!==parent.generation+1||parent.bornTick>a.bornTick)bad('Parent lineage');
+  }
   if(!Array.isArray(s.nodes)||s.nodes.length>SIZE.w*SIZE.h||s.nodes.some(n=>!walkable(s,n.x,n.y)||!['food','wood','stone'].includes(n.type)||!finite(n.amount)||!finite(n.max)||n.amount<0||n.amount>n.max))bad('Resources');
   if(!Array.isArray(s.buildings)||s.buildings.length<1||s.buildings.length>12||s.buildings.some(b=>!walkable(s,b.x,b.y)||!['camp','shelter'].includes(b.type)||typeof b.complete!=='boolean'||!finite(b.progress)||b.progress<0||b.progress>30))bad('Buildings');
   if(!Array.isArray(s.events)||s.events.length>120||s.events.some(e=>typeof e.text!=='string'||!finite(e.tick)||!finite(e.id)))bad('Events');
@@ -304,7 +326,7 @@ function migrateDeathRecord(s,a,sourceVersion){
   const tick=Number.isInteger(evidence.tick)&&evidence.tick>=0&&evidence.tick<=s.tick?evidence.tick:null;
   const cause=deathCauseFromText(evidence.text);
   let age=deathAgeFromText(evidence.text);
-  if(age===null&&sourceVersion===SAVE_VERSION&&tick!==null)age=ageYearsAtTick(s,a,tick);
+  if(age===null&&sourceVersion===PREVIOUS_SAVE_VERSION&&tick!==null)age=ageYearsAtTick(s,a,tick);
   const known=tick!==null||cause!=='unknown'||age!==null;
   return {status:known?'legacy-evidence':'legacy-unknown',tick,cause,ageYears:age};
 }
@@ -318,15 +340,23 @@ function migrateHistory(s,sourceVersion){
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
+  // Current schema must contain its own archive/history metadata; absence is corruption.
+  if(sourceVersion===SAVE_VERSION)return s;
+  if(![LEGACY_SAVE_VERSION,PREVIOUS_SAVE_VERSION].includes(sourceVersion))return s;
+  if(s.archive!==undefined||s.archiveVersion!==undefined)throw new Error('Unexpected archive in legacy save');
   if(sourceVersion===LEGACY_SAVE_VERSION){
     const anchor=Number.isInteger(s.tick)&&s.tick>=0?s.tick:0;
-    s.version=SAVE_VERSION;
     if(Array.isArray(s.agents))for(const a of s.agents)a.life=adultLife(anchor);
-  }else if(sourceVersion!==SAVE_VERSION)return s;
-  return migrateHistory(s,sourceVersion);
+  }
+  // Old engines could leave a dead agent's movement counter (or task) behind.
+  // Normalize execution-only state; do not rewrite identity or historical death facts.
+  if(Array.isArray(s.agents))for(const a of s.agents)if(a?.alive===false&&a.hp===0){a.task=null;a.moveTick=0;}
+  migrateHistory(s,sourceVersion);
+  s.version=SAVE_VERSION;s.archiveVersion=ARCHIVE_VERSION;s.archive=[];
+  return s;
 }
 export function restore(text){
-  if(typeof text!=='string'||text.length>2000000)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป');
+  if(typeof text!=='string'||text.length>HISTORY_LIMITS.maxSaveCharacters)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป');
   const s=migrateSave(JSON.parse(text)),errors=validate(s);
   if(errors.length)throw new Error('บันทึกไม่ถูกต้อง: '+errors.join(', '));return s;
 }

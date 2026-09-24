@@ -69,7 +69,7 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - No mentor/archive, social relationship or V1.0 proof is claimed.
 
 
-## Death History 0.3.5 (current slice)
+## Death History 0.3.5 (historical release)
 
 - Read `docs/LIFECYCLE_0.3.5.md` and `docs/NEXT_STEPS.md` before changing lifecycle persistence.
 - Engine/UI are 0.3.5. World save schema remains 0.2.0; historical-lifecycle sub-schema is `historyVersion=0.1.0`; storage key remains `simclone:world:v1`.
@@ -78,3 +78,15 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Missing evidence is `legacy-unknown`, not a guessed age/cause/tick. Corrupt/unreadable save protection remains unchanged.
 - This slice does not remove the 200 retained-agent cap or prove native HTTP storage/physical Android. Historical identity limits and bounded performance remain the next V0.3.5 gate.
 - Release requires npm test, all four proof scripts, and all three offline Chromium suites on the exact candidate SHA. UNKNOWN is not PASS.
+
+
+## Historical Identity 0.3.6 (current candidate)
+
+- Read docs/STATUS.md, docs/NEXT_STEPS.md and docs/HISTORY_LIMITS_0.3.5.md first. This is Phase 2 of that hardening plan, versioned 0.3.6 for unambiguous module cache pins.
+- Save schema 0.3.0; explicit migrations from 0.1.0/0.2.0; archiveVersion/historyVersion both 0.1.0. Never let old schema silently carry an ignored archive.
+- `src/history.mjs` owns retainedCount/allPeople/findPerson and atomic retention admission/compaction. Use the cross-array resolver for historical identity; all living workers stay in agents. Keep the living order and task-derived reservations.
+- Retain lineage/bornTick/life/death/skills/source/memory; only archived transient decision traces are omitted and the UI discloses this. Reproduction must see archived autonomous children. Do not re-anchor their life data.
+- Keep living cap 36, hot buffer 64, retained cap 1024 and documented character budgets distinct. Failure stops creation without spending or deleting ancestors; unlimited history is not claimed.
+- `npm run test:continuity` runs both the original 120-year and the new five-seed 1800-year proofs. Synthetic capacity tests are separate from those untouched seeded worlds.
+- Navigation smoke retains offline tests and then separately runs archive UI and native HTTP/storage/process-restart tests. Local HTTP policy blocks native testing; report UNKNOWN locally, inspect exact CI for CI-only evidence. No administrator-policy bypass and no physical Android inference.
+- Publish only after exact candidate verification; recheck main, non-force update, verify exact main Pages test/upload/deploy. Do not edit workflows to evade a failing gate.

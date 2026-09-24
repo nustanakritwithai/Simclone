@@ -1,7 +1,7 @@
-import {installUX,UI_VERSION} from './ux.mjs?v=0.3.5';
-import {createWorldStore,saveLabel} from './storage.mjs?v=0.3.5';
-import {installNavigation} from './navigation.mjs?v=0.3.5';
-import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt} from './engine.mjs?v=0.3.5';
+import {installUX,UI_VERSION} from './ux.mjs?v=0.3.6';
+import {createWorldStore,saveLabel} from './storage.mjs?v=0.3.6';
+import {installNavigation} from './navigation.mjs?v=0.3.6';
+import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.3.6';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,nav=null;
@@ -157,7 +157,7 @@ function updateUI(){
  $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip" data-event="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · ${e.type.toUpperCase()}</small><p>${esc(e.text)}</p></button>`).join('');
  inspect();ux?.renderHUD();nav?.update();
 }
-function selectAgent(id,center=false){follow=false;selected=id;tab='about';mode='observe';$('mode-hint').hidden=true;$('build').classList.remove('active');$('observe').classList.add('active');const a=state.agents.find(a=>a.id===id);if(a&&(center||innerWidth<=700)){focus={x:a.x,y:a.y};pan={x:0,y:0};}updateUI();}
+function selectAgent(id,center=false){follow=false;selected=id;tab='about';mode='observe';$('mode-hint').hidden=true;$('build').classList.remove('active');$('observe').classList.add('active');const a=findPerson(state,id);if(a&&(center||innerWidth<=700)){focus={x:a.x,y:a.y};pan={x:0,y:0};}updateUI();}
 function openDialog(title,kicker,body){$('dialog').dataset.kind='other';$('dialog-title').textContent=title;$('dialog-kicker').textContent=kicker;$('dialog-body').innerHTML=body;if(!dialog.open)dialog.showModal();updateUI();}
 function roster(){ux?.openRoster();}
 function history(){ux?.openHistory();}
@@ -166,7 +166,7 @@ function startBuild(){
  if(dialog.open)dialog.close();selected=null;follow=false;mode='build';$('build').classList.add('active');$('observe').classList.remove('active');
  $('mode-hint').hidden=false;$('mode-hint').textContent='แตะพื้นหญ้าว่างเพื่อวางบ้าน · ไม้ 12 + หิน 6 · กด “โลก” เพื่อยกเลิก';updateUI();
 }
-function menu(){openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,`<p class="menu-save-note"><strong>${esc(saveLabel(store.status()))}</strong><br>เซฟอยู่ในเบราว์เซอร์นี้เท่านั้น ไม่ได้ซิงก์ขึ้นคลาวด์</p><div class="menu-grid"><button data-action="survival">ภาพรวมการอยู่รอด</button>${store.status().protected&&store.originalText()!==null?'<button data-action="export-original">สำรองไฟล์เซฟเดิมที่มีปัญหา</button>':''}<button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>Engine ปัจจุบันคือ V0.3.5 Death History · รุ่นใหม่เกิดเองและทุกคนมีอายุขัย deterministic 78–92 ปี · ยังไม่ใช่ Living World V1.0</div>`);}
+function menu(){openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,`<p class="menu-save-note"><strong>${esc(saveLabel(store.status()))}</strong><br>เซฟอยู่ในเบราว์เซอร์นี้เท่านั้น ไม่ได้ซิงก์ขึ้นคลาวด์</p><div class="menu-grid"><button data-action="survival">ภาพรวมการอยู่รอด</button>${store.status().protected&&store.originalText()!==null?'<button data-action="export-original">สำรองไฟล์เซฟเดิมที่มีปัญหา</button>':''}<button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>Engine ปัจจุบันคือ V0.3.6 Ancestry Archive · รุ่นใหม่เกิดเองและทุกคนมีอายุขัย deterministic 78–92 ปี · ยังไม่ใช่ Living World V1.0</div>`);}
 function download(){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='simclone-day-'+day(state)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกไฟล์โลกแล้ว');}
 $('dialog-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{accumulator=0;updateUI();});
 $('dialog-body').addEventListener('click',e=>{
@@ -185,9 +185,9 @@ $('dialog-body').addEventListener('click',e=>{
   const seed=Number($('seed-input').value);if(!Number.isInteger(seed)||seed<0||seed>4294967295){toast('กรอก seed เป็นจำนวนเต็ม 0–4294967295');return;}
   state=createWorld(seed);store.allowReplacement();paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
  }
- if(action==='help')openDialog('สังเกต เข้าใจ แล้วค่อยแทรกแซง','HOW TO PLAY',`<p><b>1. สังเกต</b><br>ลากแผนที่เพื่อเลื่อน ใช้ + / − หรือจีบนิ้วเพื่อซูม แตะคนเพื่อดูความอิ่ม พลังงาน และงานที่กำลังทำ</p><p><b>2. เข้าใจ</b><br>เปิดแท็บ “เหตุผล” ดูคะแนนจริงจาก CPU เปิด “ทักษะ” เพื่อดู XP และต้นแบบที่ถ่ายทอดความรู้</p><p><b>3. ช่วยให้โลกเติบโต</b><br>เลือกคนแล้วกดโคลน หรือวางแปลนบ้านบนหญ้าว่าง ตัวละครจะเลือกไปสร้างเองเมื่อทำได้</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น · Escape ยกเลิกวางบ้าน<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">รุ่นนี้ยังไม่มีวัยเด็ก ความชรา สังคม Faction และ Replay เต็มรูปแบบ · ภาพทั้งหมดวาดในเกม ไม่ใช้ภาพหน้าจอจำลอง</div>`);
+ if(action==='help')openDialog('สังเกต เข้าใจ แล้วค่อยแทรกแซง','HOW TO PLAY',`<p><b>1. สังเกต</b><br>ลากแผนที่เพื่อเลื่อน ใช้ + / − หรือจีบนิ้วเพื่อซูม แตะคนเพื่อดูความอิ่ม พลังงาน และงานที่กำลังทำ</p><p><b>2. เข้าใจ</b><br>เปิดแท็บ “เหตุผล” ดูคะแนนจริงจาก CPU เปิด “ทักษะ” เพื่อดู XP และต้นแบบที่ถ่ายทอดความรู้</p><p><b>3. ช่วยให้โลกเติบโต</b><br>เลือกคนแล้วกดโคลน หรือวางแปลนบ้านบนหญ้าว่าง ตัวละครจะเลือกไปสร้างเองเมื่อทำได้</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น · Escape ยกเลิกวางบ้าน<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">รุ่นนี้มีการเกิด เติบโต และเสียชีวิตแล้ว แต่ยังไม่มีสังคม Faction และ Replay เต็มรูปแบบ · ภาพทั้งหมดวาดในเกม ไม่ใช้ภาพหน้าจอจำลอง</div>`);
 });
-$('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>2000000)throw new Error('ไฟล์ใหญ่เกิน 2 MB');const candidate=restore(await file.text());
+$('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>HISTORY_LIMITS.maxSaveCharacters*3)throw new Error('ไฟล์ใหญ่เกินงบการนำเข้า');const candidate=restore(await file.text());
  openDialog('นำเข้าโลกที่บันทึกไว้','IMPORT WORLD',`<p>วันที่ ${day(candidate)} · ประชากร ${living(candidate).length} คน<br>การนำเข้าจะแทนที่โลกปัจจุบันในเบราว์เซอร์</p><div class="dialog-actions"><button id="confirm-import" class="primary">ยืนยันนำเข้า</button><button class="secondary" data-action="cancel">ยกเลิก</button></div>`);
  $('confirm-import').onclick=()=>{state=candidate;store.allowReplacement();selected=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
  }catch(error){toast('นำเข้าไม่ได้: '+error.message);}});

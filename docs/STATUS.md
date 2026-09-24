@@ -1,35 +1,23 @@
-# Simclone — Death History 0.3.5
+# Simclone — Historical Identity 0.3.6 candidate
 
-Implementation: 0.3.5 engine/UI over the V0.3.4 generation-continuity baseline. World save schema remains 0.2.0 and legacy 0.1.0 is still accepted through explicit migration. V0.3.5 adds `historyVersion=0.1.0` for historical lifecycle facts without changing the browser storage key.
+This implements the historical-identity portion of the V0.3.5 hardening plan on top of main `f2edda01af049ca8090f651d84376c29a8f32490`. Engine/UI 0.3.6, save schema 0.3.0, archiveVersion 0.1.0 and historyVersion 0.1.0. Both legacy 0.1.0 and former 0.2.0 saves use explicit migrations; browser key is unchanged.
 
-## Current slice — Death History + Migration
+## Implemented
 
-New deaths persist a single immutable record containing simulation tick, cause (`age` or `starvation`) and age-at-death. Dead-agent age no longer advances with the living world's clock.
+A buffered dead-identity archive separates historical retention from living work. All lineage, birth-origin/cooldown evidence, death facts, skills and retained memories remain resolvable. Temporary decision-score traces are omitted only when archived and explicitly disclosed in the inspector. Living capacity stays 36 (subject to housing); hot records target 64, total retained identities cap 1024 and explicit character budgets prevent unbounded retention. This is not simply 200 changed to a larger number, and not unlimited history.
 
-Old 0.2.0 saves are migrated by retained evidence: death event/memory is used to recover tick/cause, and age-at-death is derived only when the save already contains lifecycle data that can support the historical tick. Missing evidence becomes `legacy-unknown`; lifespan is never substituted for age-at-death.
+The mobile roster searches archived people, paginates by 80 and resolves parents across the archive. Dead ancestors cannot be followed or cloned. Native file import accounts for UTF-8 byte size separately from save-string size.
 
-Legacy 0.1.0 still adopts lifecycle age 18 at load for continued simulation. That new anchor is not treated as evidence of a death that occurred before migration. Identity, parent/generation, appearance, bornTick, skills, birth-origin semantics and reproduction pacing are preserved.
+## Local evidence, not release status
 
-The inspector displays recorded death age/cause/tick when known and explicitly shows unknown historical age/cause when evidence is insufficient. Corrupt and unreadable browser saves remain protected from overwrite.
+The frozen 0.3.5 baseline really hit its 200-person cap at years 1444–1480 in five seeds with only 10–11 people alive and no subsequent births in a 20-year window. The new five-seed proof reaches 1800 years with 242–246 retained identities, 11–12 living people, generations 60–61 and continuing births beyond that old boundary. There is no manual cloning, resource injection, age reset, extra housing or resurrection in that proof. Population minimum is 6 in all five runs, with no starvation or extinction in these fixtures.
 
-Contract: [LIFECYCLE_0.3.5.md](LIFECYCLE_0.3.5.md).
+See [contract](HISTORY_LIMITS_0.3.5.md), [baseline measurements](verification/history-baseline-0.3.5.json) and [candidate evidence](verification/history-0.3.6.json). Results are tied to source hashes. Exact candidate Actions and exact main Pages run are still the release authority; this document alone never proves deployment.
 
-## Retained baseline
+## Limits and next work
 
-The V0.3.4 proof remains the continuity baseline: five fresh seeded worlds run 120 simulated years with real aging/death, no manual CLONE/resource injection/age reset, plus checkpoint save continuation and single/batched stepping. Birth pacing remains a four-year global gap and four-year same-parent cooldown.
+The finite 1024-identity/archive budget still eventually blocks creation without deleting ancestry. Fresh-world proof at the new full-capacity boundary, imported-age-cohort cases and physical Android performance are not claimed. A 1800-year seeded fixture is not an infinite-world proof.
 
-## Limits / not yet claimed
+Offline browser checks use a Storage double. Local native HTTP testing was blocked by administrator policy and remains UNKNOWN in that environment; a separate real HTTP/storage/process-restart test runs on CI. CI success is not proof of public live browser operation or physical-device performance.
 
-This is the first V0.3.5 hardening slice, not completion of every V0.3.5 follow-up. The 200 retained-agent cap still eventually stops births. Historical identity/active-worker separation, bounded save-size/runtime evidence, longer retained-history boundary runs and imported-age cohorts are still next.
-
-Offline Chromium uses a Storage test double. Native HTTP-origin localStorage persistence and physical Android performance remain UNKNOWN until separately exercised.
-
-Mentor teaching, skill provenance, cultural archive, social relationships, factions and replay are not implemented. V1.0 is not claimed.
-
-## Verification
-
-Exact candidate and exact main workflows are release gates. Do not treat this status file as proof of a passing run; use GitHub Actions for the exact source SHA and keep SAT / VIOL / UNKNOWN separate.
-
-## Next gate
-
-Continue [V0.3.5 historical identity / limits and extended proof](NEXT_STEPS.md) before V0.4 skill provenance.
+No mentor teaching, cultural knowledge archive, skill provenance, social relationships, factions, replay or V1.0 claim. Continue [NEXT_STEPS.md](NEXT_STEPS.md).

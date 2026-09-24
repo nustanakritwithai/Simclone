@@ -1,7 +1,7 @@
-import {BIRTH_RULES} from './reproduction.mjs?v=0.3.5';
+import {BIRTH_RULES} from './reproduction.mjs?v=0.3.6';
 /** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
-import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears} from './engine.mjs?v=0.3.5';
-export const UI_VERSION='0.3.5';
+import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.3.6';
+export const UI_VERSION='0.3.6';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const paths={
@@ -28,19 +28,19 @@ const events={birth:'ชีวิตใหม่',skill:'พัฒนาทั�
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
 const stageLabels={CHILD:'เด็ก',ADULT:'ผู้ใหญ่',ELDER:'ผู้สูงวัย',DEAD:'เสียชีวิต'};
-const birthLabels={ready:'พร้อมเมื่อถึงรอบปี',housing:'ที่พักเต็ม',history:'ประวัติตัวละครเต็ม',pace:'รอครบระยะห่างการเกิด',parent:'ยังไม่มีผู้ใหญ่ที่พร้อม',food:'อาหารสำรองยังไม่พอ',wood:'ไม้สำรองยังไม่พอ'};
+const birthLabels={'history-capacity':'จำนวนประวัติถึงขีดจำกัด','history-storage':'พื้นที่คลังประวัติเต็ม','history-invalid':'ประวัติต้องตรวจสอบ','history-hot':'ชุดข้อมูลทำงานเต็ม',ready:'พร้อมเมื่อถึงรอบปี',housing:'ที่พักเต็ม',history:'ประวัติตัวละครเต็ม',pace:'รอครบระยะห่างการเกิด',parent:'ยังไม่มีผู้ใหญ่ที่พร้อม',food:'อาหารสำรองยังไม่พอ',wood:'ไม้สำรองยังไม่พอ'};
 const tabNames={about:'ตอนนี้',skills:'ทักษะ',why:'เหตุผล',memory:'ความทรงจำ'};
 function setText(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=value;}
 function replaceIfChanged(el,html){if(el.dataset.content!==html){const y=el.scrollTop;el.innerHTML=html;el.dataset.content=html;el.scrollTop=y;}}
 export function installUX(api){
- let expanded=false,identityKey='',tabKey='',candidate=null,lastPreview='',placement=null,railKey='',rosterFilter='all',historyFilter='all';
+ let expanded=false,identityKey='',tabKey='',candidate=null,lastPreview='',placement=null,railKey='',rosterFilter='all',historyFilter='all',rosterLimit=80;
  const inspector=$('inspector'),stage=$('stage'),body=$('dialog-body');
  document.body.classList.add('ux-v2');
  const staticIcons={observe:'eye',clone:'clone',build:'home',roster:'people',history:'history',recenter:'focus'};
  for(const [id,key] of Object.entries(staticIcons)){const button=$(id);const span=button.querySelector('span');if(span)span.innerHTML=icon(key);else button.innerHTML=icon(key);}
  const navIcons={world:'eye',people:'people',clone:'clone',build:'home',history:'history'};
  document.querySelectorAll('[data-nav]').forEach(b=>b.querySelector('span').innerHTML=icon(navIcons[b.dataset.nav]));
- document.querySelector('.version').innerHTML=`SURVIVAL CORE <b>${VERSION}</b>`;
+ document.querySelector('.version').innerHTML=`ANCESTRY ARCHIVE <b>${VERSION}</b>`;
  document.querySelector('.brand').title='Simclone · UI '+UI_VERSION;
  const foodCard=$('food').parentElement;
  foodCard.setAttribute('role','button');foodCard.tabIndex=0;
@@ -78,9 +78,10 @@ export function installUX(api){
   const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
   api.setTab(tabs[next].dataset.tab);inspector.querySelectorAll('[role=tab]')[next].focus();
  });
- body.addEventListener('input',e=>{if(e.target.id==='people-search')renderRosterList();if(e.target.id==='story-search')renderHistoryList();});
+ body.addEventListener('input',e=>{if(e.target.id==='people-search'){rosterLimit=80;renderRosterList();}if(e.target.id==='story-search')renderHistoryList();});
  body.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-  if(b.dataset.rosterFilter){rosterFilter=b.dataset.rosterFilter;renderRosterList();}
+  if(b.dataset.rosterFilter){rosterFilter=b.dataset.rosterFilter;rosterLimit=80;renderRosterList();}
+  if(b.dataset.ux==='more-people'){rosterLimit+=80;renderRosterList();}
   if(b.dataset.historyFilter){historyFilter=b.dataset.historyFilter;renderHistoryList();}
   if(b.dataset.ux==='choose-parent')openRoster();
  });
@@ -95,7 +96,7 @@ export function installUX(api){
   $('confirm-placement').disabled=!placement.ok;
  }
  function renderInspector(){
-  const {state:s,selected,tab,follow}=api.read(),a=s.agents.find(a=>a.id===selected);
+  const {state:s,selected,tab,follow}=api.read(),a=findPerson(s,selected);
   inspector.hidden=!a;document.body.classList.toggle('has-selection',!!a);
   if(!a){identityKey='';expanded=false;document.body.classList.remove('sheet-expanded');return;}
   const key=JSON.stringify([a.id,a.name,a.appearance,a.parentId,a.generation]);
@@ -114,6 +115,8 @@ export function installUX(api){
   setText('life-label',a.alive?`· ${stageLabels[stage]??stage} · อายุ ${age??'—'} ปี · อายุขัย ${lifespan??'—'} ปี`:`· เสียชีวิต · ${deathAge} · ${cause}${deathTick}`);setText('ux-current-action',api.actionText(a));
   setText('follow-label',follow?'หยุดติดตาม':'ติดตาม');
   inspector.querySelector('[data-ux="clone"]').disabled=!a.alive;
+  inspector.querySelector('[data-ui="follow"]').disabled=!a.alive;
+  inspector.querySelector('.needs').title=a.alive?'ความต้องการปัจจุบัน':'ค่าครั้งสุดท้ายที่บันทึก ไม่ใช่ชีวิตที่กำลังดำเนินต่อ';
   for(const k of ['satiety','energy','hp']){setText('need-number-'+k,Math.round(a[k]));const el=$('need-meter-'+k);el.setAttribute('aria-valuenow',String(Math.round(a[k])));el.querySelector('i').style.width=a[k]+'%';el.classList.toggle('low',a[k]<25);}
   for(const b of inspector.querySelectorAll('[role=tab]')){const active=b.dataset.tab===tab;b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;}
   const panel=$('ux-tab-content');panel.setAttribute('aria-labelledby','tab-'+tab);let html='';
@@ -124,10 +127,10 @@ export function installUX(api){
    if(chosen){html=`<div class="decision-callout">${icon('brain')}<div><small>เหตุผลจากการตัดสินใจล่าสุด</small><b>เลือก${LABELS[chosen.kind]} · ${chosen.score} คะแนน</b><p>เปรียบเทียบความต้องการ ความถนัด ทักษะ และระยะเดินจริง งานที่คนอื่นจองหรือทรัพยากรสำรองพอแล้วจะไม่ถูกเลือก</p></div></div>`;}
    html+=(chosen?[chosen,...a.trace.filter(t=>t!==chosen).slice(0,5)]:a.trace.slice(0,6)).map(c=>`<div class="trace-row ${c.status==='selected'?'selected':''}"><span>${c.status==='selected'?'✓ ':''}${LABELS[c.kind]}${blockedLabels[c.status]?' · '+blockedLabels[c.status]:''}</span><b>${c.score}</b><div class="scorebar"><i style="width:${Math.max(0,c.score/max*100)}%"></i></div></div>`).join('');
    if(chosen){const f=chosen.factors;html+=`<details class="score-details"><summary>ดูส่วนประกอบคะแนน</summary><dl>${[['พื้นฐาน',f.base],['ความต้องการ',f.need],['ความถนัด',f.goal],['ทักษะ',f.skill],['ระยะเดินจริง',f.distance]].map(([k,v])=>`<div><dt>${k}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details><p class="source-note">ระยะเดินตอนเลือก ${chosen.travelSteps??'—'} ช่อง · ${a.task?'เลือกเมื่อ tick '+a.task.started:'งานล่าสุดสิ้นสุดแล้ว'} · คะแนนนี้มาจากกฎ CPU ไม่ใช่ข้อความคิดจาก LLM</p>`;}
-   if(!a.trace.length)html='<p class="empty-state">รอโลกเดิน tick แรกเพื่อดูคะแนนจริง</p>';
+   if(!a.trace.length)html=a.archived?'<p class="empty-state">คลังประวัติเก็บตัวตน ทักษะ และความทรงจำ แต่ไม่เก็บคะแนนตัดสินใจชั่วคราว</p>':'<p class="empty-state">รอโลกเดิน tick แรกเพื่อดูคะแนนจริง</p>';
   }else{
-   const parent=s.agents.find(p=>p.id===a.parentId);
-   html=`<div class="life-summary"><div><small>ต้นแบบ</small><b>${escape(parent?.name??'คนแรกของโลก')}</b></div><div><small>งานที่ได้ XP</small><b>${a.workDone} ครั้ง</b></div></div><p class="source-note">${a.task?.path.length?'กำลังเดิน เหลือ '+a.task.path.length+' ช่องก่อนถึงเป้าหมาย':'ตัวละครเลือกงานตามสถานการณ์ของตัวเอง'}<br>เปิด “เหตุผล” เพื่อดูงานที่พิจารณาและคะแนนจริง</p>`;
+   const parent=findPerson(s,a.parentId);
+   html=`<div class="life-summary"><div><small>ต้นแบบ</small><b>${escape(parent?.name??(a.parentId===null?'คนแรกของโลก':'ไม่พบประวัติต้นแบบ'))}</b></div><div><small>งานที่ได้ XP</small><b>${a.workDone} ครั้ง</b></div></div><p class="source-note">${a.archived?'เก็บอยู่ในคลังประวัติ · ตัวตนและสายตระกูลยังอยู่':a.task?.path.length?'กำลังเดิน เหลือ '+a.task.path.length+' ช่องก่อนถึงเป้าหมาย':'ตัวละครเลือกงานตามสถานการณ์ของตัวเอง'}<br>เปิด “เหตุผล” เพื่อดูงานที่พิจารณาและคะแนนจริง</p>`;
   }
   if(panel.dataset.content!==html){const oldOpen=panel.querySelector('details')?.open,scroll=inspector.scrollTop;replaceIfChanged(panel,html);if(oldOpen&&panel.querySelector('details'))panel.querySelector('details').open=true;inspector.scrollTop=scroll;}
  }
@@ -147,12 +150,13 @@ export function installUX(api){
   const modal=$('dialog').open,kind=$('dialog').dataset.kind;
   for(const b of document.querySelectorAll('[data-nav]')){const active=b.dataset.nav===(modal&&kind==='people'?'people':modal&&kind==='history'?'history':building?'build':'world');b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');}
  }
- function openRoster(){rosterFilter='all';api.openDialog('ทุกคนเริ่มเหมือนกัน แต่ไม่เหมือนเดิม','PEOPLE · '+living(api.read().state).length+' คน',`<div class="search-control">${icon('search')}<label class="sr-only" for="people-search">ค้นหาชื่อ</label><input id="people-search" type="search" placeholder="ค้นหาชื่อ เช่น Kira" autocomplete="off"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['hungry','ความอิ่มต่ำ'],['children','รุ่น 2 ขึ้นไป']].map(([id,t])=>`<button data-roster-filter="${id}">${t}</button>`).join('')}</div><p id="roster-count" class="list-count"></p><div id="roster-list"></div>`);$('dialog').dataset.kind='people';renderRosterList();renderHUD();}
+ function openRoster(){rosterFilter='all';rosterLimit=80;api.openDialog('ทุกคนเริ่มเหมือนกัน แต่ไม่เหมือนเดิม','PEOPLE · '+living(api.read().state).length+' คน',`<div class="search-control">${icon('search')}<label class="sr-only" for="people-search">ค้นหาชื่อ</label><input id="people-search" type="search" placeholder="ค้นหาชื่อ เช่น Kira" autocomplete="off"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['hungry','ความอิ่มต่ำ'],['children','รุ่น 2 ขึ้นไป'],['archived','คลังประวัติ']].map(([id,t])=>`<button data-roster-filter="${id}">${t}</button>`).join('')}</div><p id="roster-count" class="list-count"></p><div id="roster-list"></div>`);$('dialog').dataset.kind='people';renderRosterList();renderHUD();}
  function renderRosterList(){if(!$('roster-list'))return;const q=$('people-search').value.toLocaleLowerCase(),s=api.read().state;
-  const agents=s.agents.filter(a=>a.name.toLocaleLowerCase().includes(q)&&(rosterFilter!=='hungry'||a.alive&&a.satiety<25)&&(rosterFilter!=='children'||a.generation>=2));
-  setText('roster-count',`${agents.length} คน · ข้อมูลขณะหยุดเวลา${rosterFilter==='hungry'?' · ความอิ่มต่ำกว่า 25':''}`);
+  const agents=allPeople(s).filter(a=>a.name.toLocaleLowerCase().includes(q)&&(rosterFilter!=='hungry'||a.alive&&a.satiety<25)&&(rosterFilter!=='children'||a.generation>=2)&&(rosterFilter!=='archived'||a.archived===true));
+  setText('roster-count',`${agents.length} คน${agents.length>rosterLimit?' · แสดง '+rosterLimit+' คนแรก':''} · ข้อมูลขณะหยุดเวลา${rosterFilter==='hungry'?' · ความอิ่มต่ำกว่า 25':''}`);
   document.querySelectorAll('[data-roster-filter]').forEach(b=>{const on=b.dataset.rosterFilter===rosterFilter;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});
-  $('roster-list').innerHTML=agents.length?agents.map(a=>`<button class="person-row" data-person="${a.id}">${api.portrait(a)}<div><b>${escape(a.name)}</b><small>รุ่น ${a.generation} · ${escape(api.actionText(a))}</small><span class="roster-skill">${roles[a.preference]} · Lv.${level(a.skills[a.preference])}</span></div><span class="roster-health">${a.alive?Math.round(a.satiety)+'%':'—'}<small>${a.alive?'อิ่ม':'เสียชีวิต'}</small></span></button>`).join(''):'<p class="empty-state">ไม่มีตัวละครตรงกับตัวกรองนี้</p>';
+  $('roster-list').innerHTML=agents.length?agents.slice(0,rosterLimit).map(a=>`<button class="person-row" data-person="${a.id}">${api.portrait(a)}<div><b>${escape(a.name)}</b><small>รุ่น ${a.generation} · ${escape(api.actionText(a))}</small><span class="roster-skill">${roles[a.preference]} · Lv.${level(a.skills[a.preference])}</span></div><span class="roster-health">${a.alive?Math.round(a.satiety)+'%':'—'}<small>${a.alive?'อิ่ม':'เสียชีวิต'}</small></span></button>`).join(''):'<p class="empty-state">ไม่มีตัวละครตรงกับตัวกรองนี้</p>';
+  if(agents.length>rosterLimit)$('roster-list').insertAdjacentHTML('beforeend','<button class="secondary" data-ux="more-people">แสดงเพิ่มอีก 80 คน</button>');
  }
  function openHistory(){historyFilter='all';api.openDialog('เรื่องเล่าที่เกิดขึ้นจริง','WORLD CHRONICLE',`<p class="history-limit">เหตุการณ์ล่าสุด ไม่ใช่ระบบย้อนเวลา · แตะชื่อเรื่องเพื่อไปหาตัวละคร</p><div class="search-control">${icon('search')}<label class="sr-only" for="story-search">ค้นหาเหตุการณ์</label><input id="story-search" type="search" placeholder="ค้นหาชื่อหรือเหตุการณ์"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['birth','ชีวิตใหม่'],['skill','ทักษะ'],['build','บ้าน']].map(([id,t])=>`<button data-history-filter="${id}">${t}</button>`).join('')}</div><p id="history-count" class="list-count"></p><div id="history-list"></div>`);$('dialog').dataset.kind='history';renderHistoryList();renderHUD();}
  function renderHistoryList(){if(!$('history-list'))return;const s=api.read().state,q=$('story-search').value.toLocaleLowerCase(),list=s.events.filter(e=>(historyFilter==='all'||e.type===historyFilter)&&e.text.toLocaleLowerCase().includes(q));
@@ -174,6 +178,8 @@ export function installUX(api){
     <div class="clone-skills"><div><span>แหล่งทรัพยากรที่มีคนจอง</span><b>${v.nodeJobs} จุด</b></div><div><span>คนที่จองงานก่อสร้าง</span><b>${v.builders} คน</b></div><div><span>บ้านที่กำลังสร้าง</span><b>${v.unfinished} หลัง</b></div><div><span>ไม้ / เป้าสำรอง</span><b>${v.stock.wood} / ${v.targets.wood}</b></div><div><span>หิน / เป้าสำรอง</span><b>${v.stock.stone} / ${v.targets.stone}</b></div></div>
     <p class="source-note">แหล่งทรัพยากรรับคนทำงานครั้งละ 1 คน · บ้านรับคนสร้างได้ 2 คนพร้อมกัน<br>เลือกแหล่งที่ไปถึงได้ตามระยะเดินจริง ไม่วัดแค่ความใกล้บนจอ<br>เมื่อหิว คนเก็บอาหารกินผลผลิต 1 หน่วยที่จุดเก็บได้ ส่วนที่เหลือเข้าคลังรวม<br>คิดเป้าสำรองรวมผลผลิตของงานที่มีคนจองแล้ว งานชุดสุดท้ายอาจทำให้เกินเป้าได้เล็กน้อย</p>
     <div class="clone-skills"><div><span>เกิดเองแล้ว</span><b>${v.autonomousBirths} คน</b></div><div><span>สถานะการเกิดอัตโนมัติ</span><b>${birthLabels[v.birth.reason]??v.birth.reason}</b></div></div>
+    <div class="clone-skills"><div><span>ตัวตนที่ยังเก็บประวัติไว้</span><b>${retainedCount(s)} / ${HISTORY_LIMITS.maxRetained}</b></div><div><span>ย้ายเข้าคลังประวัติแล้ว</span><b>${s.archive.length} คน</b></div></div>
+    <p class="source-note">คลังประวัติยังค้นต้นแบบและทักษะของคนตายได้ เมื่อจำนวนหรือพื้นที่ประวัติเต็ม ระบบหยุดเพิ่มคนโดยไม่ลบบรรพบุรุษ ไม่ใช่โลกที่เก็บประวัติได้ไม่จำกัด</p>
     <p class="source-note">เงื่อนไขเกิดเอง: ที่พักต้องว่าง · ต้องมีผู้ใหญ่พร้อม · อาหารว่างต้องพอจ่าย 8 แล้วยังเหลือถึงเป้ารุ่นถัดไป · ไม้จ่าย 4 แล้วยังเหลืออย่างน้อย 12 · เว้นการเกิดอย่างน้อย ${BIRTH_RULES.globalIntervalYears} ปีจำลอง และ parent คนเดิมพัก ${BIRTH_RULES.parentCooldownYears} ปี<br>ช่วงวัยทำงานแล้ว: เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัยทำงานผลิตที่ 75% · อายุขัย derive 78–92 ปีและเสียชีวิตตามวัยแบบ deterministic</p>`);
   $('dialog').dataset.kind='survival';
  }

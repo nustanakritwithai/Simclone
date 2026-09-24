@@ -1,4 +1,4 @@
-# Next build gates after the V0.3.5 death-history slice
+# Next build gates — Historical Identity 0.3.6 candidate
 
 These are implementation gates, not proof by themselves. The exact candidate and main workflows remain authoritative for release status.
 
@@ -14,21 +14,17 @@ Implemented in the current 0.3.5 slice under [LIFECYCLE_0.3.5.md](LIFECYCLE_0.3.
 - inspector disclosure of known versus unknown death history
 - stable save/load continuation and retained corrupt/unreadable-save protection
 
-This phase is not considered released until the exact candidate and exact main gates succeed.
+Phase 1 was deployed by main f2edda01af049ca8090f651d84376c29a8f32490, Pages run 35960844010. Its historical schema notes above describe that release, not current save 0.3.0.
 
 ## V0.3.5 Phase 2 — Historical identity / limits
 
-Separate retained historical identity from active-worker limits. The current 200-agent history cap stops births eventually; do not fix it by deleting parents or merely increasing the number.
-
-Measure save size, memory and runtime before choosing archive structures. Any archive must keep parent/generation/appearance/history resolution and the lineage + bornTick data used for deterministic reproduction pacing/cooldown.
-
-Add boundary tests that deliberately reach retained-history limits. Define what happens when storage/history capacity is reached, including a bounded failure mode that does not silently erase ancestry.
+Implemented as the 0.3.6 candidate in [HISTORY_LIMITS_0.3.5.md](HISTORY_LIMITS_0.3.5.md). Explicit save 0.3.0 migration, buffered dead archive, shared parent/lineage resolution and bounded 1024 retention replace the old 200-hot-record coupling. Exact candidate/main verification is still required before release. No unlimited history claim.
 
 ## V0.3.5 Phase 3 — Extended proof / persistence
 
-Add longer unmodified multi-seed runs and imported-age-cohort cases. Report population minima/extinction, births/deaths, starvation, lineage validity, save size and execution cost rather than only endpoint survivors.
+The 0.3.6 candidate includes five unmodified 1800-year runs crossing the old 200-history boundary. Next add imported-age-cohort cases and evaluate the new full-retention exhaustion path over longer horizons. Do not synthesize new adults to repair extinct saves. Report population minima/extinction, births/deaths, starvation, lineage validity, save size and execution cost rather than only endpoint survivors.
 
-Exercise native browser storage on a real HTTP origin when the environment supports it. Keep physical Android performance as a separate device test; offline Storage doubles are not evidence for either.
+The candidate adds a separate native HTTP/localStorage/process-restart check to the existing CI navigation entry point. Local HTTP is blocked by administrator policy, so do not infer local PASS; inspect exact CI output. Keep physical Android performance as a separate device test; offline Storage doubles are not evidence for either.
 
 Definition of done for the broader V0.3.5 hardening phase: stable death history, lineage resolution across many deaths, deterministic save continuation, retained-history boundary behavior, and measured memory/performance/save-size evidence.
 

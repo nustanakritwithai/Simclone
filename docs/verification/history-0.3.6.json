@@ -1,0 +1,340 @@
+{
+  "engine": "0.3.6",
+  "saveVersion": "0.3.0",
+  "historyVersion": "0.1.0",
+  "archiveVersion": "0.1.0",
+  "status": "LOCAL CANDIDATE EVIDENCE; exact candidate CI and main Pages are independent release gates",
+  "baselineCommit": "f2edda01af049ca8090f651d84376c29a8f32490",
+  "workBranchBase": "660427eac3c88dede1af31f782fc9e6f230f4a8a",
+  "sourceAcquisition": "GitHub Pages artifact 10792665828 from exact main run 35960844010; source blobs verified before modifications. Feature branch contract/probe read separately.",
+  "node": "v22.16.0",
+  "verifiedUploadedGitTrees": {
+    "src": "1026dc9cb9de1e2cc4d24d2610bb5e7c25774b4f",
+    "tests": "144f7ac5f7271ca0f12a70f1ca7e200505447f64",
+    "scripts": "46e0b4840ceafa5f3758e884e0d4f2cbb6dee849"
+  },
+  "sourceSHA256": {
+    "index.html": "cd6d8dc22e2fb96e6c60a46569bceb0737fc906c014b0d6a0f889a2be4b8444e",
+    "package.json": "4f0d661b2b98adb120b352acadeefb832e91ec0d150fe9c2bdb7f00282146328",
+    "scripts/history-limit-baseline.mjs": "f518365d337075d2dd703e1b11f45a2fddfbb14953c08ce715c9371a392ef9cf",
+    "scripts/history-proof.mjs": "4a078b8b33b62be1660685b4328554c0853a2ba2acbafe7c0e9d0f7031cd2536",
+    "src/app.mjs": "770c1e7e4d1391b5405652ecf5a54a6344cf426e6ca84f14d50fded66baffcc8",
+    "src/boot.mjs": "50ffe96304370dc9fb549544a85cee6814317a316956f4f97800b842f57c9125",
+    "src/engine.mjs": "39b321ecd82512a48200e4ac26b407ca67c486ee10b8c1cfea9748751079f3d7",
+    "src/history.mjs": "fba50aa2be73f8b720278e2a06d193c916979a0b99fd475e99264c5967785e3d",
+    "src/lifecycle.mjs": "6a99dc8ac34a30518f90f0ce4914779f0b50dfc1730610c7d2f4bc8c872ffe3a",
+    "src/navigation.mjs": "a8e177a9f702f11014c42d3446bbfb22db231f03eab5bb201046b8aa685096da",
+    "src/reproduction.mjs": "ec6cf012ed14563fd0354425b0981710abe82797ad5ddc4d9fb94733d26bb690",
+    "src/storage.mjs": "93f5d51771492326acb64fd20b030485518d118e8dc9218b521a3a17da92f9c7",
+    "src/survival.mjs": "d0712c90434e5de9f28bb1dbf5c0828cc8647832e0fe63e0a168938b5632f483",
+    "src/ux.mjs": "085b2c4cd659842ad9c5ea48e93b926c8d00b64aaa61d293dd0e10d8978c8096",
+    "tests/history.test.mjs": "5230bbd1a89ece125981319aae3275b14442e9849618c8f39edf797b14444943",
+    "tests/history_storage.py": "19ac1f727ee4f0ac4d9edf3f77ce1b911fa2d9e88e191636e77649c9ce9c4ca3",
+    "tests/history_ui.py": "98f7ebae00cd7c67656e8467b4a752ad2ecc6d598d97b0be081f374dd7999aa3"
+  },
+  "localGates": {
+    "unitAsset": {
+      "result": "PASS",
+      "passed": 107,
+      "total": 107
+    },
+    "survivalOnly": {
+      "result": "SAT",
+      "passed": 18,
+      "total": 18,
+      "scope": "Survival-only fixture caps biological age; not continuity."
+    },
+    "autonomousBirth": {
+      "result": "SAT",
+      "seeds": 5
+    },
+    "ageDeath": {
+      "result": "SAT",
+      "seeds": 5
+    },
+    "originalContinuity": {
+      "result": "SAT",
+      "seeds": 5,
+      "yearsPerSeed": 120
+    },
+    "offlineChromium": {
+      "result": "PASS",
+      "observation": 47,
+      "navigationRecovery": 36,
+      "archiveObservation": 14,
+      "survival": 11,
+      "total": 108,
+      "scope": "Exact modules, Storage test double. Mobile is viewport/touch emulation, not physical Android."
+    },
+    "nativeStorageLocal": {
+      "result": "UNKNOWN",
+      "reason": "Administrator policy blocked HTTP including loopback: net::ERR_BLOCKED_BY_ADMINISTRATOR. Navigation command exits 1 after 36+14 offline checks; not reported as whole-command PASS. No bypass. Separate native test must be verified on authorized CI."
+    }
+  },
+  "longRun": {
+    "engine": "0.3.6",
+    "result": "SAT",
+    "total": 5,
+    "passed": 5,
+    "rows": [
+      {
+        "seed": 230926,
+        "result": "SAT",
+        "years": 1800,
+        "minPopulation": 6,
+        "maxPopulation": 12,
+        "extinct": false,
+        "manualClones": 0,
+        "starvationDeaths": 0,
+        "ageDeaths": 234,
+        "retained": 246,
+        "living": 12,
+        "archived": 215,
+        "hot": 31,
+        "maxHot": 64,
+        "maxArchive": 215,
+        "maxGeneration": 61,
+        "birthCount": 240,
+        "boundary": {
+          "year": 1448,
+          "retained": 200,
+          "living": 11,
+          "hot": 38,
+          "archived": 162,
+          "saveCharacters": 221314,
+          "saveUtf8Bytes": 270303,
+          "v8Bytes": 240320,
+          "estimatedCloneHeapBytes": 433062
+        },
+        "birthsIn20YearsAfterBoundary": 3,
+        "saveContinuations": 7,
+        "singleComparisons": 2,
+        "saveCharacters": 255273,
+        "saveUtf8Bytes": 314871,
+        "maxSampledSaveBytes": 317334,
+        "elapsedMs": 65675
+      },
+      {
+        "seed": 1,
+        "result": "SAT",
+        "years": 1800,
+        "minPopulation": 6,
+        "maxPopulation": 12,
+        "extinct": false,
+        "manualClones": 0,
+        "starvationDeaths": 0,
+        "ageDeaths": 233,
+        "retained": 244,
+        "living": 11,
+        "archived": 214,
+        "hot": 30,
+        "maxHot": 64,
+        "maxArchive": 214,
+        "maxGeneration": 61,
+        "birthCount": 238,
+        "boundary": {
+          "year": 1456,
+          "retained": 200,
+          "living": 11,
+          "hot": 40,
+          "archived": 160,
+          "saveCharacters": 220964,
+          "saveUtf8Bytes": 269828,
+          "v8Bytes": 239928,
+          "estimatedCloneHeapBytes": 431084
+        },
+        "birthsIn20YearsAfterBoundary": 2,
+        "saveContinuations": 7,
+        "singleComparisons": 2,
+        "saveCharacters": 251782,
+        "saveUtf8Bytes": 310778,
+        "maxSampledSaveBytes": 315376,
+        "elapsedMs": 52198
+      },
+      {
+        "seed": 42,
+        "result": "SAT",
+        "years": 1800,
+        "minPopulation": 6,
+        "maxPopulation": 12,
+        "extinct": false,
+        "manualClones": 0,
+        "starvationDeaths": 0,
+        "ageDeaths": 234,
+        "retained": 245,
+        "living": 11,
+        "archived": 215,
+        "hot": 30,
+        "maxHot": 64,
+        "maxArchive": 215,
+        "maxGeneration": 61,
+        "birthCount": 239,
+        "boundary": {
+          "year": 1444,
+          "retained": 200,
+          "living": 11,
+          "hot": 40,
+          "archived": 160,
+          "saveCharacters": 221835,
+          "saveUtf8Bytes": 271023,
+          "v8Bytes": 241154,
+          "estimatedCloneHeapBytes": 433460
+        },
+        "birthsIn20YearsAfterBoundary": 3,
+        "saveContinuations": 7,
+        "singleComparisons": 2,
+        "saveCharacters": 253171,
+        "saveUtf8Bytes": 312758,
+        "maxSampledSaveBytes": 316949,
+        "elapsedMs": 51620
+      },
+      {
+        "seed": 2026,
+        "result": "SAT",
+        "years": 1800,
+        "minPopulation": 6,
+        "maxPopulation": 12,
+        "extinct": false,
+        "manualClones": 0,
+        "starvationDeaths": 0,
+        "ageDeaths": 233,
+        "retained": 244,
+        "living": 11,
+        "archived": 213,
+        "hot": 31,
+        "maxHot": 64,
+        "maxArchive": 213,
+        "maxGeneration": 60,
+        "birthCount": 238,
+        "boundary": {
+          "year": 1459,
+          "retained": 200,
+          "living": 11,
+          "hot": 40,
+          "archived": 160,
+          "saveCharacters": 222807,
+          "saveUtf8Bytes": 271833,
+          "v8Bytes": 241782,
+          "estimatedCloneHeapBytes": 435197
+        },
+        "birthsIn20YearsAfterBoundary": 2,
+        "saveContinuations": 7,
+        "singleComparisons": 2,
+        "saveCharacters": 254091,
+        "saveUtf8Bytes": 313330,
+        "maxSampledSaveBytes": 315872,
+        "elapsedMs": 55327
+      },
+      {
+        "seed": 90001,
+        "result": "SAT",
+        "years": 1800,
+        "minPopulation": 6,
+        "maxPopulation": 12,
+        "extinct": false,
+        "manualClones": 0,
+        "starvationDeaths": 0,
+        "ageDeaths": 230,
+        "retained": 242,
+        "living": 12,
+        "archived": 216,
+        "hot": 26,
+        "maxHot": 64,
+        "maxArchive": 216,
+        "maxGeneration": 60,
+        "birthCount": 236,
+        "boundary": {
+          "year": 1480,
+          "retained": 200,
+          "living": 10,
+          "hot": 37,
+          "archived": 163,
+          "saveCharacters": 221407,
+          "saveUtf8Bytes": 270959,
+          "v8Bytes": 240838,
+          "estimatedCloneHeapBytes": 433167
+        },
+        "birthsIn20YearsAfterBoundary": 2,
+        "saveContinuations": 7,
+        "singleComparisons": 2,
+        "saveCharacters": 248728,
+        "saveUtf8Bytes": 307577,
+        "maxSampledSaveBytes": 317344,
+        "elapsedMs": 55824
+      }
+    ],
+    "scope": "Five fresh seeds, 1800 years each, no manual clone, resource injection, age reset, extra housing or resurrection. Invariants checked at year boundaries; save-size maxima sampled every 20 years. Runtime includes verification overhead. Native/physical-device performance is a separate claim.",
+    "memoryScope": "V8 serialization is not live memory. Optional heap estimate averages 12 structuredClone copies with explicit Node GC and is noisy; not browser/Android memory."
+  },
+  "baselineMeasurement": {
+    "path": "history-baseline-0.3.5.json",
+    "sha256": "08ea80b8a235cad3bd029b5ed28ecde9f3fe9cf384bc3b90533e13df951a27f3",
+    "original1200YearProbe": "UNKNOWN: no seed reached 200; 162-167 retained identities",
+    "repeatWithPublishedDriver": {
+      "result": "MATCH",
+      "scope": "Released CLI driver rerun against frozen baseline reproduces all five boundary years and save sizes; timing/heap estimates vary.",
+      "rawReportSha256": "021468ddadcef1cfabf677cd1e26432a95c8af8968f5929ee3f426c9a82abf62"
+    }
+  },
+  "redRegressions": [
+    {
+      "case": "Valid manual identity 201 rejected by frozen 0.3.5 engine",
+      "resultBeforeFix": "FAIL as expected",
+      "logSha256": "36e4b081b8d997dbd8b071d9a942df6d1dbeb88951e07fa0435e59e3f86dda5e"
+    },
+    {
+      "case": "Real 0.1.0 starvation save retained moveTick=2 and initially failed new dead-runtime validation",
+      "resultBeforeFix": "FAIL as expected",
+      "resolution": "Explicit old-schema execution-only cleanup; identity, death evidence and unknown age preserved. New regression passes.",
+      "logSha256": "c6488241ca37c4910119825b1c64e5ddf1871abf4ecef250c9f569ad237a33ae"
+    }
+  ],
+  "logSHA256": {
+    "unit-exact": {
+      "exitCode": 0,
+      "sha256": "8be25581226ec48f12c22fc4e54e6d1d61ad0dc7ae8ab5d79f9fc27b2aa024e4"
+    },
+    "ui-exact": {
+      "exitCode": 0,
+      "sha256": "1065fbb967211caed7a7f13fc479cfec958698c14c905540e982570b642e4c90"
+    },
+    "navigation-exact": {
+      "exitCode": 1,
+      "sha256": "89cfb085027ad54768681d829a8ba117beb676f750dc441b68d1e9527ef74e88"
+    },
+    "survival-ui-exact": {
+      "exitCode": 0,
+      "sha256": "f6f146d84cee8464beaa54cdf3475b2bc291339d5e60254c502629e50d1c615f"
+    },
+    "proof-exact-survival": {
+      "exitCode": 0,
+      "sha256": "907e931030711ac8dc9031cb726aac02342e8dc9eccef2da67fbcbc4253685bc"
+    },
+    "proof-exact-birth": {
+      "exitCode": 0,
+      "sha256": "cadeb10ad36b79486cbec2853409ace8ab9711e85a8aa9c237fd6fab3ed0e845"
+    },
+    "proof-exact-death": {
+      "exitCode": 0,
+      "sha256": "cd8ca897465fcea3b57f30630c3270ef9d5976f5aeba643bddd2feaf619a756f"
+    },
+    "proof-exact-continuity": {
+      "exitCode": 0,
+      "sha256": "ebd5aabe1b3e62647cdf054e72c524f52b1e8f3b444cf76b9780befd661c895f"
+    },
+    "history-release": {
+      "exitCode": 0,
+      "sha256": "2cdf13d78b9f6726ad24ffeb28e0e94dcc05231d3d80b56358891e7f220ee81b"
+    },
+    "baseline-exact": {
+      "exitCode": 0,
+      "sha256": "7f5199f83206236fb9ec57766291d4477fa24a4df43b9d10662707a0f812faea"
+    }
+  },
+  "limits": [
+    "Retained cap 1024 and archive/whole-save character budgets remain finite; full-capacity behavior tested synthetically, not in a fresh natural 1024-person history run.",
+    "Imported-age-cohort matrix remains a follow-up; no demographic repair.",
+    "Physical Android memory/performance and public Pages browser operation remain UNKNOWN.",
+    "No skill provenance, mentoring, cultural archive or full replay claim."
+  ]
+}
