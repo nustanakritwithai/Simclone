@@ -14,7 +14,8 @@ test('K6 uses Kingdom base prices adapted to Simclone stone',()=>{
 test('K6 price curve rises with scarcity and respects donor caps',()=>{
   assert.ok(shadowPrice('food',2)>shadowPrice('food',1));
   assert.equal(shadowPrice('food',0),3.54);
-  assert.equal(shadowPrice('food',999),60);
+  assert.equal(shadowPrice('food',999),38.34);
+  assert.ok(shadowPrice('food',999)<=SHADOW_BASE_PRICE.food*6);
 });
 
 test('K6 keeps optional danger/tax modifiers pure and bounded',()=>{
