@@ -134,3 +134,17 @@ K5 extracts the donor scarcity-price formula without introducing currency or tra
 - the snapshot exposes normalized price pressure and the hottest/coldest good.
 
 K5 prices are observational. There is no agent money, settlement treasury, tax, merchant inventory, buy/sell mutation or caravan system yet.
+
+
+## Kingdom Sandbox storage/spoilage import — K6 shadow candidate
+
+K6 extracts the donor village storage and food-decay rules as an observational projection.
+
+- village food cap: 400;
+- village material cap: 200 for wood and stone;
+- Granary projection: food cap ×1.8 and decay 1.2% → 0.4%;
+- Warehouse projection: material caps ×1.8;
+- overflow, utilization and near-full pressure;
+- proposal flags for Granary / Warehouse.
+
+No stock is decayed or discarded yet, and Simclone does not yet own real Granary/Warehouse buildings. K6 exists to prove the storage contract before economic-building authority is introduced.
