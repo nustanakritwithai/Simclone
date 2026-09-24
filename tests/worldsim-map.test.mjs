@@ -1,33 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {WORLD_MAP_VERSION,generateWorldMap,cellAt,eachCell,terrainWalkable,compatibilityTiles,nearestWalkable,resourceNodesFromWorldMap,worldMapSummary} from '../src/worldsim-map.mjs';
+import {WORLD_MAP_VERSION,MAP_AUTHORITY,createWorldMapView,visualCellAt,visualNoise,isVisualWater} from '../src/worldsim-map.mjs';
+import {createWorld,serialize} from '../src/engine.mjs';
 
-test('full WorldSim map is deterministic and bounded',()=>{
- const a=generateWorldMap(230926),b=generateWorldMap(230926);assert.equal(a.version,WORLD_MAP_VERSION);
- assert.equal(a.terrain.length,780);assert.deepEqual(a,b);
+test('WorldSim map view is deterministic and bounded',()=>{
+ const s=createWorld(230926),a=createWorldMapView(s),b=createWorldMapView(s);
+ assert.equal(a.version,WORLD_MAP_VERSION);assert.equal(a.cells.length,30*26);assert.deepEqual(a,b);
 });
-test('map exposes all WorldSim terrain families needed by Simclone',()=>{
- const m=generateWorldMap(230926),types=new Set(eachCell(m).map(c=>c.terrainType));
+test('presentation map exposes expected visual terrain families without changing gameplay tiles',()=>{
+ const s=createWorld(230926),before=serialize(s),view=createWorldMapView(s),types=new Set(view.cells.map(c=>c.terrainType));
  for(const t of ['deepWater','shallowWater','sand','grass','forest','rock'])assert.ok(types.has(t),t);
+ assert.equal(serialize(s),before);assert.deepEqual(view.authority,MAP_AUTHORITY);
 });
-test('central settlement basin is always walkable',()=>{
- const m=generateWorldMap(1);for(let y=10;y<=14;y++)for(let x=9;x<=13;x++)
-  if(Math.abs(x-11)+Math.abs(y-12)<=3)assert.equal(terrainWalkable(cellAt(m,x,y).terrainType),true);
+test('visual water mirrors gameplay water and path/bridge remain explicit',()=>{
+ const s=createWorld(230926),view=createWorldMapView(s);
+ for(const c of view.cells){
+   assert.equal(c.walkable,c.gameplayTile!=='water');
+   if(isVisualWater(c.terrainType))assert.equal(c.gameplayTile,'water');
+ }
+ assert.ok(view.cells.some(c=>c.terrainType==='path'));
+ assert.ok(view.cells.some(c=>c.terrainType==='bridge'));
 });
-test('compatibility tiles preserve one-cell-per-world-cell mapping',()=>{
- const m=generateWorldMap(9),tiles=compatibilityTiles(m);assert.equal(tiles.length,780);
- assert.ok(tiles.every(t=>t==='grass'||t==='water'));
+test('visual cell lookup is bounded and stable',()=>{
+ const view=createWorldMapView(createWorld(7));
+ assert.equal(visualCellAt(view,0,0).index,0);assert.equal(visualCellAt(view,29,25).index,779);
+ assert.equal(visualCellAt(view,-1,0),null);assert.equal(visualCellAt(view,30,0),null);
 });
-test('nearest walkable relocation is deterministic',()=>{
- const m=generateWorldMap(123),water=eachCell(m).find(c=>!terrainWalkable(c.terrainType));
- assert.deepEqual(nearestWalkable(m,{x:water.x,y:water.y}),nearestWalkable(m,{x:water.x,y:water.y}));
+test('visual noise is deterministic and unsigned',()=>{
+ const a=visualNoise(42,7,9,3);assert.equal(a,visualNoise(42,7,9,3));assert.ok(a>=0&&a<1);
 });
-test('resource generation follows terrain and is deterministic',()=>{
- const m=generateWorldMap(230926),a=resourceNodesFromWorldMap(m),b=resourceNodesFromWorldMap(m);assert.deepEqual(a,b);
- assert.ok(a.some(n=>n.type==='wood'));assert.ok(a.some(n=>n.type==='food'));assert.ok(a.some(n=>n.type==='stone'));
- for(const n of a)assert.equal(terrainWalkable(cellAt(m,n.x,n.y).terrainType),true);
-});
-test('summary exposes physical world metrics',()=>{
- const s=worldMapSummary(generateWorldMap(230926));assert.equal(s.version,WORLD_MAP_VERSION);
- assert.ok(s.averageElevation>=0&&s.averageElevation<=1);assert.ok(s.averageHumidity>=0&&s.averageHumidity<=1);
+test('different seeds produce different presentation maps while gameplay save stays authoritative',()=>{
+ const a=createWorld(1),b=createWorld(2);
+ assert.notDeepEqual(createWorldMapView(a).cells.map(c=>c.color),createWorldMapView(b).cells.map(c=>c.color));
 });
