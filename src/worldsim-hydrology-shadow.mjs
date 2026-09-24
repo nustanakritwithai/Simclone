@@ -48,8 +48,8 @@ export function hydrologyShadowForCell(cell,soil,climate,flow){
 
   const poreSpace=soil.active?clamp(Math.min(soil.porosity,1)-moisture*.55):0;
   const compactionModifier=soil.active?clamp(1-soil.compaction*.72):0;
-  const depthModifier=soil.active?.28+soil.depth*.72:0;
-  const porosityModifier=soil.active?.45+soil.porosity*.55:0;
+  const depthModifier=soil.active ? .28+soil.depth*.72 : 0;
+  const porosityModifier=soil.active ? .45+soil.porosity*.55 : 0;
   const infiltrationPotential=soil.active
     ? clamp(surfaceWaterPotential*poreSpace*compactionModifier*depthModifier*porosityModifier)
     : 0;
