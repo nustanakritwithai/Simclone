@@ -1,0 +1,37 @@
+{
+  "scope": "G1-A isolated possessions domain only; not integrated or released",
+  "date": "2026-09-24",
+  "runtimeBase": "c74319d431f300bed64aeba35dabc1d9b57e2568",
+  "planningBase": "02a9e1ce6fa598fb0d95253ab5648b102585790d",
+  "command": "node --test tests/possessions.test.mjs",
+  "node": "v22.16.0",
+  "result": {
+    "passed": 55,
+    "failed": 0,
+    "skipped": 0
+  },
+  "testedFiles": [
+    {
+      "path": "src/possessions.mjs",
+      "gitBlobSha1": "562c3014d0c8cc0243db3adb56d0aefd6d5bbed9",
+      "sha256": "a55d23d12b45359f36397eb76a8698388b2bef57af2c2ad3d49ac900abd70ddb",
+      "bytes": 14586
+    },
+    {
+      "path": "tests/possessions.test.mjs",
+      "gitBlobSha1": "6822691fad8bc332a7e191fd1b6557bdd779e000",
+      "sha256": "1b065689eca277cf7395d2b9f6c9f2fd178fb703c949b37286d1389b993c36a2",
+      "bytes": 18986
+    }
+  ],
+  "limitations": [
+    "Miniature domain fixtures, not live engine",
+    "Real CRAFT scheduling and movement not connected",
+    "Reserved stock not yet protected in existing engine consumers",
+    "Actual tool work-rate effect not yet applied",
+    "World save migration not implemented",
+    "UI and canvas visual not implemented",
+    "Full new CI not asserted",
+    "Not merged or deployed"
+  ]
+}
