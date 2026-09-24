@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,serialize,step} from '../src/engine.mjs';
 import {createWorldMapView} from '../src/worldsim-map.mjs';
+import {createSoilShadow} from '../src/worldsim-soil-shadow.mjs';
 import {RESOURCE_ECOLOGY_SHADOW_VERSION,resourceSuitabilityForCell,createResourceEcologyShadow,shadowExistingResourcePressure} from '../src/worldsim-resource-shadow.mjs';
 
 test('resource ecology shadow is deterministic and read-only',()=>{
@@ -39,4 +40,15 @@ test('observing ecology shadow every tick cannot change deterministic execution'
   const a=createWorld(9191),b=createWorld(9191);
   for(let i=0;i<360;i++){shadowExistingResourcePressure(a);step(a);step(b);}
   assert.equal(serialize(a),serialize(b));
+});
+
+test('resource ecology consumes WM3.1 soil evidence without moving resource authority',()=>{
+  const s=createWorld(230926),view=createWorldMapView(s),soil=createSoilShadow(s,view),shadow=createResourceEcologyShadow(s);
+  assert.deepEqual(shadow.soilSummary,soil.summary);
+  const fertile=soil.cells.filter(c=>c.active).sort((a,b)=>b.fertility-a.fertility||a.index-b.index)[0];
+  const resourceCell=shadow.cells[fertile.index];
+  assert.equal(resourceCell.soilType,fertile.soilType);
+  assert.equal(resourceCell.soilHealth,fertile.health);
+  assert.equal(resourceCell.soilFertility,fertile.fertility);
+  assert.equal(shadow.authority.resources,'simclone-k6');
 });
