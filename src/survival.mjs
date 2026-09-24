@@ -6,6 +6,7 @@ import {kingdomEconomySnapshot} from './kingdom-economy.mjs?v=0.5.0';
 import {kingdomProductionSnapshot} from './kingdom-production.mjs?v=0.5.0';
 import {kingdomLaborMarketSnapshot} from './kingdom-labor-market.mjs?v=0.5.0';
 import {kingdomMarketSnapshot} from './kingdom-market.mjs?v=0.5.0';
+import {kingdomSettlementSnapshot} from './kingdom-settlements.mjs?v=0.5.0';
 export const RULES = Object.freeze({
   width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
@@ -115,10 +116,11 @@ export function survivalSummary(s){
     skillLevel:(a,action)=>skillLevel(a.skills[action]??0),ageRate:a=>productiveWorkRate(s,a)});
   const kingdomLabor=kingdomLaborMarketSnapshot({economy:kingdomEconomy,production:kingdomProduction});
   const kingdomMarket=kingdomMarketSnapshot({economy:kingdomEconomy});
+  const kingdomSettlements=kingdomSettlementSnapshot({agents,buildings:s.buildings});
   return {population:agents.length,hungry:agents.filter(a=>a.satiety<RULES.hungry).length,
     exhausted:agents.filter(a=>a.energy<RULES.exhausted).length,
     food:s.stock.food,reservedMeals:book.meals.size,freeFood,
     targets:target,projected:plannedStock(s,book),nodeJobs:book.nodes.size,builders:[...book.buildings.values()].reduce((sum,ids)=>sum+ids.size,0),
     unfinished:s.buildings.filter(b=>!b.complete).length,autonomousBirths:allPeople(s).filter(isAutonomousChild).length,birth:{...birth},
-    stock:{...s.stock},kingdomEconomy,kingdomProduction,kingdomLabor,kingdomMarket};
+    stock:{...s.stock},kingdomEconomy,kingdomProduction,kingdomLabor,kingdomMarket,kingdomSettlements};
 }
