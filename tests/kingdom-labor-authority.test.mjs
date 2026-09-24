@@ -37,6 +37,22 @@ test('engine exposes bounded K5 factor inside authoritative score math',()=>{
   assert.equal(seen,true);assert.deepEqual(validate(s),[]);
 });
 
+test('K5 can break a close productive tie toward the more severe labor shortage',()=>{
+  const s=createWorld(99),a=s.agents[0];
+  s.tiles.fill('grass');s.agents=s.agents.slice(0,1);a.x=11;a.y=12;a.satiety=100;a.energy=100;a.preference='FORAGE';a.profession='forager';a.task=null;
+  s.stock={food:999,wood:0,stone:3};
+  s.nodes=[
+    {id:1,type:'stone',x:12,y:12,amount:35,max:35},
+    {id:2,type:'wood',x:15,y:12,amount:35,max:35},
+  ];
+  s.buildings=[{id:1,type:'camp',x:11,y:12,complete:true,progress:30}];
+  step(s,1);
+  const wood=a.trace.find(x=>x.kind==='WOODCUT'),mine=a.trace.find(x=>x.kind==='MINE');
+  assert.ok((wood.factors.laborMarket??0)>(mine.factors.laborMarket??0));
+  assert.equal(a.trace.find(x=>x.status==='selected').kind,'WOODCUT');
+  assert.equal(a.task.kind,'WOODCUT');
+});
+
 test('hungry agent receives no K5 labor bonus in trace',()=>{
   const s=createWorld(88),a=s.agents[0];a.satiety=1;a.energy=90;s.stock.wood=0;s.stock.stone=0;
   step(s,1);
