@@ -70,8 +70,8 @@ export function createResourceEcologyShadow(state){
   });
 }
 
-export function shadowExistingResourcePressure(state){
-  const shadow=createResourceEcologyShadow(state),view=createWorldMapView(state),rows=[];
+export function shadowExistingResourcePressure(state,shadow=createResourceEcologyShadow(state),view=createWorldMapView(state)){
+  const rows=[];
   for(const node of state.nodes??[]){
     const cell=visualCellAt(view,node.x,node.y),shadowCell=cell?shadow.cells[cell.index]:null,
       suitability=shadowCell?.suitability?.[node.type]??0;
