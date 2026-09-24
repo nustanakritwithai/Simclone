@@ -1,95 +1,74 @@
-/** Compact WorldSim-inspired physical map authority for Simclone.
- * Field arrays mirror the source simulator's typed-state architecture while
- * remaining JSON-save friendly. Deterministic, CPU-only, no Math.random/DOM.
+/** WM1 presentation only. Reads K6 tiles/resources; never writes simulation state.
+ * This is a WorldSim-inspired terrain skin, not the 20.9.4 physics runtime.
  */
-export const WORLD_MAP_VERSION='worldsim-map-0.2';
-export const WORLD_TERRAIN=Object.freeze(['deepWater','shallowWater','sand','grass','forest','rock']);
+export const WORLD_MAP_VERSION='wm1-visual-1';
 export const MAP_SIZE=Object.freeze({w:30,h:26});
-const WEATHER=Object.freeze(['clear','cloudy','rain','heavyRain','hot','dry']);
-const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
-const hash=(seed,x,y,salt=0)=>{let n=(seed^Math.imul(x+101+salt,374761393)^Math.imul(y+313+salt,668265263))>>>0;n^=n>>>13;n=Math.imul(n,1274126177)>>>0;n^=n>>>16;return n/4294967296;};
-const smooth=(seed,x,y,salt=0)=>{let sum=0,w=0;for(let oy=-2;oy<=2;oy++)for(let ox=-2;ox<=2;ox++){const d=Math.abs(ox)+Math.abs(oy),weight=d===0?4:d===1?2:1;sum+=hash(seed,x+ox,y+oy,salt)*weight;w+=weight;}return sum/w;};
-const idx=(x,y)=>y*MAP_SIZE.w+x;
-const q=n=>+n.toFixed(4);
-export function legacyGameplayTiles(seed=230926){
-  const tiles=[];for(let y=0;y<MAP_SIZE.h;y++)for(let x=0;x<MAP_SIZE.w;x++){
-    const river=20+Math.round(Math.sin(y*.26)*2),wet=x>=river&&x<river+3,bridge=wet&&(y===13||y===14);
-    const road=(Math.abs(y-13)<1&&x>6&&x<27)||(Math.abs(x-11)<1&&y>7&&y<18);
-    tiles.push(bridge?'bridge':wet?'water':road?'path':'grass');
-  }return tiles;
+export const WORLD_TERRAIN=Object.freeze(['deepWater','shallowWater','sand','grass','forest','rock','path','bridge']);
+export const MAP_AUTHORITY=Object.freeze({mode:'presentation-only',path:'simclone-k6',resources:'simclone-k6',save:'simclone-0.5.0'});
+export const TERRAIN_COLORS=Object.freeze({deepWater:'#315f70',shallowWater:'#589496',sand:'#baa77a',grass:'#738f58',forest:'#426948',rock:'#889187',path:'#b4a37a',bridge:'#a18455'});
+const WATER=new Set(['deepWater','shallowWater']);
+const TILES=new Set(['grass','water','path','bridge']);
+const clamp=n=>Math.max(0,Math.min(1,n));
+
+/** Explicit unsigned conversion keeps the noise in [0,1), unlike signed XOR. */
+export function visualNoise(seed,x,y,salt=0){
+  let n=(seed^Math.imul(x+101+salt,374761393)^Math.imul(y+313+salt,668265263))>>>0;
+  n^=n>>>13;n=Math.imul(n,1274126177)>>>0;n^=n>>>16;
+  return (n>>>0)/4294967296;
 }
-export function legacyResourceNodes(seed=230926){
-  let rng=seed>>>0,nid=1;const nodes=[];
-  const next=()=>{rng=(Math.imul(1664525,rng)+1013904223)>>>0;return rng/4294967296;};
-  for(let y=0;y<MAP_SIZE.h;y++)for(let x=0;x<MAP_SIZE.w;x++){
-    const river=20+Math.round(Math.sin(y*.26)*2),wet=x>=river&&x<river+3;
-    const bridge=wet&&(y===13||y===14),road=(Math.abs(y-13)<1&&x>6&&x<27)||(Math.abs(x-11)<1&&y>7&&y<18);
-    const r=next(),inCamp=x>=7&&x<=15&&y>=8&&y<=17;
-    if(!wet&&!road&&!inCamp&&r<.23){const type=r<.14?'wood':r<.19?'food':'stone';nodes.push({id:nid++,type,x,y,amount:type==='stone'?70:35,max:type==='stone'?70:35});}
+function field(seed,x,y,salt){
+  const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy;
+  const u=fx*fx*(3-2*fx),v=fy*fy*(3-2*fy);
+  const a=visualNoise(seed,ix,iy,salt),b=visualNoise(seed,ix+1,iy,salt);
+  const c=visualNoise(seed,ix,iy+1,salt),d=visualNoise(seed,ix+1,iy+1,salt);
+  return (a+(b-a)*u)*(1-v)+(c+(d-c)*u)*v;
+}
+function tint(hex,amount){
+  return '#'+[1,3,5].map(i=>Math.max(0,Math.min(255,parseInt(hex.slice(i,i+2),16)+amount)).toString(16).padStart(2,'0')).join('');
+}
+export const isVisualWater=terrain=>WATER.has(terrain);
+
+/** Detached immutable render snapshot. Caller owns caching; nothing is saved. */
+export function createWorldMapView(state){
+  const {w:width,h:height}=MAP_SIZE,n=width*height;
+  if(!state||!Number.isSafeInteger(state.seed)||state.seed<0||state.seed>4294967295||
+    !Array.isArray(state.tiles)||state.tiles.length!==n)throw new Error('Invalid map view input');
+  for(let i=0;i<n;i++)if(!TILES.has(state.tiles[i]))throw new Error('Invalid gameplay terrain');
+  const tile=(x,y)=>x>=0&&y>=0&&x<width&&y<height?state.tiles[y*width+x]:null;
+  const influences={wood:new Float64Array(n),stone:new Float64Array(n),food:new Float64Array(n)};
+  for(const node of state.nodes??[]){
+    if(!node||!Object.hasOwn(influences,node.type)||!Number.isInteger(node.x)||!Number.isInteger(node.y))continue;
+    for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
+      const x=node.x+dx,y=node.y+dy,d=Math.abs(dx)+Math.abs(dy);
+      if(d<=2&&x>=0&&y>=0&&x<width&&y<height)influences[node.type][y*width+x]+=1/(1+d);
+    }
   }
-  for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]])
-    nodes.push({id:nid++,type,x,y,amount:45,max:45});
-  return nodes;
-}
-export function terrainWalkable(type){return !['deepWater','shallowWater'].includes(type);}
-export function compatibilityTile(type){return terrainWalkable(type)?'grass':'water';}
-export function generateWorldMap(seed=230926){
- seed=seed>>>0;const n=MAP_SIZE.w*MAP_SIZE.h;
- const terrain=new Array(n),elevation=new Array(n),temperature=new Array(n),humidity=new Array(n),fertility=new Array(n),
-   baseSeaDepth=new Array(n),surfaceWater=new Array(n),soilMoisture=new Array(n),groundwater=new Array(n),
-   flooded=new Array(n),atmosphericHumidity=new Array(n),rainfall=new Array(n),droughtPressure=new Array(n),weather=new Array(n);
- const cx=(MAP_SIZE.w-1)/2,cy=(MAP_SIZE.h-1)/2;
- for(let y=0;y<MAP_SIZE.h;y++)for(let x=0;x<MAP_SIZE.w;x++){
-  const i=idx(x,y),nx=(x-cx)/(MAP_SIZE.w*.5),ny=(y-cy)/(MAP_SIZE.h*.5),radial=Math.sqrt(nx*nx+ny*ny);
-  const continent=smooth(seed,x,y,11)*.58+smooth(seed,x>>1,y>>1,29)*.22+(1-clamp(radial,0,1.4))*.42;
-  const ridge=Math.abs(smooth(seed,x,y,47)-.5)*2;let el=clamp((continent-.42)*1.55+ridge*.18,0,1);
-  const dCamp=Math.abs(x-11)+Math.abs(y-12);if(dCamp<=6)el=Math.max(el,.46);
-  const moist=clamp(smooth(seed,x,y,71)*.72+(1-el)*.18,0,1),lat=Math.abs((y/(MAP_SIZE.h-1))*2-1);
-  const temp=clamp(.84-lat*.38-el*.32+(smooth(seed,x,y,91)-.5)*.14,0,1),fert=clamp(moist*.52+(1-el)*.24+smooth(seed,x,y,113)*.24,0,1);
-  let t;
-  if(radial>1.1)t='deepWater';else if(radial>.98)t='shallowWater';else if(radial>.9)t='sand';
-  else if(el>.72||ridge>.78||hash(seed,x,y,173)>.91)t='rock';
-  else if((moist>.46&&fert>.43)||hash(seed,x,y,151)>.73)t='forest';
-  else t='grass';
-  const starter=[['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]];
-  let corridor=dCamp<=6,endpoint=null;
-  for(const [kind,tx,ty] of starter){
-    if((y===12&&x>=Math.min(11,tx)&&x<=Math.max(11,tx))||(x===tx&&y>=Math.min(12,ty)&&y<=Math.max(12,ty)))corridor=true;
-    if(x===tx&&y===ty)endpoint=kind;
+  const counts=Object.fromEntries(WORLD_TERRAIN.map(t=>[t,0])),cells=[];
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const i=y*width+x,gameplayTile=tile(x,y),nearWater=[[0,-1],[1,0],[0,1],[-1,0]].filter(([dx,dy])=>tile(x+dx,y+dy)==='water').length;
+    const elevation=field(state.seed,x/6,y/6,29),moisture=field(state.seed,x/5,y/5,71);
+    let terrainType=gameplayTile;
+    if(gameplayTile==='water')terrainType=nearWater>=3?'deepWater':'shallowWater';
+    else if(gameplayTile==='grass'){
+      const wood=influences.wood[i],stone=influences.stone[i],food=influences.food[i];
+      if(nearWater>0&&wood<.8&&stone<.8)terrainType='sand';
+      else if(stone>wood&&stone>=food&&stone>=.5)terrainType='rock';
+      else if(wood>=.5&&wood>=food||moisture>.64&&food<.8)terrainType='forest';
+      else if(elevation>.72&&wood<.5&&food<.5)terrainType='rock';
+      else terrainType='grass';
+      // Clear-looking ground underneath existing homes; this does NOT alter BUILD.
+      if((state.buildings??[]).some(b=>Math.abs(b.x-x)+Math.abs(b.y-y)<=1))terrainType='grass';
+    }
+    const detail=visualNoise(state.seed,x,y,113),shade=Math.round((detail-.5)*12+(elevation-.5)*8);
+    counts[terrainType]++;
+    cells.push(Object.freeze({index:i,x,y,terrainType,gameplayTile,
+      walkable:gameplayTile!=='water',color:tint(TERRAIN_COLORS[terrainType],shade),
+      elevation:clamp(elevation),detail}));
   }
-  if(corridor)t='grass';
-  if(endpoint==='wood')t='forest';else if(endpoint==='stone')t='rock';else if(endpoint==='food')t='grass';
-  const sea=t==='deepWater'?clamp((1.2-radial)*-.6+.5,.28,1):t==='shallowWater'?clamp((1.02-radial)*-.5+.16,.08,.42):0;
-  const sw=sea+(terrainWalkable(t)&&moist>.78?q(moist-.78):0),ah=clamp(moist*.72+sw*.18,0,1);
-  const rain=clamp((ah-.48)*.18+(smooth(seed,x,y,137)-.5)*.03,0,.14),dry=clamp((.5-moist)*1.7+(temp-.65)*.8,0,1);
-  const wt=rain>.085?'heavyRain':rain>.035?'rain':dry>.65?'dry':temp>.78?'hot':ah>.62?'cloudy':'clear';
-  terrain[i]=WORLD_TERRAIN.indexOf(t);elevation[i]=q(el);temperature[i]=q(temp);humidity[i]=q(moist);fertility[i]=q(fert);
-  baseSeaDepth[i]=q(sea);surfaceWater[i]=q(sw);soilMoisture[i]=q(clamp(moist*.72,0,1));groundwater[i]=q(clamp(moist*.48+(1-el)*.18,0,1));
-  flooded[i]=sw>.18&&terrainWalkable(t)?1:0;atmosphericHumidity[i]=q(ah);rainfall[i]=q(rain);droughtPressure[i]=q(dry);weather[i]=WEATHER.indexOf(wt);
- }
- const terrainCounts=Object.fromEntries(WORLD_TERRAIN.map((t,code)=>[t,terrain.filter(v=>v===code).length]));
- return {version:WORLD_MAP_VERSION,seed,width:MAP_SIZE.w,height:MAP_SIZE.h,terrain,elevation,temperature,humidity,fertility,baseSeaDepth,surfaceWater,soilMoisture,groundwater,flooded,atmosphericHumidity,rainfall,droughtPressure,weather,terrainCounts};
+  return Object.freeze({version:WORLD_MAP_VERSION,seed:state.seed,width,height,
+    authority:MAP_AUTHORITY,cells:Object.freeze(cells),terrainCounts:Object.freeze(counts)});
 }
-export function cellAt(m,x,y){
- if(!m||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=m.width||y>=m.height)return null;const i=y*m.width+x,t=WORLD_TERRAIN[m.terrain[i]];
- return {index:i,x,y,elevation:m.elevation[i],terrainType:t,temperature:m.temperature[i],humidity:m.humidity[i],fertility:m.fertility[i],
-  baseSeaDepth:m.baseSeaDepth[i],surfaceWater:m.surfaceWater[i],soilMoisture:m.soilMoisture[i],groundwater:m.groundwater[i],
-  isOceanCell:!terrainWalkable(t),isFlooded:m.flooded[i]===1,climate:{temperature:m.temperature[i],atmosphericHumidity:m.atmosphericHumidity[i],
-   rainfall:m.rainfall[i],droughtPressure:m.droughtPressure[i],weatherType:WEATHER[m.weather[i]]}};
+export function visualCellAt(view,x,y){
+  if(!view||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=view.width||y>=view.height)return null;
+  return view.cells[y*view.width+x]??null;
 }
-export function eachCell(m){const out=[];for(let y=0;y<m.height;y++)for(let x=0;x<m.width;x++)out.push(cellAt(m,x,y));return out;}
-export function nearestWalkable(m,start){const first=cellAt(m,start.x,start.y);if(first&&terrainWalkable(first.terrainType))return {x:start.x,y:start.y};const seen=new Set([start.x+','+start.y]),q=[{x:start.x,y:start.y}];while(q.length){const p=q.shift();for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){const n={x:p.x+dx,y:p.y+dy},key=n.x+','+n.y;if(seen.has(key))continue;seen.add(key);const c=cellAt(m,n.x,n.y);if(!c)continue;if(terrainWalkable(c.terrainType))return n;q.push(n);}}return null;}
-export function compatibilityTiles(m){return m.terrain.map(code=>compatibilityTile(WORLD_TERRAIN[code]));}
-export function resourceNodesFromWorldMap(m){const out=[];let id=1;for(const c of eachCell(m)){if(!terrainWalkable(c.terrainType))continue;const camp=Math.abs(c.x-11)+Math.abs(c.y-12)<=4;if(camp)continue;let type=null,amount=0;const roll=hash(m.seed,c.x,c.y,191);if(c.terrainType==='forest'&&roll<.72){type='wood';amount=35+Math.floor(c.fertility*25);}else if(['grass','forest'].includes(c.terrainType)&&c.fertility>.42&&roll<.38){type='food';amount=24+Math.floor(c.fertility*28);}else if(c.terrainType==='rock'&&roll<.7){type='stone';amount=45+Math.floor(c.elevation*35);}else if(c.terrainType==='sand'&&roll<.16){type='stone';amount=20+Math.floor(c.elevation*20);}if(type)out.push({id:id++,type,x:c.x,y:c.y,amount,max:amount,worldTerrain:c.terrainType});}
- for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]]){const p=nearestWalkable(m,{x,y});if(!p)continue;for(let i=out.length-1;i>=0;i--)if(out[i].x===p.x&&out[i].y===p.y)out.splice(i,1);out.push({id:id++,type,x:p.x,y:p.y,amount:45,max:45,worldTerrain:cellAt(m,p.x,p.y).terrainType});}
- const minimum={food:32,wood:20,stone:14},used=new Set(out.map(n=>n.x+','+n.y));
- const suitable=(type,c)=>type==='food'?(['grass','forest'].includes(c.terrainType)&&c.fertility>.28):type==='wood'?(c.terrainType==='forest'||(c.terrainType==='grass'&&c.fertility>.46)):['rock','sand'].includes(c.terrainType);
- for(const type of ['food','wood','stone']){
-   let count=out.filter(n=>n.type===type).length;
-   const candidates=eachCell(m).filter(c=>terrainWalkable(c.terrainType)&&Math.abs(c.x-11)+Math.abs(c.y-12)>4&&!used.has(c.x+','+c.y)&&suitable(type,c))
-     .sort((a,b)=>hash(m.seed,a.x,a.y,type==='food'?211:type==='wood'?223:227)-hash(m.seed,b.x,b.y,type==='food'?211:type==='wood'?223:227)||a.index-b.index);
-   for(const c of candidates){if(count>=minimum[type])break;const amount=type==='stone'?45+Math.floor(c.elevation*25):type==='wood'?35+Math.floor(c.fertility*25):30+Math.floor(c.fertility*25);out.push({id:id++,type,x:c.x,y:c.y,amount,max:amount,worldTerrain:c.terrainType});used.add(c.x+','+c.y);count++;}
- }
- out.forEach((n,i)=>n.id=i+1);return out;}
-export function validateWorldMap(m){const n=MAP_SIZE.w*MAP_SIZE.h,errors=[];if(!m||m.version!==WORLD_MAP_VERSION)errors.push('World map version');if(m?.width!==MAP_SIZE.w||m?.height!==MAP_SIZE.h)return [...errors,'World map shape'];for(const k of ['terrain','elevation','temperature','humidity','fertility','baseSeaDepth','surfaceWater','soilMoisture','groundwater','flooded','atmosphericHumidity','rainfall','droughtPressure','weather'])if(!Array.isArray(m[k])||m[k].length!==n)errors.push('World map '+k);if(errors.length)return [...new Set(errors)];if(m.terrain.some(v=>!Number.isInteger(v)||v<0||v>=WORLD_TERRAIN.length)||m.weather.some(v=>!Number.isInteger(v)||v<0||v>=WEATHER.length))errors.push('World map codes');return errors;}
-export function worldMapSummary(m){if(validateWorldMap(m).length)return null;const avg=a=>+(a.reduce((s,v)=>s+v,0)/a.length).toFixed(4);return {version:m.version,terrainCounts:{...m.terrainCounts},averageElevation:avg(m.elevation),averageHumidity:avg(m.humidity),averageTemperature:avg(m.temperature),flooded:m.flooded.reduce((s,v)=>s+(v?1:0),0)};}
