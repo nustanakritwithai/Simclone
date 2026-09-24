@@ -3,7 +3,7 @@
 WM4.2 does not change food regeneration and deliberately does not invent a
 replacement unit formula.
 
-It compares the current K6 contract:
+It compares the legacy K6 behavior now owned by WorldSim WM4.1:
 
 - food +3 every 120 ticks, capped by node.max
 
@@ -11,7 +11,7 @@ against the normalized regeneration potential produced by the WorldSim
 Climate → Soil → Hydrology → Vegetation evidence chain.
 
 The report classifies food nodes into very-low / low / medium / high ecology
-bands, but keeps the WM4.1 WorldSim authoritative writer and the legacy unit increment unchanged.
+bands, and keeps the WM4.1 WorldSim authoritative writer plus the legacy unit increment unchanged.
 
 This evidence is required before any ecology-sensitive food regeneration gate.
 The next behavior gate must define and separately verify a bounded conversion
