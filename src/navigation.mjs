@@ -1,7 +1,6 @@
 /** Read-only map and layout-aware camera. No simulation mutations. */
 import {SIZE} from './engine.mjs?v=0.5.0';
 import {saveLabel} from './storage.mjs?v=0.5.0';
-import {cellAt as worldCellAt} from './worldsim-map.mjs?v=0.5.0';
 export function safeFrame(width,height,edges={}){
   const left=Math.max(8,Math.min(edges.left??12,width*.4));
   const right=Math.max(left+40,Math.min(edges.right??width-12,width-8));
@@ -16,7 +15,7 @@ export function installNavigation(api){
   const $=id=>document.getElementById(id),stage=$('stage'),camera=document.querySelector('.camera');
   const button=document.createElement('button');button.id='map-toggle';button.className='iconbtn';button.textContent='▧';button.setAttribute('aria-label','เปิดแผนที่ย่อ');button.setAttribute('aria-expanded','false');button.setAttribute('aria-controls','mini-map');camera.append(button);
   const panel=document.createElement('section');panel.id='mini-map';panel.hidden=true;
-  panel.innerHTML='<div class="minimap-heading"><span>WorldSim map</span><button id="map-close" aria-label="ปิดแผนที่ย่อ">×</button></div><canvas id="map-canvas" width="180" height="156" tabindex="0" aria-label="แผนที่ย่อ WorldSim แตะเพื่อย้ายกล้อง ใช้ปุ่มลูกศรเพื่อเลื่อนมุมมอง"></canvas><small>น้ำลึก · น้ำตื้น · ทราย · ทุ่ง · ป่า · หิน</small><small>แตะเพื่อย้ายกล้อง · ไม่ใช่สั่งคนเดิน</small>';
+  panel.innerHTML='<div class="minimap-heading"><span>WorldSim · ภาพแผนที่</span><button id="map-close" aria-label="ปิดแผนที่ย่อ">×</button></div><canvas id="map-canvas" width="180" height="156" tabindex="0" aria-label="แผนที่ย่อ แตะเพื่อย้ายกล้อง ใช้ปุ่มลูกศรเพื่อเลื่อนมุมมอง"></canvas><small>ภาพใหม่ · เส้นทางและทรัพยากรเดิม</small><small>แตะเพื่อย้ายกล้อง · ไม่ใช่สั่งคนเดิน</small>';
   stage.append(panel);
   const saveButton=document.createElement('button');saveButton.id='save-indicator';saveButton.innerHTML='<span class="save-dot"></span><span id="save-label"></span>';saveButton.onclick=()=>api.menu();document.querySelector('.time-controls').prepend(saveButton);
   const canvas=$('map-canvas'),c=canvas.getContext('2d');let frame=safeFrame(stage.clientWidth,stage.clientHeight),pending=false,layoutKey='';
@@ -52,8 +51,8 @@ export function installNavigation(api){
   function draw(){
     if(panel.hidden)return;const s=api.read().state,sx=canvas.width/SIZE.w,sy=canvas.height/SIZE.h;
     c.clearRect(0,0,canvas.width,canvas.height);
-    const colors={deepWater:'#315f70',shallowWater:'#4d8388',sand:'#b9a273',grass:'#66834e',forest:'#3f6543',rock:'#727a72'};
-    for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){const cell=s.worldMap?worldCellAt(s.worldMap,x,y):null,terrain=cell?.terrainType??(s.tiles[y*SIZE.w+x]==='water'?'shallowWater':'grass');c.fillStyle=colors[terrain]??'#66834e';c.fillRect(x*sx,y*sy,sx,sy);}
+    const view=api.mapView?.();
+    for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){c.fillStyle=view?.cells[y*SIZE.w+x]?.color??({grass:'#66834e',water:'#4b888a',path:'#bcab7e',bridge:'#dac192'})[s.tiles[y*SIZE.w+x]];c.fillRect(x*sx,y*sy,sx,sy);}
     for(const n of s.nodes)if(n.amount>0){c.fillStyle=n.type==='food'?'#e2af67':n.type==='wood'?'#284d35':'#aab5a3';c.fillRect((n.x+.25)*sx,(n.y+.25)*sy,sx*.5,sy*.5);}
     for(const b of s.buildings){c.fillStyle=b.complete?'#f4e4b3':'#dd9d69';c.fillRect(b.x*sx,b.y*sy,sx,sy);}
     for(const a of s.agents)if(a.alive){c.fillStyle=a.id===api.read().selected?'#ffffff':a.appearance.coat;c.beginPath();c.arc((a.x+.5)*sx,(a.y+.5)*sy,a.id===api.read().selected?3:2,0,Math.PI*2);c.fill();}
