@@ -28,21 +28,27 @@ function makeGround(){
  const corners=[proj(0,0),proj(SIZE.w,0),proj(SIZE.w,SIZE.h),proj(0,SIZE.h)].map(p=>[p.x,p.y]);
  polygon(c,corners.map(([x,y])=>[x,y+20]),'#304b37');
  for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
-  const p=proj(x,y),t=tileAt(state,x,y),r=hash(x,y);let color;
-  if(t==='water')color=['#467c7c','#49807d','#4b8380'][Math.floor(r*3)];
-  else if(t==='path')color=['#a5976e','#afa079','#a3946b'][Math.floor(r*3)];
-  else if(t==='bridge')color='#967b50';
-  else color=['#66834e','#6c8851','#708b53','#748e56','#6b864f'][Math.floor(r*5)];
+  const p=proj(x,y),r=hash(x,y),wc=state.worldMap?.cells[y*SIZE.w+x],terrain=wc?.terrainType??(tileAt(state,x,y)==='water'?'shallowWater':'grass');
+  const palette={
+    deepWater:['#315f70','#356878','#2e596a'],
+    shallowWater:['#4d8388','#568d91','#477b82'],
+    sand:['#b9a273','#c2aa78','#ad9668'],
+    grass:['#66834e','#6c8851','#748e56'],
+    forest:['#3f6543','#466d47','#385b3d'],
+    rock:['#727a72','#7c8279','#666f69']
+  };
+  let color=palette[terrain][Math.floor(r*palette[terrain].length)];
   polygon(c,[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],color);
-  if(t==='grass'){
-   for(let k=0;k<4;k++){
-    const dx=(hash(x+k*7,y+2)-.5)*32,dy=(hash(x,y+k*5)-.5)*12;
-    line(c,[[p.x+dx,p.y+dy],[p.x+dx-1,p.y+dy-3]],'#9ba66866',.8);
-   }
-   if(r>.87)for(let k=0;k<3;k++)ellipse(c,p.x+k*3-4,p.y+k%2,1.2,.7,'#dccb9e');
+  if(wc?.elevation>.7){c.fillStyle='rgba(235,232,213,'+Math.min(.12,(wc.elevation-.7)*.25)+')';polygon(c,[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],c.fillStyle);}
+  if(terrain==='grass'||terrain==='forest'){
+   const blades=terrain==='forest'?2:4;
+   for(let k=0;k<blades;k++){const dx=(hash(x+k*7,y+2)-.5)*32,dy=(hash(x,y+k*5)-.5)*12;line(c,[[p.x+dx,p.y+dy],[p.x+dx-1,p.y+dy-3]],terrain==='forest'?'#a2b57a55':'#9ba66866',.8);}
+   if(terrain==='forest'&&r>.55){c.fillStyle='#31563a';c.fillRect(p.x-1,p.y-12,2,11);polygon(c,[[p.x-7,p.y-10],[p.x,p.y-24],[p.x+7,p.y-10]],'#52734b');}
+   if(terrain==='grass'&&r>.87)for(let k=0;k<3;k++)ellipse(c,p.x+k*3-4,p.y+k%2,1.2,.7,'#dccb9e');
   }
-  if(t==='water')for(let k=0;k<2;k++)line(c,[[p.x-10+k*14,p.y-2+k*4],[p.x-1+k*14,p.y-2+k*4]],'#98bca363',.8);
-  if(t==='bridge')for(let k=-2;k<=2;k++)line(c,[[p.x-19+k*4,p.y+k*3-4],[p.x+9+k*4,p.y+k*3+9]],'#d2b484',1.2);
+  if(terrain==='deepWater'||terrain==='shallowWater')for(let k=0;k<2;k++)line(c,[[p.x-10+k*14,p.y-2+k*4],[p.x-1+k*14,p.y-2+k*4]],terrain==='deepWater'?'#82aebc55':'#a7c8bb66',.8);
+  if(terrain==='sand'&&r>.62)ellipse(c,p.x-7,p.y+2,2.2,1.2,'#d9c28f');
+  if(terrain==='rock'&&r>.48)polygon(c,[[p.x-8,p.y+3],[p.x-3,p.y-7],[p.x+5,p.y-4],[p.x+9,p.y+4]],'#969c91');
  }
 }
 function tree(c,n){
@@ -132,8 +138,6 @@ function render(time){
  if(follow){const a=state.agents.find(a=>a.id===selected&&a.alive);if(a){focus.x+=(a.x-focus.x)*.03;focus.y+=(a.y-focus.y)*.03;}}
  ctx.save();ctx.translate(cameraOrigin().x+pan.x,cameraOrigin().y+pan.y);ctx.scale(zoom,zoom);const f=proj(focus.x,focus.y);ctx.translate(-f.x,-f.y);
  ctx.drawImage(ground,-SIZE.h*hw-60,-32);
- // Render-only ripples. They never consume simulation RNG.
- for(let i=0;i<12;i++){const y=2+i*1.8,x=21+Math.round(Math.sin(y*.26)*2),p=proj(x,y);line(ctx,[[p.x-8+Math.sin(time*.001+i)*3,p.y],[p.x+8,p.y]],'#b4d5c640',1);}
  const a=state.agents.find(a=>a.id===selected&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
  const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
