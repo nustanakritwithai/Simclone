@@ -8,7 +8,7 @@ test('soil shadow is deterministic, bounded and read-only',()=>{
   const s=createWorld(230926),before=serialize(s),view=createWorldMapView(s);
   const a=createSoilShadow(s,view),b=createSoilShadow(s,view);
   assert.deepEqual(a,b);assert.equal(serialize(s),before);assert.equal(a.cells.length,780);
-  for(const c of a.cells)for(const k of ['health','fertility','nutrient','organicMatter','compaction','salinity','acidityStress'])assert.ok(c[k]>=0&&c[k]<=1,k);
+  for(const c of a.cells)for(const k of ['health','fertility','nutrient','organicMatter','compaction','salinity','acidityStress','temperatureComfort'])assert.ok(c[k]>=0&&c[k]<=1,k);
 });
 
 test('soil classification follows physical terrain rules',()=>{
@@ -44,4 +44,11 @@ test('observing soil every tick cannot change deterministic execution',()=>{
   const a=createWorld(9191),b=createWorld(9191);
   for(let i=0;i<360;i++){createSoilShadow(a);step(a);step(b);}
   assert.equal(serialize(a),serialize(b));
+});
+
+test('soil summary carries WM3.2 climate evidence without owning climate state',()=>{
+  const s=createWorld(42),shadow=createSoilShadow(s);
+  assert.equal(typeof shadow.climateSummary.averageTemperatureC,'number');
+  assert.equal(typeof shadow.summary.averageTemperatureComfort,'number');
+  assert.equal(shadow.authority.water,'not-owned');
 });
