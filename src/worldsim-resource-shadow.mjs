@@ -50,7 +50,7 @@ export function createResourceEcologyShadow(state){
     version:RESOURCE_ECOLOGY_SHADOW_VERSION,
     authority:Object.freeze({mode:'shadow-only',resources:'simclone-k6'}),
     totals:Object.freeze(Object.fromEntries(Object.entries(totals).map(([k,v])=>[k,+v.toFixed(4)]))),
-    soilSummary:soil.summary,
+    soilSummary:soil.summary,soilCounts:soil.counts,
     hotspots:Object.freeze({food:Object.freeze(hotspots.food),wood:Object.freeze(hotspots.wood),stone:Object.freeze(hotspots.stone)}),
     cells:Object.freeze(cells)
   });
