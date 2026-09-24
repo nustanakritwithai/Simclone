@@ -9,9 +9,9 @@ test('WM4.0 captures exact K6 regeneration contract',()=>{
   assert.deepEqual(K6_RESOURCE_REGEN.stone,{periodTicks:null,amount:0,renewable:false});
 });
 
-test('shadow regeneration contract is read-only',()=>{
+test('regeneration observer reports WorldSim writer and stays read-only',()=>{
   const s=createWorld(230926),before=serialize(s),x=createResourceRegenerationShadow(s);
-  assert.equal(x.authority.writer,'simclone-k6');assert.equal(x.authority.worldsimMutation,false);
+  assert.equal(x.authority.writer,'worldsim-wm4.1');assert.equal(x.authority.worldsimMutation,false);
   assert.equal(serialize(s),before);
 });
 
@@ -60,4 +60,11 @@ test('full nodes propose zero increment even on a regeneration boundary',()=>{
   const s=createWorld(456);for(const n of s.nodes)n.amount=n.max;s.tick=720;
   const x=createResourceRegenerationShadow(s);
   assert.ok(x.rows.every(r=>r.legacyIncrement===0));
+});
+
+
+test('every regeneration observer row names the WM4.1 WorldSim writer',()=>{
+  const x=createResourceRegenerationShadow(createWorld(8080));
+  assert.ok(x.rows.length>0);
+  assert.ok(x.rows.every(r=>r.authoritativeWriter==='worldsim-wm4.1'));
 });

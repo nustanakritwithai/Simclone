@@ -3,15 +3,12 @@
  * WM3.4 ecology evidence. It never mutates node.amount.
  */
 import {MAP_SIZE} from './worldsim-map.mjs?v=0.5.0';
+import {K6_RESOURCE_REGEN} from './worldsim-resource-policy.mjs?v=0.5.0';
+import {RESOURCE_REGEN_AUTHORITY} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {createResourceEcologyShadow} from './worldsim-resource-shadow.mjs?v=0.5.0';
+export {K6_RESOURCE_REGEN};
 
-export const RESOURCE_REGEN_SHADOW_VERSION='wm4.0-shadow-regen-contract-1';
-export const K6_RESOURCE_REGEN=Object.freeze({
-  food:Object.freeze({periodTicks:120,amount:3,renewable:true}),
-  wood:Object.freeze({periodTicks:720,amount:1,renewable:true}),
-  stone:Object.freeze({periodTicks:null,amount:0,renewable:false})
-});
-
+export const RESOURCE_REGEN_SHADOW_VERSION='wm4.1-shadow-regen-observer-1';
 const clamp=n=>Math.max(0,Math.min(1,n));
 function nextBoundary(tick,period){
   if(!period)return null;
@@ -39,7 +36,7 @@ export function createResourceRegenerationShadow(state,resourceShadow=createReso
       legacyIncrement,
       nextLegacyTick:nextBoundary(tick,policy.periodTicks),
       ecologyRegenerationPotential:+ecologyPotential.toFixed(4),
-      authoritativeWriter:'simclone-k6'
+      authoritativeWriter:RESOURCE_REGEN_AUTHORITY.writer
     }));
   }
   const byType={};
@@ -58,7 +55,7 @@ export function createResourceRegenerationShadow(state,resourceShadow=createReso
   }
   return Object.freeze({
     version:RESOURCE_REGEN_SHADOW_VERSION,
-    authority:Object.freeze({mode:'shadow-only',writer:'simclone-k6',worldsimMutation:false}),
+    authority:Object.freeze({mode:'shadow-only',writer:RESOURCE_REGEN_AUTHORITY.writer,worldsimMutation:false}),
     tick,
     policy:K6_RESOURCE_REGEN,
     byType:Object.freeze(byType),
