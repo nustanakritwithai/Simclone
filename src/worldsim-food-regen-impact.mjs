@@ -14,7 +14,7 @@ export function createFoodRegenerationImpact(state,regen=createResourceRegenerat
     legacyIncrement:r.legacyIncrement,
     ecologyRegenerationPotential:r.ecologyRegenerationPotential,
     ecologyBand:bucket(r.ecologyRegenerationPotential),
-    authoritativeWriter:'worldsim-wm4.1'
+    authoritativeWriter:r.authoritativeWriter
   }));
   const counts={'very-low':0,low:0,medium:0,high:0};
   let potential=0,missing=0,depletedNodes=0,lowPotentialDepletedNodes=0;
@@ -27,7 +27,7 @@ export function createFoodRegenerationImpact(state,regen=createResourceRegenerat
   const percentile=p=>asc.length?asc[Math.min(asc.length-1,Math.max(0,Math.floor((asc.length-1)*p)))].ecologyRegenerationPotential:0;
   return Object.freeze({
     version:FOOD_REGEN_IMPACT_VERSION,
-    authority:Object.freeze({mode:'shadow-only',writer:'worldsim-wm4.1',unitFormula:'none'}),
+    authority:Object.freeze({mode:'shadow-only',writer:regen.authority.writer,unitFormula:'none'}),
     legacy:Object.freeze({periodTicks:120,amount:3}),
     summary:Object.freeze({
       nodes:rows.length,
