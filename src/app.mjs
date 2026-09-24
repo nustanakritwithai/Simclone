@@ -243,7 +243,7 @@ ux=installUX({
  portrait,actionText,toast,openDialog,closeDialog:()=>dialog.close(),
  select:selectAgent,setTab:value=>{tab=value;frameSelected();updateUI();},observe,
  setGhost:p=>{ghost=p;},center:centerCamera,
- preview:(type,data)=>{const copy=JSON.parse(serialize(state)),result=command(copy,type,data);return {...result,agent:type==='CLONE'&&result.ok?copy.agents.at(-1):null};},
+ preview:(type,data)=>{const copy=restore(serialize(state)),result=command(copy,type,data);return {...result,agent:type==='CLONE'&&result.ok?copy.agents.at(-1):null};},
  execute:(type,data)=>{const result=command(state,type,data);updateUI();return result;},save
 });
 nav=installNavigation({read:()=>({state,selected,follow,mode,paused}),menu,center:centerCamera,worldPoint,focus:()=>({...focus}),zoom:()=>zoom,storageStatus:store.status,layoutChanged:()=>{const a=state.agents.find(a=>a.id===selected&&a.alive);if(a)focus={x:a.x,y:a.y};}});
