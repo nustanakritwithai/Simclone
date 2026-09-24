@@ -59,3 +59,11 @@ test('WM4.1 adds no save fields',()=>{
   assert.deepEqual(Object.keys(after).sort(),Object.keys(before).sort());
   assert.equal(after.version,before.version);
 });
+
+
+test('WM4.1 regeneration is a no-op at initial tick zero',()=>{
+  const s=createWorld(31415);for(const n of s.nodes)n.amount=0;
+  const added=applyWorldResourceRegeneration(s);
+  assert.equal(added,0);
+  assert.ok(s.nodes.every(n=>n.amount===0));
+});
