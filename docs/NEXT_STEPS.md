@@ -1,14 +1,36 @@
-# Next build gates after V0.3.4
+# Next build gates after the V0.3.5 death-history slice
 
-These are plans, not implemented features. Complete the exact V0.3.4 candidate and Pages verification before starting another runtime feature.
+These are implementation gates, not proof by themselves. The exact candidate and main workflows remain authoritative for release status.
 
-## V0.3.5 — Save and historical lifecycle hardening
+## V0.3.5 Phase 1 — Death History + Migration
 
-Define an explicit persistence contract for death tick/cause and age-at-death so a deceased person's displayed age cannot drift with the living world's clock. Any new persistent fields require a versioned migration with real 0.1.0/0.2.0 fixtures; no silent defaults that rewrite history. Confirm that corrupt/unreadable originals remain exportable and protected.
+Implemented in the current 0.3.5 slice under [LIFECYCLE_0.3.5.md](LIFECYCLE_0.3.5.md):
 
-Separate retained historical identities from active-worker limits. The existing 200-history cap stops births eventually; do not delete parents or raise the cap without bounded-performance, lineage and save-size tests. Add a longer unmodified multi-seed run and imported-age-cohort cases. Report extinction or resource failures, not just survivors at the endpoint.
+- immutable death tick/cause/age-at-death for new age and starvation deaths
+- explicit `historyVersion=0.1.0` while world save schema remains 0.2.0
+- evidence-based migration for historical 0.2.0 deaths
+- explicit `legacy-unknown` where retained evidence is insufficient
+- legacy 0.1.0 rule that load-time age-18 adoption is not historical death-age evidence
+- inspector disclosure of known versus unknown death history
+- stable save/load continuation and retained corrupt/unreadable-save protection
 
-Definition of done: death history stays stable, lineage resolves after many deaths, save/load continuation is deterministic, and memory/performance/size bounds have measured evidence. Native browser persistence can be checked on a real HTTP origin; physical Android performance remains a distinct device test.
+This phase is not considered released until the exact candidate and exact main gates succeed.
+
+## V0.3.5 Phase 2 — Historical identity / limits
+
+Separate retained historical identity from active-worker limits. The current 200-agent history cap stops births eventually; do not fix it by deleting parents or merely increasing the number.
+
+Measure save size, memory and runtime before choosing archive structures. Any archive must keep parent/generation/appearance/history resolution and the lineage + bornTick data used for deterministic reproduction pacing/cooldown.
+
+Add boundary tests that deliberately reach retained-history limits. Define what happens when storage/history capacity is reached, including a bounded failure mode that does not silently erase ancestry.
+
+## V0.3.5 Phase 3 — Extended proof / persistence
+
+Add longer unmodified multi-seed runs and imported-age-cohort cases. Report population minima/extinction, births/deaths, starvation, lineage validity, save size and execution cost rather than only endpoint survivors.
+
+Exercise native browser storage on a real HTTP origin when the environment supports it. Keep physical Android performance as a separate device test; offline Storage doubles are not evidence for either.
+
+Definition of done for the broader V0.3.5 hardening phase: stable death history, lineage resolution across many deaths, deterministic save continuation, retained-history boundary behavior, and measured memory/performance/save-size evidence.
 
 ## V0.4 — Skill provenance before new skill families
 
