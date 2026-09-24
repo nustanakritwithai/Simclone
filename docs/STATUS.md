@@ -121,3 +121,16 @@ K4 extracts the donor LaborMarketSystem's shortage-to-labor-offer boundary as a 
 - proposals are capped and sorted but have no IDs, expiry clocks or persistent recruitment state.
 
 Forager recruitment remains owned by Survival Core rather than being invented as a donor labor-market rule. K4 does not reassign professions, move agents, pay wages, create organizations or mutate the world.
+
+
+## Kingdom Sandbox market-price import — K5 shadow candidate
+
+K5 extracts the donor scarcity-price formula without introducing currency or trade.
+
+- base prices mapped from donor core goods: food 10, wood 8, ore→stone 15;
+- price = `base × scarcity^0.75`;
+- donor lower/upper clamps remain `base × 0.3` through `base × 6`;
+- food alone receives the donor crowding modifier;
+- the snapshot exposes normalized price pressure and the hottest/coldest good.
+
+K5 prices are observational. There is no agent money, settlement treasury, tax, merchant inventory, buy/sell mutation or caravan system yet.
