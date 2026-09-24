@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,step,serialize} from '../src/engine.mjs';
-import {K6_RESOURCE_REGEN} from '../src/worldsim-resource-regen-shadow.mjs?v=0.5.0';
+import {K6_RESOURCE_REGEN} from '../src/worldsim-resource-policy.mjs?v=0.5.0';
 import {RESOURCE_REGEN_AUTHORITY,applyWorldResourceRegeneration} from '../src/worldsim-resource-authority.mjs';
 
 function legacyOracle(s){
