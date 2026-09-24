@@ -12,9 +12,7 @@ const point=id=>({x:id%MAP_SIZE.w,y:Math.floor(id/MAP_SIZE.w)});
 class MinHeap{
   constructor(){this.a=[];}
   push(v){const a=this.a;a.push(v);let i=a.length-1;while(i){const p=(i-1)>>1;if(compare(a[p],v)<=0)break;a[i]=a[p];i=p;}a[i]=v;}
-  pop(){const a=this.a;if(!a.length)return null;const root=a[0],last=a.pop();if(a.length){let i=0;while(true){let l=i*2+1,r=l+1,b=i;if(l<a.length&&compare(a[l],a[b])<0)b=l;if(r<a.length&&compare(a[r],a[b])<0)b=r;if(b===i)break;a[i]=a[b];i=b;}a[i]=last; // repair because last may violate parent order
-    while(i){const p=(i-1)>>1;if(compare(a[p],a[i])<=0)break;[a[p],a[i]]=[a[i],a[p]];i=p;}
-  }return root;}
+  pop(){const a=this.a;if(!a.length)return null;const root=a[0],last=a.pop();if(a.length){a[0]=last;let i=0;while(true){const l=i*2+1,r=l+1;let b=i;if(l<a.length&&compare(a[l],a[b])<0)b=l;if(r<a.length&&compare(a[r],a[b])<0)b=r;if(b===i)break;[a[i],a[b]]=[a[b],a[i]];i=b;}}return root;}
 }
 const compare=(a,b)=>a.cost-b.cost||a.id-b.id;
 
