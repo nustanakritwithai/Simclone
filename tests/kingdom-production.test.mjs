@@ -31,6 +31,14 @@ test('agent efficiency composes explicit factors without mutation',()=>{
   assert.equal(JSON.stringify(a),before);
 });
 
+
+test('K3 respects a zero lifecycle work-rate for ineligible workers',()=>{
+  const a={id:9,alive:true,satiety:90,profession:'builder',skills:{BUILD:100}};
+  const r=kingdomAgentEfficiency(a,{role:'builder',workerCount:1,housingRatio:1,skillLevel:()=>5,ageRate:()=>0});
+  assert.equal(r.factors.age,0);
+  assert.equal(r.efficiency,0);
+});
+
 test('K3 production snapshot recommends scarce understaffed labor without taking authority',()=>{
   const agents=[
     {alive:true,satiety:90,profession:'forager',preference:'FORAGE',skills:{FORAGE:60}},
