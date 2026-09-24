@@ -55,7 +55,7 @@ with sync_playwright() as p:
  dead=next(a for a in legacy_unknown['agents'] if a['id']==2);dead['alive']=False;dead['hp']=0;dead['task']=None;dead['moveTick']=0;dead['memory']=[]
  legacy_unknown['events']=[e for e in legacy_unknown['events'] if not (e.get('type')=='death' and e.get('agentId')==2)]
  deadpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(deadpage,json.dumps(legacy_unknown,ensure_ascii=False));paused(deadpage)
- deadpage.locator('#roster').tap();deadpage.locator('[data-person="2"]').tap()
+ deadpage.locator('[data-nav="people"]').tap();deadpage.locator('[data-person="2"]').tap()
  check('legacy death without evidence migrates to explicit unknown',snap(deadpage)['agents'][1]['death']['status']=='legacy-unknown')
  check('dead inspector never substitutes lifespan for unknown death age','อายุไม่ทราบ' in deadpage.locator('#life-label').inner_text() and 'สาเหตุไม่ทราบ' in deadpage.locator('#life-label').inner_text())
  # Mobile
