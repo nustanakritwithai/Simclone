@@ -1,11 +1,11 @@
 import {installUX,UI_VERSION} from './ux.mjs?v=0.5.0';
 import {createWorldStore,saveLabel} from './storage.mjs?v=0.5.0';
 import {installNavigation} from './navigation.mjs?v=0.5.0';
+import {createWorldMapView,WORLD_MAP_VERSION,MAP_AUTHORITY} from './worldsim-map.mjs?v=0.5.0';
 import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
-import {cellAt as worldCellAt} from './worldsim-map.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let ux=null,nav=null;
+let ux=null,nav=null,worldMapView=null;
 const store=createWorldStore({getStorage:()=>localStorage,serialize,restore});
 let state=createWorld(),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
 let toastTimer,ground,cw=0,ch=0,dpr=1,zoom=innerWidth<700?1.12:1.25,pan={x:0,y:0};
@@ -24,32 +24,26 @@ function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,
 function line(c,points,color,width=1){c.strokeStyle=color;c.lineWidth=width;c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke();}
 function hash(x,y){return ((Math.imul(x+33,374761393)^Math.imul(y+41,668265263))>>>0)/4294967296;}
 function makeGround(){
+ worldMapView=createWorldMapView(state);
  ground=document.createElement('canvas');ground.width=(SIZE.w+SIZE.h)*hw+120;ground.height=(SIZE.w+SIZE.h)*hh+110;
  const c=ground.getContext('2d');c.translate(SIZE.h*hw+60,32);
  const corners=[proj(0,0),proj(SIZE.w,0),proj(SIZE.w,SIZE.h),proj(0,SIZE.h)].map(p=>[p.x,p.y]);
  polygon(c,corners.map(([x,y])=>[x,y+20]),'#304b37');
  for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
-  const p=proj(x,y),r=hash(x,y),wc=state.worldMap?worldCellAt(state.worldMap,x,y):null,terrain=wc?.terrainType??(tileAt(state,x,y)==='water'?'shallowWater':'grass');
-  const palette={
-    deepWater:['#315f70','#356878','#2e596a'],
-    shallowWater:['#4d8388','#568d91','#477b82'],
-    sand:['#b9a273','#c2aa78','#ad9668'],
-    grass:['#66834e','#6c8851','#748e56'],
-    forest:['#3f6543','#466d47','#385b3d'],
-    rock:['#727a72','#7c8279','#666f69']
-  };
-  let color=palette[terrain][Math.floor(r*palette[terrain].length)];
-  polygon(c,[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],color);
-  if(wc?.elevation>.7){c.fillStyle='rgba(235,232,213,'+Math.min(.12,(wc.elevation-.7)*.25)+')';polygon(c,[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],c.fillStyle);}
-  if(terrain==='grass'||terrain==='forest'){
-   const blades=terrain==='forest'?2:4;
-   for(let k=0;k<blades;k++){const dx=(hash(x+k*7,y+2)-.5)*32,dy=(hash(x,y+k*5)-.5)*12;line(c,[[p.x+dx,p.y+dy],[p.x+dx-1,p.y+dy-3]],terrain==='forest'?'#a2b57a55':'#9ba66866',.8);}
-   if(terrain==='forest'&&r>.55){c.fillStyle='#31563a';c.fillRect(p.x-1,p.y-12,2,11);polygon(c,[[p.x-7,p.y-10],[p.x,p.y-24],[p.x+7,p.y-10]],'#52734b');}
-   if(terrain==='grass'&&r>.87)for(let k=0;k<3;k++)ellipse(c,p.x+k*3-4,p.y+k%2,1.2,.7,'#dccb9e');
+  const p=proj(x,y),cell=worldMapView.cells[y*SIZE.w+x],t=cell.terrainType,r=cell.detail;
+  polygon(c,[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],cell.color);
+  if(t==='grass'||t==='forest'){
+   for(let k=0;k<(t==='forest'?3:4);k++){
+    const dx=(hash(x+k*7,y+2)-.5)*32,dy=(hash(x,y+k*5)-.5)*12;
+    line(c,[[p.x+dx,p.y+dy],[p.x+dx-1,p.y+dy-3]],t==='forest'?'#91ac7955':'#c0c88d66',.8);
+   }
+   if(t==='grass'&&r>.87)for(let k=0;k<3;k++)ellipse(c,p.x+k*3-4,p.y+k%2,1.2,.7,'#e0cf9c');
   }
-  if(terrain==='deepWater'||terrain==='shallowWater')for(let k=0;k<2;k++)line(c,[[p.x-10+k*14,p.y-2+k*4],[p.x-1+k*14,p.y-2+k*4]],terrain==='deepWater'?'#82aebc55':'#a7c8bb66',.8);
-  if(terrain==='sand'&&r>.62)ellipse(c,p.x-7,p.y+2,2.2,1.2,'#d9c28f');
-  if(terrain==='rock'&&r>.48)polygon(c,[[p.x-8,p.y+3],[p.x-3,p.y-7],[p.x+5,p.y-4],[p.x+9,p.y+4]],'#969c91');
+  if(t==='deepWater'||t==='shallowWater')for(let k=0;k<2;k++)line(c,[[p.x-10+k*14,p.y-2+k*4],[p.x-1+k*14,p.y-2+k*4]],t==='deepWater'?'#8ebdce55':'#d0e3c477',.8);
+  if(t==='sand')for(let k=0;k<3;k++)ellipse(c,p.x-9+k*7,p.y-2+k%2,1.4,.7,'#e0cf9c88');
+  if(t==='rock')line(c,[[p.x-12,p.y+1],[p.x-4,p.y-4],[p.x+5,p.y-1],[p.x+10,p.y-3]],'#c6ccbb66',.8);
+  if(t==='path')line(c,[[p.x-8,p.y+2],[p.x+5,p.y-3]],'#d1c19366',.7);
+  if(t==='bridge')for(let k=-2;k<=2;k++)line(c,[[p.x-19+k*4,p.y+k*3-4],[p.x+9+k*4,p.y+k*3+9]],'#d2b484',1.2);
  }
 }
 function tree(c,n){
@@ -157,8 +151,7 @@ function updateUI(){
  for(const type of ['food','wood','stone'])$(type).textContent=state.stock[type];
  $('population').textContent=living(state).length+' / '+capacity(state);
  $('pause').textContent=paused?'▶':'Ⅱ';$('pause').setAttribute('aria-label',paused?'เล่นต่อ':'หยุดเวลา');
- const homeClimate=state.worldMap?worldCellAt(state.worldMap,11,12)?.climate:null,weather={clear:'ฟ้าเปิด',cloudy:'มีเมฆ',rain:'ฝนตก',heavyRain:'ฝนหนัก',hot:'ร้อน',dry:'แห้ง'}[homeClimate?.weatherType]??'สภาพอากาศปกติ';
- $('world-status').textContent=paused||dialog.open?'หยุดเวลา · โลกยังอยู่ตรงนี้':'WorldSim · '+weather;
+ $('world-status').textContent=paused||dialog.open?'หยุดเวลา · โลกยังอยู่ตรงนี้':'โลกกำลังดำเนินไปด้วยตัวเอง';
  $('seed-label').textContent='SEED '+state.seed;
  $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip" data-event="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · ${e.type.toUpperCase()}</small><p>${esc(e.text)}</p></button>`).join('');
  inspect();ux?.renderHUD();nav?.update();
@@ -170,7 +163,7 @@ function history(){ux?.openHistory();}
 function cloneDialog(){ux?.openClone();}
 function startBuild(){
  if(dialog.open)dialog.close();selected=null;follow=false;mode='build';$('build').classList.add('active');$('observe').classList.remove('active');
- $('mode-hint').hidden=false;$('mode-hint').textContent='แตะพื้นโล่ง grass/sand เพื่อวางบ้าน · ไม้ 12 + หิน 6 · กด “โลก” เพื่อยกเลิก';updateUI();
+ $('mode-hint').hidden=false;$('mode-hint').textContent='แตะพื้นหญ้าว่างเพื่อวางบ้าน · ไม้ 12 + หิน 6 · กด “โลก” เพื่อยกเลิก';updateUI();
 }
 function menu(){openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,`<p class="menu-save-note"><strong>${esc(saveLabel(store.status()))}</strong><br>เซฟอยู่ในเบราว์เซอร์นี้เท่านั้น ไม่ได้ซิงก์ขึ้นคลาวด์</p><div class="menu-grid"><button data-action="survival">ภาพรวมการอยู่รอด</button>${store.status().protected&&store.originalText()!==null?'<button data-action="export-original">สำรองไฟล์เซฟเดิมที่มีปัญหา</button>':''}<button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>Engine ปัจจุบันคือ V0.3.6 Ancestry Archive · รุ่นใหม่เกิดเองและทุกคนมีอายุขัย deterministic 78–92 ปี · ยังไม่ใช่ Living World V1.0</div>`);}
 function download(){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='simclone-day-'+day(state)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกไฟล์โลกแล้ว');}
@@ -243,13 +236,13 @@ ux=installUX({
  portrait,actionText,toast,openDialog,closeDialog:()=>dialog.close(),
  select:selectAgent,setTab:value=>{tab=value;frameSelected();updateUI();},observe,
  setGhost:p=>{ghost=p;},center:centerCamera,
- preview:(type,data)=>{const copy=restore(serialize(state)),result=command(copy,type,data);return {...result,agent:type==='CLONE'&&result.ok?copy.agents.at(-1):null};},
+ preview:(type,data)=>{const copy=JSON.parse(serialize(state)),result=command(copy,type,data);return {...result,agent:type==='CLONE'&&result.ok?copy.agents.at(-1):null};},
  execute:(type,data)=>{const result=command(state,type,data);updateUI();return result;},save
 });
-nav=installNavigation({read:()=>({state,selected,follow,mode,paused}),menu,center:centerCamera,worldPoint,focus:()=>({...focus}),zoom:()=>zoom,storageStatus:store.status,layoutChanged:()=>{const a=state.agents.find(a=>a.id===selected&&a.alive);if(a)focus={x:a.x,y:a.y};}});
+nav=installNavigation({mapView:()=>worldMapView,read:()=>({state,selected,follow,mode,paused}),menu,center:centerCamera,worldPoint,focus:()=>({...focus}),zoom:()=>zoom,storageStatus:store.status,layoutChanged:()=>{const a=state.agents.find(a=>a.id===selected&&a.alive);if(a)focus={x:a.x,y:a.y};}});
 updateUI();
 setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});
