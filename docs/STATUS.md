@@ -92,3 +92,19 @@ Implemented as a read-only projection:
 - the Survival dialog exposes these values as `Kingdom K2 · shadow economy`.
 
 K2 does **not** add money, prices, treasury, wages, trade, caravans, decay, tax, factions or migration. Calling the projection is required to be read-only and must not affect seed/replay/continuity. Authority remains with existing Simclone survival scoring while K1/K2 shadow evidence is verified.
+
+
+## Kingdom Sandbox production/labor import — K3 shadow candidate
+
+K3 extracts the donor `WorkSystem` productivity structure while preserving Simclone authority.
+
+Read-only factors:
+
+- skill multiplier: `1 + skillLevel × 0.15`;
+- satiety-derived hunger penalty: 1.0 / 0.8 / 0.5 using donor thresholds;
+- occupation crowding using donor ideal staffing and 0.2–1.0 bounds;
+- biological work-rate multiplier from Simclone lifecycle (adult 1.0, elder 0.75, child 0);
+- tool multiplier is explicitly fixed at 1.0 until possessions/tools are integrated;
+- effective worker units, average profession efficiency, labor gaps and a recommended high-pressure role.
+
+K3 does not change harvested amount, build progress, XP, stock, reservations or task ranking. The projection is surfaced in the Survival dialog and must remain observationally pure under repeated calls.
