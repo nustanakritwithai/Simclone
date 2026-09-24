@@ -1,3 +1,53 @@
+# Simclone — Current Project Status
+
+## Current authority track — WorldSim integration
+
+The active development line is now the WorldSim authority migration. Older Knowledge/Memory and Kingdom sections below remain retained history/foundations, but they are not the current top-priority gate.
+
+Verified on main through WM4.1:
+
+```text
+WM1   WorldSim presentation map            VERIFIED / merged
+WM2   WorldSim walkability authority       VERIFIED / merged
+WM2.1 movement-cost evidence               VERIFIED / merged
+WM2.2 weighted-routing evidence            VERIFIED / merged
+WM3.0 resource ecology evidence            VERIFIED / merged
+WM3.1 soil evidence                        VERIFIED / merged
+WM3.2 climate evidence                     VERIFIED / merged
+WM3.3 hydrology evidence                   VERIFIED / merged
+WM3.4 vegetation/ecology evidence          VERIFIED / merged
+WM4.0 regeneration migration contract      VERIFIED / merged
+WM4.1 regeneration writer authority        VERIFIED / merged
+WM4.2 food ecology impact                  candidate / verification
+```
+
+WM4.1 is the first real resource-authority transfer: `engine.step()` delegates existing-node regeneration to the WorldSim integration writer while preserving the historical behavior exactly:
+
+- food: +3 every 120 ticks
+- wood: +1 every 720 ticks
+- stone: no regeneration
+
+The shared policy lives in one pure-data contract. No ecology multiplier is authoritative yet. Climate/Soil/Hydrology/Vegetation remain evidence layers for resource behavior, not mutable physical reservoirs.
+
+WM4.2 is intentionally observation-only. It measures food ecology distribution, depletion exposure and the amount of legacy regeneration that would land in low-ecology cells. It must not propose or apply a replacement unit formula.
+
+### Current source-of-truth rule
+
+Ownership transfer and behavior change are separate gates.
+
+```text
+prove current behavior
+→ move writer with parity
+→ re-prove continuity
+→ measure ecological impact
+→ evaluate candidate formula read-only
+→ only then consider behavior authority
+```
+
+Exact GitHub candidate/main workflows remain verification authority. UNKNOWN is not PASS.
+
+---
+
 # Simclone — Knowledge + Memory 0.5.0 candidate
 
 Engine/UI and save schema target 0.5.0 on top of the verified Skill Provenance 0.4.0 main release. The browser storage key remains `simclone:world:v1`; historical identity/archive and skill provenance remain bounded and deterministic.
