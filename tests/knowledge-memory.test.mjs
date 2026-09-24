@@ -74,6 +74,7 @@ test('recipient knowledge survives discoverer death archive and save load',()=>{
     const template=JSON.parse(JSON.stringify(sender));
     template.id=s.nextAgent++;template.name='Retired '+template.id;template.parentId=null;template.generation=0;template.bornTick=0;
     template.alive=false;template.hp=0;template.task=null;template.moveTick=0;template.trace=[];
+    template.knowledgeState={version:KNOWLEDGE_VERSION,evidence:[],beliefs:[],episodes:[]};
     template.death={status:'recorded',tick:s.tick,cause:'starvation',ageYears:18};
     s.agents.push(template);
   }
