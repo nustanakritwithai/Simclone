@@ -553,7 +553,7 @@ export function installUX(api){
     '<section class="structure-hero dropped-item-hero">'+visualToken(itemIconKind(item.kind))+'<div><small>PHYSICAL ITEM</small><h3>'+escape(def?.name??item.kind)+'</h3><span>'+item.location.x+', '+item.location.y+'</span></div></section>'+
     '<div class="menu-metrics">'+menuMetric('people','Created by',creator?creator.name:'#'+item.createdBy)+menuMetric('history','Created',String(item.createdTick))+menuMetric('map','Distance',actor?String(distance):'—')+'</div>'+
     '<div class="structure-actions"><button class="primary visual-policy-action" data-ux="pickup-world-item" data-item="'+item.id+'" '+(canPickup?'':'disabled')+'>'+icon('bag')+'<span>'+(actor?(canPickup?'เก็บขึ้นกระเป๋า':'ต้องอยู่ใกล้ 1 ช่อง'):'เลือก Clone ก่อน')+'</span></button></div>'+
-    '<details class="menu-explain"><summary>Provenance</summary><p>Item instance #'+item.id+' · createdBy #'+item.createdBy+' · createdTick '+item.createdTick+' · location อ่านจาก Rust possession ledger เดิม</p></details>');
+    '<details class="menu-explain" open><summary>Provenance</summary><p>Item instance #'+item.id+' · createdBy #'+item.createdBy+' · createdTick '+item.createdTick+' · location อ่านจาก Rust possession ledger เดิม</p></details>');
    $('dialog').dataset.kind='world-object';$('dialog').dataset.worldObject='drop:'+item.id;renderHUD();return;
   }
   if(target.type==='event'){openEvent(target.id);return;}
