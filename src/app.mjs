@@ -447,7 +447,10 @@ canvas.addEventListener('pointermove',e=>{
 canvas.addEventListener('pointerup',e=>{
  pointers.delete(e.pointerId);if(!drag||drag.moved||multiTouch){if(!pointers.size){drag=null;multiTouch=false;}return;}
  const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
- {let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{const structure=structureTargetAtScreen(sx,sy),object=worldObjectTargetAtScreen(sx,sy),target=structure&&object?(structure.d<=object.d?structure:object):(structure??object);if(target){if(target.type==='building'||target.type==='station')ux?.openStructure(target);else ux?.openWorldObject(target);}else{selected=null;follow=false;updateUI();}}}
+ {const object=worldObjectTargetAtScreen(sx,sy);let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}
+  if(object?.type==='event'&&object.d<Math.max(12,18*zoom))ux?.openWorldObject(object);
+  else if(hit)selectAgent(hit.id);
+  else{const structure=structureTargetAtScreen(sx,sy),target=structure&&object?(structure.d<=object.d?structure:object):(structure??object);if(target){if(target.type==='building'||target.type==='station')ux?.openStructure(target);else ux?.openWorldObject(target);}else{selected=null;follow=false;updateUI();}}}
  drag=null;
 });
 canvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);drag=null;multiTouch=false;});
