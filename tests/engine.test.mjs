@@ -18,11 +18,11 @@ test('invalid clone is atomic',()=>{const s=createWorld();s.stock.food=0;const b
 test('housing capacity is enforced',()=>{const s=createWorld();s.stock.food=999;s.stock.wood=999;while(living(s).length<capacity(s))assert.equal(command(s,'CLONE',{parentId:1}).ok,true);assert.equal(command(s,'CLONE',{parentId:1}).ok,false);});
 test('shelter construction is removed: BUILD is rejected at the engine with no mutation',()=>{
  const s=createWorld(),before=serialize(s);const r=command(s,'BUILD',{x:14,y:11});
- assert.equal(r.ok,false);assert.equal(r.reason,'shelter-removed');assert.equal(serialize(s),before);assert.equal(capacity(s),6);assert.equal(s.buildings.some(b=>b.type==='shelter'),false);
+ assert.equal(r.ok,false);assert.equal(r.reason,'shelter-removed');assert.equal(serialize(s),before);assert.equal(capacity(s),12);assert.equal(s.buildings.some(b=>b.type==='shelter'),false);
 });
-test('restore retires legacy Shelter and upgrades old RP1 default to autonomous modular housing',()=>{
+test('restore retires legacy Shelter while preserving RP1 enable choice',()=>{
  const old=createWorld(77);old.buildings.push({id:2,type:'shelter',x:8,y:9,complete:true,progress:30});old.productionPlan={version:'RP1-0.2',enabled:false,goal:null,lastAttemptTick:-1,history:[]};
- const loaded=restore(JSON.stringify(old));assert.equal(loaded.buildings.some(b=>b.type==='shelter'),false);assert.equal(capacity(loaded),6);assert.equal(loaded.productionPlan.version,'RP1-0.3');assert.equal(loaded.productionPlan.enabled,true);assert.deepEqual(validate(loaded),[]);
+ const loaded=restore(JSON.stringify(old));assert.equal(loaded.buildings.some(b=>b.type==='shelter'),false);assert.equal(capacity(loaded),12);assert.equal(loaded.productionPlan.version,'RP1-0.2');assert.equal(loaded.productionPlan.enabled,false);assert.deepEqual(validate(loaded),[]);
 });
 test('water foundation placement rejected with no mutation',()=>{
  const s=createWorld(),a=s.agents[0];let spot=null;
