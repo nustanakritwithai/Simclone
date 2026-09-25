@@ -289,17 +289,79 @@ export function installUX(api){
   card('inventory','Inventory + Equipment','LIVE',bagItems+' item · สวม '+equipped,'ของแต่ละชิ้นมีเจ้าของ Clone จริง · กระเป๋า 4 ช่อง · ช่องมือ 1 ช่อง'),
   card('knowledge','Knowledge + Mentor','LIVE',beliefs+' belief · Mentor '+mentorLinks,'คลังวัฒนธรรม '+cultureEntries+' รายการ · ความรู้มี source และสถานะยืนยัน'),
   card('ecology','WorldSim Ecology','LIVE','Food + Wood authority','Stone finite · regen pressure สูงสุด '+(topPressure?escape(topPressure.type)+' #'+topPressure.id+' · '+topPressure.regenerationPressure:'—')),
-  card('kingdom','Kingdom Economy','SHADOW',(v.kingdomLabor?.activeCount??0)+' labor offer','Demand / production / labor / market เป็น projection เท่านั้น ยังไม่เขียนเงินจริง')
+  card('kingdom','Kingdom Systems','SHADOW',(v.kingdomLabor?.activeCount??0)+' labor offer','K1/K5 มี authority บางส่วน · K2/K3/K4/K6 ยังเป็น projection')
  ].join('');
+ const sys=(name,status,detail)=>({name,status,detail});
+ const groups=[
+  ['ชีวิต / AI',[
+   sys('Survival Core','LIVE','ความหิว พลังงาน งาน ทรัพยากร และ survival targets'),
+   sys('Lifecycle','LIVE','อายุ ช่วงวัย work-rate และวงจรชีวิต'),
+   sys('Reproduction','LIVE','เกิดอัตโนมัติ housing/food/wood safety gates และ lineage'),
+   sys('Housing','LIVE','บ้าน modular + capacity + autonomous expansion'),
+   sys('Personal Planning',s.planningPolicy?'LIVE':'READY',s.planningPolicy?'ใช้ความรู้ส่วนตัวเลือกเป้าหมาย':'ระบบพร้อม แต่ยังใช้นโยบาย Survival เดิม'),
+   sys('Skill Provenance','LIVE','แยก XP ตั้งต้น / สืบทอด / ได้จากงานจริง'),
+   sys('History / Identity Archive','LIVE','เก็บตัวตน คนตาย lineage และ bounded history'),
+   sys('Navigation','INFRA','path / reachability / camera-safe world navigation')
+  ]],
+  ['การผลิต / ไอเทม',[
+   sys('Rust Runtime','LIVE','command bridge + scheduler สำหรับ crafting/placement/process'),
+   sys('Crafting Catalog','INFRA','สูตร ไอเทม station requirement และต้นทุน authoritative'),
+   sys('Personal Possessions','LIVE',bagItems+' item อยู่ในกระเป๋าของ Clone'),
+   sys('Equipment · Hand','LIVE',equipped+' ชิ้นกำลังสวม · Axe/Pickaxe/Hammer'),
+   sys('Rust Stations','LIVE',stations+' station/structure อยู่ในโลกจริง'),
+   sys('Rust Materials / Charcoal','LIVE',(s.rustMaterials?.charcoal??0)+' charcoal · '+processOrders+' process order'),
+   sys('Housing-only Production Autonomy','LIVE','สร้าง Table → Hammer → บ้าน เมื่อ housing กดดัน'),
+   sys('Production Planning RP1',plan?.enabled?'LIVE':'READY',plan?.enabled?'Full tool/station/charcoal coordinator เปิดอยู่':'Full RP1 พร้อมแต่ policy ยังปิด')
+  ]],
+  ['ความรู้ / สังคม',[
+   sys('Personal Knowledge','LIVE',beliefs+' belief ใน Clone ที่มีชีวิต'),
+   sys('Knowledge Revision','LIVE','CONFIRMED / UNVERIFIED / STALE / REFUTED + evidence source'),
+   sys('Cultural Archive',s.culture?'LIVE':'READY',s.culture?cultureEntries+' รายการถูกบันทึกในคลัง':'ระบบพร้อม แต่โลกนี้ยังไม่ได้สร้างคลัง'),
+   sys('Mentorship KF1','LIVE',mentorLinks+' Mentor link ที่ active'),
+   sys('Lineage + Skill Inheritance','LIVE','parentId / generation + 35% skill inheritance with provenance')
+  ]],
+  ['WorldSim / นิเวศ',[
+   sys('World Map Presentation','INFRA','terrain/world visual projection บนแผนที่'),
+   sys('Resource Authority · Food/Wood','LIVE','single regeneration writer; Stone ยัง finite'),
+   sys('Resource Policy','LIVE','policy ที่กำหนด regen authority ปัจจุบัน'),
+   sys('Resource Ecology Shadow','SHADOW','suitability / regeneration pressure จาก world evidence'),
+   sys('Resource Regeneration Shadow','SHADOW','candidate regen แบบ read-only'),
+   sys('Food Regen Impact','SHADOW','วิเคราะห์ผลของ candidate food regeneration'),
+   sys('Food Ecology Calibration','SHADOW','calibration evidence ก่อนเปลี่ยน authority'),
+   sys('Food Formula Lab','SHADOW','สูตรทดลอง/เปรียบเทียบ ไม่เขียนโลก'),
+   sys('Climate','SHADOW','climate projection ใช้เป็น evidence เท่านั้น'),
+   sys('Hydrology','SHADOW','น้ำ/ความชื้น projection ใช้ประกอบ ecology'),
+   sys('Soil','SHADOW','soil type / fertility / nutrient / compaction projection'),
+   sys('Vegetation','SHADOW','vegetation suitability projection'),
+   sys('Weighted Routing','SHADOW','เส้นทางถ่วงน้ำหนักเทียบกับ path authority เดิม')
+  ]],
+  ['Kingdom / เศรษฐกิจ',[
+   sys('K1 Utility + Career','LIVE','utility/profession state เชื่อมกับงานที่ชนะจริง'),
+   sys('K2 Economy','SHADOW','demand + scarcity + labor pressure'),
+   sys('K3 Production','SHADOW','effective worker / crowding / expected productivity'),
+   sys('K4 Labor Market','SHADOW',(v.kingdomLabor?.activeCount??0)+' labor offer เป็น proposal'),
+   sys('K5 Labor Authority','LIVE','labor scoring premium อยู่ใน eligibility/survival constraints เดิม'),
+   sys('K6 Market','SHADOW','price index เท่านั้น ยังไม่มีเงินจริง/การค้า')
+  ]],
+  ['ระบบพื้นฐาน / ความปลอดภัย',[
+   sys('Save / Restore','INFRA','local persistence + migration + protected recovery'),
+   sys('Runtime Boot + Source Pins','INFRA','กัน browser โหลด module คนละ revision'),
+   sys('Building Visuals','INFRA','renderer สำหรับ modular foundation/wall/door/roof'),
+   sys('Observation UI','INFRA','อ่าน state + dispatch command ที่ผ่าน validator เท่านั้น')
+  ]]
+ ];
+ const allSystems=groups.flatMap(g=>g[1]),counts=allSystems.reduce((o,x)=>(o[x.status]=(o[x.status]??0)+1,o),{});
+ const row=x=>'<div class="system-row" data-system-status="'+x.status+'"><div><b>'+escape(x.name)+'</b><p>'+escape(x.detail)+'</p></div>'+badge(x.status)+'</div>';
+ const catalog=groups.map(([title,list],i)=>'<details class="system-catalog" '+(i<2?'open':'')+'><summary><span>'+escape(title)+'</span><b>'+list.length+' ระบบ</b></summary>'+list.map(row).join('')+'</details>').join('');
  api.openDialog('ระบบที่กำลังขับเคลื่อนโลก','WORLD SYSTEMS · AUTONOMOUS',
-  '<section class="system-hero"><span class="eyebrow">AI WORLD STATUS</span><h3>โลกทำงานเอง · ผู้เล่นสังเกตผลและเจาะลึกเหตุผล</h3><p>หน้านี้รวมเฉพาะระบบที่มีอยู่จริงใน runtime และแยกชัดว่า LIVE, READY หรือ SHADOW</p></section>'+
+  '<section class="system-hero"><span class="eyebrow">AI WORLD STATUS</span><h3>โลกทำงานเอง · ทุกระบบที่มีจริงต้องมองเห็นได้</h3><p>แยกชัดว่า LIVE, READY, SHADOW หรือ INFRA เพื่อไม่ให้ระบบซ่อนอยู่หลังโค้ด</p><div class="system-counts"><span>LIVE '+(counts.LIVE??0)+'</span><span>READY '+(counts.READY??0)+'</span><span>SHADOW '+(counts.SHADOW??0)+'</span><span>INFRA '+(counts.INFRA??0)+'</span></div></section>'+
   '<div class="system-grid">'+cards+'</div>'+
   '<section class="ai-activity"><div class="system-section-head"><div><span class="eyebrow">LIVE ACTIVITY</span><h3>ตอนนี้ Clone กำลังทำอะไร</h3></div><b>'+agents.length+' คน</b></div><div class="activity-grid">'+activity+'</div></section>'+
+  '<section class="all-systems"><div class="system-section-head"><div><span class="eyebrow">FULL RUNTIME CATALOG</span><h3>ระบบทั้งหมดที่มีอยู่ในเกม</h3></div><b>'+allSystems.length+' ระบบ</b></div>'+catalog+'</section>'+
   '<div class="system-actions"><button class="secondary" data-ux="systems-survival">รายละเอียด Survival / Ecology</button><button class="secondary" data-ux="systems-rust">รายละเอียดของ / คราฟต์</button></div>'+
-  '<p class="source-note">LIVE = เขียนผลในเกมจริง · READY = มีระบบแต่ policy เต็มยังไม่เปิด · SHADOW = คำนวณเพื่อสังเกต ยังไม่ใช่ authority</p>');
+  '<p class="source-note">LIVE = เขียนผลเกมจริง · READY = ระบบพร้อมแต่ policy/สิ่งปลูกสร้างยังไม่เปิด · SHADOW = คำนวณเพื่อสังเกต · INFRA = ระบบพื้นฐานที่รองรับ gameplay แต่ไม่ใช่ decision authority</p>');
  $('dialog').dataset.kind='systems';renderHUD();
 }
-
  function openRoster(){rosterFilter='all';rosterLimit=80;api.openDialog('ทุกคนเริ่มเหมือนกัน แต่ไม่เหมือนเดิม','PEOPLE · '+living(api.read().state).length+' คน',`<div class="search-control">${icon('search')}<label class="sr-only" for="people-search">ค้นหาชื่อ</label><input id="people-search" type="search" placeholder="ค้นหาชื่อ เช่น Kira" autocomplete="off"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['hungry','ความอิ่มต่ำ'],['children','รุ่น 2 ขึ้นไป'],['archived','คลังประวัติ']].map(([id,t])=>`<button data-roster-filter="${id}">${t}</button>`).join('')}</div><p id="roster-count" class="list-count"></p><div id="roster-list"></div>`);$('dialog').dataset.kind='people';renderRosterList();renderHUD();}
  function renderRosterList(){if(!$('roster-list'))return;const q=$('people-search').value.toLocaleLowerCase(),s=api.read().state;
   const agents=allPeople(s).filter(a=>a.name.toLocaleLowerCase().includes(q)&&(rosterFilter!=='hungry'||a.alive&&a.satiety<25)&&(rosterFilter!=='children'||a.generation>=2)&&(rosterFilter!=='archived'||a.archived===true));
