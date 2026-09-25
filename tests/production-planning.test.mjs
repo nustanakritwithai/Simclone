@@ -6,12 +6,9 @@ import {PRODUCTION_POLICY,PRODUCTION_RULES} from '../src/production-planning.mjs
 const itemKinds=s=>new Set(s.rustPossessions.items.map(i=>i.kind));
 const stationKinds=s=>new Set(s.rustStations.stations.map(st=>st.kind));
 
-test('new worlds start visible autonomy, while explicit disable remains deterministic',()=>{
+test('RP1 remains opt-in and disabled baseline stays deterministic',()=>{
   const a=createWorld(230926),b=createWorld(230926);
-  assert.equal(a.productionPlan.enabled,true);
-  assert.equal(b.productionPlan.enabled,true);
-  command(a,'SET_PRODUCTION_POLICY',{enabled:false});
-  command(b,'SET_PRODUCTION_POLICY',{enabled:false});
+  assert.equal(a.productionPlan.enabled,false);
   step(a,240);step(b,240);
   assert.equal(serialize(a),serialize(b));
   assert.equal(a.rustPossessions.orders.length,0);
@@ -68,9 +65,9 @@ test('older valid 0.5.0 save gains disabled RP1 extension without inventing work
 });
 
 
-test('RP1 visibly grows the settlement from a fresh world',()=>{
+test('RP1 visibly grows the settlement immediately after autonomy is enabled',()=>{
   const s=createWorld(230926);
-  assert.equal(s.productionPlan.enabled,true);
+  assert.equal(command(s,'SET_PRODUCTION_POLICY',{enabled:true}).ok,true);
   const before={buildings:s.buildings.length,wood:s.stock.wood,stone:s.stock.stone};
   step(s,1);
   assert.equal(s.buildings.length,before.buildings+1);
@@ -86,7 +83,7 @@ test('RP1 visibly grows the settlement from a fresh world',()=>{
 });
 
 test('RP1 house placement is deterministic and does not duplicate the initial plan',()=>{
-  const make=()=>{const s=createWorld(99);step(s,1);return s;};
+  const make=()=>{const s=createWorld(99);command(s,'SET_PRODUCTION_POLICY',{enabled:true});step(s,1);return s;};
   const a=make(),b=make();
   assert.deepEqual(a.buildings,b.buildings);
   assert.equal(a.buildings.length,3);
@@ -95,16 +92,11 @@ test('RP1 house placement is deterministic and does not duplicate the initial pl
 });
 
 
-test('untouched RP1-0.1 saves migrate into visible autonomy but explicit old disable is preserved',()=>{
-  const untouched=createWorld(123);
-  untouched.productionPlan={version:'RP1-0.1',enabled:false,goal:null,lastAttemptTick:-1,history:[]};
-  const migrated=restore(JSON.stringify(untouched));
-  assert.equal(migrated.productionPlan.version,'RP1-0.2');
-  assert.equal(migrated.productionPlan.enabled,true);
 
-  const disabled=createWorld(124);
-  disabled.productionPlan={version:'RP1-0.1',enabled:false,goal:{goal:'policy',outcome:'disabled',agentId:null,tick:0},lastAttemptTick:-1,history:[]};
-  const preserved=restore(JSON.stringify(disabled));
-  assert.equal(preserved.productionPlan.version,'RP1-0.2');
-  assert.equal(preserved.productionPlan.enabled,false);
+test('RP1-0.1 saves migrate schema without silently changing enable choice',()=>{
+  const old=createWorld(123);
+  old.productionPlan={version:'RP1-0.1',enabled:false,goal:null,lastAttemptTick:-1,history:[]};
+  const migrated=restore(JSON.stringify(old));
+  assert.equal(migrated.productionPlan.version,'RP1-0.2');
+  assert.equal(migrated.productionPlan.enabled,false);
 });
