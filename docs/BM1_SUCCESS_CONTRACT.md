@@ -1,6 +1,6 @@
 # BM1 — Building Mode Success Contract
 
-Base: `main@d2ea08bb7a4a888f39a2e2bf2762c74072b04757`
+Base: `main@8e4c2fe31bcd736c0dbf1a2ec246b7a44a76cc18`
 
 Status: implementation branch only. Do not merge until all gates below are SAT.
 
@@ -85,7 +85,7 @@ At minimum prove:
 
 ## Release gates
 
-- branch starts exactly from the base SHA above
+- branch contains the verified base SHA above as an ancestor before feature implementation
 - scope review shows no unrelated WM4/RP1/P3 changes
 - runtime pins regenerated after runtime module changes
 - exact candidate push + PR Verify SUCCESS
