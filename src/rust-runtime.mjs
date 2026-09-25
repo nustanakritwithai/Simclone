@@ -1,4 +1,4 @@
-import {ITEM_CATALOG,RECIPE_CATALOG,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
+import {ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
 import {createRustPossessions,queueCraft,advanceCraft,equipTool,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
 import {createRustStations,placeStationFromItem,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS} from './rust-stations.mjs?v=0.5.0';
 import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
@@ -12,7 +12,7 @@ export function ensureRustState(s){
 const msg=r=>({
   'actor-or-recipe':'เลือกคนที่มีชีวิตและสูตรที่ถูกต้อง','craft-busy':'คนนี้มีงานคราฟต์ค้างอยู่','bag-full':'กระเป๋าเต็ม','capacity':'พื้นที่เก็บของเต็ม',
   station:'ต้องมีสถานีที่ถูกต้อง','materials':'วัสดุไม่พอ','item':'ไม่พบของชิ้นนี้ในกระเป๋า','range':'ต้องอยู่ใกล้จุดใช้งาน',
-  terrain:'วางสถานีตรงนี้ไม่ได้','occupied':'ช่องนี้มีสิ่งอื่นอยู่แล้ว','actor-or-item':'เลือกคนและของสร้างสถานีให้ถูกต้อง',
+  terrain:'วางสิ่งปลูกสร้างตรงนี้ไม่ได้','occupied':'ช่องนี้มีสิ่งอื่นอยู่แล้ว','actor-or-item':'เลือกคนและของที่จะวางให้ถูกต้อง',hammer:'ต้องสวมค้อนก่อนวางชิ้นส่วนอาคาร','foundation-ground':'ฐานไม้วางได้บนพื้นหญ้าเท่านั้น',support:'ชิ้นส่วนนี้ต้องต่อกับฐาน/ผนัง/กรอบประตูเดิม',
   'busy-or-capacity':'คนนี้มีงานแปรรูปค้างอยู่หรือคิวเต็ม','not-authoritative':'กระบวนการนี้ยังไม่เปิด authority'
 }[r.reason]??'คำสั่ง Rust Survival ใช้ไม่ได้');
 export function rustCommand(s,type,data={},isWalkable){
@@ -26,7 +26,7 @@ export function rustCommand(s,type,data={},isWalkable){
   if(!r.ok)return {...r,message:msg(r)};
   const text=type==='CRAFT_ITEM'?'รับงานคราฟต์แล้ว · วัสดุถูกกันเข้า order และจะไม่หักซ้ำ':
     type==='EQUIP_ITEM'?'สวมอุปกรณ์แล้ว':type==='PICKUP_ITEM'?'เก็บของขึ้นกระเป๋าแล้ว':
-    type==='PLACE_STATION'?'วางสถานีสำเร็จ': 'รับงานเผาถ่านแล้ว · ไม้ถูกกันเข้า order';
+    type==='PLACE_STATION'?'วางสิ่งปลูกสร้างสำเร็จ': 'รับงานเผาถ่านแล้ว · ไม้ถูกกันเข้า order';
   return {...r,message:text};
 }
 export function pendingRustWork(s,a){
@@ -67,7 +67,7 @@ export function validateRustState(s){
     for(const q of p.equipment)if(!alive.has(q.agentId)||!p.items.some(i=>i.id===q.itemId&&i.location?.kind==='bag'&&i.location.agentId===q.agentId&&ITEM_CATALOG[i.kind]?.category==='tool'))e.push('Rust equipment');
   }
   if(!rs||rs.version!==RUST_STATIONS_VERSION||!Number.isSafeInteger(rs.nextStation)||!Array.isArray(rs.stations)||rs.stations.length>STATION_LIMITS.maxStations)e.push('Rust stations');
-  else for(const st of rs.stations)if(!st||!Number.isSafeInteger(st.id)||!['CRAFTING_TABLE_LV1','FURNACE'].includes(st.kind)||!Number.isInteger(st.x)||!Number.isInteger(st.y)||!people.has(st.placedBy))e.push('Rust station');
+  else for(const st of rs.stations)if(!st||!Number.isSafeInteger(st.id)||!PLACEABLE_KINDS.includes(st.kind)||!Number.isInteger(st.x)||!Number.isInteger(st.y)||!people.has(st.placedBy))e.push('Rust station');
   if(!m||m.version!==RUST_MATERIALS_VERSION||!Number.isInteger(m.charcoal)||m.charcoal<0||m.charcoal>RUST_MATERIAL_LIMITS.charcoal||!Array.isArray(m.orders)||m.orders.length>RUST_MATERIAL_LIMITS.orders)e.push('Rust materials');
   else for(const o of m.orders)if(!o||!alive.has(o.agentId)||o.processId!=='CHARCOAL'||!stationAt(s,o.stationId)||!Number.isFinite(o.work)||o.work<0||!o.reserved)e.push('Rust process order');
   return [...new Set(e)];

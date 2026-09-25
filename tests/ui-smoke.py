@@ -76,7 +76,7 @@ with sync_playwright() as p:
  m.locator('[data-quick-person="2"]').tap()
  check('quick portrait selects Nira', 'Nira' in m.locator('#inspector .identity').inner_text())
  m.locator('[data-nav="rust"]').tap()
- check('Rust dock exposes the bounded item catalog and craft controls',m.locator('#dialog-title').inner_text()=='ไอเทมและการคราฟต์' and m.locator('[data-rust-catalog-item]').count()==5 and m.locator('[data-ux="craft-item"]').count()==5)
+ check('Rust dock exposes the bounded item catalog and craft controls',m.locator('#dialog-title').inner_text()=='ไอเทมและการคราฟต์' and m.locator('[data-rust-catalog-item]').count()==9 and m.locator('[data-ux="craft-item"]').count()==9)
  m.locator('#dialog-close').tap()
  check('inspector shows derived adult age and lifespan', 'ผู้ใหญ่' in m.locator('#life-label').inner_text() and '18 ปี' in m.locator('#life-label').inner_text() and 'อายุขัย' in m.locator('#life-label').inner_text())
  check('mobile inspector initially compact',not m.locator('#inspector').evaluate('(e)=>e.classList.contains("is-expanded")'))

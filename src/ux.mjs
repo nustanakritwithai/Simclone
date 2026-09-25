@@ -39,7 +39,7 @@ const rustStationLabels={HAND:'ทำด้วยมือ',CRAFTING_TABLE_LV1:'
 function rustCatalog(s){
  const items=s.rustPossessions?.items??[],stations=s.rustStations?.stations??[];
  return '<details class="score-details" open><summary>ไอเทม Rust ที่ใช้งานได้ตอนนี้ · '+Object.keys(ITEM_CATALOG).length+' ชนิด</summary>'+
- Object.values(RECIPE_CATALOG).map(r=>{const item=ITEM_CATALOG[r.output],placed=item.stationProvided?stations.filter(st=>st.kind===item.stationProvided).length:0,owned=items.filter(i=>i.kind===item.id).length+placed,cost=Object.entries(r.materials).map(([k,n])=>(k==='wood'?'ไม้':'หิน')+' '+n).join(' + ');return '<div class="memory-item" data-rust-catalog-item="'+escape(item.id)+'"><b>'+escape(item.name)+'</b><small>'+(item.category==='tool'?'เครื่องมือ':'สถานี')+' · '+cost+' · '+escape(rustStationLabels[r.station]??r.station)+' · มีในโลก '+owned+'</small></div>';}).join('')+
+ Object.values(RECIPE_CATALOG).map(r=>{const item=ITEM_CATALOG[r.output],placed=item.stationProvided?stations.filter(st=>st.kind===item.stationProvided).length:0,owned=items.filter(i=>i.kind===item.id).length+placed,cost=Object.entries(r.materials).map(([k,n])=>(k==='wood'?'ไม้':'หิน')+' '+n).join(' + ');return '<div class="memory-item" data-rust-catalog-item="'+escape(item.id)+'"><b>'+escape(item.name)+'</b><small>'+(item.category==='tool'?'เครื่องมือ':item.structurePiece?'ชิ้นส่วนอาคาร':'สถานี')+' · '+cost+' · '+escape(rustStationLabels[r.station]??r.station)+' · มีในโลก '+owned+'</small></div>';}).join('')+
  '</details>';
 }
 function rustPanel(s,api){
@@ -50,7 +50,7 @@ function rustPanel(s,api){
  const craft=s.rustPossessions?.orders?.find(o=>o.agentId===actor.id),process=s.rustMaterials?.orders?.find(o=>o.agentId===actor.id);
  const drops=items.filter(i=>i.location?.kind==='drop'&&Math.abs(actor.x-i.location.x)+Math.abs(actor.y-i.location.y)<=1);
  const recipes=Object.values(RECIPE_CATALOG).map(r=>'<button class="secondary" data-ux="craft-item" data-recipe="'+r.id+'" '+(craft||process?'disabled':'')+'>คราฟต์ '+escape(ITEM_CATALOG[r.output].name)+'</button>').join('');
- const bagHtml=bag.length?'<details class="score-details"><summary>ของในกระเป๋า</summary>'+bag.map(i=>'<div class="memory-item"><b>'+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+'</b><small>#'+i.id+' · สร้าง tick '+i.createdTick+'</small>'+(ITEM_CATALOG[i.kind]?.category==='tool'?'<button class="secondary" data-ux="equip-item" data-item="'+i.id+'">'+(equipped===i.id?'สวมอยู่':'สวมอุปกรณ์')+'</button>':'<button class="secondary" data-ux="place-station" data-item="'+i.id+'">วางสถานีติดตัว</button>')+'</div>').join('')+'</details>':'';
+ const bagHtml=bag.length?'<details class="score-details"><summary>ของในกระเป๋า</summary>'+bag.map(i=>'<div class="memory-item"><b>'+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+'</b><small>#'+i.id+' · สร้าง tick '+i.createdTick+'</small>'+(ITEM_CATALOG[i.kind]?.category==='tool'?'<button class="secondary" data-ux="equip-item" data-item="'+i.id+'">'+(equipped===i.id?'สวมอยู่':'สวมอุปกรณ์')+'</button>':'<button class="secondary" data-ux="place-station" data-item="'+i.id+'">'+(ITEM_CATALOG[i.kind]?.structurePiece?'วางชิ้นส่วนอาคาร':'วางสถานีติดตัว')+'</button>')+'</div>').join('')+'</details>':'';
  const dropHtml=drops.length?'<details class="score-details"><summary>ของตกใกล้ตัว</summary>'+drops.map(i=>'<button class="secondary" data-ux="pickup-rust" data-item="'+i.id+'">เก็บ '+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+' #'+i.id+'</button>').join('')+'</details>':'';
  const equippedItem=bag.find(i=>i.id===equipped);
  const plan=s.productionPlan,goal=plan?.goal;
@@ -59,7 +59,7 @@ function rustPanel(s,api){
  '<div class="life-summary"><div><small>RP1 · แผนผลิตอัตโนมัติ</small><b>'+(plan?.enabled?'เปิด':'ปิด')+'</b></div><div><small>สถานะล่าสุด</small><b>'+escape(goal?goal.goal+' · '+goal.outcome:'ยังไม่มีแผน')+'</b></div></div>'+
  '<div class="dialog-actions"><button class="secondary" data-ux="production-policy" data-enabled="'+(!plan?.enabled)+'">'+(plan?.enabled?'■ หยุดสร้างบ้าน + ทำของอัตโนมัติ':'▶ เริ่มให้ Clone สร้างบ้าน + ทำของอัตโนมัติ')+'</button>'+recipes+'<button class="secondary" data-ux="process-charcoal" '+(craft||process?'disabled':'')+'>เผาถ่าน Wood 2 → Charcoal 1</button></div>'+bagHtml+dropHtml+
  '<p class="source-note">RP1 เป็น deterministic coordinator: ใช้คำสั่ง Rust เดิมเพื่อสร้างขวาน/อีเต้อ → โต๊ะคราฟต์ → ค้อน → เตาหลอม → ถ่าน เป้าถ่าน 4 หน่วย · ไม่สร้างของเองนอก scheduler และ hunger/energy ยัง interrupt งานได้</p>'+
- '<p class="source-note">วัสดุถูก commit เข้า order แบบ atomic ตอนรับงาน · Clone เดิน/ทำงานตาม tick จริง · Stone Axe เร่ง WOODCUT ×1.25, Stone Pickaxe เร่ง MINE ×1.25 · Hammer ยังไม่เพิ่ม BUILD bonus</p>';
+ '<p class="source-note">วัสดุถูก commit เข้า order แบบ atomic ตอนรับงาน · Clone เดิน/ทำงานตาม tick จริง · Stone Axe เร่ง WOODCUT ×1.25, Stone Pickaxe เร่ง MINE ×1.25 · ชิ้นส่วนอาคารไม้ต้องสวม Hammer ก่อนวาง และผนัง/ประตู/หลังคาต้องต่อกับโครงสร้างเดิม</p>';
 }
 
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
@@ -146,7 +146,7 @@ export function installUX(api){
   if(b.dataset.ux==='place-station'){
     const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive);let chosen=null;
     if(a)for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1]]){const data={agentId:a.id,itemInstanceId:Number(b.dataset.item),x:a.x+dx,y:a.y+dy};if(api.preview('PLACE_STATION',data).ok){chosen=data;break;}}
-    const result=chosen?api.execute('PLACE_STATION',chosen):{ok:false,message:'ไม่มีช่องว่างติดตัวสำหรับวางสถานี'};api.toast(result.message);if(result.ok){api.save();openSurvival();}
+    const result=chosen?api.execute('PLACE_STATION',chosen):{ok:false,message:'ไม่มีช่องว่างติดตัวที่ผ่านกฎการวาง'};api.toast(result.message);if(result.ok){api.save();openSurvival();}
   }
   if(b.dataset.ux==='process-charcoal'){
     const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive),dist=st=>a?Math.abs(a.x-st.x)+Math.abs(a.y-st.y):Infinity;

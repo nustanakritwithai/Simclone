@@ -4,30 +4,39 @@ const deepFreeze=value=>{
     Object.freeze(value);for(const child of Object.values(value))deepFreeze(child);
   }return value;
 };
-export const RUST_CRAFTING_VERSION='RS1-0.2';
+export const RUST_CRAFTING_VERSION='RS1-0.3';
 export const CRAFT_STATIONS=deepFreeze({HAND:'HAND',CRAFTING_TABLE_LV1:'CRAFTING_TABLE_LV1',FURNACE:'FURNACE'});
 export const CRAFT_CATEGORIES=deepFreeze({TOOL:'tool',BUILD:'build'});
+export const PLACEABLE_KINDS=deepFreeze(['CRAFTING_TABLE_LV1','FURNACE','WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF']);
 export const ITEM_CATALOG=deepFreeze({
   STONE_AXE:{id:'STONE_AXE',name:'ขวานหิน',category:'tool',equipSlot:'hand',workAction:'WOODCUT',workMultiplier:1.25,donorId:'stone_axe'},
   STONE_PICKAXE:{id:'STONE_PICKAXE',name:'อีเต้อหิน',category:'tool',equipSlot:'hand',workAction:'MINE',workMultiplier:1.25,donorId:'stone_pick'},
   HAMMER:{id:'HAMMER',name:'ค้อน',category:'tool',equipSlot:'hand',workAction:'BUILD',workMultiplier:1,donorId:'hammer'},
   CRAFTING_TABLE_LV1:{id:'CRAFTING_TABLE_LV1',name:'โต๊ะคราฟต์ Lv1',category:'build',buildingType:'crafting_table',stationProvided:'CRAFTING_TABLE_LV1',donorId:'crafting_table'},
-  FURNACE:{id:'FURNACE',name:'เตาหลอม',category:'build',buildingType:'furnace',stationProvided:'FURNACE',donorId:'furnace'}
+  FURNACE:{id:'FURNACE',name:'เตาหลอม',category:'build',buildingType:'furnace',stationProvided:'FURNACE',donorId:'furnace'},
+  WOOD_FOUNDATION:{id:'WOOD_FOUNDATION',name:'ฐานไม้',category:'build',buildingType:'wood_foundation',stationProvided:'WOOD_FOUNDATION',structurePiece:true,placementRule:'ground',donorId:'wood_foundation'},
+  WOOD_WALL:{id:'WOOD_WALL',name:'กำแพงไม้',category:'build',buildingType:'wood_wall',stationProvided:'WOOD_WALL',structurePiece:true,placementRule:'supported',donorId:'wood_wall'},
+  WOOD_DOORWAY:{id:'WOOD_DOORWAY',name:'กรอบประตูไม้',category:'build',buildingType:'wood_doorway',stationProvided:'WOOD_DOORWAY',structurePiece:true,placementRule:'supported',donorId:'wood_doorway'},
+  WOOD_ROOF:{id:'WOOD_ROOF',name:'หลังคาไม้',category:'build',buildingType:'wood_roof',stationProvided:'WOOD_ROOF',structurePiece:true,placementRule:'supported',donorId:'wood_roof'}
 });
 export const RECIPE_CATALOG=deepFreeze({
   STONE_AXE:{id:'STONE_AXE',output:'STONE_AXE',quantity:1,category:'tool',station:'HAND',tier:0,materials:{wood:4,stone:2},work:24,donor:{cost:{wood:2,stone:3,rope:1}},adaptation:'rope deferred until it has one authoritative ledger'},
   STONE_PICKAXE:{id:'STONE_PICKAXE',output:'STONE_PICKAXE',quantity:1,category:'tool',station:'HAND',tier:0,materials:{wood:3,stone:4},work:24,donor:{cost:{wood:2,stone:3,rope:1}},adaptation:'rope deferred until it has one authoritative ledger'},
   CRAFTING_TABLE_LV1:{id:'CRAFTING_TABLE_LV1',output:'CRAFTING_TABLE_LV1',quantity:1,category:'build',station:'HAND',tier:0,materials:{wood:10,stone:4},work:36,donor:{cost:{wood:10,stone:4}}},
   FURNACE:{id:'FURNACE',output:'FURNACE',quantity:1,category:'build',station:'HAND',tier:0,materials:{stone:12},work:40,donor:{cost:{stone:12}}},
-  HAMMER:{id:'HAMMER',output:'HAMMER',quantity:1,category:'tool',station:'CRAFTING_TABLE_LV1',tier:1,materials:{wood:3,stone:4},work:28,donor:{cost:{wood:2,stone:3,rope:1}},adaptation:'rope deferred; station progression retained'}
+  HAMMER:{id:'HAMMER',output:'HAMMER',quantity:1,category:'tool',station:'CRAFTING_TABLE_LV1',tier:1,materials:{wood:3,stone:4},work:28,donor:{cost:{wood:2,stone:3,rope:1}},adaptation:'rope deferred; station progression retained'},
+  WOOD_FOUNDATION:{id:'WOOD_FOUNDATION',output:'WOOD_FOUNDATION',quantity:1,category:'build',station:'HAND',tier:0,materials:{wood:8},work:18},
+  WOOD_WALL:{id:'WOOD_WALL',output:'WOOD_WALL',quantity:1,category:'build',station:'HAND',tier:0,materials:{wood:5},work:14},
+  WOOD_DOORWAY:{id:'WOOD_DOORWAY',output:'WOOD_DOORWAY',quantity:1,category:'build',station:'HAND',tier:0,materials:{wood:5},work:14},
+  WOOD_ROOF:{id:'WOOD_ROOF',output:'WOOD_ROOF',quantity:1,category:'build',station:'HAND',tier:0,materials:{wood:6},work:16}
 });
 export const recipeById=id=>RECIPE_CATALOG[id]??null;
 export const itemById=id=>ITEM_CATALOG[id]??null;
 export function validateCraftingCatalog(){
-  const errors=[],stations=new Set(Object.values(CRAFT_STATIONS)),cats=new Set(Object.values(CRAFT_CATEGORIES));
+  const errors=[],stations=new Set(Object.values(CRAFT_STATIONS)),placeables=new Set(PLACEABLE_KINDS),cats=new Set(Object.values(CRAFT_CATEGORIES));
   for(const [id,item] of Object.entries(ITEM_CATALOG)){
     if(item.id!==id||!cats.has(item.category))errors.push('item:'+id);
-    if(item.stationProvided&&!stations.has(item.stationProvided))errors.push('item-station:'+id);
+    if(item.stationProvided&&!placeables.has(item.stationProvided))errors.push('item-placeable:'+id);
   }
   for(const [id,r] of Object.entries(RECIPE_CATALOG)){
     if(r.id!==id||!ITEM_CATALOG[r.output]||!stations.has(r.station)||!cats.has(r.category)||!Number.isInteger(r.work)||r.work<1)errors.push('recipe:'+id);
