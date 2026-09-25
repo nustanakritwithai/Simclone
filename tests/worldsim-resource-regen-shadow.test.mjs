@@ -11,7 +11,7 @@ test('WM4.0 captures exact K6 regeneration contract',()=>{
 
 test('regeneration observer reports WorldSim writer and stays read-only',()=>{
   const s=createWorld(230926),before=serialize(s),x=createResourceRegenerationShadow(s);
-  assert.equal(x.authority.writer,'worldsim-wm4.5');assert.equal(x.authority.worldsimMutation,false);
+  assert.equal(x.authority.writer,'worldsim-wm4.6');assert.equal(x.authority.worldsimMutation,false);
   assert.equal(serialize(s),before);
 });
 
@@ -47,7 +47,6 @@ test('observing WM4.0 every tick cannot change deterministic execution',()=>{
   assert.equal(serialize(a),serialize(b));
 });
 
-
 test('wood boundary is exactly +1 at tick 720 and food remains +3',()=>{
   const s=createWorld(123);for(const n of s.nodes)n.amount=0;s.tick=720;
   const x=createResourceRegenerationShadow(s);
@@ -62,9 +61,8 @@ test('full nodes propose zero increment even on a regeneration boundary',()=>{
   assert.ok(x.rows.every(r=>r.legacyIncrement===0));
 });
 
-
 test('every regeneration observer row names the WM4.1 WorldSim writer',()=>{
   const x=createResourceRegenerationShadow(createWorld(8080));
   assert.ok(x.rows.length>0);
-  assert.ok(x.rows.every(r=>r.authoritativeWriter==='worldsim-wm4.5'));
+  assert.ok(x.rows.every(r=>r.authoritativeWriter==='worldsim-wm4.6'));
 });

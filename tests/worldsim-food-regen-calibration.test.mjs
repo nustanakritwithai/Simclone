@@ -7,7 +7,7 @@ test('food ecology calibration is deterministic and read-only',()=>{
   const s=createWorld(230926),before=serialize(s);
   const a=calibrateFoodEcology(s),b=calibrateFoodEcology(s);
   assert.deepEqual(a,b);assert.equal(serialize(s),before);
-  assert.equal(a.authority.writer,'worldsim-wm4.5');
+  assert.equal(a.authority.writer,'worldsim-wm4.6');
   assert.equal(a.authority.mutatesNodes,false);
   assert.equal(a.authority.unitFormula,'none');
 });
