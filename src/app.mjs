@@ -133,8 +133,9 @@ function rustStation(c,st,structureCtx=null){
  }
  c.restore();
 }
-const WORLD_FEEDBACK_TICKS=12;
+const WORLD_FEEDBACK_TICKS=12,COMMUNICATION_FEEDBACK_TICKS=18;
 const TASK_GLYPHS=Object.freeze({EAT:'●',REST:'z',BUILD:'⌂',CRAFT:'⚒',PROCESS:'♨',FORAGE:'✦',WOODCUT:'╱',MINE:'◆',EXPLORE:'…'});
+const TASK_SHORT=Object.freeze({EAT:'กิน',REST:'พัก',BUILD:'สร้าง',CRAFT:'คราฟต์',PROCESS:'เตา',FORAGE:'อาหาร',WOODCUT:'ไม้',MINE:'หิน',EXPLORE:'สำรวจ',IDLE:'พัก'});
 function houseFeedback(s){
  return evaluateModularHouses(s).houses.filter(h=>!h.complete).map(h=>{
   const cells=new Set(h.cells.map(c=>c.x+':'+c.y));let perimeter=0;
@@ -144,21 +145,48 @@ function houseFeedback(s){
   return {houseId:h.houseId,x,y,progress:blocked?null:Math.max(0,Math.min(99,Math.round(placed/Math.max(1,total)*100))),missing:h.missing.length,status:blocked?'blocked':'building'};
  });
 }
+function agentBubbleSignal(s,a,selectedId=null){
+ const recentSpeech=s.events.slice().reverse().find(e=>e.agentId===a.id&&s.tick>=e.tick&&s.tick-e.tick<=COMMUNICATION_FEEDBACK_TICKS&&(e.type==='knowledge'||e.type==='mentor'));
+ if(recentSpeech)return {agentId:a.id,kind:'speech',glyph:recentSpeech.type==='knowledge'?'↗':'↔',label:recentSpeech.type==='knowledge'?'ความรู้':'Mentor',priority:90,eventId:recentSpeech.id,source:'event'};
+ const task=a.task,kind=task?.kind??null,recent=Boolean(task&&Number.isInteger(task.started)&&s.tick>=task.started&&s.tick-task.started<=WORLD_FEEDBACK_TICKS);
+ if(a.satiety<24)return {agentId:a.id,kind:'thought',glyph:'!',label:'หิว',priority:80,source:'need'};
+ if(['BUILD','CRAFT','PROCESS'].includes(kind))return {agentId:a.id,kind:'work',glyph:TASK_GLYPHS[kind],label:TASK_SHORT[kind],priority:70,source:'task'};
+ if(recent)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:50,source:'task'};
+ if(a.id===selectedId)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:100,source:'selected'};
+ return null;
+}
+function worldBubbleSignals(s,selectedId=null,limit=5){
+ return living(s).map(a=>agentBubbleSignal(s,a,selectedId)).filter(Boolean).sort((a,b)=>b.priority-a.priority||a.agentId-b.agentId).slice(0,limit);
+}
 function worldFeedbackSnapshot(s,selectedId=null){
- const agents=living(s).map(a=>{
-  const kind=a.task?.kind??null,recent=Boolean(a.task&&Number.isInteger(a.task.started)&&s.tick>=a.task.started&&s.tick-a.task.started<=WORLD_FEEDBACK_TICKS);
-  const persistent=['BUILD','CRAFT','PROCESS'].includes(kind),emergency=a.satiety<24,selectedAgent=a.id===selectedId;
-  if(!selectedAgent&&!emergency&&!persistent&&!recent)return null;
-  return {agentId:a.id,kind,glyph:emergency?'!':(TASK_GLYPHS[kind]??'…'),reason:emergency?'need':selectedAgent?'selected':persistent?'productive':'recent'};
- }).filter(Boolean);
- return {agents,houses:houseFeedback(s)};
+ const bubbles=worldBubbleSignals(s,selectedId,innerWidth<=700?3:5);
+ return {agents:bubbles.map(x=>({agentId:x.agentId,kind:s.agents.find(a=>a.id===x.agentId)?.task?.kind??null,glyph:x.glyph,reason:x.source,bubbleKind:x.kind,label:x.label,eventId:x.eventId??null})),bubbles,houses:houseFeedback(s)};
+}
+function drawThoughtCloud(c,x,y,w,h,fill,stroke){
+ c.save();c.fillStyle=fill;c.strokeStyle=stroke;c.lineWidth=.8;
+ const parts=[[x-w*.28,y, w*.26,h*.46],[x,y-h*.12,w*.34,h*.58],[x+w*.3,y,w*.26,h*.45]];
+ for(const [cx,cy,rx,ry] of parts){c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.fill();c.stroke();}
+ c.beginPath();c.arc(x-w*.38,y+h*.52,2.8,0,Math.PI*2);c.fill();c.stroke();c.beginPath();c.arc(x-w*.46,y+h*.68,1.5,0,Math.PI*2);c.fill();c.stroke();c.restore();
+}
+function drawSpeechBox(c,x,y,w,h,fill,stroke){
+ c.save();c.fillStyle=fill;c.strokeStyle=stroke;c.lineWidth=.8;c.beginPath();c.roundRect(x-w/2,y-h/2,w,h,6);c.fill();c.stroke();
+ polygon(c,[[x-w*.25,y+h/2-1],[x-w*.12,y+h/2+7],[x-w*.05,y+h/2-1]],fill,stroke);c.restore();
+}
+function drawAgentBubble(c,signal){
+ if(!signal)return;
+ const label=signal.label??'',glyph=signal.glyph??'…';c.save();c.font='9px system-ui';const labelW=label?c.measureText(label).width:0,w=Math.max(30,18+labelW),h=20,x=17,y=-61;
+ if(signal.kind==='thought')drawThoughtCloud(c,x,y,w,h,'#f0ead8f2','#b8b596aa');
+ else drawSpeechBox(c,x,y,w,h,signal.kind==='speech'?'#dceadcf4':'#efe2bcf3',signal.kind==='speech'?'#8eb69aaa':'#c5a96eaa');
+ c.textAlign='center';c.textBaseline='middle';c.fillStyle='#32483a';c.font='11px Georgia';c.fillText(glyph,x-(label?labelW*.25:0),y);
+ if(label){c.font='8px system-ui';c.fillText(label,x+9,y+.5);}
+ c.restore();
 }
 function drawHouseFeedback(c,h){
  const p=proj(h.x,h.y),label=h.status==='blocked'?'⌂ ติดขัด':'⌂ '+h.progress+'%';c.save();c.font='9px system-ui';c.textAlign='center';
  const w=Math.max(42,c.measureText(label).width+14);c.fillStyle='#17352ae8';c.beginPath();c.roundRect(p.x-w/2,p.y-70,w,17,5);c.fill();
  c.strokeStyle=h.status==='blocked'?'#d69b7a99':'#e1c98b99';c.lineWidth=.8;c.stroke();c.fillStyle='#efe0b8';c.fillText(label,p.x,p.y-58);c.restore();
 }
-function person(c,a,time){
+function person(c,a,time,bubble=null){
  let v=positions.get(a.id);if(!v){v={x:a.x,y:a.y};positions.set(a.id,v);}v.x+=(a.x-v.x)*.2;v.y+=(a.y-v.y)*.2;
  const p=proj(v.x,v.y),ap=a.appearance,moving=a.task?.path.length>0;
  const stride=moving?Math.sin(time*.012+a.id)*3:0;c.save();c.translate(p.x,p.y);
@@ -176,12 +204,7 @@ function person(c,a,time){
  if(!moving&&tool==='STONE_AXE'){line(c,[[10,-12],[18,-23]],'#a69265',2);polygon(c,[[16,-24],[23,-21],[20,-16]],'#c4c9b4');}
  if(!moving&&tool==='STONE_PICKAXE')line(c,[[10,-12],[17,-26],[24,-24]],'#b5bba5',2);
  if(!moving&&tool==='HAMMER'){line(c,[[10,-12],[17,-23]],'#a69265',2.4);c.fillStyle='#b8bdad';c.fillRect(14,-27,9,5);}
- const visibleWork=['BUILD','CRAFT','PROCESS'].includes(a.task?.kind),recentDecision=Boolean(a.task&&Number.isInteger(a.task.started)&&state.tick>=a.task.started&&state.tick-a.task.started<=WORLD_FEEDBACK_TICKS);
- if(a.id===selected||a.satiety<24||visibleWork||recentDecision){
-  const glyph=a.satiety<24?'!':(TASK_GLYPHS[a.task?.kind]||'…');
-  c.fillStyle='#ece6cf';c.beginPath();c.roundRect(8,-53,24,17,5);c.fill();polygon(c,[[11,-37],[10,-32],[18,-37]],'#ece6cf');
-  c.fillStyle='#3a5039';c.font='12px Georgia';c.textAlign='center';c.fillText(glyph,20,-41);
- }
+ drawAgentBubble(c,bubble);
  c.restore();
 }
 function cameraOrigin(){return nav?.anchor()??{x:cw/2,y:ch/2};}
@@ -218,9 +241,9 @@ function render(time){
  ctx.drawImage(ground,-SIZE.h*hw-60,-32);
  const a=state.agents.find(a=>a.id===selected&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
- const structureCtx=structureRenderContext();
+ const structureCtx=structureRenderContext(),bubbleMap=new Map(worldBubbleSignals(state,selected,innerWidth<=700?3:5).map(x=>[x.agentId,x]));
  const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
- for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else person(ctx,o.data,time);}
+ for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else person(ctx,o.data,time,bubbleMap.get(o.data.id)??null);}
  for(const h of houseFeedback(state))drawHouseFeedback(ctx,h);
  if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
  ctx.restore();
