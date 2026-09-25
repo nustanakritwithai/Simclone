@@ -284,7 +284,7 @@ export function installUX(api){
   $('pause').setAttribute('aria-pressed',String(paused));$('observe').setAttribute('aria-pressed','true');
   const h=$('world-status');h.textContent=$('dialog').open?'หยุดเวลา · กำลังดูข้อมูล':paused?'หยุดเวลา · กด ▶ เพื่อเดินต่อ':'โลกกำลังดำเนินไปด้วยตัวเอง';
   document.body.classList.toggle('is-paused',paused||$('dialog').open);
-  const modal=$('dialog').open,kind=$('dialog').dataset.kind,activeNav=modal&&kind==='people'?'people':modal&&kind==='systems'?'systems':modal&&kind==='rust'?'rust':modal&&kind==='history'?'history':'world';
+  const modal=$('dialog').open,kind=$('dialog').dataset.kind,activeNav=modal&&kind==='people'?'people':modal&&kind==='systems'?'systems':modal&&kind==='rust'?'rust':modal&&(kind==='history'||kind==='event')?'history':'world';
   for(const b of document.querySelectorAll('[data-nav]')){const active=b.dataset.nav===activeNav;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');}
  }
  function openSystems(){
