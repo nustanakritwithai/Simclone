@@ -32,7 +32,7 @@ const paths={
  brain:'<path d="M12 4c-5-4-9 1-7 4-4 2-3 7 0 7-1 5 5 7 7 3m0-14c5-4 9 1 7 4 4 2 3 7 0 7 1 5-5 7-7 3ZM12 4v14M5 8l3 2M19 8l-3 2M5 15l3-2M19 15l-3-2"/>'
 };
 export const icon=name=>`<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths[name]||paths.eye}</svg>`;
-const events={birth:'ชีวิตใหม่',skill:'พัฒนาทักษะ',knowledge:'ถ่ายทอดความรู้',build:'สิ่งปลูกสร้าง',craft:'คราฟต์/แปรรูป',career:'เปลี่ยนอาชีพ',death:'สูญเสีย',day:'วันใหม่'};
+const events={birth:'ชีวิตใหม่',skill:'พัฒนาทักษะ',knowledge:'ถ่ายทอดความรู้',mentor:'Mentor',build:'สิ่งปลูกสร้าง',craft:'คราฟต์/แปรรูป',career:'เปลี่ยนอาชีพ',death:'สูญเสีย',day:'วันใหม่'};
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
 function rustPanel(s,api){
  const selected=api.read().selected,actor=s.agents.find(a=>a.id===selected&&a.alive);
@@ -57,7 +57,7 @@ function rustPanel(s,api){
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
 const stageLabels={CHILD:'เด็ก',ADULT:'ผู้ใหญ่',ELDER:'ผู้สูงวัย',DEAD:'เสียชีวิต'};
 const birthLabels={'history-capacity':'จำนวนประวัติถึงขีดจำกัด','history-storage':'พื้นที่คลังประวัติเต็ม','history-invalid':'ประวัติต้องตรวจสอบ','history-hot':'ชุดข้อมูลทำงานเต็ม',ready:'พร้อมเมื่อถึงรอบปี',housing:'ที่พักเต็ม',history:'ประวัติตัวละครเต็ม',pace:'รอครบระยะห่างการเกิด',parent:'ยังไม่มีผู้ใหญ่ที่พร้อม',food:'อาหารสำรองยังไม่พอ',wood:'ไม้สำรองยังไม่พอ'};
-const tabNames={about:'ตอนนี้',skills:'ทักษะ',why:'เหตุผล',knowledge:'ความรู้',memory:'ความทรงจำ'};
+const tabNames={about:'ตอนนี้',skills:'ทักษะ',why:'เหตุผล',knowledge:'ความรู้',social:'สัมพันธ์',memory:'ความทรงจำ'};
 function setText(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=value;}
 function replaceIfChanged(el,html){if(el.dataset.content!==html){const y=el.scrollTop;el.innerHTML=html;el.dataset.content=html;el.scrollTop=y;}}
 export function installUX(api){
@@ -112,6 +112,8 @@ export function installUX(api){
     const result=api.execute('SHARE_KNOWLEDGE',{fromId:api.read().selected,key:b.dataset.key});
     api.toast(result.message);if(result.ok)api.save();
   }
+  if(b.dataset.ux==='create-mentor'){const result=api.execute('CREATE_MENTOR_LINK',{mentorId:api.read().selected});api.toast(result.message);if(result.ok){api.save();renderInspector();}}
+  if(b.dataset.ux==='end-mentor'){const result=api.execute('END_MENTOR_LINK',{linkId:Number(b.dataset.link)});api.toast(result.message);if(result.ok){api.save();renderInspector();}}
  });
  inspector.addEventListener('keydown',e=>{
   if(e.target.getAttribute('role')!=='tab'||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
@@ -193,6 +195,16 @@ export function installUX(api){
     return `<div class="memory-item"><small>${escape(statusText[b.status]??b.status)} · ${source}</small><b>${escape(typeText[b.value.type]??b.value.type)} #${b.value.resourceId}</b><br>ตำแหน่ง ${b.value.x}, ${b.value.y}<br><span class="source-note">origin: ${escape(b.originEvidenceId)}</span>${share}${verify}${publish}</div>`;}).join('')||
     '<p class="empty-state">ยังไม่มีความรู้จากประสบการณ์จริง · Clone ต้องพบผลลัพธ์จากงานก่อน</p>';
    html+='<p class="source-note">ข้อมูลที่คนอื่นเล่าเริ่มเป็น “ยังไม่ยืนยัน” · ตรวจได้เมื่ออยู่ในระยะ 4 ช่อง · แหล่งหมดชั่วคราวหรือข้อมูลอายุเกิน 720 ticks เป็น “ข้อมูลเก่า” ไม่ใช่ข้อสรุปว่าผู้ส่งโกหก</p>';
+  }
+  else if(tab==='social'){
+   const links=s.mentorship?.links??[],mine=links.filter(l=>l.mentorId===a.id||l.studentId===a.id);
+   const activeStudent=links.some(l=>l.studentId===a.id&&l.endedTick===null);
+   const rows=mine.map(l=>{const asMentor=l.mentorId===a.id,other=findPerson(s,asMentor?l.studentId:l.mentorId),active=l.endedTick===null;
+    const end=active&&a.alive?'<button class="secondary" data-ux="end-mentor" data-link="'+l.id+'">สิ้นสุด Mentor</button>':'';
+    return '<div class="memory-item"><small>'+(active?'active':'สิ้นสุด tick '+l.endedTick)+'</small><b>'+escape((asMentor?'Mentor ของ ':'เรียนกับ ')+(other?.name??('#'+(asMentor?l.studentId:l.mentorId))))+'</b><p class="source-note">เริ่ม tick '+l.createdTick+' · สอนแล้ว '+(l.taughtKeys?.length??0)+' เรื่อง'+(l.endReason?' · '+escape(l.endReason):'')+'</p>'+end+'</div>';
+   }).join('');
+   html=(rows||'<p class="empty-state">ยังไม่มีความสัมพันธ์ Mentor</p>')+(a.alive&&!activeStudent?'<button class="primary" data-ux="create-mentor">เป็น Mentor ให้คนใกล้สุด</button>':'')+
+    '<p class="source-note">Mentor ส่งเฉพาะความรู้ที่ยืนยันแล้ว · ผู้เรียนรับเป็น UNVERIFIED · key เดิมใน Mentor link เดิมไม่ถูกส่งซ้ำ · การสอนไม่เพิ่ม Skill XP</p>';
   }
   else if(tab==='memory')html=(a.knowledgeState?.episodes??[]).slice().reverse().map(e=>`<div class="memory-item"><small>tick ${e.tick} · ${e.kind==='discovery'?'ประสบการณ์':'รับข้อมูล'}</small>${escape(e.event)}<br><span class="source-note">${escape(e.perceivedOutcome)}</span></div>`).join('')||
     a.memory.slice().reverse().map(m=>`<div class="memory-item"><small>วันที่ ${1+Math.floor(m.tick/360)}</small>${escape(m.text)}</div>`).join('')||
