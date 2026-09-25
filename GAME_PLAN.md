@@ -23,6 +23,20 @@
 
 ---
 
+## Independent Clone World — approved direction
+
+Canonical design: [docs/INDEPENDENT_CLONE_WORLD.md](docs/INDEPENDENT_CLONE_WORLD.md)
+
+After the UX V1 interaction line, the next gameplay architecture moves from settlement-first to individual-first simulation:
+
+```text
+Individual → personal survival → personal home → household → neighborhood → emergent settlement
+```
+
+A central village is not a prerequisite in the target architecture. The migration is gated and incremental: existing deterministic lifecycle, Rust possession/build authorities, modular construction, knowledge provenance and save compatibility are reused instead of rewritten. IC1 introduces only evidence-derived home ownership and personal home-site planning; birth, Camp, global stock and save schema remain unchanged until later approved slices.
+
+---
+
 ## 2. Core Game Loop
 
 ```text
