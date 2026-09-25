@@ -64,39 +64,6 @@ function rustPanel(s,api){
 }
 
 
-function openSystems(){
- const s=api.read().state,agents=living(s),v=survivalSummary(s),houses=evaluateModularHouses(s).houses;
- const completeHouses=houses.filter(h=>h.complete).length,buildingHouses=houses.length-completeHouses;
- const items=s.rustPossessions?.items??[],bagItems=items.filter(i=>i.location?.kind==='bag').length,equipped=s.rustPossessions?.equipment?.length??0;
- const craftOrders=s.rustPossessions?.orders?.length??0,processOrders=s.rustMaterials?.orders?.length??0,stations=s.rustStations?.stations?.length??0;
- const mentorLinks=(s.mentorship?.links??[]).filter(l=>l.endedTick===null).length;
- const beliefs=agents.reduce((n,a)=>n+(a.knowledgeState?.beliefs?.length??0),0),cultureEntries=s.culture?.entries?.length??0;
- const eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s,eco),topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
- const plan=s.productionPlan,goal=plan?.goal,maxGeneration=agents.reduce((m,a)=>Math.max(m,a.generation??0),0);
- const taskCounts={};for(const a of agents){const k=a.task?.kind??'IDLE';taskCounts[k]=(taskCounts[k]??0)+1;}
- const activityLabels={BUILD:'สร้าง',CRAFT:'คราฟต์',PROCESS:'แปรรูป',FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',EXPLORE:'สำรวจ',EAT:'กิน',REST:'พัก',IDLE:'ว่าง'};
- const activityOrder=['BUILD','CRAFT','PROCESS','FORAGE','WOODCUT','MINE','EXPLORE','EAT','REST','IDLE'];
- const activity=activityOrder.filter(k=>taskCounts[k]).map(k=>'<div><span>'+activityLabels[k]+'</span><b>'+taskCounts[k]+' คน</b></div>').join('')||'<div><span>สถานะ</span><b>ยังไม่มี task</b></div>';
- const badge=status=>'<span class="system-badge '+status.toLowerCase()+'">'+status+'</span>';
- const card=(id,title,status,value,detail)=>'<article class="system-card" data-system-card="'+id+'"><div class="system-card-head"><b>'+title+'</b>'+badge(status)+'</div><strong>'+value+'</strong><p>'+detail+'</p></article>';
- const cards=[
-  card('lifecycle','Lifecycle','LIVE','รุ่นสูงสุด '+maxGeneration,'เกิดอัตโนมัติ · เติบโต · อายุขัยและการตาย deterministic'),
-  card('housing','Housing','LIVE',agents.length+' / '+capacity(s)+' คน','บ้าน modular เสร็จ '+completeHouses+' · กำลังก่อสร้าง '+buildingHouses+' · AI ขยายที่พักตามแรงกดดัน'),
-  card('production','Production + Craft',plan?.enabled?'LIVE':'READY',plan?.enabled?'Full RP1':'Housing-only autonomy','งานคราฟต์ '+craftOrders+' · แปรรูป '+processOrders+' · สถานี '+stations+(goal?' · ล่าสุด '+escape(goal.goal)+' / '+escape(goal.outcome):'')),
-  card('inventory','Inventory + Equipment','LIVE',bagItems+' item · สวม '+equipped,'ของแต่ละชิ้นมีเจ้าของ Clone จริง · กระเป๋า 4 ช่อง · ช่องมือ 1 ช่อง'),
-  card('knowledge','Knowledge + Mentor','LIVE',beliefs+' belief · Mentor '+mentorLinks,'คลังวัฒนธรรม '+cultureEntries+' รายการ · ความรู้มี source และสถานะยืนยัน'),
-  card('ecology','WorldSim Ecology','LIVE','Food + Wood authority','Stone finite · regen pressure สูงสุด '+(topPressure?escape(topPressure.type)+' #'+topPressure.id+' · '+topPressure.regenerationPressure:'—')),
-  card('kingdom','Kingdom Economy','SHADOW',(v.kingdomLabor?.activeCount??0)+' labor offer','Demand / production / labor / market เป็น projection เท่านั้น ยังไม่เขียนเงินจริง')
- ].join('');
- api.openDialog('ระบบที่กำลังขับเคลื่อนโลก','WORLD SYSTEMS · AUTONOMOUS',
-  '<section class="system-hero"><span class="eyebrow">AI WORLD STATUS</span><h3>โลกทำงานเอง · ผู้เล่นสังเกตผลและเจาะลึกเหตุผล</h3><p>หน้านี้รวมเฉพาะระบบที่มีอยู่จริงใน runtime และแยกชัดว่า LIVE, READY หรือ SHADOW</p></section>'+
-  '<div class="system-grid">'+cards+'</div>'+
-  '<section class="ai-activity"><div class="system-section-head"><div><span class="eyebrow">LIVE ACTIVITY</span><h3>ตอนนี้ Clone กำลังทำอะไร</h3></div><b>'+agents.length+' คน</b></div><div class="activity-grid">'+activity+'</div></section>'+
-  '<div class="system-actions"><button class="secondary" data-ux="systems-survival">รายละเอียด Survival / Ecology</button><button class="secondary" data-ux="systems-rust">รายละเอียดของ / คราฟต์</button></div>'+
-  '<p class="source-note">LIVE = เขียนผลในเกมจริง · READY = มีระบบแต่ policy เต็มยังไม่เปิด · SHADOW = คำนวณเพื่อสังเกต ยังไม่ใช่ authority</p>');
- $('dialog').dataset.kind='systems';renderHUD();
-}
-
 function personalInventoryPanel(s,a){
  const items=s.rustPossessions?.items??[],bag=items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===a.id).sort((x,y)=>x.id-y.id);
  const equippedId=s.rustPossessions?.equipment?.find(e=>e.agentId===a.id)?.itemId??null,equipped=bag.find(i=>i.id===equippedId)??null;
@@ -300,6 +267,39 @@ export function installUX(api){
   const modal=$('dialog').open,kind=$('dialog').dataset.kind,activeNav=modal&&kind==='people'?'people':modal&&kind==='systems'?'systems':modal&&kind==='rust'?'rust':modal&&kind==='history'?'history':'world';
   for(const b of document.querySelectorAll('[data-nav]')){const active=b.dataset.nav===activeNav;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');}
  }
+ function openSystems(){
+ const s=api.read().state,agents=living(s),v=survivalSummary(s),houses=evaluateModularHouses(s).houses;
+ const completeHouses=houses.filter(h=>h.complete).length,buildingHouses=houses.length-completeHouses;
+ const items=s.rustPossessions?.items??[],bagItems=items.filter(i=>i.location?.kind==='bag').length,equipped=s.rustPossessions?.equipment?.length??0;
+ const craftOrders=s.rustPossessions?.orders?.length??0,processOrders=s.rustMaterials?.orders?.length??0,stations=s.rustStations?.stations?.length??0;
+ const mentorLinks=(s.mentorship?.links??[]).filter(l=>l.endedTick===null).length;
+ const beliefs=agents.reduce((n,a)=>n+(a.knowledgeState?.beliefs?.length??0),0),cultureEntries=s.culture?.entries?.length??0;
+ const eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s,eco),topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
+ const plan=s.productionPlan,goal=plan?.goal,maxGeneration=agents.reduce((m,a)=>Math.max(m,a.generation??0),0);
+ const taskCounts={};for(const a of agents){const k=a.task?.kind??'IDLE';taskCounts[k]=(taskCounts[k]??0)+1;}
+ const activityLabels={BUILD:'สร้าง',CRAFT:'คราฟต์',PROCESS:'แปรรูป',FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',EXPLORE:'สำรวจ',EAT:'กิน',REST:'พัก',IDLE:'ว่าง'};
+ const activityOrder=['BUILD','CRAFT','PROCESS','FORAGE','WOODCUT','MINE','EXPLORE','EAT','REST','IDLE'];
+ const activity=activityOrder.filter(k=>taskCounts[k]).map(k=>'<div><span>'+activityLabels[k]+'</span><b>'+taskCounts[k]+' คน</b></div>').join('')||'<div><span>สถานะ</span><b>ยังไม่มี task</b></div>';
+ const badge=status=>'<span class="system-badge '+status.toLowerCase()+'">'+status+'</span>';
+ const card=(id,title,status,value,detail)=>'<article class="system-card" data-system-card="'+id+'"><div class="system-card-head"><b>'+title+'</b>'+badge(status)+'</div><strong>'+value+'</strong><p>'+detail+'</p></article>';
+ const cards=[
+  card('lifecycle','Lifecycle','LIVE','รุ่นสูงสุด '+maxGeneration,'เกิดอัตโนมัติ · เติบโต · อายุขัยและการตาย deterministic'),
+  card('housing','Housing','LIVE',agents.length+' / '+capacity(s)+' คน','บ้าน modular เสร็จ '+completeHouses+' · กำลังก่อสร้าง '+buildingHouses+' · AI ขยายที่พักตามแรงกดดัน'),
+  card('production','Production + Craft',plan?.enabled?'LIVE':'READY',plan?.enabled?'Full RP1':'Housing-only autonomy','งานคราฟต์ '+craftOrders+' · แปรรูป '+processOrders+' · สถานี '+stations+(goal?' · ล่าสุด '+escape(goal.goal)+' / '+escape(goal.outcome):'')),
+  card('inventory','Inventory + Equipment','LIVE',bagItems+' item · สวม '+equipped,'ของแต่ละชิ้นมีเจ้าของ Clone จริง · กระเป๋า 4 ช่อง · ช่องมือ 1 ช่อง'),
+  card('knowledge','Knowledge + Mentor','LIVE',beliefs+' belief · Mentor '+mentorLinks,'คลังวัฒนธรรม '+cultureEntries+' รายการ · ความรู้มี source และสถานะยืนยัน'),
+  card('ecology','WorldSim Ecology','LIVE','Food + Wood authority','Stone finite · regen pressure สูงสุด '+(topPressure?escape(topPressure.type)+' #'+topPressure.id+' · '+topPressure.regenerationPressure:'—')),
+  card('kingdom','Kingdom Economy','SHADOW',(v.kingdomLabor?.activeCount??0)+' labor offer','Demand / production / labor / market เป็น projection เท่านั้น ยังไม่เขียนเงินจริง')
+ ].join('');
+ api.openDialog('ระบบที่กำลังขับเคลื่อนโลก','WORLD SYSTEMS · AUTONOMOUS',
+  '<section class="system-hero"><span class="eyebrow">AI WORLD STATUS</span><h3>โลกทำงานเอง · ผู้เล่นสังเกตผลและเจาะลึกเหตุผล</h3><p>หน้านี้รวมเฉพาะระบบที่มีอยู่จริงใน runtime และแยกชัดว่า LIVE, READY หรือ SHADOW</p></section>'+
+  '<div class="system-grid">'+cards+'</div>'+
+  '<section class="ai-activity"><div class="system-section-head"><div><span class="eyebrow">LIVE ACTIVITY</span><h3>ตอนนี้ Clone กำลังทำอะไร</h3></div><b>'+agents.length+' คน</b></div><div class="activity-grid">'+activity+'</div></section>'+
+  '<div class="system-actions"><button class="secondary" data-ux="systems-survival">รายละเอียด Survival / Ecology</button><button class="secondary" data-ux="systems-rust">รายละเอียดของ / คราฟต์</button></div>'+
+  '<p class="source-note">LIVE = เขียนผลในเกมจริง · READY = มีระบบแต่ policy เต็มยังไม่เปิด · SHADOW = คำนวณเพื่อสังเกต ยังไม่ใช่ authority</p>');
+ $('dialog').dataset.kind='systems';renderHUD();
+}
+
  function openRoster(){rosterFilter='all';rosterLimit=80;api.openDialog('ทุกคนเริ่มเหมือนกัน แต่ไม่เหมือนเดิม','PEOPLE · '+living(api.read().state).length+' คน',`<div class="search-control">${icon('search')}<label class="sr-only" for="people-search">ค้นหาชื่อ</label><input id="people-search" type="search" placeholder="ค้นหาชื่อ เช่น Kira" autocomplete="off"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['hungry','ความอิ่มต่ำ'],['children','รุ่น 2 ขึ้นไป'],['archived','คลังประวัติ']].map(([id,t])=>`<button data-roster-filter="${id}">${t}</button>`).join('')}</div><p id="roster-count" class="list-count"></p><div id="roster-list"></div>`);$('dialog').dataset.kind='people';renderRosterList();renderHUD();}
  function renderRosterList(){if(!$('roster-list'))return;const q=$('people-search').value.toLocaleLowerCase(),s=api.read().state;
   const agents=allPeople(s).filter(a=>a.name.toLocaleLowerCase().includes(q)&&(rosterFilter!=='hungry'||a.alive&&a.satiety<25)&&(rosterFilter!=='children'||a.generation>=2)&&(rosterFilter!=='archived'||a.archived===true));
