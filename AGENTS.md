@@ -161,3 +161,12 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - WM4.4 is evidence-only. Its controlled-depletion scenario exists to compare candidate formulas; do not treat any candidate as active gameplay. WM4.1 remains the single regeneration writer.
 - Old Rust/formula/roadmap/temporal PRs closed during closeout are stale reference branches. Re-port useful ideas from verified current main instead of merging those branches.
 - Read `docs/HANDOFF_2026-09-25_CLOSEOUT.md` before beginning the next large gate.
+
+
+## Current baseline after WM4.5 + Rust visibility
+
+- Verified/deployed baseline for the next large gate: `main@84b42ef43829bc456012b6c0ccf0de528c515270`; Pages #42 succeeded.
+- WM4.5 is production authority now: ecology-sensitive food regeneration runs through the existing single WorldSim writer. Do not revert STATUS/README to the old “no ecology formula active” statement.
+- Dedicated Rust item/crafting navigation is UI only; authoritative catalog is still the five RS1–RS4 items.
+- Next gate is **R1 Rust Survival Complete**, delivered in bounded slices: R1A fiber/rope, R1B food/water processing, R1C durability/repair, R1D physical storage, R1E integration proof.
+- Never merge the old Rust donor branches. Re-port from current main and preserve exact-once material commitment, bounded state, save compatibility and the existing scheduler.
