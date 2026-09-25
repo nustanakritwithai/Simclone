@@ -26,7 +26,7 @@ test('RS1 catalog is bounded and keeps station progression',()=>{
 test('new worlds own bounded Rust ledgers and validate',()=>{
   const s=createWorld(230926);
   assert.equal(s.rustPossessions.version,'RS2-0.2');
-  assert.equal(s.rustStations.version,'RS3-0.2');
+  assert.equal(s.rustStations.version,'RS3-0.3');
   assert.equal(s.rustMaterials.version,'RS4-0.2');
   assert.deepEqual(validate(s),[]);
 });
@@ -150,18 +150,23 @@ test('Rust-style modular building pieces require Hammer and structural support',
     if(walkable(s,x,y)&&s.tiles[y*30+x]==='grass'&&!s.nodes.some(n=>n.x===x&&n.y===y)&&!s.buildings.some(b=>b.x===x&&b.y===y)&&!s.rustStations.stations.some(st=>st.x===x&&st.y===y)){ground={x,y};break;}
   }
   assert.ok(ground,'expected adjacent grass cell for foundation');
-  assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:foundation.itemId,...ground}).reason,'hammer');
+  const pid=id=>'pl:'+s.tick+':'+a.id+':'+id;
+  assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:foundation.itemId,...ground,placementId:pid(foundation.itemId)}).reason,'hammer');
   assert.equal(command(s,'EQUIP_ITEM',{agentId:a.id,itemId:hammer.itemId}).ok,true);
-  const placedFoundation=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:foundation.itemId,...ground});
+  const placedFoundation=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:foundation.itemId,...ground,placementId:pid(foundation.itemId)});
   assert.equal(placedFoundation.ok,true);assert.equal(s.rustStations.stations.at(-1).kind,'WOOD_FOUNDATION');
-  // Unsupported wall is rejected; supported wall snaps to the one-cell structural graph.
+  assert.deepEqual(s.rustStations.stations.at(-1).socket,{type:'cell',x:ground.x,y:ground.y,level:0});
+  // Walls now live on the foundation's edges (level 1); a wall needs a socket and a foundation on one side of it.
   assert.equal(command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'WOOD_WALL'}).ok,true);
   const wall=finishCraft(s,a.id,14);
   a.x=ground.x;a.y=ground.y;
-  const far={x:ground.x+2,y:ground.y};
-  assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:wall.itemId,...far}).reason,'range');
-  const supported=adjacentFree(s,a);
-  assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:wall.itemId,...supported}).ok,true);
-  assert.equal(s.rustStations.stations.at(-1).kind,'WOOD_WALL');
+  assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:wall.itemId,x:ground.x+1,y:ground.y,placementId:pid(wall.itemId)}).reason,'socket-required');
+  const unsupported={type:'edge',x:ground.x+3,y:ground.y,side:'W'};
+  assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:wall.itemId,socket:unsupported,placementId:pid(wall.itemId)}).reason,'support-foundation');
+  const edge={type:'edge',x:ground.x,y:ground.y,side:'N'};
+  const placedWall=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:wall.itemId,socket:edge,placementId:pid(wall.itemId)});
+  assert.equal(placedWall.ok,true);
+  const st=s.rustStations.stations.at(-1);
+  assert.equal(st.kind,'WOOD_WALL');assert.deepEqual(st.socket,{...edge,level:1});assert.deepEqual({x:st.x,y:st.y},ground,'edge anchor is the supporting foundation');
   assert.deepEqual(validate(s),[]);
 });

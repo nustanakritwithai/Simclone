@@ -144,8 +144,12 @@ export function installUX(api){
   if(b.dataset.ux==='craft-item'){const result=api.execute('CRAFT_ITEM',{agentId:api.read().selected,recipeId:b.dataset.recipe});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='equip-item'){const result=api.execute('EQUIP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='place-station'){
-    const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive);let chosen=null;
-    if(a)for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1]]){const data={agentId:a.id,itemInstanceId:Number(b.dataset.item),x:a.x+dx,y:a.y+dy};if(api.preview('PLACE_STATION',data).ok){chosen=data;break;}}
+    const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive),itemId=Number(b.dataset.item),kind=s.rustPossessions?.items.find(i=>i.id===itemId)?.kind;let chosen=null;
+    // Deterministic placement id (pl:<tick>:<agent>:<item>); the engine validator decides every candidate.
+    const base=a&&{agentId:a.id,itemInstanceId:itemId,placementId:'pl:'+s.tick+':'+a.id+':'+itemId},near=a?[[0,0],[1,0],[0,1],[-1,0],[0,-1]].map(([dx,dy])=>({x:a.x+dx,y:a.y+dy})):[];
+    const options=!a?[]:['WOOD_WALL','WOOD_DOORWAY'].includes(kind)?near.flatMap(c=>[{type:'edge',x:c.x,y:c.y,side:'N'},{type:'edge',x:c.x,y:c.y,side:'W'},{type:'edge',x:c.x,y:c.y+1,side:'N'},{type:'edge',x:c.x+1,y:c.y,side:'W'}]).map(socket=>({...base,socket})):
+      kind==='WOOD_ROOF'?near.map(c=>({...base,socket:{type:'cell',x:c.x,y:c.y}})):near.slice(1).map(c=>({...base,...c}));
+    for(const data of options)if(api.preview('PLACE_STATION',data).ok){chosen=data;break;}
     const result=chosen?api.execute('PLACE_STATION',chosen):{ok:false,message:'ไม่มีช่องว่างติดตัวที่ผ่านกฎการวาง'};api.toast(result.message);if(result.ok){api.save();openSurvival();}
   }
   if(b.dataset.ux==='process-charcoal'){
