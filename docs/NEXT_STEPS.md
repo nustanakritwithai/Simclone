@@ -4,14 +4,23 @@ Read STATUS and the exact current main/Actions/open PRs before changing code. Pl
 
 ## Independent Clone World branch
 
-Approved new architecture line: `feature/independent-clone-world-ic1`, based from current verified main and isolated from UX1 work.
+IC1 is merged to `main@3139e979b4446fd3f9873bb8b6fbbfae5ee6248d`.
 
-- **IC0:** canonical design and work-state artifacts.
-- **IC1 candidate:** evidence-derived personal home ownership + Camp-independent personal site selection; no save/birth/global-stock behavior change yet.
-- **IC2 prepared (stacked branch):** pure homeless-adult personal home planner + deterministic intent tests are ready on `feature/independent-clone-world-ic2`; activation still waits for IC1 SAT and must route craft/equip/place only through existing Rust authorities.
-- Do not merge old settlement/building branches into this line. Reuse concepts only after rebasing/reimplementation against current main.
+- **IC0 — SAT design baseline:** canonical individual-first architecture.
+- **IC1 — SAT + merged:** evidence-derived personal home ownership and Camp-independent personal site selection.
+- **IC2 — implementation candidate:** full RP1 now consumes a pure personal-home intent and routes craft/equip/BUILD placement through existing Rust/engine authority. Default housing-only autonomy remains legacy until IC3.
+- **IC3 after IC2 SAT:** remove the default settlement-pressure prerequisite and establish an independent-start mode without mandatory Camp authority.
 
-Required proof for IC1: unit suite including two distinct house owners, no duplicate ledger, existing regressions unchanged, exact candidate CI. UNKNOWN is not PASS.
+IC2 required proof:
+- pure planner remains read-only;
+- one person's bag/Hammer cannot satisfy another person's ownership path;
+- coordinator Rust orders retain the intended `agentId`;
+- founding Foundation `placedBy` resolves to the same IC1 owner;
+- no second ledger/executor;
+- existing regressions and exact candidate CI SAT;
+- Game Studio capture remains separate evidence and UNKNOWN while `game-dev` is unavailable.
+
+Do not merge old settlement/building branches into this line. Reimplement useful ideas from verified current main.
 
 ## Closed release line
 
