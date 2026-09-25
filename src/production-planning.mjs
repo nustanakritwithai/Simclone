@@ -60,15 +60,22 @@ const freeNeighbor=(s,a,isWalkable)=>{
     return {x,y};
   }return null;
 };
-const equippedKind=(s,agentId,kind)=>{
-  const e=s.rustPossessions.equipment.find(e=>e.agentId===agentId),item=e&&s.rustPossessions.items.find(i=>i.id===e.itemId);
-  return item?.kind===kind;
-};
-function equipOwned(s,kind,profession,isWalkable){
-  const items=bagItems(s,kind);if(!items.length)return null;
-  const preferred=items.map(item=>({item,agent:s.agents.find(a=>a.id===item.location.agentId&&a.alive)})).filter(x=>x.agent).sort((a,b)=>(a.agent.profession===profession?-1:0)-(b.agent.profession===profession?-1:0)||a.agent.id-b.agent.id)[0];
-  if(!preferred||equippedKind(s,preferred.agent.id,kind))return null;
-  return rustCommand(s,'EQUIP_ITEM',{agentId:preferred.agent.id,itemId:preferred.item.id},isWalkable);
+/** Choose one hand tool per worker, not one competing choice per item kind.
+ * Keep the current tool when no productive task needs a different one. An
+ * equipment change must never consume the production coordinator's turn.
+ */
+function equipForWork(s,isWalkable){
+  for(const a of eligible(s)){
+    const tools=bagItems(s).filter(i=>i.location.agentId===a.id&&ITEM_CATALOG[i.kind]?.category==='tool').sort((x,y)=>x.id-y.id);
+    if(!tools.length)continue;
+    const equipped=s.rustPossessions.equipment.find(e=>e.agentId===a.id);
+    const current=tools.find(i=>i.id===equipped?.itemId);
+    const desired=tools.find(i=>ITEM_CATALOG[i.kind].workAction===a.task?.kind)??current??tools[0];
+    if(current?.id===desired.id)continue;
+    const r=rustCommand(s,'EQUIP_ITEM',{agentId:a.id,itemId:desired.id},isWalkable);
+    if(r?.ok)return {...r,agentId:a.id,kind:desired.kind};
+  }
+  return null;
 }
 function placeOwnedStation(s,kind,isWalkable){
   const item=bagItems(s,kind)[0];if(!item)return null;
@@ -103,9 +110,8 @@ export function stepProductionPlanning(s,isWalkable,dispatch=null){
     if(house?.ok){record(p,s.tick,'build-shelter','accepted');return house;}
   }
   // Resolve completed physical outputs before starting the next chain step.
-  for(const [kind,profession] of [['STONE_AXE','woodcutter'],['STONE_PICKAXE','miner'],['HAMMER','builder']]){
-    const r=equipOwned(s,kind,profession,isWalkable);if(r?.ok){record(p,s.tick,'equip-'+kind,'completed',r.agentId??null);return r;}
-  }
+  const equipped=equipForWork(s,isWalkable);
+  if(equipped?.ok)record(p,s.tick,'equip-'+equipped.kind,'completed',equipped.agentId);
   if(!stationKind(s,'CRAFTING_TABLE_LV1')){
     const placed=placeOwnedStation(s,'CRAFTING_TABLE_LV1',isWalkable);
     if(placed){if(placed.ok)record(p,s.tick,'place-crafting-table','completed');return placed.ok?placed:null;}
