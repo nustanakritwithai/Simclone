@@ -13,9 +13,11 @@ import {professionForAction,professionLabel,ensureProfession,isKingdomProfession
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {ensureRustState,rustCommand,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
+import {housingCapacity,evaluateModularHouses} from './housing.mjs?v=0.5.0';
 import {ensureProductionPlan,productionCommand,stepProductionPlanning,validateProductionPlan} from './production-planning.mjs?v=0.5.0';
 import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsForAgent,validateMentorship} from './mentor-teaching.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
+export {evaluateModularHouses};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
 export const SAVE_VERSION = '0.5.0';
@@ -97,7 +99,8 @@ export function createWorld(seed=230926){
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
-export const capacity = s => s.buildings.filter(b=>b.complete).length*6;
+// Housing capacity has one definition: src/housing.mjs (camp + legacy shelters + complete modular houses).
+export const capacity = housingCapacity;
 export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){

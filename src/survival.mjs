@@ -7,6 +7,7 @@ import {kingdomProductionSnapshot} from './kingdom-production.mjs?v=0.5.0';
 import {kingdomLaborMarketSnapshot} from './kingdom-labor-market.mjs?v=0.5.0';
 import {kingdomMarketSnapshot} from './kingdom-market.mjs?v=0.5.0';
 import {worldPathWalkable} from './worldsim-map.mjs?v=0.5.0';
+import {housingCapacity} from './housing.mjs?v=0.5.0';
 export const RULES = Object.freeze({
   width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
@@ -123,7 +124,7 @@ export function survivalSummary(s){
   const agents=s.agents.filter(a=>a.alive),{book}=reservations(s),target=stockTargets(s);
   const freeFood=Math.max(0,s.stock.food-book.meals.size),birth=birthPlan(s,freeFood);
   const kingdomEconomy=kingdomEconomySnapshot({agents,stock:s.stock,unfinished:s.buildings.filter(b=>!b.complete).length});
-  const kingdomProduction=kingdomProductionSnapshot({agents,capacity:s.buildings.filter(b=>b.complete).length*6,economy:kingdomEconomy,
+  const kingdomProduction=kingdomProductionSnapshot({agents,capacity:housingCapacity(s),economy:kingdomEconomy,
     skillLevel:(a,action)=>skillLevel(a.skills[action]??0),ageRate:a=>productiveWorkRate(s,a)});
   const kingdomLabor=kingdomLaborMarketSnapshot({economy:kingdomEconomy,production:kingdomProduction});
   const kingdomMarket=kingdomMarketSnapshot({economy:kingdomEconomy});

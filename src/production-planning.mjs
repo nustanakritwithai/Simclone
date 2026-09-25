@@ -4,6 +4,7 @@
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {rustCommand} from './rust-runtime.mjs?v=0.5.0';
 import {ITEM_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
+import {housingCapacity} from './housing.mjs?v=0.5.0';
 
 export const PRODUCTION_PLAN_VERSION='RP1-0.2';
 export const PRODUCTION_POLICY='rust-production-2';
@@ -22,8 +23,7 @@ const bagItems=(s,kind=null)=>s.rustPossessions.items.filter(i=>i.location?.kind
 const hasKind=(s,kind)=>s.rustPossessions.items.some(i=>i.kind===kind)||s.rustPossessions.orders.some(o=>o.recipe===kind);
 const stationKind=(s,kind)=>s.rustStations.stations.some(st=>st.complete&&st.kind===kind);
 const activeOrders=s=>s.rustPossessions.orders.length+s.rustMaterials.orders.length;
-const completedHousing=s=>s.buildings.filter(b=>b.complete).length*6;
-const needsHouse=s=>s.buildings.every(b=>b.complete)&&s.buildings.length<PRODUCTION_RULES.maxBuildings&&completedHousing(s)-eligible(s).length<=PRODUCTION_RULES.housePopulationBuffer;
+const needsHouse=s=>s.buildings.every(b=>b.complete)&&s.buildings.length<PRODUCTION_RULES.maxBuildings&&housingCapacity(s)-eligible(s).length<=PRODUCTION_RULES.housePopulationBuffer;
 const settlementCell=(s,isWalkable)=>{
   const camp=s.buildings.find(b=>b.type==='camp')??s.buildings[0];if(!camp)return null;
   const occupied=(x,y)=>s.buildings.some(b=>Math.abs(b.x-x)+Math.abs(b.y-y)<2)||s.nodes.some(n=>n.x===x&&n.y===y)||s.rustStations.stations.some(st=>st.x===x&&st.y===y);
