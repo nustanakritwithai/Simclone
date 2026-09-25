@@ -10,7 +10,6 @@ export const MODULAR_HOUSE_RULES=Object.freeze({
   roofOnEveryCell:true,
   capacityPerHouse:6,                // same as the removed Shelter so population balance is unchanged
   campCapacity:6,
-  legacyShelterCapacity:6,           // completed shelters from old saves / createWorld keep counting
   siteMinRadius:2,siteMaxRadius:8
 });
 const WALLISH=new Set(['WOOD_WALL','WOOD_DOORWAY']);
@@ -63,14 +62,13 @@ export function evaluateModularHouses(s){
   }
   return {houses,capacity:houses.reduce((n,h)=>n+h.capacity,0)};
 }
-/** Completed camp + completed legacy shelters + completed modular houses. */
+/** Housing capacity comes only from the completed camp and complete modular houses. Legacy Shelter is retired. */
 export function housingCapacity(s){
-  let n=0;
-  for(const b of s.buildings??[])if(b.complete)n+=b.type==='camp'?MODULAR_HOUSE_RULES.campCapacity:MODULAR_HOUSE_RULES.legacyShelterCapacity;
-  return n+evaluateModularHouses(s).capacity;
+  const camp=(s.buildings??[]).some(b=>b.type==='camp'&&b.complete)?MODULAR_HOUSE_RULES.campCapacity:0;
+  return camp+evaluateModularHouses(s).capacity;
 }
-/** Unfinished housing work: legacy shelters that still need BUILD progress + incomplete modular houses. */
-export const unfinishedHousing=s=>(s.buildings??[]).filter(b=>!b.complete).length+evaluateModularHouses(s).houses.filter(h=>!h.complete).length;
+/** Unfinished housing work is modular-only; retired Shelter records never create work. */
+export const unfinishedHousing=s=>evaluateModularHouses(s).houses.filter(h=>!h.complete).length;
 export const completedHouseIds=s=>new Set(evaluateModularHouses(s).houses.filter(h=>h.complete).map(h=>h.houseId));
 const reachableFromCamp=(s,camp,isWalkable)=>{
   const seen=new Set([camp.x+':'+camp.y]),queue=[camp];
