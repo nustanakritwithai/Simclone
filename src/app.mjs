@@ -252,7 +252,7 @@ $('dialog-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=
 $('dialog-body').addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.person){dialog.close();selectAgent(Number(b.dataset.person),true);return;}
- if(b.dataset.story){const ev=state.events.find(v=>v.id===Number(b.dataset.story));if(ev?.agentId){dialog.close();selectAgent(ev.agentId,true);}else toast('เหตุการณ์ระดับโลก · ยังไม่มีภาพย้อนหลังในรุ่นนี้');return;}
+ if(b.dataset.story){ux?.openEvent(Number(b.dataset.story));return;}
  const action=b.dataset.action;
  if(action==='systems'){ux.openSystems();return;}
  if(action==='survival'){ux.openSurvival();return;}
