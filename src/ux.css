@@ -218,6 +218,10 @@
 .decision-feed-row:hover,.decision-feed-row:focus-visible{border-color:#dfc88977;background:#d7bf7a0b;outline:none}
 .decision-feed-title{display:flex;align-items:center;justify-content:space-between;gap:12px}.decision-feed-title b{font-size:13px}.decision-feed-title span{font-size:11px;color:#efd7a3}
 .decision-feed-row p{margin:7px 0 2px!important;font-size:10px!important;line-height:1.55!important;color:#aebdac!important}.decision-feed-row small{font-size:9px;color:#d7c38b}
+
+.visual-decision-row{display:grid!important;grid-template-columns:42px 34px 1fr auto 14px;align-items:center;gap:8px;min-height:68px!important;padding:8px 10px!important}
+.visual-decision-row .portrait{width:42px!important;height:46px!important;border-radius:9px}.decision-task-icon{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:#d9c17d0c;border:1px solid #dac78926;color:#e8d19b;font:17px Georgia,serif}
+.visual-decision-row .decision-feed-title{display:flex;flex-direction:column!important;align-items:flex-start!important;gap:1px!important;min-width:0}.visual-decision-row .decision-feed-title b{font-size:12px}.visual-decision-row .decision-feed-title span{font-size:9px;color:#c8d2c4}.visual-decision-row .decision-feed-title small{font-size:8px;color:#a6b5a7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.visual-decision-row>strong{font:17px Georgia,serif;color:#efd59b}
 #dialog[data-kind="decisions"]{max-width:620px}
 
 #dialog[data-kind="systems"]{max-width:780px}
@@ -263,6 +267,7 @@
 .is-paused .live-dot,.is-paused .activity-dot{background:var(--gold)}
 @media(min-width:701px) and (max-width:1050px){.ux-v2 .inspector{width:282px;right:18px;padding:14px}.people-rail{left:96px;right:325px}.ux-v2 .identity h2{font-size:25px}.ux-v2 .portrait{width:56px;height:63px}.ux-v2 .resources>div{min-width:62px}.ux-v2 .need-label .ui-icon{display:none}.ux-v2 .map-note{display:none}}
 @media(max-width:700px){
+ .ux-v2 .visual-decision-row{grid-template-columns:38px 30px 1fr auto 12px;min-height:64px!important}.ux-v2 .visual-decision-row .portrait{width:38px!important;height:42px!important}.ux-v2 .decision-task-icon{width:28px;height:28px;font-size:15px}
  .ux-v2 .visual-menu-grid{grid-template-columns:repeat(3,1fr)}.ux-v2 .visual-menu-card{min-height:88px}
  .ux-v2 .menu-metrics{grid-template-columns:repeat(2,1fr)}.ux-v2 .survival-metrics{grid-template-columns:repeat(3,1fr)}
  .ux-v2 .visual-roster{grid-template-columns:1fr}.ux-v2 .visual-action-grid{grid-template-columns:repeat(3,1fr)}
