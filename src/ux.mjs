@@ -487,55 +487,74 @@ export function installUX(api){
  function openSurvival(){
   const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s,eco),hydro={summary:eco.hydrologySummary},regen=createResourceRegenerationShadow(s,eco),foodImpact=createFoodRegenerationImpact(s,regen),foodCalibration=createFoodEcologyCalibration(s,foodImpact);
   const topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
-  const topFood=eco.hotspots.food[0]??null,topWood=eco.hotspots.wood[0]??null,topStone=eco.hotspots.stone[0]??null;
   const dominantSoil=Object.entries(eco.soilCounts??{}).filter(([type])=>type!=='none').sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))[0]??null;
-  api.openDialog('หมู่บ้านอยู่รอดอย่างไร','SURVIVAL CORE · '+VERSION,
-   `<div class="life-summary"><div><small>อาหารที่ใช้ได้ตอนนี้</small><b>${v.freeFood} หน่วย</b></div><div><small>จองไว้ให้คนกิน</small><b>${v.reservedMeals} หน่วย</b></div></div>
-    <p>มีอาหารทั้งหมด ${v.food} หน่วย · เป้าสำรอง ${v.targets.food} หน่วย<br>คนความอิ่มต่ำกว่า 35: ${v.hungry} คน · พลังงานต่ำกว่า 12: ${v.exhausted} คน</p>
-    <div class="clone-skills"><div><span>แหล่งทรัพยากรที่มีคนจอง</span><b>${v.nodeJobs} จุด</b></div><div><span>คนที่จองงานก่อสร้าง</span><b>${v.builders} คน</b></div><div><span>บ้านที่กำลังสร้าง</span><b>${v.unfinished} หลัง</b></div><div><span>ไม้ / เป้าสำรอง</span><b>${v.stock.wood} / ${v.targets.wood}</b></div><div><span>หิน / เป้าสำรอง</span><b>${v.stock.stone} / ${v.targets.stone}</b></div></div>
-    <p class="source-note">แหล่งทรัพยากรรับคนทำงานครั้งละ 1 คน · บ้านรับคนสร้างได้ 2 คนพร้อมกัน<br>เลือกแหล่งที่ไปถึงได้ตามระยะเดินจริง ไม่วัดแค่ความใกล้บนจอ<br>เมื่อหิว คนเก็บอาหารกินผลผลิต 1 หน่วยที่จุดเก็บได้ ส่วนที่เหลือเข้าคลังรวม<br>คิดเป้าสำรองรวมผลผลิตของงานที่มีคนจองแล้ว งานชุดสุดท้ายอาจทำให้เกินเป้าได้เล็กน้อย</p>
-    <div class="life-summary"><div><small>Cultural Archive · คลังความรู้ที่แคมป์</small><b>${s.culture?s.culture.entries.length+' / '+CULTURE_RULES.entries+' รายการ':'ยังไม่สร้าง'}</b></div><div>${s.culture?`<button class="secondary" data-ux="culture-automation" data-enabled="${!s.culture.automation}">${s.culture.automation?'หยุด':'เปิด'}บันทึกและอ่านอัตโนมัติ</button>`:`<button class="secondary" data-ux="create-archive">สร้างคลัง · ไม้ ${CULTURE_RULES.woodCost} + หิน ${CULTURE_RULES.stoneCost}</button>`}</div></div>
-    <p class="source-note">ผู้ค้นพบตายได้ แต่ข้อมูลที่เขียนไว้ยังอ่านได้ · อ่านแล้วเริ่มเป็น “ยังไม่ยืนยัน” และไม่เพิ่ม XP · บันทึก/อ่านในระยะ ${CULTURE_RULES.range} ช่องจากแคมป์ · เก็บประวัติแก้ไขล่าสุด ${CULTURE_RULES.history} ครั้งต่อรายการ</p>
-    ${s.culture?.entries.length?`<details class="score-details"><summary>เปิดรายการความรู้ในคลัง</summary>${s.culture.entries.map(e=>`<div class="memory-item"><b>${escape(e.key)} · ฉบับ ${e.revision}</b><small>บันทึกโดย ${escape(findPerson(s,e.authorId)?.name??('#'+e.authorId))} · tick ${e.publishedTick}</small><p>ตำแหน่ง ${e.value.x}, ${e.value.y}</p><button class="secondary" data-ux="read-archive" data-key="${escape(e.key)}">ให้ตัวละครที่เลือกอ่าน</button></div>`).join('')}</details>`:''}
-    <div class="life-summary"><div><small>Personal Knowledge Planner</small><b>${s.planningPolicy?'ความรู้ส่วนตัว':'Survival เดิม'}</b></div><div><small>เปลี่ยนกฎการหาแหล่งทรัพยากร</small><button class="secondary" data-ux="planning-policy" data-policy="${s.planningPolicy?'legacy':'local'}">${s.planningPolicy?'กลับนโยบายเดิม':'ใช้ความรู้ส่วนตัว'}</button></div></div>
-    <p class="source-note">โหมดความรู้ส่วนตัวเห็นแหล่งในระยะ 4 ช่อง · จุดที่จำได้ต้องเดินไปตรวจ ไม่อ่านจำนวนทรัพยากรที่อยู่นอกสายตา · แผนที่ทางเดินและคลังกลางยังเป็นข้อมูลส่วนรวม</p>\n    ${rustPanel(s,api)}
-    <div class="life-summary"><div><small>Kingdom K2 · แรงกดดันสูงสุด</small><b>${escape(v.kingdomEconomy.topPressure?.profession??'—')} ×${v.kingdomEconomy.topPressure?.premium??1}</b></div><div><small>ความหลากหลายอาชีพ</small><b>${v.kingdomEconomy.specialization.diversity} / 4</b></div></div>
-    <div class="clone-skills"><div><span>Demand อาหาร</span><b>${v.kingdomEconomy.demand.food} · scarcity ×${v.kingdomEconomy.scarcity.food}</b></div><div><span>Demand ไม้</span><b>${v.kingdomEconomy.demand.wood} · scarcity ×${v.kingdomEconomy.scarcity.wood}</b></div><div><span>Demand หิน</span><b>${v.kingdomEconomy.demand.stone} · scarcity ×${v.kingdomEconomy.scarcity.stone}</b></div><div><span>แรงงาน หาอาหาร / ไม้ / หิน / สร้าง</span><b>${v.kingdomEconomy.specialization.counts.forager} / ${v.kingdomEconomy.specialization.counts.woodcutter} / ${v.kingdomEconomy.specialization.counts.miner} / ${v.kingdomEconomy.specialization.counts.builder}</b></div></div>
-    <p class="source-note">Kingdom K2 ยังเป็น shadow economy: ใช้สูตร demand + scarcity + labor premium เพื่อสังเกตแรงกดดันของชุมชน แต่ยังไม่สร้างราคา เงิน ค่าแรง การค้า หรือบังคับเปลี่ยนงาน จึงไม่เปลี่ยน authority ของ Survival Core</p>
-    <div class="life-summary"><div><small>Kingdom K3 · effective workers</small><b>${v.kingdomProduction.effectiveWorkerUnits}</b></div><div><small>งานที่แรงกดดันสูงสุด</small><b>${escape(v.kingdomProduction.recommendedRole?.label??'สมดุล')} ${v.kingdomProduction.recommendedRole?`(${v.kingdomProduction.recommendedRole.workers}/${v.kingdomProduction.recommendedRole.ideal})`:''}</b></div></div>
-    <div class="clone-skills">${Object.values(v.kingdomProduction.roles).map(r=>`<div><span>${escape(r.label)} · ${r.workers}/${r.ideal} คน</span><b>eff ×${r.averageEfficiency} · crowd ×${r.crowding}</b></div>`).join('')}</div>
-    <p class="source-note">Kingdom K3 เป็น shadow production เช่นกัน: คำนวณ skill × hunger × crowding × age work-rate ตามแนว WorkSystem ของ Kingdom เพื่อดู productivity ที่คาดหมาย แต่ output จริง, XP, stock และ task completion ยังใช้กฎ Simclone เดิมทั้งหมด · tool multiplier ยังล็อกที่ ×1 จนระบบ possession/tool เชื่อมเข้ามา</p>
-    <div class="life-summary"><div><small>Kingdom K4 · labor offers</small><b>${v.kingdomLabor.activeCount} ข้อเสนอ</b></div><div><small>ข้อเสนอเร่งด่วนสุด</small><b>${escape(v.kingdomLabor.topOffer?.label??'ไม่มี')} ${v.kingdomLabor.topOffer?`×${v.kingdomLabor.topOffer.premium}`:''}</b></div></div>
-    ${v.kingdomLabor.offers.length?`<div class="clone-skills">${v.kingdomLabor.offers.map(o=>`<div><span>${escape(o.label)} · ขาด ${o.gap} คน</span><b>${o.urgency} · priority ${o.priority}</b></div>`).join('')}</div>`:'<p class="empty-state">K4 ยังไม่พบ shortage ที่ถึงเกณฑ์เปิดข้อเสนอแรงงาน</p>'}
-    <p class="source-note">K4 ยืมแนว LaborMarketSystem: shortage เกิน 1.2 + กำลังคนต่ำกว่า ideal → เสนอแรงงานสูงสุด 3 คนต่อ role แต่ตอนนี้เป็น proposal เท่านั้น ไม่มีการเปลี่ยนอาชีพ ย้ายคน จ่ายค่าแรง หรือสร้าง recruitment record จริง</p>
-    <div class="life-summary"><div><small>Kingdom K6 · ของแพงสุด</small><b>${escape(v.kingdomMarket.hottestGood??'—')} ×${v.kingdomMarket.hottestIndex}</b></div><div><small>โหมดตลาด</small><b>shadow only</b></div></div>
-    <div class="clone-skills"><div><span>อาหาร · base 10</span><b>${v.kingdomMarket.prices.food}</b></div><div><span>ไม้ · base 8</span><b>${v.kingdomMarket.prices.wood}</b></div><div><span>หิน · base 15</span><b>${v.kingdomMarket.prices.stone}</b></div></div>
-    <p class="source-note">K6 ใช้เส้นราคา Kingdom: base × scarcity^0.75 และ cap 0.3×–6× แต่ค่านี้เป็นดัชนีเงาเท่านั้น ยังไม่มีเงิน คลังเงิน ภาษี การซื้อขาย หรือพ่อค้า</p>
-    <div class="life-summary"><div><small>WorldSim WM3.0 · ecology shadow</small><b>read-only</b></div><div><small>regen pressure สูงสุด</small><b>${topPressure?escape(topPressure.type)+' #'+topPressure.id+' · '+topPressure.regenerationPressure:'—'}</b></div></div>
-    <div class="clone-skills"><div><span>Food hotspot</span><b>${topFood?topFood.x+', '+topFood.y+' · '+topFood.suitability:'—'}</b></div><div><span>Wood hotspot</span><b>${topWood?topWood.x+', '+topWood.y+' · '+topWood.suitability:'—'}</b></div><div><span>Stone hotspot</span><b>${topStone?topStone.x+', '+topStone.y+' · '+topStone.suitability:'—'}</b></div><div><span>Resource authority</span><b>K6 เดิม</b></div></div>
-    <p class="source-note">WM3.0 ใช้ terrain + elevation + moisture และตอนนี้รับ soil evidence จาก WM3.1 เพื่อคำนวณ suitability / regeneration pressure แบบ shadow เท่านั้น · ไม่เพิ่ม node, ไม่เติม stock และไม่เปลี่ยน regeneration จริง</p>
-    <div class="life-summary"><div><small>WorldSim WM3.1 · soil health</small><b>${eco.soilSummary.averageHealth}</b></div><div><small>ดินเด่น</small><b>${dominantSoil?escape(dominantSoil[0])+' · '+dominantSoil[1]+' ช่อง':'—'}</b></div></div>
-    <div class="clone-skills"><div><span>Fertility เฉลี่ย</span><b>${eco.soilSummary.averageFertility}</b></div><div><span>Nutrient proxy</span><b>${eco.soilSummary.averageNutrient}</b></div><div><span>Organic matter</span><b>${eco.soilSummary.averageOrganicMatter}</b></div><div><span>Compaction</span><b>${eco.soilSummary.averageCompaction}</b></div></div>
-    <p class="source-note">WM3.1 จำแนก none/coastal/sand/loam/clay/peat/rocky/wetland ตาม terrain + elevation + moisture และรับ temperature comfort จาก WM3.2 แบบ deterministic · ยังไม่มี Soil scheduler, N/P/K reservoir, water ownership หรือ save state ใหม่</p>
-    <div class="life-summary"><div><small>WorldSim WM3.2 · climate shadow</small><b>${escape(eco.climateSummary.dominantWeather)}</b></div><div><small>อุณหภูมิเฉลี่ย</small><b>${eco.climateSummary.averageTemperatureC}°C</b></div></div>
-    <div class="clone-skills"><div><span>Humidity</span><b>${eco.climateSummary.averageHumidity}</b></div><div><span>Cloud cover</span><b>${eco.climateSummary.averageCloudCover}</b></div><div><span>Rain potential</span><b>${eco.climateSummary.averageRainPotential}</b></div><div><span>Drought pressure</span><b>${eco.climateSummary.averageDroughtPressure}</b></div></div>
-    <p class="source-note">WM3.2 ใช้ Simclone tick เป็น shadow cycle เท่านั้น · ไม่มี world-clock authority, atmospheric/cloud water reservoir, rainfall mutation หรือ Climate scheduler</p>
-    <div class="life-summary"><div><small>WorldSim WM3.3 · hydrology shadow</small><b>read-only</b></div><div><small>Flood-risk cells</small><b>${hydro.summary.floodRiskCells}</b></div></div>
-    <div class="clone-skills"><div><span>Water availability</span><b>${hydro.summary.averageWaterAvailability}</b></div><div><span>Infiltration</span><b>${hydro.summary.averageInfiltrationPotential}</b></div><div><span>Runoff</span><b>${hydro.summary.averageRunoffPotential}</b></div><div><span>Groundwater recharge</span><b>${hydro.summary.averageGroundwaterRechargePotential}</b></div><div><span>Evaporation</span><b>${hydro.summary.averageEvaporationPotential}</b></div><div><span>Soil-water comfort</span><b>${hydro.summary.averageSoilWaterComfort}</b></div></div>
-    <p class="source-note">WM3.3 เป็น evidence เท่านั้น: ไม่มี surface/soil/groundwater reservoir, ไม่มี scheduler และไม่มี conservation ledger เพราะยังไม่มีน้ำจริงให้บัญชี · resource authority ยังอยู่ K6</p>
-    <div class="life-summary"><div><small>WorldSim WM3.4 · vegetation shadow</small><b>read-only</b></div><div><small>Stressed cells</small><b>${eco.vegetationSummary.stressedCells}</b></div></div>
-    <div class="clone-skills"><div><span>Living biomass</span><b>${eco.vegetationSummary.averageLivingBiomassPotential}</b></div><div><span>Food yield</span><b>${eco.vegetationSummary.averageFoodYieldPotential}</b></div><div><span>Wood yield</span><b>${eco.vegetationSummary.averageWoodYieldPotential}</b></div><div><span>Regeneration</span><b>${eco.vegetationSummary.averageRegenerationPotential}</b></div><div><span>Disturbance</span><b>${eco.vegetationSummary.averageDisturbanceStress}</b></div><div><span>Carrying capacity</span><b>${eco.vegetationSummary.averageCarryingCapacity}</b></div></div>
-    <p class="source-note">WM3.4 ใช้ Climate + Soil + Hydrology เพื่อประเมิน biomass/yield/regeneration แบบ shadow เท่านั้น · ไม่มี living/dead/litter biomass store, plant nutrient store, growth scheduler หรือ resource mutation จริง</p>
-    <div class="life-summary"><div><small>WorldSim WM4.2 · food ecology impact</small><b>shadow only</b></div><div><small>Ecology potential เฉลี่ย</small><b>${foodImpact.summary.averageEcologyPotential}</b></div></div>
-    <div class="clone-skills"><div><span>Very low</span><b>${foodImpact.summary.bands['very-low']} nodes</b></div><div><span>Low</span><b>${foodImpact.summary.bands.low} nodes</b></div><div><span>Medium</span><b>${foodImpact.summary.bands.medium} nodes</b></div><div><span>High</span><b>${foodImpact.summary.bands.high} nodes</b></div><div><span>p10 / p50 / p90</span><b>${foodImpact.summary.p10} / ${foodImpact.summary.p50} / ${foodImpact.summary.p90}</b></div><div><span>Depleted / low-ecology depleted</span><b>${foodImpact.summary.depletedNodes} / ${foodImpact.summary.lowPotentialDepletedNodes}</b></div><div><span>Legacy boundary units / low-ecology</span><b>${foodImpact.summary.projectedLegacyBoundaryUnits} / ${foodImpact.summary.projectedLowEcologyBoundaryUnits}</b></div><div><span>Current writer</span><b>${escape(foodImpact.authority.writer)}</b></div><div><span>Legacy food regen</span><b>+3 / 120 ticks</b></div><div><span>Candidate unit formula</span><b>none</b></div></div>
-    <p class="source-note">WM4.2 วัด distribution ของ ecology regeneration potential เทียบกับ food behavior เดิมเท่านั้น · writer อยู่ที่ WorldSim WM4.1 แล้ว แต่ยังไม่แปลง ecology เป็นจำนวนหน่วย, ไม่เปลี่ยน node.amount และไม่เปลี่ยน cadence</p>
-    <div class="life-summary"><div><small>WM4.3 · ecology calibration</small><b>read-only</b></div><div><small>Raw min / max</small><b>${foodCalibration.summary.rawMin} / ${foodCalibration.summary.rawMax}</b></div></div>
-    <div class="clone-skills"><div><span>Raw p10 / p50 / p90</span><b>${foodCalibration.summary.rawP10} / ${foodCalibration.summary.rawP50} / ${foodCalibration.summary.rawP90}</b></div><div><span>Relative q1</span><b>${foodCalibration.summary.relativeBands.q1}</b></div><div><span>Relative q2</span><b>${foodCalibration.summary.relativeBands.q2}</b></div><div><span>Relative q3</span><b>${foodCalibration.summary.relativeBands.q3}</b></div><div><span>Relative q4</span><b>${foodCalibration.summary.relativeBands.q4}</b></div><div><span>Unit formula</span><b>none</b></div></div>
-    <p class="source-note">Calibration ใช้ empirical rank ของ food nodes ปัจจุบันเพื่อแก้ปัญหา raw ecology scale ที่ไม่ได้กระจายเต็ม 0–1 · ยังไม่มี gameplay mutation</p>
-    <div class="clone-skills"><div><span>เกิดเองแล้ว</span><b>${v.autonomousBirths} คน</b></div><div><span>สถานะการเกิดอัตโนมัติ</span><b>${birthLabels[v.birth.reason]??v.birth.reason}</b></div></div>
-    <div class="clone-skills"><div><span>ตัวตนที่ยังเก็บประวัติไว้</span><b>${retainedCount(s)} / ${HISTORY_LIMITS.maxRetained}</b></div><div><span>ย้ายเข้าคลังประวัติแล้ว</span><b>${s.archive.length} คน</b></div></div>
-    <p class="source-note">คลังประวัติยังค้นต้นแบบและทักษะของคนตายได้ เมื่อจำนวนหรือพื้นที่ประวัติเต็ม ระบบหยุดเพิ่มคนโดยไม่ลบบรรพบุรุษ ไม่ใช่โลกที่เก็บประวัติได้ไม่จำกัด</p>
-    <p class="source-note">เงื่อนไขเกิดเอง: ที่พักต้องว่าง · ต้องมีผู้ใหญ่พร้อม · อาหารว่างต้องพอจ่าย 8 แล้วยังเหลือถึงเป้ารุ่นถัดไป · ไม้จ่าย 4 แล้วยังเหลืออย่างน้อย 12 · เว้นการเกิดอย่างน้อย ${BIRTH_RULES.globalIntervalYears} ปีจำลอง และ parent คนเดิมพัก ${BIRTH_RULES.parentCooldownYears} ปี<br>ช่วงวัยทำงานแล้ว: เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัยทำงานผลิตที่ 75% · อายุขัย derive 78–92 ปีและเสียชีวิตตามวัยแบบ deterministic</p>`);
+  const risk=v.hungry>0?'warn':v.exhausted>0?'warn':'live';
+  const archiveControls=s.culture
+   ?'<div class="menu-primary-actions"><button class="secondary visual-policy-action" data-ux="culture-automation" data-enabled="'+(!s.culture.automation)+'">'+icon(s.culture.automation?'close':'book')+'<span>'+(s.culture.automation?'หยุด Auto':'เปิด Auto')+'</span></button><button class="secondary visual-policy-action" data-ux="planning-policy" data-policy="'+(s.planningPolicy?'legacy':'local')+'">'+icon('brain')+'<span>'+(s.planningPolicy?'Planner: Local':'Planner: Shared')+'</span></button></div>'
+   :'<div class="menu-primary-actions"><button class="primary visual-policy-action" data-ux="create-archive">'+icon('book')+'<span>สร้างคลัง · 🪵'+CULTURE_RULES.woodCost+' ◆'+CULTURE_RULES.stoneCost+'</span></button><button class="secondary visual-policy-action" data-ux="planning-policy" data-policy="'+(s.planningPolicy?'legacy':'local')+'">'+icon('brain')+'<span>'+(s.planningPolicy?'Planner: Local':'Planner: Shared')+'</span></button></div>';
+  const archiveEntries=s.culture?.entries.length
+   ?'<details class="menu-subsection"><summary>'+icon('book')+'<span>ความรู้ในคลัง</span><b>'+s.culture.entries.length+'</b></summary><div class="visual-knowledge-grid">'+s.culture.entries.map(e=>'<div class="knowledge-tile"><span>'+visualToken(e.value.type==='food'?'leaf':e.value.type==='wood'?'wood':'stone')+'</span><div><b>'+escape(e.key)+'</b><small>v'+e.revision+' · '+escape(findPerson(s,e.authorId)?.name??('#'+e.authorId))+'</small></div><button class="icon-action secondary" data-ux="read-archive" data-key="'+escape(e.key)+'" aria-label="อ่าน '+escape(e.key)+'">'+icon('eye')+'</button></div>').join('')+'</div></details>'
+   :'';
+  const knowledgeBody='<div class="menu-metrics">'+
+    menuMetric('book','Archive',s.culture?(s.culture.entries.length+'/'+CULTURE_RULES.entries):'OFF',s.culture?'live':'')+
+    menuMetric('brain','Planner',s.planningPolicy?'LOCAL':'SHARED',s.planningPolicy?'live':'')+
+    menuMetric('link','Mentor',(s.mentorship?.links??[]).filter(l=>l.endedTick===null).length)+
+   '</div>'+archiveControls+archiveEntries+
+   '<details class="menu-explain"><summary>กฎความรู้</summary><p>ข้อมูลจากคนอื่นเริ่มเป็น UNVERIFIED · การอ่านคลังไม่เพิ่ม XP · ต้องตรวจเองจึงยืนยันได้</p></details>';
+
+  const kingdomBody='<div class="menu-metrics">'+
+    menuMetric('people','K2',escape(v.kingdomEconomy.topPressure?.profession??'—')+' ×'+(v.kingdomEconomy.topPressure?.premium??1),'shadow')+
+    menuMetric('hammer','K3',v.kingdomProduction.effectiveWorkerUnits+' eff','shadow')+
+    menuMetric('link','K4',v.kingdomLabor.activeCount+' offers','shadow')+
+    menuMetric('stone','K6',escape(v.kingdomMarket.hottestGood??'—')+' ×'+v.kingdomMarket.hottestIndex,'shadow')+
+   '</div>'+
+   '<div class="visual-stat-grid">'+
+    '<div><span>Food</span><b>'+v.kingdomMarket.prices.food+'</b></div><div><span>Wood</span><b>'+v.kingdomMarket.prices.wood+'</b></div><div><span>Stone</span><b>'+v.kingdomMarket.prices.stone+'</b></div>'+
+    '<div><span>Roles</span><b>'+v.kingdomEconomy.specialization.diversity+'/4</b></div>'+
+   '</div>'+
+   '<details class="menu-explain"><summary>SHADOW</summary><p>K2/K3/K4/K6 เป็น projection เพื่อสังเกต ยังไม่มีเงินจริง/ค่าแรง/การค้า และไม่เขียนผลแทน Survival authority</p></details>';
+
+  const worldBody='<div class="menu-metrics">'+
+    menuMetric('leaf','Ecology',topPressure?escape(topPressure.type)+' #'+topPressure.id:'—','shadow')+
+    menuMetric('stone','Soil',eco.soilSummary.averageHealth,'shadow')+
+    menuMetric('sun','Climate',escape(eco.climateSummary.dominantWeather),'shadow')+
+    menuMetric('map','Water',hydro.summary.averageWaterAvailability,'shadow')+
+   '</div>'+
+   '<div class="visual-stat-grid">'+
+    '<div><span>Temp</span><b>'+eco.climateSummary.averageTemperatureC+'°</b></div>'+
+    '<div><span>Flood</span><b>'+hydro.summary.floodRiskCells+'</b></div>'+
+    '<div><span>Vegetation</span><b>'+eco.vegetationSummary.averageRegenerationPotential+'</b></div>'+
+    '<div><span>Food eco</span><b>'+foodImpact.summary.averageEcologyPotential+'</b></div>'+
+    '<div><span>Soil</span><b>'+(dominantSoil?escape(dominantSoil[0]):'—')+'</b></div>'+
+    '<div><span>p50</span><b>'+foodCalibration.summary.rawP50+'</b></div>'+
+   '</div>'+
+   '<details class="menu-explain"><summary>SHADOW evidence</summary><p>Climate / Soil / Hydrology / Vegetation / calibration เป็น evidence/projection; resource writer จริงยังอยู่ตาม authority ที่ระบุใน Systems</p></details>';
+
+  const lifeBody='<div class="menu-metrics">'+
+    menuMetric('clone','เกิดเอง',v.autonomousBirths)+
+    menuMetric('home','ที่พัก',living(s).length+'/'+capacity(s),living(s).length>=capacity(s)?'warn':'live')+
+    menuMetric('history','ตัวตน',retainedCount(s)+'/'+HISTORY_LIMITS.maxRetained)+
+    menuMetric('skull','คลังตาย',s.archive.length)+
+   '</div>'+
+   '<div class="visual-status-line"><span>Birth gate</span><b>'+escape(birthLabels[v.birth.reason]??v.birth.reason)+'</b></div>'+
+   '<details class="menu-explain"><summary>Lifecycle rules</summary><p>เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัย 75% · อายุขัย deterministic 78–92 ปี · การเกิดต้องผ่าน housing/food/wood/cooldown gates</p></details>';
+
+  api.openDialog('การอยู่รอด','SURVIVAL · '+VERSION,
+   '<section class="menu-hero survival-menu-hero">'+visualToken('heart')+'<div><small>SETTLEMENT</small><h3>'+(v.hungry?'มีแรงกดดัน':'เสถียร')+'</h3><span>'+living(s).length+' คน · '+v.unfinished+' บ้านกำลังสร้าง</span></div></section>'+
+   '<div class="menu-metrics survival-metrics">'+
+    menuMetric('leaf','Food',v.freeFood+'/'+v.targets.food,risk)+
+    menuMetric('wood','Wood',v.stock.wood+'/'+v.targets.wood)+
+    menuMetric('stone','Stone',v.stock.stone+'/'+v.targets.stone)+
+    menuMetric('people','Hungry',v.hungry,v.hungry?'warn':'')+
+    menuMetric('bolt','Tired',v.exhausted,v.exhausted?'warn':'')+
+    menuMetric('home','Build',v.unfinished)+
+   '</div>'+
+   menuSection('book','ความรู้ / วัฒนธรรม',knowledgeBody,{open:true,badge:s.culture?'LIVE':'READY'})+
+   menuSection('hammer','ของ / การผลิต',rustPanel(s,api),{badge:s.productionPlan?.enabled?'LIVE':'READY'})+
+   menuSection('people','Kingdom',kingdomBody,{badge:'SHADOW'})+
+   menuSection('leaf','WorldSim',worldBody,{badge:'SHADOW'})+
+   menuSection('history','ชีวิต / ประวัติ',lifeBody,{badge:'LIVE'})+
+   '<details class="menu-explain"><summary>Survival authority</summary><p>แหล่งทรัพยากรรับงานครั้งละ 1 คน · บ้านรับ Builder ได้ 2 คน · path ใช้ reachability จริง · reserve targets รวมงานที่จองแล้ว</p></details>');
   $('dialog').dataset.kind='survival';
  }
  function openGuide(){api.openDialog('เริ่มจากการดูโลกที่กำลังคิดเอง','OBSERVE → UNDERSTAND → TRACE',`<div class="guide-step"><span>01</span><div><b>เปิด “ระบบโลก”</b><p>ดูว่า Housing, Production, Inventory, Knowledge, Ecology และระบบอื่นกำลัง LIVE, READY หรือ SHADOW</p></div></div><div class="guide-step"><span>02</span><div><b>แตะ Clone ที่สนใจ</b><p>ดูสิ่งที่กำลังทำ กระเป๋า อุปกรณ์ ทักษะ ความรู้ ความสัมพันธ์ และกด “ทำไม?” เพื่อดูเหตุผลจริง</p></div></div><div class="guide-step"><span>03</span><div><b>ปล่อยให้โลกสร้างเรื่องของมันเอง</b><p>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การโคลนแบบ manual ยังอยู่ใน Inspector แต่ไม่ใช่แกนหลักของเกม</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างข้อมูลหยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">กลับไปดูโลก</button></div>`);$('dialog').dataset.kind='guide';}
