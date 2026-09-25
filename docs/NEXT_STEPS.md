@@ -4,7 +4,7 @@ Read STATUS and the exact current main/Actions/open PRs before changing code. Pl
 
 ## Closed release line
 
-The September 25 closeout has merged Knowledge Continuity 1, Rust RS1–RS4, Production Planning RP1, WM4.4 reference evidence and Mentorship KF1. Old parallel Rust/formula/roadmap PRs were closed as superseded; their branches are reference-only and must not be merged stale.
+The September 25 line has merged Knowledge Continuity 1, Rust RS1–RS4, Production Planning RP1, Mentorship KF1, WM4.5 food ecology authority, dedicated Rust navigation, and visible autonomous settlement gameplay. Old parallel Rust/formula/roadmap PRs were closed as superseded; their branches are reference-only and must not be merged stale.
 
 Future work starts from the verified current `main`, not from the archived branches.
 
@@ -12,8 +12,9 @@ Future work starts from the verified current `main`, not from the archived branc
 
 | Gate | Remaining concrete work | Required proof |
 |---|---|---|
-| WM4 ecology authority | WM4.4 evidence is complete; select one absolute formula only in a new authority gate | Survival/crisis/population/replay comparisons on depleted worlds, no second writer, explicit policy/save compatibility |
-| Rust survival RS1–RS4 | **Released:** physical crafting/possessions/stations, atomic committed materials, scheduler work, tool speed and Wood 2 -> Charcoal 1 | Preserve conservation and single-authority tests while expanding content |
+| WM4 ecology authority | **Released:** WM4.5 conservative ecology-sensitive food regeneration is active through the existing single WorldSim writer | Preserve five-seed long-run/crisis/replay/save-load proof when ecology changes |
+| Visible settlement gameplay | **Released:** one-tap opt-in autonomy can place a real shelter plan; Clone BUILD workers construct it; Rust tools/stations/work are visible | Preserve BUILD authority, deterministic placement, exact-once material commitment and mobile visibility |
+| Rust survival RS1–RS4 | **Released:** physical crafting/possessions/stations, atomic committed materials, scheduler work, tool speed and Wood 2 -> Charcoal 1 | Next expand content only after visible-loop proof remains green |
 | Knowledge follow-through | **KF1 released:** Mentor teaching exists; next add richer observation, cultural retrieval and explicit information goals | No hidden-world leak, no XP from merely being told, source preserved across deaths |
 | Production planning | **RP1 released:** opt-in deterministic tool → station → charcoal chain | Expand beyond the bounded chain without adding a second executor/material ledger |
 | Kingdom authority | Move the remaining production/economy projections to gameplay individually; K5 labor scoring is already active | Baseline continuity before/after each switch; no blanket shadow-to-authority conversion |
@@ -29,3 +30,13 @@ Future work starts from the verified current `main`, not from the archived branc
 ## Release discipline
 
 Use a new branch from the verified current main, or continue the exact existing PR when repairing it. Re-check branch heads before writes, use non-forced updates, and preserve other branches. Keep native HTTP tests separate from offline Storage doubles. Regenerate browser source pins after runtime changes. Release only after exact candidate checks and exact main Pages test/upload/deploy succeed.
+
+
+## Immediate gameplay-first order
+
+1. Keep the visible loop green: **tap autonomy → shelter plan → Clone BUILD → visible completion → Rust tool/station chain**.
+2. R1A Fiber + Rope.
+3. R1B Food + Water processing.
+4. R1C Durability + Repair.
+5. R1D Physical Storage.
+6. Then expand autonomous production to consume those authorities; do not create a second executor or ledger.
