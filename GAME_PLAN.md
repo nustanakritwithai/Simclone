@@ -661,6 +661,35 @@ Avoid:
 - decorative imagery that invents gameplay state
 - replacing `UNKNOWN` with a confident visual guess
 
+## Diegetic World UI — Bubble First
+
+The world itself is the primary information surface. Prefer in-world bubbles and markers before opening a menu.
+
+Bubble semantics:
+- **Thought cloud** → current selected/recent decision or an actual Need derived from state.
+- **Speech bubble** → only a real communication event such as Knowledge sharing or Mentor communication. Never invent dialogue.
+- **Work bubble** → current authoritative BUILD / CRAFT / PROCESS task.
+- **World marker** → building progress, resource/place state, or another spatial fact owned by runtime.
+
+Budgets:
+- mobile: at most 3 simultaneous agent bubbles
+- desktop/tablet: at most 5 simultaneous agent bubbles
+- selected Clone gets priority
+- communication and emergencies outrank ordinary recent-task bubbles
+
+Menus/dialogs are secondary and should mainly provide:
+- exact evidence / provenance
+- advanced system detail
+- inventory actions
+- save/import/reset
+- accessibility fallback and searchable history
+
+Do not:
+- turn a current decision into historical intent
+- render speech when no communication event exists
+- persist a second thought/dialogue history just for UI
+- let bubbles write simulation state
+
 ---
 
 ## World Feedback
