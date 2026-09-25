@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,command,step,serialize,restore,validate,walkable} from '../src/engine.mjs';
-import {advanceCraft,toolMultiplier} from '../src/rust-possessions.mjs';
+import {advanceCraft,toolMultiplier,rustPossessionsSnapshot} from '../src/rust-possessions.mjs';
 import {advanceProcessing} from '../src/rust-materials.mjs';
 import {ITEM_CATALOG,RECIPE_CATALOG,validateCraftingCatalog} from '../src/crafting-catalog.mjs';
 
@@ -69,6 +69,33 @@ test('equipped tools expose action-specific multiplier only',()=>{
   assert.equal(toolMultiplier(s,1,'MINE'),1.25);
   assert.equal(toolMultiplier(s,1,'WOODCUT'),1);
   assert.equal(toolMultiplier(s,1,'BUILD'),1);
+});
+
+test('personal bags stay isolated and hand equipment can be equipped, persisted and removed',()=>{
+  let s=createWorld(7701);
+  s.rustPossessions.items.push(
+    {id:1,kind:'STONE_AXE',createdBy:1,createdTick:s.tick,location:{kind:'bag',agentId:1}},
+    {id:2,kind:'STONE_PICKAXE',createdBy:2,createdTick:s.tick,location:{kind:'bag',agentId:2}}
+  );
+  s.rustPossessions.nextItem=3;
+  assert.equal(command(s,'EQUIP_ITEM',{agentId:1,itemId:2}).ok,false,'cannot equip another Clone\'s item');
+  assert.equal(command(s,'EQUIP_ITEM',{agentId:1,itemId:1}).ok,true);
+  let snap=rustPossessionsSnapshot(s,1);
+  assert.equal(snap.capacity,4);assert.equal(snap.bag.length,1);assert.equal(snap.equipment.hand,1);
+  assert.equal(rustPossessionsSnapshot(s,2).equipment.hand,null);
+  s=restore(serialize(s));snap=rustPossessionsSnapshot(s,1);
+  assert.equal(snap.equipment.hand,1,'equipped hand item survives save/load');
+  assert.equal(command(s,'UNEQUIP_ITEM',{agentId:1}).ok,true);
+  assert.equal(rustPossessionsSnapshot(s,1).equipment.hand,null);
+  assert.equal(rustPossessionsSnapshot(s,1).bag[0].id,1,'unequip does not remove item from personal bag');
+  assert.deepEqual(validate(s),[]);
+});
+
+test('validation rejects duplicate hand equipment rows for one Clone',()=>{
+  const s=createWorld(7702);
+  s.rustPossessions.items.push({id:1,kind:'STONE_AXE',createdBy:1,createdTick:s.tick,location:{kind:'bag',agentId:1}});
+  s.rustPossessions.nextItem=2;s.rustPossessions.equipment=[{agentId:1,itemId:1},{agentId:1,itemId:1}];
+  assert.ok(validate(s).includes('Rust equipment'));
 });
 
 test('equipped Stone Axe reduces authoritative WOODCUT completion ticks',()=>{
