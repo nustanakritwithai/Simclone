@@ -12,6 +12,7 @@ import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,re
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
+import {ensureRustState,rustCommand,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
@@ -26,7 +27,7 @@ const DEATH_CAUSES = new Set(['age','starvation','unknown']);
 export const SIZE = { w: 30, h: 26 };
 export const DAY_TICKS = LIFE.ticksPerYear;
 export const SKILLS = ['FORAGE', 'WOODCUT', 'MINE', 'BUILD'];
-export const LABELS = { FORAGE:'หาอาหาร', WOODCUT:'ตัดไม้', MINE:'ขุดหิน', BUILD:'สร้างบ้าน', EAT:'กินอาหาร', REST:'พักผ่อน', EXPLORE:'สำรวจ', IDLE:'พักรอ' };
+export const LABELS = { FORAGE:'หาอาหาร', WOODCUT:'ตัดไม้', MINE:'ขุดหิน', BUILD:'สร้างบ้าน', CRAFT:'คราฟต์', PROCESS:'แปรรูป', EAT:'กินอาหาร', REST:'พักผ่อน', EXPLORE:'สำรวจ', IDLE:'พักรอ' };
 export const clamp = (n, lo=0, hi=100) => Math.max(lo, Math.min(hi, n));
 export const level = skillLevel;
 const distance = (a,b) => Math.abs(a.x-b.x) + Math.abs(a.y-b.y);
@@ -66,7 +67,7 @@ function killAgent(s,a,cause){
   if(!a.alive)return false;
   const deathAge=ageYearsAtTick(s,a,s.tick);
   a.death={status:'recorded',tick:s.tick,cause,ageYears:deathAge};
-  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;
+  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;releaseRustOnDeath(s,a);
   const text=cause==='age'
     ?a.name+' เสียชีวิตตามวัยเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี'
     :a.name+' เสียชีวิตจากการขาดอาหารเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี';
@@ -75,6 +76,7 @@ function killAgent(s,a,cause){
 export function createWorld(seed=230926){
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
+  ensureRustState(s);
   let nid=1;
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
     const river=20+Math.round(Math.sin(y*.26)*2), wet=x>=river&&x<river+3;
@@ -97,6 +99,7 @@ export const capacity = s => s.buildings.filter(b=>b.complete).length*6;
 export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){
+  const rust=rustCommand(s,type,data,walkable);if(rust)return rust;
   const cultural=cultureCommand(s,type,data);if(cultural)return cultural;
   if(type==='SET_PLANNING_POLICY')return setPlanningPolicy(s,data.policy);
   if(type==='CLONE'){
@@ -168,6 +171,8 @@ function candidates(s,a,book,field){
       score:Object.values(factors).reduce((sum,v)=>sum+v,0),factors,travelSteps:Math.max(0,travel),
       status:travel<0?'no-path':status,...extra});
   }
+  const rustWork=pendingRustWork(s,a);
+  if(rustWork)add(rustWork.kind,{...rustWork,id:rustWork.orderId},90,0,0,productive?'candidate':'stage',{rustOrderId:rustWork.orderId,rustLabel:rustWork.label});
   if(home&&a.satiety<82&&s.stock.food>0)
     add('EAT',home,0,(100-a.satiety)*1.25+(a.satiety<RULES.hungry?180:0),0,freeFood>0?'candidate':'reserved');
   if(a.energy<85){
@@ -225,7 +230,14 @@ function execute(s,a){
   if(t.kind==='IDLE'){a.energy=clamp(a.energy+.3);if(++t.work>=12)a.task=null;return;}
   if(t.kind==='EAT'&&s.stock.food<=0){a.task=null;return;}
   if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const p=t.path.shift();a.x=p.x;a.y=p.y;a.moveTick=0;}return;}
-  const workRate=SKILLS.includes(t.kind)?productiveWorkRate(s,a):1;
+  const workRate=SKILLS.includes(t.kind)?productiveWorkRate(s,a)*rustToolMultiplier(s,a,t.kind):(['CRAFT','PROCESS'].includes(t.kind)?productiveWorkRate(s,a):1);
+  if(t.kind==='CRAFT'||t.kind==='PROCESS'){
+    const result=advanceRustWork(s,a,workRate);
+    if(!result.ok){if(result.reason!=='already-worked')a.task=null;return;}
+    t.work=result.work??t.work;
+    if(result.completed){event(s,'craft',a.name+(t.kind==='CRAFT'?' คราฟต์ของสำเร็จ':' แปรรูปถ่านไม้สำเร็จ'),a.id);a.task=null;}
+    return;
+  }
   t.work+=workRate;
   if(t.kind==='EAT'){
     if(t.work>=3){if(s.stock.food>0){s.stock.food--;a.satiety=clamp(a.satiety+RULES.mealSatiety);}a.task=null;}
@@ -368,6 +380,7 @@ export function validate(s){
   if(!Number.isInteger(s.nextAgent)||s.nextAgent<=Math.max(...ids)||!Number.isInteger(s.nextEvent)||!Number.isInteger(s.nextBuilding))bad('Counters');
   for(const e of validatePersonalPlanning(s))bad(e);
   for(const e of validateCulture(s))bad(e);
+  for(const e of validateRustState(s))bad(e);
   return errors;
 }
 function deathCauseFromText(text){
@@ -420,15 +433,15 @@ function migrateKnowledge(s){
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
-  // Current schema must contain its own provenance/archive/history metadata; absence is corruption.
-  if(sourceVersion===SAVE_VERSION)return s;
+  // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
+  if(sourceVersion===SAVE_VERSION){ensureRustState(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
-    migrateKnowledge(s);s.version=SAVE_VERSION;return s;
+    migrateKnowledge(s);ensureRustState(s);s.version=SAVE_VERSION;return s;
   }
   if(sourceVersion===HISTORY_ARCHIVE_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
-    migrateSkillProvenance(s);migrateKnowledge(s);s.version=SAVE_VERSION;return s;
+    migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);s.version=SAVE_VERSION;return s;
   }
   if(![LEGACY_SAVE_VERSION,DEATH_HISTORY_SAVE_VERSION].includes(sourceVersion))return s;
   if(s.archive!==undefined||s.archiveVersion!==undefined)throw new Error('Unexpected archive in legacy save');
@@ -441,7 +454,7 @@ function migrateSave(s){
   if(Array.isArray(s.agents))for(const a of s.agents)if(a?.alive===false&&a.hp===0){a.task=null;a.moveTick=0;}
   migrateHistory(s,sourceVersion);
   s.archiveVersion=ARCHIVE_VERSION;s.archive=[];
-  migrateSkillProvenance(s);migrateKnowledge(s);s.version=SAVE_VERSION;
+  migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);s.version=SAVE_VERSION;
   return s;
 }
 export function restore(text){
