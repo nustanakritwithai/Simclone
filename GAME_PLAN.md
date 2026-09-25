@@ -692,6 +692,18 @@ Menu redesign must not remove an existing command path or hide an action require
 
 Structure menus are contextual surfaces opened from world-space hit targets. They must reuse existing command authorities and canonical evaluators; they do not create a separate Building Mode, station ledger, housing completion rule, or resource writer.
 
+## Visual Analytics Contract
+
+Interactive visualizations are projections of existing evidence, never a new data source.
+
+- **Knowledge Graph** lives at the Camp/Cultural Archive and may connect retained authors → archive entries → the currently selected Clone only when those relationships exist in `culture.entries` and personal `knowledgeState`.
+- Knowledge Graph filtering/selection is UI-local. Reading an archive entry still routes through the existing `READ_ARCHIVE` command.
+- **Bar charts** may compare current stock to canonical reserve targets, current task counts to living population, or derived missing-piece composition. Values must come from current state/evaluators.
+- **Trend/line graphs** require retained historical points. Chronicle may graph event counts by day because event ticks are retained; do not synthesize missing telemetry or invent historical resource curves.
+- Graphs may support filter/select/focus interactions, but visual interaction must remain read-only unless it invokes an already-authoritative command.
+- A graph must expose the same `LIVE / READY / SHADOW / INFRA` semantics as text surfaces where authority status matters.
+
+
 ---
 
 ## Diegetic World UI — Bubble First
