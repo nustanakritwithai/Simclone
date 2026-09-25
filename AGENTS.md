@@ -141,3 +141,12 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Stone Axe and Stone Pickaxe affect matching productive work rate; Hammer BUILD multiplier remains 1 until separately proven.
 - Base save version stays 0.5.0; missing Rust extensions on an older valid 0.5.0 save migrate to empty bounded ledgers.
 - Regenerate runtime source pins after any `src/*.mjs` change. Exact candidate and exact main workflows remain release authority.
+
+
+## Production Planning RP1 candidate
+
+- Read `docs/PRODUCTION_PLANNING_RP1.md` before changing autonomous production.
+- RP1 coordinates existing Rust commands only; never create a second crafting executor or material ledger.
+- Disabled must remain baseline-equivalent. Enablement is explicit and persisted.
+- Keep plan history bounded; save/load must resume accepted orders without duplicate outputs.
+- Hunger/energy/lifecycle and task validation retain priority over production goals.
