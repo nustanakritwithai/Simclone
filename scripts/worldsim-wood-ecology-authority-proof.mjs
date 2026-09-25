@@ -7,7 +7,8 @@ import {applyWorldResourceRegeneration,woodEcologyIncrement} from '../src/worlds
 import {createResourceEcologyShadow} from '../src/worldsim-resource-shadow.mjs';
 
 const SEEDS=[230926,42];
-const YEARS=1;
+// Wood regenerates every 720 ticks (two DAY_TICKS); a window must cross at least one boundary.
+const YEARS=2;
 
 const woodNodes=s=>s.nodes.filter(n=>n.type==='wood');
 const nodeWood=s=>woodNodes(s).reduce((sum,n)=>sum+n.amount,0);
@@ -23,8 +24,12 @@ function metrics(s){
   };
 }
 
-function runWindow(seed,mode,years=YEARS){
+function runWindow(seed,mode,years=YEARS,{depleteWood=false}={}){
   const s=createWorld(seed);
+  // Clones harvest only nearby high-potential trees, so natural windows never
+  // regrow a low-potential node. The depleted window empties every wood node
+  // identically in both modes so the regeneration policy itself is measured.
+  if(depleteWood)for(const n of woodNodes(s))n.amount=0;
   const startWood=nodeWood(s)+s.stock.wood;
   step(s,DAY_TICKS*years,{resourceRegenerationMode:mode});
   assert.deepEqual(validate(s),[]);
@@ -56,21 +61,26 @@ for(const n of woodNodes(s0)){
 }
 
 const windows=[];
+const depletedWindows=[];
 for(const seed of SEEDS){
   windows.push(runWindow(seed,'ecology'));
   windows.push(runWindow(seed,'legacy'));
+  depletedWindows.push(runWindow(seed,'ecology',YEARS,{depleteWood:true}));
+  depletedWindows.push(runWindow(seed,'legacy',YEARS,{depleteWood:true}));
 }
 for(const row of windows.filter(x=>x.mode==='ecology')){
   assert.equal(row.extinct,false,'ecology wood window extinction seed '+row.seed);
   assert.ok(row.living>0,'ecology wood window must retain a living population seed '+row.seed);
   assert.equal(row.starvationDeaths,0,'ecology wood window introduced starvation seed '+row.seed);
 }
+for(const row of depletedWindows.filter(x=>x.mode==='ecology'))
+  assert.equal(row.extinct,false,'depleted ecology wood window extinction seed '+row.seed);
 assert.ok(SEEDS.some(seed=>{
-  const ecologyRow=windows.find(x=>x.seed===seed&&x.mode==='ecology');
-  const legacy=windows.find(x=>x.seed===seed&&x.mode==='legacy');
+  const ecologyRow=depletedWindows.find(x=>x.seed===seed&&x.mode==='ecology');
+  const legacy=depletedWindows.find(x=>x.seed===seed&&x.mode==='legacy');
   return ecologyRow&&legacy&&(ecologyRow.woodDelta!==legacy.woodDelta||ecologyRow.nodeWood!==legacy.nodeWood);
 }),'wood ecology authority must create a measurable wood-regeneration difference versus legacy');
 
 const continuation=['legacy','ecology'].map(proveReplayAndSave);
-const report={gate:'WM4.6',candidate:'wm4.6-conservative-v1',seeds:SEEDS,years:YEARS,result:'SAT',windows,continuation};
+const report={gate:'WM4.6',candidate:'wm4.6-conservative-v1',seeds:SEEDS,years:YEARS,result:'SAT',windows,depletedWindows,continuation};
 console.log('WM4_6_AUTHORITY_PROOF '+JSON.stringify(report));
