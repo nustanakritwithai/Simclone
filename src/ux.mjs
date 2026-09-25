@@ -29,14 +29,22 @@ const paths={
  search:'<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>',
  help:'<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 5m0 3v.1"/>',
  map:'<path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2ZM9 3v16M15 5v16"/>',
+ hammer:'<path d="M14 4 20 10M11 7l6 6M5 21l8-8M3 19l2 2M10 4l3-2 9 9-2 3-3-3-7 7-4-4 7-7Z"/>',
  brain:'<path d="M12 4c-5-4-9 1-7 4-4 2-3 7 0 7-1 5 5 7 7 3m0-14c5-4 9 1 7 4 4 2 3 7 0 7 1 5-5 7-7 3ZM12 4v14M5 8l3 2M19 8l-3 2M5 15l3-2M19 15l-3-2"/>'
 };
 export const icon=name=>`<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths[name]||paths.eye}</svg>`;
 const events={birth:'ชีวิตใหม่',skill:'พัฒนาทักษะ',knowledge:'ถ่ายทอดความรู้',mentor:'Mentor',build:'สิ่งปลูกสร้าง',craft:'คราฟต์/แปรรูป',career:'เปลี่ยนอาชีพ',death:'สูญเสีย',day:'วันใหม่'};
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
+const rustStationLabels={HAND:'ทำด้วยมือ',CRAFTING_TABLE_LV1:'โต๊ะคราฟต์ Lv1',FURNACE:'เตาหลอม'};
+function rustCatalog(s){
+ const items=s.rustPossessions?.items??[],stations=s.rustStations?.stations??[];
+ return '<details class="score-details" open><summary>ไอเทม Rust ที่ใช้งานได้ตอนนี้ · '+Object.keys(ITEM_CATALOG).length+' ชนิด</summary>'+
+ Object.values(RECIPE_CATALOG).map(r=>{const item=ITEM_CATALOG[r.output],placed=item.stationProvided?stations.filter(st=>st.kind===item.stationProvided).length:0,owned=items.filter(i=>i.kind===item.id).length+placed,cost=Object.entries(r.materials).map(([k,n])=>(k==='wood'?'ไม้':'หิน')+' '+n).join(' + ');return '<div class="memory-item" data-rust-catalog-item="'+escape(item.id)+'"><b>'+escape(item.name)+'</b><small>'+(item.category==='tool'?'เครื่องมือ':'สถานี')+' · '+cost+' · '+escape(rustStationLabels[r.station]??r.station)+' · มีในโลก '+owned+'</small></div>';}).join('')+
+ '</details>';
+}
 function rustPanel(s,api){
  const selected=api.read().selected,actor=s.agents.find(a=>a.id===selected&&a.alive);
- if(!actor)return '<div class="life-summary"><div><small>Rust Survival · RS1–RS4</small><b>เลือก Clone ก่อน</b></div><div><small>ถ่านไม้ / สถานี</small><b>'+(s.rustMaterials?.charcoal??0)+' / '+(s.rustStations?.stations?.length??0)+'</b></div></div><p class="source-note">เลือก Clone ที่ยังมีชีวิตเพื่อจัดการ crafting และ possessions</p>';
+ if(!actor)return rustCatalog(s)+'<div class="life-summary"><div><small>Rust Survival · RS1–RS4</small><b>เลือก Clone ก่อน</b></div><div><small>ถ่านไม้ / สถานี</small><b>'+(s.rustMaterials?.charcoal??0)+' / '+(s.rustStations?.stations?.length??0)+'</b></div></div><p class="source-note">รายการด้านบนคือไอเทม Rust ที่เชื่อมเข้าระบบเกมจริงแล้ว เลือก Clone ที่ยังมีชีวิตเพื่อเริ่มคราฟต์ จัดกระเป๋า และสวมอุปกรณ์</p>';
  const items=s.rustPossessions?.items??[],bag=items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===actor.id);
  const equipped=s.rustPossessions?.equipment?.find(e=>e.agentId===actor.id)?.itemId??null;
  const craft=s.rustPossessions?.orders?.find(o=>o.agentId===actor.id),process=s.rustMaterials?.orders?.find(o=>o.agentId===actor.id);
@@ -46,7 +54,7 @@ function rustPanel(s,api){
  const dropHtml=drops.length?'<details class="score-details"><summary>ของตกใกล้ตัว</summary>'+drops.map(i=>'<button class="secondary" data-ux="pickup-rust" data-item="'+i.id+'">เก็บ '+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+' #'+i.id+'</button>').join('')+'</details>':'';
  const equippedItem=bag.find(i=>i.id===equipped);
  const plan=s.productionPlan,goal=plan?.goal;
- return '<div class="life-summary"><div><small>Rust Survival · RS1–RS4</small><b>'+escape(actor.name)+'</b></div><div><small>ถ่านไม้ / สถานี</small><b>'+(s.rustMaterials?.charcoal??0)+' / '+(s.rustStations?.stations?.length??0)+'</b></div></div>'+
+ return rustCatalog(s)+'<div class="life-summary"><div><small>Rust Survival · RS1–RS4</small><b>'+escape(actor.name)+'</b></div><div><small>ถ่านไม้ / สถานี</small><b>'+(s.rustMaterials?.charcoal??0)+' / '+(s.rustStations?.stations?.length??0)+'</b></div></div>'+
  '<div class="clone-skills"><div><span>กระเป๋า</span><b>'+bag.length+' / 4 ชิ้น</b></div><div><span>งานคราฟต์</span><b>'+(craft?escape(ITEM_CATALOG[RECIPE_CATALOG[craft.recipe]?.output]?.name??craft.recipe)+' '+Math.floor(craft.work)+'/'+craft.required:'ไม่มี')+'</b></div><div><span>งานเตา</span><b>'+(process?'ถ่านไม้ '+Math.floor(process.work)+'/'+process.required:'ไม่มี')+'</b></div><div><span>ของสวมอยู่</span><b>'+(equippedItem?escape(ITEM_CATALOG[equippedItem.kind]?.name??equippedItem.kind):'ไม่มี')+'</b></div></div>'+
  '<div class="life-summary"><div><small>RP1 · แผนผลิตอัตโนมัติ</small><b>'+(plan?.enabled?'เปิด':'ปิด')+'</b></div><div><small>สถานะล่าสุด</small><b>'+escape(goal?goal.goal+' · '+goal.outcome:'ยังไม่มีแผน')+'</b></div></div>'+
  '<div class="dialog-actions"><button class="secondary" data-ux="production-policy" data-enabled="'+(!plan?.enabled)+'">'+(plan?.enabled?'หยุดแผนผลิตอัตโนมัติ':'เปิดแผนผลิตอัตโนมัติ')+'</button>'+recipes+'<button class="secondary" data-ux="process-charcoal" '+(craft||process?'disabled':'')+'>เผาถ่าน Wood 2 → Charcoal 1</button></div>'+bagHtml+dropHtml+
@@ -65,10 +73,13 @@ export function installUX(api){
  const inspector=$('inspector'),stage=$('stage'),body=$('dialog-body');
  document.body.classList.add('ux-v2');
  document.body.dataset.knowledgeVersion='knowledge-continuity-1';
- const staticIcons={observe:'eye',clone:'clone',build:'home',roster:'people',history:'history',recenter:'focus'};
+ const staticIcons={observe:'eye',clone:'clone',build:'home',rust:'hammer',roster:'people',history:'history',recenter:'focus'};
  for(const [id,key] of Object.entries(staticIcons)){const button=$(id);const span=button.querySelector('span');if(span)span.innerHTML=icon(key);else button.innerHTML=icon(key);}
- const navIcons={world:'eye',people:'people',clone:'clone',build:'home',history:'history'};
+ const navIcons={world:'eye',people:'people',clone:'clone',build:'home',rust:'hammer',history:'history'};
  document.querySelectorAll('[data-nav]').forEach(b=>b.querySelector('span').innerHTML=icon(navIcons[b.dataset.nav]));
+ const rustButton=$('rust'),rustNav=document.querySelector('[data-nav="rust"]');
+ if(rustButton)rustButton.onclick=()=>openRust();
+ if(rustNav)rustNav.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===rustNav));openRust();};
  document.querySelector('.version').innerHTML=`KNOWLEDGE + MEMORY <b>${VERSION}</b>`;
  document.querySelector('.brand').title='Simclone · UI '+UI_VERSION;
  const foodCard=$('food').parentElement;
@@ -269,6 +280,7 @@ export function installUX(api){
   api.select(parent.id,false);const p=api.preview('CLONE',{parentId:parent.id});
   api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">คำสั่งนี้สร้าง Clone วัยผู้ใหญ่อายุ 18 ปีทันที · การเกิดอัตโนมัติเป็นอีกระบบหนึ่ง เด็กเริ่มอายุ 0 ปีแล้วค่อยเติบโต</p>`);$('dialog').dataset.kind='clone';
  }
+ function openRust(){const s=api.read().state;api.openDialog('ไอเทมและการคราฟต์','RUST SURVIVAL · RS1–RS4',rustPanel(s,api));$('dialog').dataset.kind='rust';}
  function openSurvival(){
   const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s,eco),hydro={summary:eco.hydrologySummary},regen=createResourceRegenerationShadow(s,eco),foodImpact=createFoodRegenerationImpact(s,regen),foodCalibration=createFoodEcologyCalibration(s,foodImpact);
   const topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
@@ -324,5 +336,5 @@ export function installUX(api){
   $('dialog').dataset.kind='survival';
  }
  function openGuide(){api.openDialog('เริ่มจากการรู้จักคนหนึ่งคน','OBSERVE → UNDERSTAND → INFLUENCE',`<div class="guide-step"><span>01</span><div><b>แตะหน้า เลือกคน</b><p>ใช้แถวตัวละครด้านล่าง หรือแตะคนในโลก การ์ดย่อจะบอกว่ากำลังทำอะไร โดยไม่บังแผนที่</p></div></div><div class="guide-step"><span>02</span><div><b>ถามว่า “ทำไม?”</b><p>ดูคะแนนงานจริง หรือเปิดทักษะเพื่อดูสิ่งที่เขาเรียนรู้มาต่างจากคนอื่น</p></div></div><div class="guide-step"><span>03</span><div><b>สร้างเงื่อนไขให้ชีวิตใหม่</b><p>เลือกต้นแบบก่อนโคลน หรือเลือกจุดวางบ้าน ตรวจตัวอย่าง แล้วค่อยยืนยันหักวัสดุ</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างนี้หยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">เริ่มสังเกตโลก</button></div>`);$('dialog').dataset.kind='guide';}
- return {renderInspector,renderHUD,openRoster,openHistory,openClone,openSurvival,choosePlacement,getPlacement:()=>candidate?{...candidate,ok:placement?.ok===true}:null};
+ return {renderInspector,renderHUD,openRoster,openHistory,openClone,openRust,openSurvival,choosePlacement,getPlacement:()=>candidate?{...candidate,ok:placement?.ok===true}:null};
 }
