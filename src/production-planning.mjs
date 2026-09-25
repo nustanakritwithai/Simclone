@@ -5,9 +5,9 @@ import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {rustCommand} from './rust-runtime.mjs?v=0.5.0';
 import {ITEM_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 
-export const PRODUCTION_PLAN_VERSION='RP1-0.1';
-export const PRODUCTION_POLICY='rust-production-1';
-export const PRODUCTION_RULES=Object.freeze({attemptPeriod:12,charcoalTarget:4,history:12});
+export const PRODUCTION_PLAN_VERSION='RP1-0.2';
+export const PRODUCTION_POLICY='rust-production-2';
+export const PRODUCTION_RULES=Object.freeze({attemptPeriod:12,charcoalTarget:4,history:12,housePopulationBuffer:2,houseWood:12,houseStone:6,maxBuildings:12});
 
 export const createProductionPlan=()=>({version:PRODUCTION_PLAN_VERSION,enabled:false,goal:null,lastAttemptTick:-1,history:[]});
 export function ensureProductionPlan(s){if(s.productionPlan===undefined)s.productionPlan=createProductionPlan();return s.productionPlan;}
@@ -18,6 +18,30 @@ const bagItems=(s,kind=null)=>s.rustPossessions.items.filter(i=>i.location?.kind
 const hasKind=(s,kind)=>s.rustPossessions.items.some(i=>i.kind===kind)||s.rustPossessions.orders.some(o=>o.recipe===kind);
 const stationKind=(s,kind)=>s.rustStations.stations.some(st=>st.complete&&st.kind===kind);
 const activeOrders=s=>s.rustPossessions.orders.length+s.rustMaterials.orders.length;
+const completedHousing=s=>s.buildings.filter(b=>b.complete).length*6;
+const needsHouse=s=>s.buildings.every(b=>b.complete)&&s.buildings.length<PRODUCTION_RULES.maxBuildings&&completedHousing(s)-eligible(s).length<=PRODUCTION_RULES.housePopulationBuffer;
+const settlementCell=(s,isWalkable)=>{
+  const camp=s.buildings.find(b=>b.type==='camp')??s.buildings[0];if(!camp)return null;
+  const occupied=(x,y)=>s.buildings.some(b=>Math.abs(b.x-x)+Math.abs(b.y-y)<2)||s.nodes.some(n=>n.x===x&&n.y===y)||s.rustStations.stations.some(st=>st.x===x&&st.y===y);
+  for(let radius=2;radius<=8;radius++)for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
+    if(Math.abs(dx)!==radius&&Math.abs(dy)!==radius)continue;
+    const x=camp.x+dx,y=camp.y+dy;
+    if(!isWalkable(s,x,y)||s.tiles[y*30+x]!=='grass'||occupied(x,y))continue;
+    return {x,y};
+  }
+  return null;
+};
+function queueHouse(s,isWalkable){
+  if(!needsHouse(s))return null;
+  if(s.stock.wood<PRODUCTION_RULES.houseWood||s.stock.stone<PRODUCTION_RULES.houseStone)return {ok:false,reason:'materials'};
+  const cell=settlementCell(s,isWalkable);if(!cell)return {ok:false,reason:'no-placement-cell'};
+  // Mirror the existing BUILD command contract here without a second work executor:
+  // materials commit once, then normal BUILD candidates/workers finish the structure.
+  s.stock.wood-=PRODUCTION_RULES.houseWood;s.stock.stone-=PRODUCTION_RULES.houseStone;
+  const building={id:s.nextBuilding++,type:'shelter',x:cell.x,y:cell.y,complete:false,progress:0};
+  s.buildings.push(building);
+  return {ok:true,buildingId:building.id,x:cell.x,y:cell.y};
+}
 const roleAgent=(s,profession)=>{
   const xs=eligible(s),preferred=xs.filter(a=>a.profession===profession);
   return (preferred.length?preferred:xs)[0]??null;
@@ -70,6 +94,12 @@ export function productionCommand(s,type,data={}){
 export function stepProductionPlanning(s,isWalkable){
   const p=ensureProductionPlan(s);if(!p.enabled)return null;
   if(activeOrders(s)>0)return null;
+  // Settlement growth is visible gameplay: RP1 may reserve one house plan when
+  // capacity is nearly full. Existing BUILD workers remain the only executor.
+  if(needsHouse(s)){
+    const house=queueHouse(s,isWalkable);
+    if(house?.ok){record(p,s.tick,'build-shelter','accepted');return house;}
+  }
   // Resolve completed physical outputs before starting the next chain step.
   for(const [kind,profession] of [['STONE_AXE','woodcutter'],['STONE_PICKAXE','miner'],['HAMMER','builder']]){
     const r=equipOwned(s,kind,profession,isWalkable);if(r?.ok){record(p,s.tick,'equip-'+kind,'completed',r.agentId??null);return r;}
