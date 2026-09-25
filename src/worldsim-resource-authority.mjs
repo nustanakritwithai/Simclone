@@ -7,7 +7,8 @@ import {K6_RESOURCE_REGEN} from './worldsim-resource-policy.mjs?v=0.5.0';
  * Wood now uses woodYieldPotential. Stone remains finite.
  *
  * foodMode/woodMode='legacy' exist only for deterministic A/B verification.
- * The game engine calls ecology mode for both and there is still only one writer.
+ * If woodMode is omitted it follows foodMode, so engine resourceRegenerationMode
+ * selects both policies without a second writer.
  */
 export const RESOURCE_REGEN_AUTHORITY_VERSION='wm4.6-wood-ecology-1';
 export const FOOD_ECOLOGY_POLICY=Object.freeze({
@@ -76,7 +77,9 @@ export function woodEcologyIncrement(potential){
   return 1;
 }
 
-export function applyWorldResourceRegeneration(state,{foodMode='ecology',woodMode='ecology'}={}){
+export function applyWorldResourceRegeneration(state,options={}){
+  const foodMode=options.foodMode??'ecology';
+  const woodMode=options.woodMode??foodMode;
   const tick=state?.tick;
   if(!Number.isInteger(tick)||!Array.isArray(state?.nodes))throw new Error('Invalid resource regeneration state');
   if(!['ecology','legacy'].includes(foodMode))throw new Error('Invalid food regeneration mode');
