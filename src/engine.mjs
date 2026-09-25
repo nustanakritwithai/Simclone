@@ -14,6 +14,7 @@ import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
 import {housingCapacity,unfinishedHousing,evaluateModularHouses,pendingPlacements} from './housing.mjs?v=0.5.0';
+import {pendingPersonalPlacements} from './individual-housing.mjs?v=0.5.0';
 import {placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {ensureProductionPlan,productionCommand,stepProductionPlanning,validateProductionPlan} from './production-planning.mjs?v=0.5.0';
 import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsForAgent,validateMentorship} from './mentor-teaching.mjs?v=0.5.0';
@@ -208,8 +209,10 @@ function candidates(s,a,book,field){
     const laborAuthority=laborAuthoritySignal({kind:'BUILD',agent:a,agents:s.agents,stock:s.stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
     add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved',{kingdomUtility:kingdom,laborAuthority});
   }
-  // Modular house pieces: the carrier walks to the socket's anchor cell; placement itself goes through PLACE_STATION.
-  for(const p of pendingPlacements(s,a,walkable)){
+  // Modular house pieces: full RP1 uses IC2 personal-home placement; default housing-only
+  // autonomy preserves the legacy settlement-pressure path until IC3 changes the default.
+  const placementRows=s.productionPlan?.enabled===true?pendingPersonalPlacements(s,a,walkable):pendingPlacements(s,a,walkable);
+  for(const p of placementRows){
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind:'BUILD',scarcityOverride:18});
     const laborAuthority=laborAuthoritySignal({kind:'BUILD',agent:a,agents:s.agents,stock:s.stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
     add('BUILD',{id:p.itemInstanceId,x:p.anchor.x,y:p.anchor.y},56,0,a.preference==='BUILD'?18:0,!productive?'stage':book.buildings.has('piece:'+p.itemInstanceId)?'reserved':'candidate',
