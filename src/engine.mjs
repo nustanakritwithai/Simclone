@@ -80,7 +80,7 @@ function killAgent(s,a,cause){
 }
 export function createWorld(seed=230926){
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
-    stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
+    stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
   ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);
   let nid=1;
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
@@ -100,7 +100,7 @@ export function createWorld(seed=230926){
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
-// Housing capacity has one definition: src/housing.mjs (camp + legacy shelters + complete modular houses).
+// Housing capacity has one definition: src/housing.mjs (camp + complete modular houses; legacy Shelter is retired).
 export const capacity = housingCapacity;
 /** UI placement preview: the same validator the executor re-runs, read-only on the live state. */
 export const previewPlacement = (s,data) => placementPreview(s,data,walkable);
@@ -464,9 +464,22 @@ function migrateKnowledge(s){
   for(const a of allPeople(s))if(!a.knowledgeState)a.knowledgeState=createKnowledgeState();
   return s;
 }
+function retireLegacyShelters(s){
+  if(!Array.isArray(s?.buildings))return s;
+  const removed=new Set(s.buildings.filter(b=>b?.type==='shelter').map(b=>b.id));
+  if(!removed.size)return s;
+  s.buildings=s.buildings.filter(b=>b?.type!=='shelter');
+  // A pre-removal save may still have a BUILD task targeting a Shelter record. Clear only
+  // those execution-only tasks; the normal planner deterministically chooses new work next tick.
+  for(const a of s.agents??[])if(a?.task?.kind==='BUILD'&&removed.has(a.task.targetId)){a.task=null;a.moveTick=0;}
+  return s;
+}
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
+  // Shelter retirement is a deterministic 0.5.0 extension migration. It removes the obsolete
+  // visual/capacity record before RP1-0.3 enables modular settlement construction.
+  retireLegacyShelters(s);
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
   if(sourceVersion===SAVE_VERSION){ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
