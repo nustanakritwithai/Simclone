@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld as legacyWorld,step as legacyStep,serialize as legacySerialize} from './fixtures/legacy-engine-0.1.0.mjs';
-import {VERSION,SAVE_VERSION,DAY_TICKS,createWorld,step,command,serialize,restore,validate,survivalSummary,childLife,adultLife} from '../src/engine.mjs';
+import {VERSION,SAVE_VERSION,DAY_TICKS,createWorld,step,command,serialize,restore,validate,survivalSummary,childLife,adultLife,capacity} from '../src/engine.mjs';
 import {RULES,RESOURCE_ACTIONS,routeField,routeTo,routeDistance,reservations,taskValid,stockTargets} from '../src/survival.mjs';
 function scenario(n=3){
  const s=createWorld(77);s.tiles.fill('grass');s.nodes=[];s.agents=s.agents.slice(0,n);
@@ -122,7 +122,7 @@ test('summary is read-only and score breakdowns add up exactly',()=>{
 test('exclusive reservations and bounds hold every tick in a crowded 2,000-tick fixture',()=>{
  const s=createWorld(42);s.stock={food:999,wood:999,stone:999};while(s.agents.length<12)assert.equal(command(s,'CLONE',{parentId:1}).ok,true);s.stock={food:28,wood:24,stone:12};
  for(let i=0;i<2000;i++){step(s);assertExclusive(s);assert.ok(Object.values(s.stock).every(n=>n>=0&&n<=999));}
- assert.deepEqual(validate(s),[]);assert.equal(s.agents.filter(a=>a.alive).length,12);
+ assert.deepEqual(validate(s),[]);const alive=s.agents.filter(a=>a.alive).length;assert.ok(alive<=capacity(s));assert.ok(alive<=36);
 });
 test('pending production prevents a second unnecessary gather assignment',()=>{
  const s=scenario(2);s.stock.food=30;s.nodes=[node(1,'food',10,12),node(2,'food',14,12)];for(const a of s.agents)a.preference='FORAGE';

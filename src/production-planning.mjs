@@ -31,6 +31,13 @@ const needsHouse=s=>{
   const cap=housingCapacity(s);
   return s.buildings.every(b=>b.complete)&&!openHouse(s)&&cap<BIRTH_RULES.maxPopulation&&cap-eligible(s).length<=PRODUCTION_RULES.housePopulationBuffer;
 };
+// Even with full RP1 disabled, settlement housing is autonomous once population pressure is visible.
+// Starting six-person worlds stay baseline-equivalent; at population 7+ the coordinator uses only
+// the existing Rust commands needed for Table -> Hammer -> modular house, then becomes idle again.
+const autonomousHousingNeeded=s=>{
+  const population=(s.agents??[]).filter(a=>a.alive).length,cap=housingCapacity(s);
+  return population>6&&cap<BIRTH_RULES.maxPopulation&&cap-population<PRODUCTION_RULES.housePopulationBuffer;
+};
 const HOUSE_GOALS=new Set(['equip-HAMMER-house','craft-WOOD_FOUNDATION','craft-WOOD_WALL','craft-WOOD_DOORWAY','craft-WOOD_ROOF','place-house-piece']);
 const roleAgent=(s,profession)=>{
   const xs=eligible(s),preferred=xs.filter(a=>a.profession===profession);
@@ -120,7 +127,8 @@ export function productionCommand(s,type,data={}){
   return {ok:true,enabled,message:enabled?'เปิดแผนผลิตอัตโนมัติแล้ว':'หยุดแผนผลิตอัตโนมัติแล้ว'};
 }
 export function stepProductionPlanning(s,isWalkable,dispatch=null){
-  const p=ensureProductionPlan(s);if(!p.enabled)return null;
+  const p=ensureProductionPlan(s),housingOnly=p.enabled!==true&&autonomousHousingNeeded(s);
+  if(!p.enabled&&!housingOnly)return null;
   if(activeOrders(s)>0)return null;
   // Resolve completed physical outputs before starting the next chain step.
   const equipped=equipForWork(s,isWalkable);
@@ -128,6 +136,17 @@ export function stepProductionPlanning(s,isWalkable,dispatch=null){
   if(!stationKind(s,'CRAFTING_TABLE_LV1')){
     const placed=placeOwnedStation(s,'CRAFTING_TABLE_LV1',isWalkable);
     if(placed){if(placed.ok)record(p,s.tick,'place-crafting-table','completed');return placed.ok?placed:null;}
+  }
+  if(housingOnly){
+    if(s.tick-p.lastAttemptTick<PRODUCTION_RULES.attemptPeriod)return null;p.lastAttemptTick=s.tick;
+    if(!stationKind(s,'CRAFTING_TABLE_LV1')&&!hasKind(s,'CRAFTING_TABLE_LV1')){
+      const r=queueRecipe(s,'CRAFTING_TABLE_LV1','builder',isWalkable);record(p,s.tick,'craft-CRAFTING_TABLE_LV1',r?.ok?'accepted':(r?.reason??'blocked'),r?.ok?roleAgent(s,'builder')?.id??null:null);return r?.ok?r:null;
+    }
+    if(stationKind(s,'CRAFTING_TABLE_LV1')&&!hasKind(s,'HAMMER')){
+      const r=queueRecipe(s,'HAMMER','builder',isWalkable);record(p,s.tick,'craft-HAMMER',r?.ok?'accepted':(r?.reason??'blocked'),r?.ok?roleAgent(s,'builder')?.id??null:null);return r?.ok?r:null;
+    }
+    const house=stepHousePlan(s,p,isWalkable);
+    return house?.ok?house:null;
   }
   if(!stationKind(s,'FURNACE')){
     const placed=placeOwnedStation(s,'FURNACE',isWalkable);
