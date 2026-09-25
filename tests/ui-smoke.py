@@ -93,7 +93,7 @@ with sync_playwright() as p:
  check('dropped physical item is exposed as a world cue from the item ledger',any(x['itemId']==99002 and x['kind']=='HAMMER' and x['x']==10 and x['y']==10 for x in world_story['drops']))
  task_saved=json.loads(saved);actor=next(a for a in task_saved['agents'] if a['id']==2);node=next(n for n in task_saved['nodes'] if n['type']=='wood' and n['amount']>0)
  base_task=actor['task'] or {'policy':'survival-v3'}
- actor['task']={**base_task,'kind':'WOODCUT','targetId':node['id'],'x':node['x'],'y':node['y'],'path':[],'work':0,'score':99,'started':task_saved['tick'],'policy':base_task.get('policy','survival-v3'),'fieldRest':False}
+ actor['task']={**base_task,'kind':'WOODCUT','targetId':node['id'],'x':node['x'],'y':node['y'],'path':[{'x':actor['x'],'y':actor['y']}] * 200,'work':0,'score':99,'started':task_saved['tick'],'policy':base_task.get('policy','survival-v3'),'fieldRest':False}
  taskpage=b.new_page(viewport={'width':1440,'height':1000});boot(taskpage,json.dumps(task_saved,ensure_ascii=False));paused(taskpage)
  taskfx=taskpage.evaluate('simclone.worldFeedback()')
  check('resource pulse reuses authoritative task target and node coordinates',any(x['nodeId']==node['id'] and x['agentId']==2 and x['x']==node['x'] and x['y']==node['y'] for x in taskfx['resourcePulses']))
