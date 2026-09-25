@@ -699,11 +699,16 @@ Track:
 - Mentor / knowledge transfer
 - future Faction / Leader / Disaster / Conflict
 
-Roadmap:
+Current event drill-down:
 - event selection
+- evidence-first cause panel
 - jump to agent
-- jump to place
-- cause / consequence chain
+- jump to retained authoritative place evidence when available
+- explicit UNKNOWN when historical cause/provenance was not retained
+- current Why may be inspected separately but is never presented as historical intent
+
+Roadmap:
+- consequence chain when durable cross-event links exist
 - generation view
 - replay only when an actual replay authority exists
 
