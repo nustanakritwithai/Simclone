@@ -20,6 +20,10 @@ Main commit `171b05a210df22ff54a2fd91d0b9d9d02fbf19ee` merged the repaired WM4.3
 
 Contract and evidence rules: [KNOWLEDGE_CONTINUITY_1](KNOWLEDGE_CONTINUITY_1.md).
 
+## Knowledge Follow-through KF1 candidate
+
+Mentorship is now represented as a bounded persistent relationship. Mentors may periodically transmit their own confirmed claims to students, but the student stores them as UNVERIFIED and receives no Skill XP. Death closes active links without erasing history. See [MENTORSHIP_KF1](MENTORSHIP_KF1.md). Exact candidate/main verification is still required.
+
 ## Authority map
 
 | Area | Actual owner / activation |
@@ -32,6 +36,7 @@ Contract and evidence rules: [KNOWLEDGE_CONTINUITY_1](KNOWLEDGE_CONTINUITY_1.md)
 | Demand, production efficiency, labor offers, market price | K2/K3/K4/K6 observational projections, not money or trade |
 | Personal belief | Owned evidence; never equated with global world truth |
 | Cultural publication | Explicit camp archive, not an omniscient library |
+| Mentor teaching KF1 | Bounded explicit relationship; confirmed claim → student UNVERIFIED, zero teaching XP |
 | UI | Observation and validated command dispatch, not simulation rules |
 
 ## Remaining and unclaimed
