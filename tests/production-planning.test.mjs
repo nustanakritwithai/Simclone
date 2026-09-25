@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,command,step,serialize,restore,validate} from '../src/engine.mjs';
+import {createWorld,command,step,serialize,restore,validate,walkable} from '../src/engine.mjs';
+import {houseSite,nextHousePiece} from '../src/housing.mjs';
 import {PRODUCTION_POLICY,PRODUCTION_RULES} from '../src/production-planning.mjs';
 
 const itemKinds=s=>new Set(s.rustPossessions.items.map(i=>i.kind));
@@ -65,33 +66,24 @@ test('older valid 0.5.0 save gains disabled RP1 extension without inventing work
 });
 
 
-test('RP1 visibly grows the settlement immediately after autonomy is enabled',()=>{
+test('RP1 never dispatches a shelter: enabling autonomy adds no building and spends no stone',()=>{
   const s=createWorld(230926);
   assert.equal(command(s,'SET_PRODUCTION_POLICY',{enabled:true}).ok,true);
-  const before={buildings:s.buildings.length,wood:s.stock.wood,stone:s.stock.stone};
+  const before={buildings:s.buildings.length,stone:s.stock.stone};
   step(s,1);
-  assert.equal(s.buildings.length,before.buildings+1);
-  const house=s.buildings.at(-1);
-  assert.equal(house.type,'shelter');assert.equal(house.complete,false);
-  assert.equal(s.stock.wood,before.wood-PRODUCTION_RULES.houseWood);
-  assert.equal(s.stock.stone,before.stone-PRODUCTION_RULES.houseStone);
-  assert.equal(s.productionPlan.goal.goal,'build-shelter');
-  step(s,1000);
-  assert.equal(house.complete,true);
-  assert.ok(s.stats.built>=1);
+  assert.equal(s.buildings.length,before.buildings);
+  assert.equal(s.stock.stone,before.stone);
+  assert.ok(!s.productionPlan.history.some(h=>h.goal==='build-shelter'));
   assert.deepEqual(validate(s),[]);
 });
 
-test('RP1 house placement is deterministic and does not duplicate the initial plan',()=>{
-  const make=()=>{const s=createWorld(99);command(s,'SET_PRODUCTION_POLICY',{enabled:true});step(s,1);return s;};
-  const a=make(),b=make();
-  assert.deepEqual(a.buildings,b.buildings);
-  assert.equal(a.buildings.length,3);
-  const count=a.buildings.length;step(a,20);assert.equal(a.buildings.length,count);
-  assert.equal(a.buildings.filter(x=>!x.complete).length,1);
+test('modular house site is deterministic, passes the shared validator and keeps clear of other homes',()=>{
+  const a=createWorld(99),b=createWorld(99);
+  const sa=houseSite(a,walkable),sb=houseSite(b,walkable);
+  assert.deepEqual(sa,sb);assert.equal(sa.footprint,'1x1');
+  assert.ok(a.buildings.every(x=>Math.abs(x.x-sa.origin.x)+Math.abs(x.y-sa.origin.y)>=2));
+  assert.deepEqual(nextHousePiece(a,sa),{pieceKind:'WOOD_FOUNDATION',socket:{type:'cell',...sa.origin,level:0}});
 });
-
-
 
 test('RP1-0.1 saves migrate schema without silently changing enable choice',()=>{
   const old=createWorld(123);

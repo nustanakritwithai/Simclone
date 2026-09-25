@@ -7,6 +7,8 @@ import {kingdomProductionSnapshot} from './kingdom-production.mjs?v=0.5.0';
 import {kingdomLaborMarketSnapshot} from './kingdom-labor-market.mjs?v=0.5.0';
 import {kingdomMarketSnapshot} from './kingdom-market.mjs?v=0.5.0';
 import {worldPathWalkable} from './worldsim-map.mjs?v=0.5.0';
+import {housingCapacity,unfinishedHousing} from './housing.mjs?v=0.5.0';
+import {canPlaceStation} from './rust-stations.mjs?v=0.5.0';
 export const RULES = Object.freeze({
   width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
@@ -63,6 +65,13 @@ export function taskValid(s,a){
     const n=s.nodes.find(n=>n.id===t.targetId);
     return !!n&&n.type===RESOURCE_ACTIONS[t.kind]&&n.x===t.x&&n.y===t.y&&n.amount>0&&s.stock[n.type]<RULES.stockLimit;
   }
+  if(t.kind==='BUILD'&&t.placement){
+    // Modular piece: carrier still holds the item and the socket still passes the shared validator (planning mode).
+    if(!canPerformProductiveWork(s,a))return false;
+    const p=t.placement,held=s.rustPossessions?.items?.some(i=>i.id===p.itemInstanceId&&i.kind===p.pieceKind&&i.location?.kind==='bag'&&i.location.agentId===a.id);
+    const check=held&&canPlaceStation(s,{pieceKind:p.pieceKind,socket:p.socket},walkable,{actor:false});
+    return !!check?.ok&&check.anchor.x===t.x&&check.anchor.y===t.y;
+  }
   if(t.kind==='BUILD')return canPerformProductiveWork(s,a)&&s.buildings.some(b=>b.id===t.targetId&&!b.complete&&b.x===t.x&&b.y===t.y);
   if(t.kind==='CRAFT'){
     if(!canPerformProductiveWork(s,a))return false;
@@ -86,9 +95,11 @@ export function claim(book,s,a){
     if(book.nodes.has(t.targetId))return false;
     book.nodes.set(t.targetId,a.id);
   }else if(t.kind==='BUILD'){
-    const ids=book.buildings.get(t.targetId)??new Set();
-    if(ids.size>=RULES.builders)return false;
-    ids.add(a.id);book.buildings.set(t.targetId,ids);
+    // Legacy shelters allow two builders; a modular piece has exactly one carrier.
+    const key=t.placement?'piece:'+t.placement.itemInstanceId:t.targetId,limit=t.placement?1:RULES.builders;
+    const ids=book.buildings.get(key)??new Set();
+    if(ids.size>=limit)return false;
+    ids.add(a.id);book.buildings.set(key,ids);
   }else if(t.kind==='EAT'){
     if(book.meals.size>=s.stock.food)return false;
     book.meals.add(a.id);
@@ -97,7 +108,7 @@ export function claim(book,s,a){
 }
 export function release(book,a,task){
   if(RESOURCE_ACTIONS[task.kind]&&book.nodes.get(task.targetId)===a.id)book.nodes.delete(task.targetId);
-  if(task.kind==='BUILD')book.buildings.get(task.targetId)?.delete(a.id);
+  if(task.kind==='BUILD')book.buildings.get(task.placement?'piece:'+task.placement.itemInstanceId:task.targetId)?.delete(a.id);
   if(task.kind==='EAT')book.meals.delete(a.id);
 }
 /** Rebuilt from saved tasks each tick: no second source of truth or stale locks. */
@@ -122,8 +133,9 @@ export function plannedStock(s,book){
 export function survivalSummary(s){
   const agents=s.agents.filter(a=>a.alive),{book}=reservations(s),target=stockTargets(s);
   const freeFood=Math.max(0,s.stock.food-book.meals.size),birth=birthPlan(s,freeFood);
-  const kingdomEconomy=kingdomEconomySnapshot({agents,stock:s.stock,unfinished:s.buildings.filter(b=>!b.complete).length});
-  const kingdomProduction=kingdomProductionSnapshot({agents,capacity:s.buildings.filter(b=>b.complete).length*6,economy:kingdomEconomy,
+  const unfinished=unfinishedHousing(s);
+  const kingdomEconomy=kingdomEconomySnapshot({agents,stock:s.stock,unfinished});
+  const kingdomProduction=kingdomProductionSnapshot({agents,capacity:housingCapacity(s),economy:kingdomEconomy,
     skillLevel:(a,action)=>skillLevel(a.skills[action]??0),ageRate:a=>productiveWorkRate(s,a)});
   const kingdomLabor=kingdomLaborMarketSnapshot({economy:kingdomEconomy,production:kingdomProduction});
   const kingdomMarket=kingdomMarketSnapshot({economy:kingdomEconomy});
@@ -131,6 +143,6 @@ export function survivalSummary(s){
     exhausted:agents.filter(a=>a.energy<RULES.exhausted).length,
     food:s.stock.food,reservedMeals:book.meals.size,freeFood,
     targets:target,projected:plannedStock(s,book),nodeJobs:book.nodes.size,builders:[...book.buildings.values()].reduce((sum,ids)=>sum+ids.size,0),
-    unfinished:s.buildings.filter(b=>!b.complete).length,autonomousBirths:allPeople(s).filter(isAutonomousChild).length,birth:{...birth},
+    unfinished,autonomousBirths:allPeople(s).filter(isAutonomousChild).length,birth:{...birth},
     stock:{...s.stock},kingdomEconomy,kingdomProduction,kingdomLabor,kingdomMarket};
 }

@@ -1,6 +1,7 @@
 /** Autonomous Birth 0.5.0 — deterministic pacing avoids synchronized generation collapse. */
 import {LIFE,LIFE_STAGES,lifeStage} from './lifecycle.mjs?v=0.5.0';
 import {HISTORY_LIMITS,allPeople,retainedCount,retentionPlan} from './history.mjs?v=0.5.0';
+import {housingCapacity} from './housing.mjs?v=0.5.0';
 
 export const BIRTH_RULES=Object.freeze({
   foodCost:8,
@@ -15,7 +16,7 @@ export const BIRTH_RULES=Object.freeze({
 export const isAutonomousChild=a=>a?.parentId!==null&&a?.life?.ageAtAnchorYears===0;
 
 const living=s=>s.agents.filter(a=>a.alive);
-const capacity=s=>s.buildings.filter(b=>b.complete).length*6;
+const capacity=housingCapacity;
 const autoChildren=s=>allPeople(s).filter(isAutonomousChild);
 const lastTick=items=>items.length?Math.max(...items.map(a=>a.bornTick)):-Infinity;
 

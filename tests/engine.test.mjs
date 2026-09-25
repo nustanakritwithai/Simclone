@@ -16,11 +16,19 @@ test('cloning uses selected parent, inherits all skills and charges once',()=>{
 });
 test('invalid clone is atomic',()=>{const s=createWorld();s.stock.food=0;const before=serialize(s);assert.equal(command(s,'CLONE',{parentId:1}).ok,false);assert.equal(serialize(s),before);});
 test('housing capacity is enforced',()=>{const s=createWorld();s.stock.food=999;s.stock.wood=999;while(living(s).length<capacity(s))assert.equal(command(s,'CLONE',{parentId:1}).ok,true);assert.equal(command(s,'CLONE',{parentId:1}).ok,false);});
-test('construction finishes autonomously, increases housing, consumes once',()=>{
- const s=createWorld();const before=s.stock.wood;assert.equal(command(s,'BUILD',{x:14,y:11}).ok,true);assert.equal(s.stock.wood,before-12);
- assert.equal(command(s,'BUILD',{x:14,y:11}).ok,false);step(s,1200);assert.equal(s.buildings.at(-1).complete,true);assert.equal(capacity(s),18);assert.deepEqual(validate(s),[]);
+test('shelter construction is removed: BUILD is rejected at the engine with no mutation',()=>{
+ const s=createWorld(),before=serialize(s);const r=command(s,'BUILD',{x:14,y:11});
+ assert.equal(r.ok,false);assert.equal(r.reason,'shelter-removed');assert.equal(serialize(s),before);assert.equal(capacity(s),12);
 });
-test('water placement rejected with no mutation',()=>{const s=createWorld(),i=s.tiles.indexOf('water'),before=serialize(s);assert.equal(command(s,'BUILD',{x:i%30,y:Math.floor(i/30)}).ok,false);assert.equal(serialize(s),before);});
+test('water foundation placement rejected with no mutation',()=>{
+ const s=createWorld(),a=s.agents[0];let spot=null;
+ for(let i=0;i<s.tiles.length&&!spot;i++)if(s.tiles[i]==='water')for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const x=i%30+dx,y=Math.floor(i/30)+dy;if(walkable(s,x,y)){spot={water:{x:i%30,y:Math.floor(i/30)},x,y};break;}}
+ a.x=spot.x;a.y=spot.y;a.task=null;
+ s.rustPossessions.items.push({id:1,kind:'HAMMER',createdBy:a.id,createdTick:0,location:{kind:'bag',agentId:a.id}},{id:2,kind:'WOOD_FOUNDATION',createdBy:a.id,createdTick:0,location:{kind:'bag',agentId:a.id}});
+ s.rustPossessions.nextItem=3;s.rustPossessions.equipment.push({agentId:a.id,itemId:1});assert.deepEqual(validate(s),[]);
+ const before=serialize(s),r=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:2,socket:{type:'cell',...spot.water},placementId:'pl:0:1:2'});
+ assert.equal(r.ok,false);assert.equal(r.reason,'terrain');assert.equal(serialize(s),before);
+});
 test('pathfinding crosses bridge and never walks in water',()=>{const s=createWorld();const p=pathTo(s,{x:11,y:12},{x:27,y:12});assert.ok(p?.length);for(const v of p)assert.ok(walkable(s,v.x,v.y));});
 test('renderer is not needed to advance simulation',()=>{const s=createWorld();step(s,20);assert.equal(s.tick,20);assert.ok(s.agents.every(a=>a.trace.some(t=>t.status==='selected')));});
 test('bounded history and memory',()=>{const s=createWorld();step(s,50000);assert.ok(s.events.length<=120);assert.ok(s.agents.every(a=>a.memory.length<=8));assert.deepEqual(validate(s),[]);});

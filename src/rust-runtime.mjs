@@ -1,11 +1,14 @@
 import {ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
 import {createRustPossessions,queueCraft,advanceCraft,equipTool,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
-import {createRustStations,placeStationFromItem,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS} from './rust-stations.mjs?v=0.5.0';
+import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS} from './rust-stations.mjs?v=0.5.0';
+import {completedHouseIds} from './housing.mjs?v=0.5.0';
 import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
 export const RUST_RUNTIME_VERSION='RS1-RS4-integrated-0.2';
 export function ensureRustState(s){
   if(s.rustPossessions===undefined)s.rustPossessions=createRustPossessions();
   if(s.rustStations===undefined)s.rustStations=createRustStations();
+  // Single RS3-0.2 -> RS3-0.3 migration point (idempotent; RS3-0.3 is left untouched).
+  migrateRustStations(s.rustStations);
   if(s.rustMaterials===undefined)s.rustMaterials=createRustMaterials();
   return s;
 }
@@ -13,6 +16,9 @@ const msg=r=>({
   'actor-or-recipe':'เลือกคนที่มีชีวิตและสูตรที่ถูกต้อง','craft-busy':'คนนี้มีงานคราฟต์ค้างอยู่','bag-full':'กระเป๋าเต็ม','capacity':'พื้นที่เก็บของเต็ม',
   station:'ต้องมีสถานีที่ถูกต้อง','materials':'วัสดุไม่พอ','item':'ไม่พบของชิ้นนี้ในกระเป๋า','range':'ต้องอยู่ใกล้จุดใช้งาน',
   terrain:'วางสิ่งปลูกสร้างตรงนี้ไม่ได้','occupied':'ช่องนี้มีสิ่งอื่นอยู่แล้ว','actor-or-item':'เลือกคนและของที่จะวางให้ถูกต้อง',hammer:'ต้องสวมค้อนก่อนวางชิ้นส่วนอาคาร','foundation-ground':'ฐานไม้วางได้บนพื้นหญ้าเท่านั้น',support:'ชิ้นส่วนนี้ต้องต่อกับฐาน/ผนัง/กรอบประตูเดิม',
+  'socket-required':'ชิ้นส่วนนี้ต้องระบุช่องหรือขอบที่จะวาง','socket-shape':'ช่อง/ขอบที่ระบุไม่ตรงกับชนิดชิ้นส่วน','socket-occupied':'ตำแหน่งนี้มีชิ้นส่วนอยู่แล้ว',
+  'support-foundation':'ผนังและกรอบประตูต้องอยู่บนขอบของฐานไม้','support-roof':'หลังคาต้องอยู่บนฐานไม้ที่มีผนังอย่างน้อยหนึ่งด้าน',position:'ตำแหน่งอยู่นอกแผนที่',
+  'placement-id':'คำสั่งวางต้องมีรหัสคำสั่ง','placement-id-conflict':'รหัสคำสั่งนี้ถูกใช้กับการวางอื่นแล้ว','duplicate-item':'ของชิ้นนี้ถูกวางไปแล้ว',
   'busy-or-capacity':'คนนี้มีงานแปรรูปค้างอยู่หรือคิวเต็ม','not-authoritative':'กระบวนการนี้ยังไม่เปิด authority'
 }[r.reason]??'คำสั่ง Rust Survival ใช้ไม่ได้');
 export function rustCommand(s,type,data={},isWalkable){
@@ -20,7 +26,11 @@ export function rustCommand(s,type,data={},isWalkable){
   if(type==='CRAFT_ITEM')r=queueCraft(s,data);
   else if(type==='EQUIP_ITEM')r=equipTool(s,data.agentId,data.itemId);
   else if(type==='PICKUP_ITEM')r=pickupDroppedItem(s,data.agentId,data.itemId);
-  else if(type==='PLACE_STATION')r=placeStationFromItem(s,data,isWalkable);
+  else if(type==='PLACE_STATION'){
+    const before=completedHouseIds(s);r=placeStationFromItem(s,data,isWalkable);
+    // A house counts once: only the placement that turns it from incomplete to complete reports it.
+    if(r.ok&&!r.duplicate){const done=[...completedHouseIds(s)].find(id=>!before.has(id));if(done)r={...r,completedHouse:done};}
+  }
   else if(type==='PROCESS_CHARCOAL')r=queueProcessing(s,{...data,processId:'CHARCOAL'});
   else return null;
   if(!r.ok)return {...r,message:msg(r)};
@@ -28,6 +38,11 @@ export function rustCommand(s,type,data={},isWalkable){
     type==='EQUIP_ITEM'?'สวมอุปกรณ์แล้ว':type==='PICKUP_ITEM'?'เก็บของขึ้นกระเป๋าแล้ว':
     type==='PLACE_STATION'?'วางสิ่งปลูกสร้างสำเร็จ': 'รับงานเผาถ่านแล้ว · ไม้ถูกกันเข้า order';
   return {...r,message:text};
+}
+/** Read-only preview of the same validator the executor re-runs; no clone and no write. */
+export function placementPreview(s,data,isWalkable){
+  const r=canPlaceStation(s,data,isWalkable,{actor:true});
+  return r.ok?{...r,message:'วางได้ · ยังไม่ใช้ของ'}:{...r,message:msg(r)};
 }
 export function pendingRustWork(s,a){
   const craft=s.rustPossessions?.orders.find(o=>o.agentId===a.id);
@@ -67,7 +82,10 @@ export function validateRustState(s){
     for(const q of p.equipment)if(!alive.has(q.agentId)||!p.items.some(i=>i.id===q.itemId&&i.location?.kind==='bag'&&i.location.agentId===q.agentId&&ITEM_CATALOG[i.kind]?.category==='tool'))e.push('Rust equipment');
   }
   if(!rs||rs.version!==RUST_STATIONS_VERSION||!Number.isSafeInteger(rs.nextStation)||!Array.isArray(rs.stations)||rs.stations.length>STATION_LIMITS.maxStations)e.push('Rust stations');
-  else for(const st of rs.stations)if(!st||!Number.isSafeInteger(st.id)||!PLACEABLE_KINDS.includes(st.kind)||!Number.isInteger(st.x)||!Number.isInteger(st.y)||!people.has(st.placedBy))e.push('Rust station');
+  else{
+    for(const st of rs.stations)if(!st||!Number.isSafeInteger(st.id)||!PLACEABLE_KINDS.includes(st.kind)||!Number.isInteger(st.x)||!Number.isInteger(st.y)||!people.has(st.placedBy))e.push('Rust station');
+    e.push(...validateRustStations(s));
+  }
   if(!m||m.version!==RUST_MATERIALS_VERSION||!Number.isInteger(m.charcoal)||m.charcoal<0||m.charcoal>RUST_MATERIAL_LIMITS.charcoal||!Array.isArray(m.orders)||m.orders.length>RUST_MATERIAL_LIMITS.orders)e.push('Rust materials');
   else for(const o of m.orders)if(!o||!alive.has(o.agentId)||o.processId!=='CHARCOAL'||!stationAt(s,o.stationId)||!Number.isFinite(o.work)||o.work<0||!o.reserved)e.push('Rust process order');
   return [...new Set(e)];

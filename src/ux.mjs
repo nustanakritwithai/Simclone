@@ -69,13 +69,13 @@ const tabNames={about:'ตอนนี้',skills:'ทักษะ',why:'เห�
 function setText(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=value;}
 function replaceIfChanged(el,html){if(el.dataset.content!==html){const y=el.scrollTop;el.innerHTML=html;el.dataset.content=html;el.scrollTop=y;}}
 export function installUX(api){
- let expanded=false,identityKey='',tabKey='',candidate=null,lastPreview='',placement=null,railKey='',rosterFilter='all',historyFilter='all',rosterLimit=80,routeShadowKey='',routeShadow=null;
+ let expanded=false,identityKey='',tabKey='',railKey='',rosterFilter='all',historyFilter='all',rosterLimit=80,routeShadowKey='',routeShadow=null;
  const inspector=$('inspector'),stage=$('stage'),body=$('dialog-body');
  document.body.classList.add('ux-v2');
  document.body.dataset.knowledgeVersion='knowledge-continuity-1';
- const staticIcons={observe:'eye',clone:'clone',build:'home',rust:'hammer',roster:'people',history:'history',recenter:'focus'};
+ const staticIcons={observe:'eye',clone:'clone',rust:'hammer',roster:'people',history:'history',recenter:'focus'};
  for(const [id,key] of Object.entries(staticIcons)){const button=$(id);const span=button.querySelector('span');if(span)span.innerHTML=icon(key);else button.innerHTML=icon(key);}
- const navIcons={world:'eye',people:'people',clone:'clone',build:'home',rust:'hammer',history:'history'};
+ const navIcons={world:'eye',people:'people',clone:'clone',rust:'hammer',history:'history'};
  document.querySelectorAll('[data-nav]').forEach(b=>b.querySelector('span').innerHTML=icon(navIcons[b.dataset.nav]));
  const rustButton=$('rust'),rustNav=document.querySelector('[data-nav="rust"]');
  if(rustButton)rustButton.onclick=()=>openRust();
@@ -91,22 +91,10 @@ export function installUX(api){
  document.querySelectorAll('.resources>div').forEach((el,i)=>{el.querySelector('span').innerHTML=icon(resourceIcons[i]);});
  const rail=document.createElement('section');rail.id='people-rail';rail.className='people-rail';rail.setAttribute('aria-label','เลือกตัวละครอย่างรวดเร็ว');
  rail.innerHTML='<div class="rail-heading"><span>ผู้คนในโลกนี้</span><button id="all-people">ดูทั้งหมด →</button></div><div id="people-chips"></div>';stage.append(rail);
- const buildPanel=document.createElement('section');buildPanel.id='placement-panel';buildPanel.className='placement-panel';buildPanel.hidden=true;
- buildPanel.innerHTML=`<div class="placement-heading">${icon('home')}<div><b>บ้านพักใหม่</b><small>เพิ่มที่พัก 6 คนเมื่อสร้างเสร็จ</small></div><button id="cancel-placement" class="iconbtn" aria-label="ยกเลิกวางบ้าน">${icon('close')}</button></div><div class="placement-cost">${icon('wood')} ไม้ 12 <span>+</span> ${icon('stone')} หิน 6</div><p id="placement-status" role="status">แตะพื้นหญ้าเพื่อดูตำแหน่งก่อนสร้าง</p><div class="placement-actions"><button id="choose-position" class="secondary">ระบุช่อง</button><button id="confirm-placement" class="primary" disabled>ยืนยันตำแหน่ง</button></div>`;stage.append(buildPanel);
  const help=document.createElement('button');help.id='quick-help';help.className='quick-help';help.innerHTML=`${icon('help')}<span>เริ่มเล่นอย่างไร</span>`;help.onclick=openGuide;stage.append(help);
  const auto=document.createElement('button');auto.id='auto-start';auto.className='auto-start';auto.setAttribute('aria-live','polite');stage.append(auto);
  auto.onclick=()=>{const on=api.read().state.productionPlan?.enabled===true,result=api.execute('SET_PRODUCTION_POLICY',{enabled:!on});api.toast(result.message);if(result.ok)api.save();renderHUD();};
- $('all-people').onclick=()=>openRoster();$('cancel-placement').onclick=()=>api.observe();
- $('choose-position').onclick=()=>{
-  api.openDialog('เลือกตำแหน่งบ้าน','BUILD · GRID',`<p>ระบุช่องบนแผนที่เพื่อดูตัวอย่างก่อนยืนยัน ยังไม่ใช้ทรัพยากรในขั้นนี้</p><div class="grid-input"><label>X <input id="grid-x" type="number" min="0" max="29" value="${candidate?.x??14}"></label><label>Y <input id="grid-y" type="number" min="0" max="25" value="${candidate?.y??11}"></label></div><button id="preview-grid" class="primary">ดูตำแหน่งนี้</button>`);
-  $('preview-grid').onclick=()=>{const x=Number($('grid-x').value),y=Number($('grid-y').value);if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>29||y>25){api.toast('กรอก X 0–29 และ Y 0–25 เป็นจำนวนเต็ม');return;}api.closeDialog();choosePlacement({x,y});api.center({x,y});};
- };
- $('confirm-placement').onclick=()=>{
-  if(!candidate)return;
-  const result=api.execute('BUILD',candidate); // Authoritative validation happens again here.
-  api.toast(result.message);
-  if(result.ok){candidate=null;placement=null;api.observe();api.save();}else{lastPreview='';refreshPlacement();}
- };
+ $('all-people').onclick=()=>openRoster();
  rail.addEventListener('click',e=>{const b=e.target.closest('[data-quick-person]');if(b)api.select(Number(b.dataset.quickPerson),true);});
  inspector.addEventListener('click',e=>{
   const b=e.target.closest('[data-ux]');if(!b)return;
@@ -144,8 +132,12 @@ export function installUX(api){
   if(b.dataset.ux==='craft-item'){const result=api.execute('CRAFT_ITEM',{agentId:api.read().selected,recipeId:b.dataset.recipe});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='equip-item'){const result=api.execute('EQUIP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='place-station'){
-    const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive);let chosen=null;
-    if(a)for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1]]){const data={agentId:a.id,itemInstanceId:Number(b.dataset.item),x:a.x+dx,y:a.y+dy};if(api.preview('PLACE_STATION',data).ok){chosen=data;break;}}
+    const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive),itemId=Number(b.dataset.item),kind=s.rustPossessions?.items.find(i=>i.id===itemId)?.kind;let chosen=null;
+    // Deterministic placement id (pl:<tick>:<agent>:<item>); the engine validator decides every candidate.
+    const base=a&&{agentId:a.id,itemInstanceId:itemId,placementId:'pl:'+s.tick+':'+a.id+':'+itemId},near=a?[[0,0],[1,0],[0,1],[-1,0],[0,-1]].map(([dx,dy])=>({x:a.x+dx,y:a.y+dy})):[];
+    const options=!a?[]:['WOOD_WALL','WOOD_DOORWAY'].includes(kind)?near.flatMap(c=>[{type:'edge',x:c.x,y:c.y,side:'N'},{type:'edge',x:c.x,y:c.y,side:'W'},{type:'edge',x:c.x,y:c.y+1,side:'N'},{type:'edge',x:c.x+1,y:c.y,side:'W'}]).map(socket=>({...base,socket})):
+      kind==='WOOD_ROOF'?near.map(c=>({...base,socket:{type:'cell',x:c.x,y:c.y}})):near.slice(1).map(c=>({...base,...c}));
+    for(const data of options)if(api.preview('PLACE_STATION',data).ok){chosen=data;break;}
     const result=chosen?api.execute('PLACE_STATION',chosen):{ok:false,message:'ไม่มีช่องว่างติดตัวที่ผ่านกฎการวาง'};api.toast(result.message);if(result.ok){api.save();openSurvival();}
   }
   if(b.dataset.ux==='process-charcoal'){
@@ -160,15 +152,6 @@ export function installUX(api){
   if(b.dataset.ux==='choose-parent')openRoster();
  });
  $('dialog').addEventListener('close',renderHUD);
- function choosePlacement(p){candidate={...p};lastPreview='';refreshPlacement();api.setGhost(candidate);}
- function refreshPlacement(){
-  if(!candidate){placement=null;setText('placement-status','แตะพื้นหญ้าเพื่อดูตำแหน่งก่อนสร้าง');$('confirm-placement').disabled=true;return;}
-  const s=api.read().state,key=JSON.stringify([candidate,s.stock,s.buildings.length]);
-  if(key!==lastPreview){placement=api.preview('BUILD',candidate);lastPreview=key;}
-  buildPanel.classList.toggle('invalid',!placement.ok);
-  setText('placement-status',placement.ok?`ช่อง ${candidate.x}, ${candidate.y} · วางได้ ยังไม่ใช้ทรัพยากร`:placement.message);
-  $('confirm-placement').disabled=!placement.ok;
- }
  function renderInspector(){
   const {state:s,selected,tab,follow}=api.read(),a=findPerson(s,selected);
   inspector.hidden=!a;document.body.classList.toggle('has-selection',!!a);
@@ -253,19 +236,17 @@ export function installUX(api){
    scroller.innerHTML=agents.map(a=>`<button data-quick-person="${a.id}" class="person-chip" aria-label="เลือก ${escape(a.name)} รุ่น ${a.generation}">${api.portrait(a)}<span>${escape(a.name)}</span></button>`).join('');scroller.scrollLeft=x;
   }
   for(const b of rail.querySelectorAll('[data-quick-person]')){const active=Number(b.dataset.quickPerson)===selected;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));}
-  const building=mode==='build';buildPanel.hidden=!building;rail.hidden=building;document.body.classList.toggle('is-building',building);
-  if(!building){candidate=null;placement=null;lastPreview='';}else refreshPlacement();
-  $('quick-help').hidden=building||selected!==null;
+  $('quick-help').hidden=selected!==null;
   const auto=$('auto-start'),autoOn=s.productionPlan?.enabled===true;
-  auto.hidden=building||selected!==null;
+  auto.hidden=selected!==null;
   auto.classList.toggle('is-on',autoOn);
   auto.textContent=autoOn?'✓ Clone กำลังสร้างบ้าน + ทำของ':'▶ เริ่มสร้างบ้าน + ทำของอัตโนมัติ';
   auto.setAttribute('aria-pressed',String(autoOn));
-  $('pause').setAttribute('aria-pressed',String(paused));$('observe').setAttribute('aria-pressed',String(!building));$('build').setAttribute('aria-pressed',String(building));
+  $('pause').setAttribute('aria-pressed',String(paused));$('observe').setAttribute('aria-pressed','true');
   const h=$('world-status');h.textContent=$('dialog').open?'หยุดเวลา · กำลังดูข้อมูล':paused?'หยุดเวลา · กด ▶ เพื่อเดินต่อ':'โลกกำลังดำเนินไปด้วยตัวเอง';
   document.body.classList.toggle('is-paused',paused||$('dialog').open);
   const modal=$('dialog').open,kind=$('dialog').dataset.kind;
-  for(const b of document.querySelectorAll('[data-nav]')){const active=b.dataset.nav===(modal&&kind==='people'?'people':modal&&kind==='history'?'history':building?'build':'world');b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');}
+  for(const b of document.querySelectorAll('[data-nav]')){const active=b.dataset.nav===(modal&&kind==='people'?'people':modal&&kind==='history'?'history':'world');b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');}
  }
  function openRoster(){rosterFilter='all';rosterLimit=80;api.openDialog('ทุกคนเริ่มเหมือนกัน แต่ไม่เหมือนเดิม','PEOPLE · '+living(api.read().state).length+' คน',`<div class="search-control">${icon('search')}<label class="sr-only" for="people-search">ค้นหาชื่อ</label><input id="people-search" type="search" placeholder="ค้นหาชื่อ เช่น Kira" autocomplete="off"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['hungry','ความอิ่มต่ำ'],['children','รุ่น 2 ขึ้นไป'],['archived','คลังประวัติ']].map(([id,t])=>`<button data-roster-filter="${id}">${t}</button>`).join('')}</div><p id="roster-count" class="list-count"></p><div id="roster-list"></div>`);$('dialog').dataset.kind='people';renderRosterList();renderHUD();}
  function renderRosterList(){if(!$('roster-list'))return;const q=$('people-search').value.toLocaleLowerCase(),s=api.read().state;
@@ -342,6 +323,6 @@ export function installUX(api){
     <p class="source-note">เงื่อนไขเกิดเอง: ที่พักต้องว่าง · ต้องมีผู้ใหญ่พร้อม · อาหารว่างต้องพอจ่าย 8 แล้วยังเหลือถึงเป้ารุ่นถัดไป · ไม้จ่าย 4 แล้วยังเหลืออย่างน้อย 12 · เว้นการเกิดอย่างน้อย ${BIRTH_RULES.globalIntervalYears} ปีจำลอง และ parent คนเดิมพัก ${BIRTH_RULES.parentCooldownYears} ปี<br>ช่วงวัยทำงานแล้ว: เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัยทำงานผลิตที่ 75% · อายุขัย derive 78–92 ปีและเสียชีวิตตามวัยแบบ deterministic</p>`);
   $('dialog').dataset.kind='survival';
  }
- function openGuide(){api.openDialog('เริ่มจากการรู้จักคนหนึ่งคน','OBSERVE → UNDERSTAND → INFLUENCE',`<div class="guide-step"><span>01</span><div><b>แตะหน้า เลือกคน</b><p>ใช้แถวตัวละครด้านล่าง หรือแตะคนในโลก การ์ดย่อจะบอกว่ากำลังทำอะไร โดยไม่บังแผนที่</p></div></div><div class="guide-step"><span>02</span><div><b>ถามว่า “ทำไม?”</b><p>ดูคะแนนงานจริง หรือเปิดทักษะเพื่อดูสิ่งที่เขาเรียนรู้มาต่างจากคนอื่น</p></div></div><div class="guide-step"><span>03</span><div><b>สร้างเงื่อนไขให้ชีวิตใหม่</b><p>เลือกต้นแบบก่อนโคลน หรือเลือกจุดวางบ้าน ตรวจตัวอย่าง แล้วค่อยยืนยันหักวัสดุ</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างนี้หยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">เริ่มสังเกตโลก</button></div>`);$('dialog').dataset.kind='guide';}
- return {renderInspector,renderHUD,openRoster,openHistory,openClone,openRust,openSurvival,choosePlacement,getPlacement:()=>candidate?{...candidate,ok:placement?.ok===true}:null};
+ function openGuide(){api.openDialog('เริ่มจากการรู้จักคนหนึ่งคน','OBSERVE → UNDERSTAND → INFLUENCE',`<div class="guide-step"><span>01</span><div><b>แตะหน้า เลือกคน</b><p>ใช้แถวตัวละครด้านล่าง หรือแตะคนในโลก การ์ดย่อจะบอกว่ากำลังทำอะไร โดยไม่บังแผนที่</p></div></div><div class="guide-step"><span>02</span><div><b>ถามว่า “ทำไม?”</b><p>ดูคะแนนงานจริง หรือเปิดทักษะเพื่อดูสิ่งที่เขาเรียนรู้มาต่างจากคนอื่น</p></div></div><div class="guide-step"><span>03</span><div><b>สร้างเงื่อนไขให้ชีวิตใหม่</b><p>เลือกต้นแบบก่อนโคลน ตรวจตัวอย่าง แล้วค่อยยืนยันหักวัสดุ</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างนี้หยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">เริ่มสังเกตโลก</button></div>`);$('dialog').dataset.kind='guide';}
+ return {renderInspector,renderHUD,openRoster,openHistory,openClone,openRust,openSurvival};
 }
