@@ -73,6 +73,11 @@ with sync_playwright() as p:
  lifepage=b.new_page(viewport={'width':1440,'height':1000});boot(lifepage,json.dumps(life_saved,ensure_ascii=False));paused(lifepage)
  life_fx=lifepage.evaluate('simclone.worldFeedback().lifeBursts')
  check('recent birth event becomes a bounded world burst',any(x['eventId']==life_event_id and x['type']=='birth' and x['agentId']==3 for x in life_fx))
+ achievement_saved=json.loads(saved);achievement_event_id=achievement_saved['nextEvent'];achievement_saved['nextEvent']+=1
+ achievement_saved['events'].append({'id':achievement_event_id,'tick':achievement_saved['tick'],'type':'skill','text':'Nira พัฒนาทักษะ','agentId':2})
+ achievementpage=b.new_page(viewport={'width':1440,'height':1000});boot(achievementpage,json.dumps(achievement_saved,ensure_ascii=False));paused(achievementpage)
+ achievement_fx=achievementpage.evaluate('simclone.worldFeedback().achievementBursts')
+ check('skill completion event becomes a bounded achievement burst',any(x['eventId']==achievement_event_id and x['type']=='skill' and x['agentId']==2 for x in achievement_fx))
  lifepage.screenshot(path=str(OUT/'desktop-birth-burst.png'))
  feedbackpage.screenshot(path=str(OUT/'desktop-world-feedback.png'))
  speech_saved=json.loads(saved);speech_event_id=speech_saved['nextEvent'];speech_saved['nextEvent']+=1
@@ -133,6 +138,10 @@ with sync_playwright() as p:
  check('recent event fallback is icon-only rather than paragraph-first',m.locator('#recent-events .diegetic-event-chip').count()>=1 and m.locator('#recent-events .diegetic-event-chip p').count()==0 and all(m.locator('#recent-events .diegetic-event-chip').nth(i).get_attribute('aria-label') for i in range(m.locator('#recent-events .diegetic-event-chip').count())))
  check('fresh world surfaces recent AI decisions transiently without selecting a clone',len(m.evaluate('simclone.worldFeedback().agents'))>=1)
  check('mobile diegetic UI caps simultaneous world bubbles',len(m.evaluate('simclone.worldFeedback().bubbles'))<=3)
+ need_saved=json.loads(saved);need_actor=next(a for a in need_saved['agents'] if a['id']==2);need_actor['satiety']=90;need_actor['hp']=100;need_actor['energy']=5
+ needpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(needpage,json.dumps(need_saved,ensure_ascii=False));paused(needpage)
+ need_bubbles=needpage.evaluate('simclone.worldFeedback().bubbles')
+ check('low energy becomes a factual need thought cue without inventing emotion',any(x['agentId']==2 and x['kind']=='thought' and x.get('need')=='energy' and x['label']=='เพลีย' for x in need_bubbles))
  check('systems replaces manual clone in primary mobile navigation',m.locator('[data-nav="systems"]').count()==1 and m.locator('[data-nav="clone"]').count()==0)
  check('world keeps one compact AI autonomy decision surface',m.locator('#autonomy-status').is_visible() and 'AI AUTONOMY' in m.locator('#autonomy-status').inner_text())
  m.locator('#autonomy-status').tap()
