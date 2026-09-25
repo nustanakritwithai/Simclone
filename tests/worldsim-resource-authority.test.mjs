@@ -6,7 +6,9 @@ import {createResourceEcologyShadow} from '../src/worldsim-resource-shadow.mjs?v
 import {
   RESOURCE_REGEN_AUTHORITY,
   FOOD_ECOLOGY_POLICY,
+  WOOD_ECOLOGY_POLICY,
   foodEcologyIncrement,
+  woodEcologyIncrement,
   applyWorldResourceRegeneration
 } from '../src/worldsim-resource-authority.mjs';
 
@@ -20,29 +22,34 @@ function fixture(tick){
   return s;
 }
 
-test('WM4.5 keeps one WorldSim writer and changes food policy only',()=>{
-  assert.equal(RESOURCE_REGEN_AUTHORITY.writer,'worldsim-wm4.5');
-  assert.equal(RESOURCE_REGEN_AUTHORITY.behavior,'ecology-food-v1');
+test('WM4.6 keeps one WorldSim writer and changes wood policy only after food',()=>{
+  assert.equal(RESOURCE_REGEN_AUTHORITY.writer,'worldsim-wm4.6');
+  assert.equal(RESOURCE_REGEN_AUTHORITY.behavior,'ecology-food-wood-v1');
   assert.equal(RESOURCE_REGEN_AUTHORITY.food,K6_RESOURCE_REGEN.food);
   assert.equal(RESOURCE_REGEN_AUTHORITY.wood,K6_RESOURCE_REGEN.wood);
   assert.equal(RESOURCE_REGEN_AUTHORITY.stone,K6_RESOURCE_REGEN.stone);
   assert.equal(RESOURCE_REGEN_AUTHORITY.foodPolicy,FOOD_ECOLOGY_POLICY);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.woodPolicy,WOOD_ECOLOGY_POLICY);
   assert.equal(RESOURCE_REGEN_AUTHORITY.wood.amount,1);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.wood.periodTicks,720);
   assert.equal(RESOURCE_REGEN_AUTHORITY.stone.amount,0);
 });
 
-test('selected conservative formula has locked absolute thresholds',()=>{
-  const samples=[
+test('selected conservative formulas have locked absolute thresholds',()=>{
+  const foodSamples=[
     [0,0],[.0029,0],[.003,1],[.0099,1],[.01,2],[.0249,2],[.025,3],[1,3]
   ];
-  for(const [potential,expected] of samples)assert.equal(foodEcologyIncrement(potential),expected);
+  for(const [potential,expected] of foodSamples)assert.equal(foodEcologyIncrement(potential),expected);
   for(const bad of [-.01,1.01,NaN,Infinity,null])assert.throws(()=>foodEcologyIncrement(bad));
+  const woodSamples=[[0,0],[.0799,0],[.08,1],[.34,1],[1,1]];
+  for(const [potential,expected] of woodSamples)assert.equal(woodEcologyIncrement(potential),expected);
+  for(const bad of [-.01,1.01,NaN,Infinity,null])assert.throws(()=>woodEcologyIncrement(bad));
 });
 
 test('legacy reference mode still matches historical K6 oracle',()=>{
   for(const tick of [1,119,120,239,240,719,720,721,1439,1440]){
     const a=fixture(tick),b=structuredClone(a);
-    applyWorldResourceRegeneration(a,{foodMode:'legacy'});legacyOracle(b);
+    applyWorldResourceRegeneration(a,{foodMode:'legacy',woodMode:'legacy'});legacyOracle(b);
     assert.deepEqual(a.nodes,b.nodes,'tick '+tick);
   }
 });
@@ -61,11 +68,29 @@ test('ecology mode maps each depleted food node from authoritative vegetation ev
   assert.ok(food.some(n=>n.amount>0),'candidate must retain renewable food');
 });
 
-test('wood stays +1/720 and stone stays finite under WM4.5',()=>{
+test('wood maps each depleted node from woodYieldPotential and stone stays finite',()=>{
   const s=createWorld(77);s.tick=720;for(const n of s.nodes)n.amount=0;
+  const ecology=createResourceEcologyShadow(s);
+  const expected=new Map(s.nodes.filter(n=>n.type==='wood').map(n=>[
+    n.id,woodEcologyIncrement(ecology.cells[n.y*30+n.x].woodYieldPotential)
+  ]));
   applyWorldResourceRegeneration(s);
-  assert.ok(s.nodes.filter(n=>n.type==='wood').every(n=>n.amount===1));
+  const wood=s.nodes.filter(n=>n.type==='wood');
+  assert.ok(wood.length>0);
+  for(const n of wood)assert.equal(n.amount,expected.get(n.id));
+  assert.ok(wood.every(n=>n.amount===0||n.amount===1));
   assert.ok(s.nodes.filter(n=>n.type==='stone').every(n=>n.amount===0));
+});
+
+test('food ecology is unchanged when wood ecology runs on the same tick',()=>{
+  const a=createWorld(42),b=createWorld(42);
+  a.tick=b.tick=720;for(const s of [a,b])for(const n of s.nodes)n.amount=0;
+  applyWorldResourceRegeneration(a,{foodMode:'ecology',woodMode:'legacy'});
+  applyWorldResourceRegeneration(b,{foodMode:'ecology',woodMode:'ecology'});
+  assert.deepEqual(
+    a.nodes.filter(n=>n.type==='food').map(n=>[n.id,n.amount]),
+    b.nodes.filter(n=>n.type==='food').map(n=>[n.id,n.amount])
+  );
 });
 
 test('engine defaults to ecology authority while legacy mode is test-only A/B reference',()=>{
