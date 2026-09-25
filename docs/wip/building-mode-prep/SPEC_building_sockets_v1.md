@@ -1,10 +1,11 @@
 # SPEC — Building Sockets v1 (Modular House เป็นระบบก่อสร้างเดียว)
 
 - Repo: `github.com/nustanakritwithai/Simclone`
-- Base: `main` @ `304469895e69124c18a086c4989366e821b825f7` (ตรวจซ้ำ 25 ก.ย. 2026 19:24 น. เวลาไทย หลัง merge PR #65 WM4.6; merge commit คือ SHA นี้)
-- สถานะเอกสาร: **DESIGN SPEC เท่านั้น** ยังไม่มีโค้ด ไม่มี branch และไม่มี PR ทุกเลขบรรทัดอ้างอิงที่ `30446989` ยกเว้นที่ระบุชัดว่าเป็น baseline เก่า
-- งานนี้อ่านอย่างเดียว: อ่านไฟล์ผ่าน `gh api .../contents?ref=30446989` แล้วเทียบกับ draft ที่อ้าง `9799a6ac` ไม่ได้ clone และไม่ได้เขียนอะไรกลับ repo
-- สิ่งที่ขยับจาก `9799a6ac` → `30446989` ในไฟล์ที่สเปกอ้าง: เปลี่ยนแค่ `src/engine.mjs` (บรรทัดเดียว ส่ง `woodMode` เข้า regen, จำนวนบรรทัดเดิม 474 จึงเลขอ้างอิงอื่นในไฟล์นี้ยังตรง) และ `src/worldsim-resource-authority.mjs` (WM4.6 wood ecology ทำให้ `ecologySignature` เลื่อนจาก 31–37 เป็น 39–44) ไฟล์อื่นที่สเปกอ้าง blob เดิมทั้งหมด
+- Base: `main` @ `4b3585cc67a5922d735207912f85971d076e2367` (ตรวจซ้ำ 25 ก.ย. 2026 20:28 น. เวลาไทย หลัง merge PR #67 Remove Shelter + RP1 modular 1×1; merge commit คือ SHA นี้; parent ของ merge คือ `304469895e69124c18a086c4989366e821b825f7`)
+- สถานะเอกสาร: **phase (a) ของ §10 ลง `main` แล้วผ่าน PR #67** (Shelter/`BUILD` ใหม่ถูกถอด, RP1 วางบ้าน modular 1×1, `src/housing.mjs` เป็นนิยาม capacity เดียว, `RS3-0.3`). งานที่เหลือตามลำดับ: **(b) Building Mode = ghost + หมุน** → (c) Structural Snap → (d) P3 HP/ซ่อม/ลบ — ส่วนนี้ยังเป็น DESIGN ไม่มี PR
+- งานนี้อ่านอย่างเดียว: อ่านไฟล์ผ่าน `gh api .../contents?ref=4b3585cc` ไม่ได้ clone และไม่ได้เขียนอะไรกลับ repo
+- §0 ด้านล่างยังเป็น snapshot **ก่อน #67** ที่ `30446989` (คงไว้เป็นหลักฐาน discovery) เลขอ้างอิงที่ชี้โค้ดหลัง #67 ใช้ `4b3585c` ตามบล็อก "จุดอ้างอิงหลัง merge PR #67" ด้านล่าง
+- สิ่งที่ขยับจาก `30446989` → `4b3585c` ในไฟล์ที่สเปกอ้าง (สรุปเลขที่ยังใช้ต่อใน phase b/c): `src/housing.mjs` **ไฟล์ใหม่** 120 บรรทัด (`MODULAR_HOUSE_RULES` 7–15, `evaluateModularHouses` 31, `housingCapacity` 67–70, `nextHousePiece` 102, `pendingPlacements` 111); `src/engine.mjs` 474→498 (`SIZE` 29→32, `capacity` จากสูตร `*6` บรรทัด 100 เป็น `housingCapacity` บรรทัด 104, `command` 106→109, `BUILD` ใหม่คืน `shelter-removed` บรรทัด 162, `stepProductionPlanning` 298→322, `migrateSave` 443→467, `restore` 470→494); `src/rust-stations.mjs` →210 บรรทัด (`RS3-0.3` บรรทัด 2, `maxStations:64` บรรทัด 3, `equippedHammer` 18, `STRUCTURE_KINDS` 22, `hasSupport`/`SUPPORT_KINDS` หาย, `canonicalEdge` 37, `canPlaceStation` 25–38→75, `validatePlacement` 128, `placeStationFromItem` 39→137); `src/rust-runtime.mjs` (`msg` 15–22, `rustCommand` 18→24, `validateRustState` ยัง 69); `src/app.mjs` 270 บรรทัด (`preview`/`execute` 268–269→261–262, ghost ทอง Shelter บรรทัด 170 **หาย**, `worldPoint`/`rustStation`/`hw` ยัง 157/101/13); `src/ux.mjs` (`place-station` 146–150→134–141, panel "บ้านพักใหม่"/`choosePlacement` BUILD **หาย**); `src/production-planning.mjs` (`PRODUCTION_RULES` 10→13 ไม่มี `houseWood`/`houseStone`, `needsHouse` 30, `stepHousePlan` 89 หลัง charcoal); `src/reproduction.mjs` (`capacity=housingCapacity` 19); `src/survival.mjs` (`BUILD`+placement 68, `housingCapacity` ใน summary ~138); `ecologySignature` ใน `worldsim-resource-authority.mjs` **ยัง 39–44**
 - กติกาที่ต้องรักษา (AGENTS.md): engine ห้ามใช้ `Math.random`/`Date` ห้ามแตะ DOM, UI ส่งได้แค่ command ที่ผ่าน validate, แต่ละ state มี writer/executor เดียว, **ห้ามเพิ่ม material ledger ซ้ำ**, material ถูก commit ครั้งเดียวตอน accept, save เดิมต้องเปิดได้ (เปลี่ยน version ต้องมี migration หรือปฏิเสธอย่างชัดเจน) และ UNKNOWN ไม่นับเป็น PASS
 
 การตัดสินใจของผู้ใช้: **Modular (WOOD_FOUNDATION/WALL/DOORWAY/ROOF) จะเป็นระบบก่อสร้างเดียว และระบบ Shelter/`BUILD` เดิมจะถูกถอดออก**
@@ -22,7 +23,22 @@
 7. เพิ่มกติกา `placementId` ที่ executor รับ string ใดก็ได้ และ open follow-up เรื่อง `agentId` ใน conflict payload
 8. ระบุว่า phase (a) ถอด Shelter UI โดยไม่มี UI ทดแทน และ ui-smoke ต้องเช็คว่า panel หาย
 
-## 0. สิ่งที่พบในโค้ด (อ้างอิงที่ 30446989)
+## จุดอ้างอิงหลัง merge PR #67 (`4b3585c`) — ใช้ตอนทำ phase (b)/(c)
+| สิ่งที่ใช้ต่อ | ที่อยู่บน `main` ตอนนี้ |
+|---|---|
+| นิยามบ้าน/capacity เดียว | `src/housing.mjs` บรรทัด 7–15 `MODULAR_HOUSE_RULES`; 31 `evaluateModularHouses` (component >4 ช่อง → `reason:'too-large'`); 67–70 `housingCapacity`; 102 `nextHousePiece` |
+| `capacity` export | `src/engine.mjs` บรรทัด 104 `export const capacity = housingCapacity` |
+| ห้ามสร้าง Shelter ใหม่ | `src/engine.mjs` บรรทัด 162 `BUILD` → `{ok:false,reason:'shelter-removed'}` |
+| Validator / executor | `src/rust-stations.mjs` บรรทัด 75 `canPlaceStation` (= `validatePlacement` 128); 137 `placeStationFromItem`; version `RS3-0.3` บรรทัด 2; `maxStations:64` บรรทัด 3 |
+| reason ภาษาไทย | `src/rust-runtime.mjs` บรรทัด 15–22; `rustCommand` บรรทัด 24 |
+| preview / execute (ยัง clone อยู่) | `src/app.mjs` บรรทัด 261–262 — phase (b) ต้องเปลี่ยน `PLACE_STATION` ให้เรียก validator ตรงๆ ตาม §2.3 |
+| ปุ่มวางข้างตัว (ยังไม่มี ghost) | `src/ux.mjs` บรรทัด 134–141 `place-station` — phase (b) เปลี่ยนเป็น Building Mode ตาม §2.3 / §10 |
+| RP1 บ้าน modular | `src/production-planning.mjs` บรรทัด 89 `stepHousePlan` (หลัง charcoal); `needsHouse` บรรทัด 30 |
+| ecologySignature | `src/worldsim-resource-authority.mjs` บรรทัด 39–44 (ไม่ขยับจากหลัง #65) |
+
+---
+
+## 0. สิ่งที่พบในโค้ด (snapshot ก่อน PR #67 — อ้างอิงที่ `30446989`; หลัง merge ดูบล็อกด้านบน)
 
 ### 0.1 จุด validate และ execute การวางชิ้น modular
 | สิ่งที่ดู | ที่อยู่ในโค้ด |
