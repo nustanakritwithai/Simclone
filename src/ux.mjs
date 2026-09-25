@@ -65,7 +65,7 @@ function rustPanel(s,api){
  const equipped=s.rustPossessions?.equipment?.find(e=>e.agentId===actor.id)?.itemId??null;
  const craft=s.rustPossessions?.orders?.find(o=>o.agentId===actor.id),process=s.rustMaterials?.orders?.find(o=>o.agentId===actor.id);
  const drops=items.filter(i=>i.location?.kind==='drop'&&Math.abs(actor.x-i.location.x)+Math.abs(actor.y-i.location.y)<=1);
- const recipes=Object.values(RECIPE_CATALOG).map(r=>{const item=ITEM_CATALOG[r.output],cost=Object.entries(r.materials).map(([k,n])=>(k==='wood'?'🪵':'◆')+n).join(' ');return '<button class="visual-recipe-card secondary" data-ux="craft-item" data-recipe="'+r.id+'" '+(craft||process?'disabled':'')+' aria-label="คราฟต์ '+escape(item.name)+'">'+visualToken(itemIconKind(item.id))+'<b>'+escape(item.name)+'</b><small>'+cost+'</small></button>';}).join('');
+ const recipes=Object.values(RECIPE_CATALOG).filter(r=>r.station==='HAND').map(r=>{const item=ITEM_CATALOG[r.output],cost=Object.entries(r.materials).map(([k,n])=>(k==='wood'?'🪵':'◆')+n).join(' ');return '<button class="visual-recipe-card secondary" data-ux="craft-item" data-recipe="'+r.id+'" '+(craft||process?'disabled':'')+' aria-label="คราฟต์ '+escape(item.name)+'">'+visualToken(itemIconKind(item.id))+'<b>'+escape(item.name)+'</b><small>'+cost+'</small></button>';}).join('');
  const bagHtml=bag.length?menuSection('bag','กระเป๋า','<div class="visual-inventory-grid rust-bag-grid">'+bag.map(i=>{const def=ITEM_CATALOG[i.kind],isTool=def?.category==='tool',action=isTool?(equipped===i.id?'<button class="icon-action secondary" data-ux="unequip-item" aria-label="ถอด '+escape(def?.name??i.kind)+'">'+icon('close')+'</button>':'<button class="icon-action secondary" data-ux="equip-item" data-item="'+i.id+'" aria-label="สวม '+escape(def?.name??i.kind)+'">'+icon('bolt')+'</button>'):'<button class="icon-action secondary" data-ux="place-station" data-item="'+i.id+'" aria-label="วาง '+escape(def?.name??i.kind)+'">'+icon('focus')+'</button>';return '<div class="visual-inventory-slot" data-item-id="'+i.id+'">'+visualToken(itemIconKind(i.kind))+'<b>'+escape(def?.name??i.kind)+'</b><small>#'+i.id+'</small>'+action+'</div>';}).join('')+'</div>',{badge:bag.length+'/4'}):'';
  const dropHtml=drops.length?menuSection('map','ของตกใกล้ตัว','<div class="visual-action-grid">'+drops.map(i=>'<button class="visual-recipe-card secondary" data-ux="pickup-rust" data-item="'+i.id+'" aria-label="เก็บ '+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+'">'+visualToken(itemIconKind(i.kind))+'<b>'+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+'</b><small>#'+i.id+'</small></button>').join('')+'</div>',{badge:drops.length+' ชิ้น'}):'';
  const equippedItem=bag.find(i=>i.id===equipped);
@@ -73,8 +73,8 @@ function rustPanel(s,api){
  return '<section class="menu-hero rust-menu-hero">'+api.portrait(actor)+'<div><small>RUST SURVIVAL</small><h3>'+escape(actor.name)+'</h3><span>'+bag.length+'/4 🎒 · '+(equippedItem?escape(ITEM_CATALOG[equippedItem.kind]?.name??equippedItem.kind):'มือว่าง')+'</span></div></section>'+
  '<div class="menu-metrics">'+menuMetric('fire','ถ่าน',s.rustMaterials?.charcoal??0)+menuMetric('hammer','สถานี',s.rustStations?.stations?.length??0)+menuMetric('bag','ของ',bag.length)+menuMetric('brain','RP1',plan?.enabled?'ON':'OFF',plan?.enabled?'live':'')+'</div>'+
  (craft||process?'<section class="menu-progress"><span>'+visualToken(craft?'hammer':'fire')+'</span><div><small>งานปัจจุบัน</small><b>'+(craft?escape(ITEM_CATALOG[RECIPE_CATALOG[craft.recipe]?.output]?.name??craft.recipe):'Charcoal')+'</b><div class="menu-progress-bar"><i style="width:'+Math.min(100,Math.round(((craft?.work??process?.work??0)/(craft?.required??process?.required??1))*100))+'%"></i></div></div></section>':'')+
- '<div class="menu-primary-actions"><button class="secondary visual-policy-action" data-ux="production-policy" data-enabled="'+(!plan?.enabled)+'">'+icon(plan?.enabled?'close':'brain')+'<span>'+(plan?.enabled?'หยุด RP1':'เปิด RP1')+'</span></button><button class="secondary visual-policy-action" data-ux="process-charcoal" '+(craft||process?'disabled':'')+'>'+icon('fire')+'<span>Charcoal</span></button></div>'+
- menuSection('hammer','สูตรคราฟต์','<div class="visual-action-grid">'+recipes+'</div>',{open:true,badge:Object.keys(RECIPE_CATALOG).length+' สูตร'})+
+ '<div class="menu-primary-actions"><button class="secondary visual-policy-action" data-ux="production-policy" data-enabled="'+(!plan?.enabled)+'">'+icon(plan?.enabled?'close':'brain')+'<span>'+(plan?.enabled?'หยุด RP1':'เปิด RP1')+'</span></button></div>'+
+ menuSection('hammer','คราฟต์ด้วยมือ','<div class="visual-action-grid">'+recipes+'</div>',{open:true,badge:Object.values(RECIPE_CATALOG).filter(r=>r.station==='HAND').length+' สูตร'})+
  bagHtml+dropHtml+
  rustCatalog(s)+
  '<details class="menu-explain"><summary>กฎการผลิต</summary><p>วัสดุ commit เข้า order ตอนรับงาน · งานเดินตาม tick จริง · hunger/energy interrupt ได้ · Axe/Pickaxe เร่งงาน ×1.25 · Hammer ใช้วางชิ้นส่วนอาคาร</p><small>'+(goal?escape(goal.goal+' · '+goal.outcome):'ยังไม่มีแผนล่าสุด')+'</small></details>';
@@ -158,8 +158,8 @@ export function installUX(api){
  });
  body.addEventListener('input',e=>{if(e.target.id==='people-search'){rosterLimit=80;renderRosterList();}if(e.target.id==='story-search')renderHistoryList();});
  body.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
-  if(b.dataset.ux==='create-archive'){const result=api.execute('CREATE_ARCHIVE');api.toast(result.message);if(result.ok){api.save();openSurvival();}}
-  if(b.dataset.ux==='culture-automation'){const result=api.execute('SET_CULTURE_AUTOMATION',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='create-archive'){const result=api.execute('CREATE_ARCHIVE');api.toast(result.message);if(result.ok){api.save();const id=Number(($('dialog').dataset.structure??'').split(':')[1]);openStructure({type:'building',id});}}
+  if(b.dataset.ux==='culture-automation'){const result=api.execute('SET_CULTURE_AUTOMATION',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();const id=Number(($('dialog').dataset.structure??'').split(':')[1]);openStructure({type:'building',id});}}
   if(b.dataset.ux==='read-archive'){const result=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.key});api.toast(result.message);if(result.ok)api.save();}
   if(b.dataset.ux==='planning-policy'){const result=api.execute('SET_PLANNING_POLICY',{policy:b.dataset.policy});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='production-policy'){const result=api.execute('SET_PRODUCTION_POLICY',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
@@ -176,9 +176,9 @@ export function installUX(api){
     const result=chosen?api.execute('PLACE_STATION',chosen):{ok:false,message:'ไม่มีช่องว่างติดตัวที่ผ่านกฎการวาง'};api.toast(result.message);if(result.ok){api.save();openSurvival();}
   }
   if(b.dataset.ux==='process-charcoal'){
-    const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive),dist=st=>a?Math.abs(a.x-st.x)+Math.abs(a.y-st.y):Infinity;
-    const st=a?(s.rustStations?.stations??[]).filter(x=>x.complete&&x.kind==='FURNACE').sort((x,y)=>dist(x)-dist(y)||x.id-y.id)[0]:null;
-    const result=st?api.execute('PROCESS_CHARCOAL',{agentId:a.id,stationId:st.id}):{ok:false,message:'ยังไม่มีเตาหลอม'};api.toast(result.message);if(result.ok){api.save();openSurvival();}
+    const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive),requested=Number(b.dataset.station),dist=st=>a?Math.abs(a.x-st.x)+Math.abs(a.y-st.y):Infinity;
+    const st=Number.isSafeInteger(requested)?(s.rustStations?.stations??[]).find(x=>x.id===requested&&x.complete&&x.kind==='FURNACE'):a?(s.rustStations?.stations??[]).filter(x=>x.complete&&x.kind==='FURNACE').sort((x,y)=>dist(x)-dist(y)||x.id-y.id)[0]:null;
+    const result=st&&a?api.execute('PROCESS_CHARCOAL',{agentId:a.id,stationId:st.id}):{ok:false,message:'เลือก Clone และเตาหลอมก่อน'};api.toast(result.message);if(result.ok){api.save();if(Number.isSafeInteger(requested))openStructure({type:'station',id:requested});else openRust();}
   }
   if(b.dataset.ux==='pickup-rust'){const result=api.execute('PICKUP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='systems-rust')openRust();
@@ -484,22 +484,62 @@ export function installUX(api){
   api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">คำสั่งนี้สร้าง Clone วัยผู้ใหญ่อายุ 18 ปีทันที · การเกิดอัตโนมัติเป็นอีกระบบหนึ่ง เด็กเริ่มอายุ 0 ปีแล้วค่อยเติบโต</p>`);$('dialog').dataset.kind='clone';
  }
  function openRust(){const s=api.read().state;api.openDialog('ไอเทมและการคราฟต์','RUST SURVIVAL · RS1–RS4',rustPanel(s,api));$('dialog').dataset.kind='rust';}
+ function openStructure(target){
+  const s=api.read().state,selected=api.read().selected,actor=s.agents.find(a=>a.id===selected&&a.alive),houses=evaluateModularHouses(s).houses;
+  if(!target)return;
+  if(target.type==='building'){
+   const b=s.buildings.find(x=>x.id===target.id);if(!b)return;
+   if(b.type==='camp'){
+    const culture=s.culture,entries=culture?.entries??[];
+    const archiveActions=culture
+     ?'<div class="structure-actions"><button class="secondary visual-policy-action" data-ux="culture-automation" data-enabled="'+(!culture.automation)+'">'+icon(culture.automation?'close':'book')+'<span>'+(culture.automation?'หยุด Auto':'เปิด Auto')+'</span></button></div>'
+     :'<div class="structure-actions"><button class="primary visual-policy-action" data-ux="create-archive">'+icon('book')+'<span>สร้าง Archive · 🪵'+CULTURE_RULES.woodCost+' ◆'+CULTURE_RULES.stoneCost+'</span></button></div>';
+    const entryGrid=entries.length?'<div class="visual-knowledge-grid">'+entries.map(e=>'<div class="knowledge-tile"><span>'+visualToken(e.value.type==='food'?'leaf':e.value.type==='wood'?'wood':'stone')+'</span><div><b>'+escape(e.key)+'</b><small>v'+e.revision+' · '+escape(findPerson(s,e.authorId)?.name??('#'+e.authorId))+'</small></div>'+(actor?'<button class="icon-action secondary" data-ux="read-archive" data-key="'+escape(e.key)+'" aria-label="อ่าน '+escape(e.key)+'">'+icon('eye')+'</button>':'')+'</div>').join('')+'</div>':'<p class="empty-state">ยังไม่มีความรู้ในคลัง</p>';
+    api.openDialog('แคมป์','CAMP · #'+b.id,'<section class="structure-hero">'+visualToken('home')+'<div><small>CULTURE HUB</small><h3>แคมป์</h3><span>ที่พัก '+MODULAR_HOUSE_RULES.campCapacity+' คน · '+(culture?'Archive LIVE':'Archive READY')+'</span></div></section>'+
+      '<div class="menu-metrics">'+menuMetric('people','Capacity',MODULAR_HOUSE_RULES.campCapacity)+menuMetric('book','Archive',culture?entries.length+'/'+CULTURE_RULES.entries:'OFF',culture?'live':'')+menuMetric('brain','Auto',culture?(culture.automation?'ON':'OFF'):'—')+'</div>'+
+      archiveActions+entryGrid+'<details class="menu-explain"><summary>กฎ Archive</summary><p>อ่าน/เขียนได้ในระยะ '+CULTURE_RULES.range+' ช่อง · ข้อมูลจากคลังเป็น UNVERIFIED จนตรวจเอง</p></details>');
+    $('dialog').dataset.kind='structure';$('dialog').dataset.structure='camp:'+b.id;renderHUD();return;
+   }
+  }
+  const st=target.type==='station'?(s.rustStations?.stations??[]).find(x=>x.id===target.id):null;if(!st)return;
+  if(st.kind==='CRAFTING_TABLE_LV1'){
+   const craft=s.rustPossessions?.orders?.find(o=>o.agentId===selected),process=s.rustMaterials?.orders?.find(o=>o.agentId===selected);
+   const recipes=Object.values(RECIPE_CATALOG).filter(r=>r.station==='CRAFTING_TABLE_LV1').map(r=>{const item=ITEM_CATALOG[r.output],cost=Object.entries(r.materials).map(([k,n])=>(k==='wood'?'🪵':'◆')+n).join(' ');return '<button class="visual-recipe-card secondary" data-ux="craft-item" data-recipe="'+r.id+'" '+(!actor||craft||process?'disabled':'')+'>'+visualToken(itemIconKind(item.id))+'<b>'+escape(item.name)+'</b><small>'+cost+'</small></button>';}).join('');
+   api.openDialog('โต๊ะคราฟต์','CRAFTING TABLE · #'+st.id,'<section class="structure-hero">'+visualToken('hammer')+'<div><small>WORKSTATION</small><h3>โต๊ะคราฟต์ Lv1</h3><span>'+(actor?'ผู้ใช้ '+escape(actor.name):'เลือก Clone ก่อน')+'</span></div></section><div class="visual-action-grid">'+recipes+'</div>');
+   $('dialog').dataset.kind='structure';$('dialog').dataset.structure='station:'+st.id;renderHUD();return;
+  }
+  if(st.kind==='FURNACE'){
+   const process=s.rustMaterials?.orders?.find(o=>o.agentId===selected),craft=s.rustPossessions?.orders?.find(o=>o.agentId===selected);
+   api.openDialog('เตาหลอม','FURNACE · #'+st.id,'<section class="structure-hero">'+visualToken('fire')+'<div><small>PROCESSING</small><h3>เตาหลอม</h3><span>Charcoal '+(s.rustMaterials?.charcoal??0)+'</span></div></section>'+
+    '<div class="menu-metrics">'+menuMetric('wood','Wood',s.stock.wood)+menuMetric('fire','Charcoal',s.rustMaterials?.charcoal??0)+'</div>'+
+    '<div class="structure-actions"><button class="primary visual-policy-action" data-ux="process-charcoal" data-station="'+st.id+'" '+(!actor||craft||process||s.stock.wood<2?'disabled':'')+'>'+icon('fire')+'<span>Wood 2 → Charcoal 1</span></button></div>');
+   $('dialog').dataset.kind='structure';$('dialog').dataset.structure='station:'+st.id;renderHUD();return;
+  }
+  const house=houses.find(h=>h.cells.some(cell=>cell.x===st.x&&cell.y===st.y));
+  if(house){
+   const builders=living(s).filter(a=>a.task?.kind==='BUILD'&&house.cells.some(cell=>Math.abs(a.task.x-cell.x)+Math.abs(a.task.y-cell.y)<=1));
+   const totalMissing=house.missing.length,progress=house.complete?100:Math.max(0,Math.min(99,Math.round((1/(1+totalMissing))*100)));
+   api.openDialog('บ้าน','MODULAR HOUSE · '+escape(house.houseId),'<section class="structure-hero">'+visualToken('home')+'<div><small>HOUSING</small><h3>'+(house.complete?'บ้านพร้อมอยู่':'กำลังก่อสร้าง')+'</h3><span>'+house.cells.length+' cell · '+(house.complete?house.capacity+' capacity':totalMissing+' ชิ้นยังขาด')+'</span></div></section>'+
+    '<div class="menu-metrics">'+menuMetric('home','Progress',progress+'%',house.complete?'live':'')+menuMetric('people','Capacity',house.capacity)+menuMetric('hammer','Builders',builders.length)+menuMetric('bag','Missing',totalMissing)+'</div>'+
+    '<div class="structure-progress"><i style="width:'+progress+'%"></i></div>'+
+    (builders.length?'<div class="structure-people">'+builders.map(a=>'<button class="structure-person" data-person="'+a.id+'">'+api.portrait(a)+'<b>'+escape(a.name)+'</b></button>').join('')+'</div>':'')+
+    '<details class="menu-explain"><summary>โครงสร้าง</summary><p>House completion และ capacity derive จาก housing evaluator เดียวกับ engine/UI ไม่มี complete flag ซ้ำ</p></details>');
+   $('dialog').dataset.kind='structure';$('dialog').dataset.structure='house:'+house.houseId;renderHUD();return;
+  }
+  api.openDialog(escape(ITEM_CATALOG[st.kind]?.name??st.kind),'STRUCTURE · #'+st.id,'<section class="structure-hero">'+visualToken(itemIconKind(st.kind))+'<div><small>STRUCTURE</small><h3>'+escape(ITEM_CATALOG[st.kind]?.name??st.kind)+'</h3><span>'+st.x+', '+st.y+'</span></div></section>');
+  $('dialog').dataset.kind='structure';$('dialog').dataset.structure='station:'+st.id;renderHUD();
+ }
  function openSurvival(){
   const s=api.read().state,v=survivalSummary(s),eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s,eco),hydro={summary:eco.hydrologySummary},regen=createResourceRegenerationShadow(s,eco),foodImpact=createFoodRegenerationImpact(s,regen),foodCalibration=createFoodEcologyCalibration(s,foodImpact);
   const topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
   const dominantSoil=Object.entries(eco.soilCounts??{}).filter(([type])=>type!=='none').sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]))[0]??null;
   const risk=v.hungry>0?'warn':v.exhausted>0?'warn':'live';
-  const archiveControls=s.culture
-   ?'<div class="menu-primary-actions"><button class="secondary visual-policy-action" data-ux="culture-automation" data-enabled="'+(!s.culture.automation)+'">'+icon(s.culture.automation?'close':'book')+'<span>'+(s.culture.automation?'หยุด Auto':'เปิด Auto')+'</span></button><button class="secondary visual-policy-action" data-ux="planning-policy" data-policy="'+(s.planningPolicy?'legacy':'local')+'">'+icon('brain')+'<span>'+(s.planningPolicy?'Planner: Local':'Planner: Shared')+'</span></button></div>'
-   :'<div class="menu-primary-actions"><button class="primary visual-policy-action" data-ux="create-archive">'+icon('book')+'<span>สร้างคลัง · 🪵'+CULTURE_RULES.woodCost+' ◆'+CULTURE_RULES.stoneCost+'</span></button><button class="secondary visual-policy-action" data-ux="planning-policy" data-policy="'+(s.planningPolicy?'legacy':'local')+'">'+icon('brain')+'<span>'+(s.planningPolicy?'Planner: Local':'Planner: Shared')+'</span></button></div>';
-  const archiveEntries=s.culture?.entries.length
-   ?'<details class="menu-subsection"><summary>'+icon('book')+'<span>ความรู้ในคลัง</span><b>'+s.culture.entries.length+'</b></summary><div class="visual-knowledge-grid">'+s.culture.entries.map(e=>'<div class="knowledge-tile"><span>'+visualToken(e.value.type==='food'?'leaf':e.value.type==='wood'?'wood':'stone')+'</span><div><b>'+escape(e.key)+'</b><small>v'+e.revision+' · '+escape(findPerson(s,e.authorId)?.name??('#'+e.authorId))+'</small></div><button class="icon-action secondary" data-ux="read-archive" data-key="'+escape(e.key)+'" aria-label="อ่าน '+escape(e.key)+'">'+icon('eye')+'</button></div>').join('')+'</div></details>'
-   :'';
   const knowledgeBody='<div class="menu-metrics">'+
-    menuMetric('book','Archive',s.culture?(s.culture.entries.length+'/'+CULTURE_RULES.entries):'OFF',s.culture?'live':'')+
+    menuMetric('book','Archive',s.culture?(s.culture.entries.length+'/'+CULTURE_RULES.entries):'ที่แคมป์',s.culture?'live':'')+
     menuMetric('brain','Planner',s.planningPolicy?'LOCAL':'SHARED',s.planningPolicy?'live':'')+
     menuMetric('link','Mentor',(s.mentorship?.links??[]).filter(l=>l.endedTick===null).length)+
-   '</div>'+archiveControls+archiveEntries+
+   '</div><div class="menu-primary-actions"><button class="secondary visual-policy-action" data-ux="planning-policy" data-policy="'+(s.planningPolicy?'legacy':'local')+'">'+icon('brain')+'<span>'+(s.planningPolicy?'Planner: Local':'Planner: Shared')+'</span></button></div>'+
+   '<div class="structure-callout">'+visualToken('home')+'<div><b>Cultural Archive อยู่ที่แคมป์</b><small>แตะแคมป์บนโลกเพื่อสร้าง เปิด/ปิด และอ่านคลัง</small></div></div>'+
    '<details class="menu-explain"><summary>กฎความรู้</summary><p>ข้อมูลจากคนอื่นเริ่มเป็น UNVERIFIED · การอ่านคลังไม่เพิ่ม XP · ต้องตรวจเองจึงยืนยันได้</p></details>';
 
   const kingdomBody='<div class="menu-metrics">'+
@@ -558,5 +598,5 @@ export function installUX(api){
   $('dialog').dataset.kind='survival';
  }
  function openGuide(){api.openDialog('เริ่มจากการดูโลกที่กำลังคิดเอง','OBSERVE → UNDERSTAND → TRACE',`<div class="guide-step"><span>01</span><div><b>เปิด “ระบบโลก”</b><p>ดูว่า Housing, Production, Inventory, Knowledge, Ecology และระบบอื่นกำลัง LIVE, READY หรือ SHADOW</p></div></div><div class="guide-step"><span>02</span><div><b>แตะ Clone ที่สนใจ</b><p>ดูสิ่งที่กำลังทำ กระเป๋า อุปกรณ์ ทักษะ ความรู้ ความสัมพันธ์ และกด “ทำไม?” เพื่อดูเหตุผลจริง</p></div></div><div class="guide-step"><span>03</span><div><b>ปล่อยให้โลกสร้างเรื่องของมันเอง</b><p>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การโคลนแบบ manual ยังอยู่ใน Inspector แต่ไม่ใช่แกนหลักของเกม</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างข้อมูลหยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">กลับไปดูโลก</button></div>`);$('dialog').dataset.kind='guide';}
- return {renderInspector,renderHUD,openRoster,openHistory,openEvent,openClone,openRust,openSurvival,openSystems,openDecisionFeed};
+ return {renderInspector,renderHUD,openRoster,openHistory,openEvent,openClone,openRust,openSurvival,openSystems,openDecisionFeed,openStructure};
 }
