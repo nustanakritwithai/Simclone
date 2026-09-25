@@ -9,6 +9,7 @@ import {createFoodRegenerationImpact} from './worldsim-food-regen-impact.mjs?v=0
 import {createFoodEcologyCalibration} from './worldsim-food-regen-calibration.mjs?v=0.5.0';
 import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
+import {evaluateModularHouses} from './housing.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -62,6 +63,7 @@ function rustPanel(s,api){
  '<p class="source-note">วัสดุถูก commit เข้า order แบบ atomic ตอนรับงาน · Clone เดิน/ทำงานตาม tick จริง · Stone Axe เร่ง WOODCUT ×1.25, Stone Pickaxe เร่ง MINE ×1.25 · ชิ้นส่วนอาคารไม้ต้องสวม Hammer ก่อนวาง และผนัง/ประตู/หลังคาต้องต่อกับโครงสร้างเดิม</p>';
 }
 
+
 function personalInventoryPanel(s,a){
  const items=s.rustPossessions?.items??[],bag=items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===a.id).sort((x,y)=>x.id-y.id);
  const equippedId=s.rustPossessions?.equipment?.find(e=>e.agentId===a.id)?.itemId??null,equipped=bag.find(i=>i.id===equippedId)??null;
@@ -85,13 +87,15 @@ export function installUX(api){
  const inspector=$('inspector'),stage=$('stage'),body=$('dialog-body');
  document.body.classList.add('ux-v2');
  document.body.dataset.knowledgeVersion='knowledge-continuity-1';
- const staticIcons={observe:'eye',clone:'clone',rust:'hammer',roster:'people',history:'history',recenter:'focus'};
+ const staticIcons={observe:'eye',systems:'brain',rust:'hammer',roster:'people',history:'history',recenter:'focus'};
  for(const [id,key] of Object.entries(staticIcons)){const button=$(id);const span=button.querySelector('span');if(span)span.innerHTML=icon(key);else button.innerHTML=icon(key);}
- const navIcons={world:'eye',people:'people',clone:'clone',rust:'hammer',history:'history'};
+ const navIcons={world:'eye',people:'people',systems:'brain',rust:'hammer',history:'history'};
  document.querySelectorAll('[data-nav]').forEach(b=>b.querySelector('span').innerHTML=icon(navIcons[b.dataset.nav]));
- const rustButton=$('rust'),rustNav=document.querySelector('[data-nav="rust"]');
+ const rustButton=$('rust'),rustNav=document.querySelector('[data-nav="rust"]'),systemsButton=$('systems'),systemsNav=document.querySelector('[data-nav="systems"]');
  if(rustButton)rustButton.onclick=()=>openRust();
  if(rustNav)rustNav.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===rustNav));openRust();};
+ if(systemsButton)systemsButton.onclick=()=>openSystems();
+ if(systemsNav)systemsNav.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===systemsNav));openSystems();};
  document.querySelector('.version').innerHTML=`KNOWLEDGE + MEMORY <b>${VERSION}</b>`;
  document.querySelector('.brand').title='Simclone · UI '+UI_VERSION;
  const foodCard=$('food').parentElement;
@@ -104,8 +108,7 @@ export function installUX(api){
  const rail=document.createElement('section');rail.id='people-rail';rail.className='people-rail';rail.setAttribute('aria-label','เลือกตัวละครอย่างรวดเร็ว');
  rail.innerHTML='<div class="rail-heading"><span>ผู้คนในโลกนี้</span><button id="all-people">ดูทั้งหมด →</button></div><div id="people-chips"></div>';stage.append(rail);
  const help=document.createElement('button');help.id='quick-help';help.className='quick-help';help.innerHTML=`${icon('help')}<span>เริ่มเล่นอย่างไร</span>`;help.onclick=openGuide;stage.append(help);
- const auto=document.createElement('button');auto.id='auto-start';auto.className='auto-start';auto.setAttribute('aria-live','polite');stage.append(auto);
- auto.onclick=()=>{const on=api.read().state.productionPlan?.enabled===true,result=api.execute('SET_PRODUCTION_POLICY',{enabled:!on});api.toast(result.message);if(result.ok)api.save();renderHUD();};
+ const auto=document.createElement('div');auto.id='autonomy-status';auto.className='autonomy-status';auto.setAttribute('aria-live','polite');stage.append(auto);
  $('all-people').onclick=()=>openRoster();
  rail.addEventListener('click',e=>{const b=e.target.closest('[data-quick-person]');if(b)api.select(Number(b.dataset.quickPerson),true);});
  inspector.addEventListener('click',e=>{
@@ -161,6 +164,8 @@ export function installUX(api){
     const result=st?api.execute('PROCESS_CHARCOAL',{agentId:a.id,stationId:st.id}):{ok:false,message:'ยังไม่มีเตาหลอม'};api.toast(result.message);if(result.ok){api.save();openSurvival();}
   }
   if(b.dataset.ux==='pickup-rust'){const result=api.execute('PICKUP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='systems-rust')openRust();
+  if(b.dataset.ux==='systems-survival')openSurvival();
   if(b.dataset.rosterFilter){rosterFilter=b.dataset.rosterFilter;rosterLimit=80;renderRosterList();}
   if(b.dataset.ux==='more-people'){rosterLimit+=80;renderRosterList();}
   if(b.dataset.historyFilter){historyFilter=b.dataset.historyFilter;renderHistoryList();}
@@ -253,17 +258,110 @@ export function installUX(api){
   }
   for(const b of rail.querySelectorAll('[data-quick-person]')){const active=Number(b.dataset.quickPerson)===selected;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));}
   $('quick-help').hidden=selected!==null;
-  const auto=$('auto-start'),autoOn=s.productionPlan?.enabled===true;
+  const auto=$('autonomy-status'),autoOn=s.productionPlan?.enabled===true;
   auto.hidden=selected!==null;
-  auto.classList.toggle('is-on',autoOn);
-  auto.textContent=autoOn?'✓ Clone กำลังสร้างบ้าน + ทำของ':'▶ เริ่มสร้างบ้าน + ทำของอัตโนมัติ';
-  auto.setAttribute('aria-pressed',String(autoOn));
+  auto.innerHTML='<b>AI AUTONOMY · ACTIVE</b><span>Housing LIVE · RP1 '+(autoOn?'LIVE':'READY')+'</span>';
   $('pause').setAttribute('aria-pressed',String(paused));$('observe').setAttribute('aria-pressed','true');
   const h=$('world-status');h.textContent=$('dialog').open?'หยุดเวลา · กำลังดูข้อมูล':paused?'หยุดเวลา · กด ▶ เพื่อเดินต่อ':'โลกกำลังดำเนินไปด้วยตัวเอง';
   document.body.classList.toggle('is-paused',paused||$('dialog').open);
-  const modal=$('dialog').open,kind=$('dialog').dataset.kind;
-  for(const b of document.querySelectorAll('[data-nav]')){const active=b.dataset.nav===(modal&&kind==='people'?'people':modal&&kind==='history'?'history':'world');b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');}
+  const modal=$('dialog').open,kind=$('dialog').dataset.kind,activeNav=modal&&kind==='people'?'people':modal&&kind==='systems'?'systems':modal&&kind==='rust'?'rust':modal&&kind==='history'?'history':'world';
+  for(const b of document.querySelectorAll('[data-nav]')){const active=b.dataset.nav===activeNav;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');}
  }
+ function openSystems(){
+ const s=api.read().state,agents=living(s),v=survivalSummary(s),houses=evaluateModularHouses(s).houses;
+ const completeHouses=houses.filter(h=>h.complete).length,buildingHouses=houses.length-completeHouses;
+ const items=s.rustPossessions?.items??[],bagItems=items.filter(i=>i.location?.kind==='bag').length,equipped=s.rustPossessions?.equipment?.length??0;
+ const craftOrders=s.rustPossessions?.orders?.length??0,processOrders=s.rustMaterials?.orders?.length??0,stations=s.rustStations?.stations?.length??0;
+ const mentorLinks=(s.mentorship?.links??[]).filter(l=>l.endedTick===null).length;
+ const beliefs=agents.reduce((n,a)=>n+(a.knowledgeState?.beliefs?.length??0),0),cultureEntries=s.culture?.entries?.length??0;
+ const eco=createResourceEcologyShadow(s),pressure=shadowExistingResourcePressure(s,eco),topPressure=pressure.rows.slice().sort((a,b)=>b.regenerationPressure-a.regenerationPressure||a.id-b.id)[0]??null;
+ const plan=s.productionPlan,goal=plan?.goal,maxGeneration=agents.reduce((m,a)=>Math.max(m,a.generation??0),0);
+ const taskCounts={};for(const a of agents){const k=a.task?.kind??'IDLE';taskCounts[k]=(taskCounts[k]??0)+1;}
+ const activityLabels={BUILD:'สร้าง',CRAFT:'คราฟต์',PROCESS:'แปรรูป',FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',EXPLORE:'สำรวจ',EAT:'กิน',REST:'พัก',IDLE:'ว่าง'};
+ const activityOrder=['BUILD','CRAFT','PROCESS','FORAGE','WOODCUT','MINE','EXPLORE','EAT','REST','IDLE'];
+ const activity=activityOrder.filter(k=>taskCounts[k]).map(k=>'<div><span>'+activityLabels[k]+'</span><b>'+taskCounts[k]+' คน</b></div>').join('')||'<div><span>สถานะ</span><b>ยังไม่มี task</b></div>';
+ const badge=status=>'<span class="system-badge '+status.toLowerCase()+'">'+status+'</span>';
+ const card=(id,title,status,value,detail)=>'<article class="system-card" data-system-card="'+id+'"><div class="system-card-head"><b>'+title+'</b>'+badge(status)+'</div><strong>'+value+'</strong><p>'+detail+'</p></article>';
+ const cards=[
+  card('lifecycle','Lifecycle','LIVE','รุ่นสูงสุด '+maxGeneration,'เกิดอัตโนมัติ · เติบโต · อายุขัยและการตาย deterministic'),
+  card('housing','Housing','LIVE',agents.length+' / '+capacity(s)+' คน','บ้าน modular เสร็จ '+completeHouses+' · กำลังก่อสร้าง '+buildingHouses+' · AI ขยายที่พักตามแรงกดดัน'),
+  card('production','Production + Craft',plan?.enabled?'LIVE':'READY',plan?.enabled?'Full RP1':'Housing-only autonomy','งานคราฟต์ '+craftOrders+' · แปรรูป '+processOrders+' · สถานี '+stations+(goal?' · ล่าสุด '+escape(goal.goal)+' / '+escape(goal.outcome):'')),
+  card('inventory','Inventory + Equipment','LIVE',bagItems+' item · สวม '+equipped,'ของแต่ละชิ้นมีเจ้าของ Clone จริง · กระเป๋า 4 ช่อง · ช่องมือ 1 ช่อง'),
+  card('knowledge','Knowledge + Mentor','LIVE',beliefs+' belief · Mentor '+mentorLinks,'คลังวัฒนธรรม '+cultureEntries+' รายการ · ความรู้มี source และสถานะยืนยัน'),
+  card('ecology','WorldSim Ecology','LIVE','Food + Wood authority','Stone finite · regen pressure สูงสุด '+(topPressure?escape(topPressure.type)+' #'+topPressure.id+' · '+topPressure.regenerationPressure:'—')),
+  card('kingdom','Kingdom Systems','SHADOW',(v.kingdomLabor?.activeCount??0)+' labor offer','K1/K5 มี authority บางส่วน · K2/K3/K4/K6 ยังเป็น projection')
+ ].join('');
+ const sys=(name,status,detail)=>({name,status,detail});
+ const groups=[
+  ['ชีวิต / AI',[
+   sys('Survival Core','LIVE','ความหิว พลังงาน งาน ทรัพยากร และ survival targets'),
+   sys('Lifecycle','LIVE','อายุ ช่วงวัย work-rate และวงจรชีวิต'),
+   sys('Reproduction','LIVE','เกิดอัตโนมัติ housing/food/wood safety gates และ lineage'),
+   sys('Housing','LIVE','บ้าน modular + capacity + autonomous expansion'),
+   sys('Personal Planning',s.planningPolicy?'LIVE':'READY',s.planningPolicy?'ใช้ความรู้ส่วนตัวเลือกเป้าหมาย':'ระบบพร้อม แต่ยังใช้นโยบาย Survival เดิม'),
+   sys('Skill Provenance','LIVE','แยก XP ตั้งต้น / สืบทอด / ได้จากงานจริง'),
+   sys('History / Identity Archive','LIVE','เก็บตัวตน คนตาย lineage และ bounded history'),
+   sys('Navigation','INFRA','path / reachability / camera-safe world navigation')
+  ]],
+  ['การผลิต / ไอเทม',[
+   sys('Rust Runtime','LIVE','command bridge + scheduler สำหรับ crafting/placement/process'),
+   sys('Crafting Catalog','INFRA','สูตร ไอเทม station requirement และต้นทุน authoritative'),
+   sys('Personal Possessions','LIVE',bagItems+' item อยู่ในกระเป๋าของ Clone'),
+   sys('Equipment · Hand','LIVE',equipped+' ชิ้นกำลังสวม · Axe/Pickaxe/Hammer'),
+   sys('Rust Stations','LIVE',stations+' station/structure อยู่ในโลกจริง'),
+   sys('Rust Materials / Charcoal','LIVE',(s.rustMaterials?.charcoal??0)+' charcoal · '+processOrders+' process order'),
+   sys('Housing-only Production Autonomy','LIVE','สร้าง Table → Hammer → บ้าน เมื่อ housing กดดัน'),
+   sys('Production Planning RP1',plan?.enabled?'LIVE':'READY',plan?.enabled?'Full tool/station/charcoal coordinator เปิดอยู่':'Full RP1 พร้อมแต่ policy ยังปิด')
+  ]],
+  ['ความรู้ / สังคม',[
+   sys('Personal Knowledge','LIVE',beliefs+' belief ใน Clone ที่มีชีวิต'),
+   sys('Knowledge Revision','LIVE','CONFIRMED / UNVERIFIED / STALE / REFUTED + evidence source'),
+   sys('Cultural Archive',s.culture?'LIVE':'READY',s.culture?cultureEntries+' รายการถูกบันทึกในคลัง':'ระบบพร้อม แต่โลกนี้ยังไม่ได้สร้างคลัง'),
+   sys('Mentorship KF1','LIVE',mentorLinks+' Mentor link ที่ active'),
+   sys('Lineage + Skill Inheritance','LIVE','parentId / generation + 35% skill inheritance with provenance')
+  ]],
+  ['WorldSim / นิเวศ',[
+   sys('World Map Presentation','INFRA','terrain/world visual projection บนแผนที่'),
+   sys('Resource Authority · Food/Wood','LIVE','single regeneration writer; Stone ยัง finite'),
+   sys('Resource Policy','LIVE','policy ที่กำหนด regen authority ปัจจุบัน'),
+   sys('Resource Ecology Shadow','SHADOW','suitability / regeneration pressure จาก world evidence'),
+   sys('Resource Regeneration Shadow','SHADOW','candidate regen แบบ read-only'),
+   sys('Food Regen Impact','SHADOW','วิเคราะห์ผลของ candidate food regeneration'),
+   sys('Food Ecology Calibration','SHADOW','calibration evidence ก่อนเปลี่ยน authority'),
+   sys('Food Formula Lab','SHADOW','สูตรทดลอง/เปรียบเทียบ ไม่เขียนโลก'),
+   sys('Climate','SHADOW','climate projection ใช้เป็น evidence เท่านั้น'),
+   sys('Hydrology','SHADOW','น้ำ/ความชื้น projection ใช้ประกอบ ecology'),
+   sys('Soil','SHADOW','soil type / fertility / nutrient / compaction projection'),
+   sys('Vegetation','SHADOW','vegetation suitability projection'),
+   sys('Weighted Routing','SHADOW','เส้นทางถ่วงน้ำหนักเทียบกับ path authority เดิม')
+  ]],
+  ['Kingdom / เศรษฐกิจ',[
+   sys('K1 Utility + Career','LIVE','utility/profession state เชื่อมกับงานที่ชนะจริง'),
+   sys('K2 Economy','SHADOW','demand + scarcity + labor pressure'),
+   sys('K3 Production','SHADOW','effective worker / crowding / expected productivity'),
+   sys('K4 Labor Market','SHADOW',(v.kingdomLabor?.activeCount??0)+' labor offer เป็น proposal'),
+   sys('K5 Labor Authority','LIVE','labor scoring premium อยู่ใน eligibility/survival constraints เดิม'),
+   sys('K6 Market','SHADOW','price index เท่านั้น ยังไม่มีเงินจริง/การค้า')
+  ]],
+  ['ระบบพื้นฐาน / ความปลอดภัย',[
+   sys('Save / Restore','INFRA','local persistence + migration + protected recovery'),
+   sys('Runtime Boot + Source Pins','INFRA','กัน browser โหลด module คนละ revision'),
+   sys('Building Visuals','INFRA','renderer สำหรับ modular foundation/wall/door/roof'),
+   sys('Observation UI','INFRA','อ่าน state + dispatch command ที่ผ่าน validator เท่านั้น')
+  ]]
+ ];
+ const allSystems=groups.flatMap(g=>g[1]),counts=allSystems.reduce((o,x)=>(o[x.status]=(o[x.status]??0)+1,o),{});
+ const row=x=>'<div class="system-row" data-system-status="'+x.status+'"><div><b>'+escape(x.name)+'</b><p>'+escape(x.detail)+'</p></div>'+badge(x.status)+'</div>';
+ const catalog=groups.map(([title,list],i)=>'<details class="system-catalog" '+(i<2?'open':'')+'><summary><span>'+escape(title)+'</span><b>'+list.length+' ระบบ</b></summary>'+list.map(row).join('')+'</details>').join('');
+ api.openDialog('ระบบที่กำลังขับเคลื่อนโลก','WORLD SYSTEMS · AUTONOMOUS',
+  '<section class="system-hero"><span class="eyebrow">AI WORLD STATUS</span><h3>โลกทำงานเอง · ทุกระบบที่มีจริงต้องมองเห็นได้</h3><p>แยกชัดว่า LIVE, READY, SHADOW หรือ INFRA เพื่อไม่ให้ระบบซ่อนอยู่หลังโค้ด</p><div class="system-counts"><span>LIVE '+(counts.LIVE??0)+'</span><span>READY '+(counts.READY??0)+'</span><span>SHADOW '+(counts.SHADOW??0)+'</span><span>INFRA '+(counts.INFRA??0)+'</span></div></section>'+
+  '<div class="system-grid">'+cards+'</div>'+
+  '<section class="ai-activity"><div class="system-section-head"><div><span class="eyebrow">LIVE ACTIVITY</span><h3>ตอนนี้ Clone กำลังทำอะไร</h3></div><b>'+agents.length+' คน</b></div><div class="activity-grid">'+activity+'</div></section>'+
+  '<section class="all-systems"><div class="system-section-head"><div><span class="eyebrow">FULL RUNTIME CATALOG</span><h3>ระบบทั้งหมดที่มีอยู่ในเกม</h3></div><b>'+allSystems.length+' ระบบ</b></div>'+catalog+'</section>'+
+  '<div class="system-actions"><button class="secondary" data-ux="systems-survival">รายละเอียด Survival / Ecology</button><button class="secondary" data-ux="systems-rust">รายละเอียดของ / คราฟต์</button></div>'+
+  '<p class="source-note">LIVE = เขียนผลเกมจริง · READY = ระบบพร้อมแต่ policy/สิ่งปลูกสร้างยังไม่เปิด · SHADOW = คำนวณเพื่อสังเกต · INFRA = ระบบพื้นฐานที่รองรับ gameplay แต่ไม่ใช่ decision authority</p>');
+ $('dialog').dataset.kind='systems';renderHUD();
+}
  function openRoster(){rosterFilter='all';rosterLimit=80;api.openDialog('ทุกคนเริ่มเหมือนกัน แต่ไม่เหมือนเดิม','PEOPLE · '+living(api.read().state).length+' คน',`<div class="search-control">${icon('search')}<label class="sr-only" for="people-search">ค้นหาชื่อ</label><input id="people-search" type="search" placeholder="ค้นหาชื่อ เช่น Kira" autocomplete="off"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['hungry','ความอิ่มต่ำ'],['children','รุ่น 2 ขึ้นไป'],['archived','คลังประวัติ']].map(([id,t])=>`<button data-roster-filter="${id}">${t}</button>`).join('')}</div><p id="roster-count" class="list-count"></p><div id="roster-list"></div>`);$('dialog').dataset.kind='people';renderRosterList();renderHUD();}
  function renderRosterList(){if(!$('roster-list'))return;const q=$('people-search').value.toLocaleLowerCase(),s=api.read().state;
   const agents=allPeople(s).filter(a=>a.name.toLocaleLowerCase().includes(q)&&(rosterFilter!=='hungry'||a.alive&&a.satiety<25)&&(rosterFilter!=='children'||a.generation>=2)&&(rosterFilter!=='archived'||a.archived===true));
@@ -339,6 +437,6 @@ export function installUX(api){
     <p class="source-note">เงื่อนไขเกิดเอง: ที่พักต้องว่าง · ต้องมีผู้ใหญ่พร้อม · อาหารว่างต้องพอจ่าย 8 แล้วยังเหลือถึงเป้ารุ่นถัดไป · ไม้จ่าย 4 แล้วยังเหลืออย่างน้อย 12 · เว้นการเกิดอย่างน้อย ${BIRTH_RULES.globalIntervalYears} ปีจำลอง และ parent คนเดิมพัก ${BIRTH_RULES.parentCooldownYears} ปี<br>ช่วงวัยทำงานแล้ว: เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัยทำงานผลิตที่ 75% · อายุขัย derive 78–92 ปีและเสียชีวิตตามวัยแบบ deterministic</p>`);
   $('dialog').dataset.kind='survival';
  }
- function openGuide(){api.openDialog('เริ่มจากการรู้จักคนหนึ่งคน','OBSERVE → UNDERSTAND → INFLUENCE',`<div class="guide-step"><span>01</span><div><b>แตะหน้า เลือกคน</b><p>ใช้แถวตัวละครด้านล่าง หรือแตะคนในโลก การ์ดย่อจะบอกว่ากำลังทำอะไร โดยไม่บังแผนที่</p></div></div><div class="guide-step"><span>02</span><div><b>ถามว่า “ทำไม?”</b><p>ดูคะแนนงานจริง หรือเปิดทักษะเพื่อดูสิ่งที่เขาเรียนรู้มาต่างจากคนอื่น</p></div></div><div class="guide-step"><span>03</span><div><b>สร้างเงื่อนไขให้ชีวิตใหม่</b><p>เลือกต้นแบบก่อนโคลน ตรวจตัวอย่าง แล้วค่อยยืนยันหักวัสดุ</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างนี้หยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">เริ่มสังเกตโลก</button></div>`);$('dialog').dataset.kind='guide';}
- return {renderInspector,renderHUD,openRoster,openHistory,openClone,openRust,openSurvival};
+ function openGuide(){api.openDialog('เริ่มจากการดูโลกที่กำลังคิดเอง','OBSERVE → UNDERSTAND → TRACE',`<div class="guide-step"><span>01</span><div><b>เปิด “ระบบโลก”</b><p>ดูว่า Housing, Production, Inventory, Knowledge, Ecology และระบบอื่นกำลัง LIVE, READY หรือ SHADOW</p></div></div><div class="guide-step"><span>02</span><div><b>แตะ Clone ที่สนใจ</b><p>ดูสิ่งที่กำลังทำ กระเป๋า อุปกรณ์ ทักษะ ความรู้ ความสัมพันธ์ และกด “ทำไม?” เพื่อดูเหตุผลจริง</p></div></div><div class="guide-step"><span>03</span><div><b>ปล่อยให้โลกสร้างเรื่องของมันเอง</b><p>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การโคลนแบบ manual ยังอยู่ใน Inspector แต่ไม่ใช่แกนหลักของเกม</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างข้อมูลหยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">กลับไปดูโลก</button></div>`);$('dialog').dataset.kind='guide';}
+ return {renderInspector,renderHUD,openRoster,openHistory,openClone,openRust,openSurvival,openSystems};
 }
