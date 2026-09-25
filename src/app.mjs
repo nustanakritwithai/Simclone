@@ -133,7 +133,7 @@ function rustStation(c,st,structureCtx=null){
  }
  c.restore();
 }
-const WORLD_FEEDBACK_TICKS=12,COMMUNICATION_FEEDBACK_TICKS=18,LIFE_EVENT_FEEDBACK_TICKS=24;
+const WORLD_FEEDBACK_TICKS=12,COMMUNICATION_FEEDBACK_TICKS=18,LIFE_EVENT_FEEDBACK_TICKS=24,ACHIEVEMENT_FEEDBACK_TICKS=18;
 const TASK_GLYPHS=Object.freeze({EAT:'●',REST:'z',BUILD:'⌂',CRAFT:'⚒',PROCESS:'♨',FORAGE:'✦',WOODCUT:'╱',MINE:'◆',EXPLORE:'…'});
 const TASK_SHORT=Object.freeze({EAT:'กิน',REST:'พัก',BUILD:'สร้าง',CRAFT:'คราฟต์',PROCESS:'เตา',FORAGE:'อาหาร',WOODCUT:'ไม้',MINE:'หิน',EXPLORE:'สำรวจ',IDLE:'พัก'});
 const EVENT_GLYPHS=Object.freeze({birth:'○',death:'†',knowledge:'↗',mentor:'↔',build:'⌂',craft:'⚒',skill:'★',career:'◇',day:'☼'});
@@ -196,6 +196,12 @@ function recentLifeBursts(s){
   const p=findPerson(s,e.agentId);return p&&Number.isFinite(p.x)&&Number.isFinite(p.y)?{eventId:e.id,type:e.type,agentId:p.id,x:p.x,y:p.y,glyph:e.type==='birth'?'○':'†'}:null;
  }).filter(Boolean).slice(0,3);
 }
+function recentAchievementBursts(s){
+ return s.events.slice().reverse().filter(e=>s.tick>=e.tick&&s.tick-e.tick<=ACHIEVEMENT_FEEDBACK_TICKS&&['skill','craft','build'].includes(e.type)).map(e=>{
+  const p=findPerson(s,e.agentId);if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return null;
+  return {eventId:e.id,type:e.type,agentId:p.id,x:p.x,y:p.y,glyph:e.type==='skill'?'★':e.type==='craft'?'⚒':'⌂'};
+ }).filter(Boolean).slice(0,3);
+}
 function resourceTargetPulses(s,bubbles){
  const seen=new Set(),rows=[];
  for(const signal of bubbles){const task=s.agents.find(a=>a.id===signal.agentId)?.task,node=task&&s.nodes.find(n=>n.id===task.targetId);if(!node||seen.has(node.id))continue;seen.add(node.id);rows.push({nodeId:node.id,type:node.type,x:node.x,y:node.y,agentId:signal.agentId});}
@@ -203,7 +209,7 @@ function resourceTargetPulses(s,bubbles){
 }
 function worldFeedbackSnapshot(s,selectedId=null){
  const bubbles=worldBubbleSignals(s,selectedId,innerWidth<=700?3:5),communications=recentCommunicationLinks(s);
- return {agents:bubbles.map(x=>({agentId:x.agentId,kind:s.agents.find(a=>a.id===x.agentId)?.task?.kind??null,glyph:x.glyph,reason:x.source,bubbleKind:x.kind,label:x.label,eventId:x.eventId??null,recipientId:x.recipientId??null,target:x.target??null})),bubbles,communications,relationships:selectedRelationshipLinks(s,selectedId),resourcePulses:resourceTargetPulses(s,bubbles),lifeBursts:recentLifeBursts(s),drops:droppedWorldItems(s),houses:houseFeedback(s)};
+ return {agents:bubbles.map(x=>({agentId:x.agentId,kind:s.agents.find(a=>a.id===x.agentId)?.task?.kind??null,glyph:x.glyph,reason:x.source,bubbleKind:x.kind,label:x.label,eventId:x.eventId??null,recipientId:x.recipientId??null,target:x.target??null})),bubbles,communications,relationships:selectedRelationshipLinks(s,selectedId),resourcePulses:resourceTargetPulses(s,bubbles),lifeBursts:recentLifeBursts(s),achievementBursts:recentAchievementBursts(s),drops:droppedWorldItems(s),houses:houseFeedback(s)};
 }
 function drawCommunicationLink(c,link){
  const from=state.agents.find(a=>a.id===link.fromId&&a.alive),to=state.agents.find(a=>a.id===link.toId&&a.alive);if(!from||!to)return;
@@ -224,6 +230,11 @@ function drawLifeBurst(c,burst,time){
  c.strokeStyle=burst.type==='birth'?'#e9d98c':'#b8c0c6';c.lineWidth=1;const r=12+phase*5;c.beginPath();c.arc(p.x,p.y-30,r,0,Math.PI*2);c.stroke();
  for(let i=0;i<8;i++){const a=i*Math.PI/4;c.beginPath();c.moveTo(p.x+Math.cos(a)*(r+2),p.y-30+Math.sin(a)*(r+2));c.lineTo(p.x+Math.cos(a)*(r+7),p.y-30+Math.sin(a)*(r+7));c.stroke();}
  c.fillStyle=burst.type==='birth'?'#f0dda4':'#d5d8d7';c.font='12px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(burst.glyph,p.x,p.y-30);c.restore();
+}
+function drawAchievementBurst(c,burst,time){
+ const p=proj(burst.x,burst.y),age=Math.max(0,state.tick-(state.events.find(e=>e.id===burst.eventId)?.tick??state.tick)),fade=Math.max(.2,1-age/ACHIEVEMENT_FEEDBACK_TICKS),lift=Math.min(12,age*.55);
+ c.save();c.globalAlpha=fade;c.fillStyle=burst.type==='skill'?'#f0dc8f':burst.type==='craft'?'#d8c49a':'#dfbe83';c.font='13px Georgia';c.textAlign='center';c.fillText(burst.glyph,p.x,p.y-42-lift);
+ c.strokeStyle='#ead69b77';c.lineWidth=.8;c.beginPath();c.arc(p.x,p.y-40-lift,8+(Math.sin(time*.012+burst.eventId)+1)*2,0,Math.PI*2);c.stroke();c.restore();
 }
 function drawTaskTarget(c,signal){
  const t=signal?.target;if(!t||!Number.isFinite(t.x)||!Number.isFinite(t.y))return;
@@ -322,6 +333,7 @@ function render(time){
  for(const pulse of resourceTargetPulses(state,bubbles))drawResourcePulse(ctx,pulse,time);
  for(const signal of bubbles)drawTaskTarget(ctx,signal);
  for(const burst of recentLifeBursts(state))drawLifeBurst(ctx,burst,time);
+ for(const burst of recentAchievementBursts(state))drawAchievementBurst(ctx,burst,time);
  for(const h of houseFeedback(state))drawHouseFeedback(ctx,h,time);
  if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
  ctx.restore();
