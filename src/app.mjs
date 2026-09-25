@@ -449,8 +449,12 @@ canvas.addEventListener('pointerup',e=>{
  const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
  {const object=worldObjectTargetAtScreen(sx,sy);let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}
   if(object?.type==='event'&&object.d<Math.max(12,18*zoom))ux?.openWorldObject(object);
-  else if(hit)selectAgent(hit.id);
-  else{const structure=structureTargetAtScreen(sx,sy),target=structure&&object?(structure.d<=object.d?structure:object):(structure??object);if(target){if(target.type==='building'||target.type==='station')ux?.openStructure(target);else ux?.openWorldObject(target);}else{selected=null;follow=false;updateUI();}}}
+  else{
+   const structure=structureTargetAtScreen(sx,sy),target=structure&&object?(structure.d<=object.d?structure:object):(structure??object);
+   if(hit&&(!target||best<=target.d))selectAgent(hit.id);
+   else if(target){if(target.type==='building'||target.type==='station')ux?.openStructure(target);else ux?.openWorldObject(target);}
+   else{selected=null;follow=false;updateUI();}
+  }}
  drag=null;
 });
 canvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);drag=null;multiTouch=false;});
