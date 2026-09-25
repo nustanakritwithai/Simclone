@@ -8,14 +8,19 @@ import {housingCapacity,evaluateModularHouses,houseSite,nextHousePiece} from './
 import {canonicalEdge,placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 
-export const PRODUCTION_PLAN_VERSION='RP1-0.2';
+export const PRODUCTION_PLAN_VERSION='RP1-0.3';
 export const PRODUCTION_POLICY='rust-production-2';
 export const PRODUCTION_RULES=Object.freeze({attemptPeriod:12,charcoalTarget:4,history:12,housePopulationBuffer:6});
 
-export const createProductionPlan=()=>({version:PRODUCTION_PLAN_VERSION,enabled:false,goal:null,lastAttemptTick:-1,history:[]});
+export const createProductionPlan=()=>({version:PRODUCTION_PLAN_VERSION,enabled:true,goal:null,lastAttemptTick:-1,history:[]});
 export function ensureProductionPlan(s){
   if(s.productionPlan===undefined)s.productionPlan=createProductionPlan();
-  if(s.productionPlan?.version==='RP1-0.1')s.productionPlan.version=PRODUCTION_PLAN_VERSION;
+  if(s.productionPlan?.version==='RP1-0.1'||s.productionPlan?.version==='RP1-0.2'){
+    s.productionPlan.version=PRODUCTION_PLAN_VERSION;
+    // RP1-0.3 makes autonomous settlement construction the baseline. The old default-OFF
+    // policy would strand migrated worlds at camp capacity after legacy Shelter retirement.
+    s.productionPlan.enabled=true;
+  }
   return s.productionPlan;
 }
 
@@ -134,22 +139,25 @@ export function stepProductionPlanning(s,isWalkable,dispatch=null){
     if(placed){if(placed.ok)record(p,s.tick,'place-furnace','completed');return placed.ok?placed:null;}
   }
   if(s.tick-p.lastAttemptTick<PRODUCTION_RULES.attemptPeriod)return null;p.lastAttemptTick=s.tick;
-  const goals=[
+  const setupGoals=[
     ['STONE_AXE','woodcutter',()=>!hasKind(s,'STONE_AXE')],
     ['STONE_PICKAXE','miner',()=>!hasKind(s,'STONE_PICKAXE')],
     ['CRAFTING_TABLE_LV1','builder',()=>!stationKind(s,'CRAFTING_TABLE_LV1')&&!hasKind(s,'CRAFTING_TABLE_LV1')],
-    ['HAMMER','builder',()=>stationKind(s,'CRAFTING_TABLE_LV1')&&!hasKind(s,'HAMMER')],
-    ['FURNACE','builder',()=>!stationKind(s,'FURNACE')&&!hasKind(s,'FURNACE')]
+    ['HAMMER','builder',()=>stationKind(s,'CRAFTING_TABLE_LV1')&&!hasKind(s,'HAMMER')]
   ];
-  for(const [recipe,profession,needed] of goals)if(needed()){
+  for(const [recipe,profession,needed] of setupGoals)if(needed()){
     const r=queueRecipe(s,recipe,profession,isWalkable);record(p,s.tick,'craft-'+recipe,r?.ok?'accepted':(r?.reason??'blocked'),r?.ok?roleAgent(s,profession)?.id??null:null);return r?.ok?r:null;
+  }
+  // Housing is population-critical. Once a Hammer exists, finish one modular house before
+  // optional furnace/charcoal infrastructure so a fresh world visibly expands without player orders.
+  const house=stepHousePlan(s,p,isWalkable);
+  if(house)return house.ok?house:null;
+  if(!stationKind(s,'FURNACE')&&!hasKind(s,'FURNACE')){
+    const r=queueRecipe(s,'FURNACE','builder',isWalkable);record(p,s.tick,'craft-FURNACE',r?.ok?'accepted':(r?.reason??'blocked'),r?.ok?roleAgent(s,'builder')?.id??null:null);return r?.ok?r:null;
   }
   if(s.rustMaterials.charcoal<PRODUCTION_RULES.charcoalTarget){
     const r=queueCharcoal(s,isWalkable);record(p,s.tick,'charcoal',r?.ok?'accepted':(r?.reason??'blocked'));return r?.ok?r:null;
   }
-  // Shelter BUILD is gone; settlement growth is one modular house at a time, after Hammer and charcoal.
-  const house=stepHousePlan(s,p,isWalkable);
-  if(house)return house.ok?house:null;
   if(p.goal?.goal!=='stable')record(p,s.tick,'stable','target-met');
   return null;
 }
