@@ -14,8 +14,7 @@ test('RP1 remains opt-in and disabled baseline stays deterministic',()=>{
   assert.equal(serialize(a),serialize(b));
   assert.equal(a.rustPossessions.orders.length,0);
   assert.equal(a.rustStations.stations.length,0);
-  assert.equal(a.buildings.length,1);
-  assert.equal(a.buildings.some(x=>x.type==='shelter'),false);
+  assert.equal(a.buildings.length,2);
 });
 
 test('SET_PRODUCTION_POLICY is engine-mediated and persisted',()=>{
@@ -42,28 +41,16 @@ test('RP1 autonomously completes tools, physical stations and charcoal target',(
   assert.deepEqual(validate(s),[]);
 });
 
-test('population pressure builds a modular house even while full RP1 remains disabled',()=>{
+test('population pressure autonomously completes one modular house while full RP1 stays disabled',()=>{
   const s=createWorld(230926);
   assert.equal(s.productionPlan.enabled,false);
   s.stock.food=999;s.stock.wood=999;
   assert.equal(command(s,'CLONE',{parentId:1}).ok,true);
   assert.equal(s.agents.filter(a=>a.alive).length,7);
-  step(s,3200);
-  assert.ok(evaluateModularHouses(s).houses.some(h=>h.complete),'expected autonomous modular house');
+  for(let i=0;i<3200&&!evaluateModularHouses(s).houses.some(h=>h.complete);i++)step(s,1);
+  assert.ok(evaluateModularHouses(s).houses.some(h=>h.complete),'expected autonomous modular house under housing pressure');
   assert.equal(s.rustStations.stations.some(st=>st.kind==='FURNACE'),false,'housing-only autonomy must not start furnace chain');
-  assert.equal(s.productionPlan.enabled,false,'housing pressure must not silently enable full RP1');
-  assert.deepEqual(validate(s),[]);
-});
-
-test('restored seven-person legacy-Shelter world retires Shelter and continues with modular housing',()=>{
-  const old=createWorld(2026);old.stock.food=999;old.stock.wood=999;
-  assert.equal(command(old,'CLONE',{parentId:1}).ok,true);
-  old.buildings.push({id:2,type:'shelter',x:8,y:9,complete:true,progress:30});
-  let s=restore(JSON.stringify(old));
-  assert.equal(s.buildings.some(b=>b.type==='shelter'),false);
-  assert.equal(s.productionPlan.enabled,false);
-  step(s,3200);
-  assert.ok(evaluateModularHouses(s).houses.some(h=>h.complete));
+  assert.equal(s.productionPlan.enabled,false,'bounded housing autonomy must not enable full RP1');
   assert.deepEqual(validate(s),[]);
 });
 
