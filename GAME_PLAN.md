@@ -559,28 +559,37 @@ LLM Proposal
 ## Primary UX
 
 ```text
-OBSERVE
-→ UNDERSTAND
+WORLD
+→ EVENT / DECISION
+→ CLONE / PLACE
+→ WHY
 → INFLUENCE
 ```
+
+The UI must make autonomous causality legible without turning the game into an admin dashboard.
 
 ## Main Screen
 
 ### Center
-World
+- World remains the dominant surface.
+- Persistent HUD stays low-chrome: world time, Food/Wood/Stone, population/housing and one compact AI Autonomy entry.
+- No large permanent dashboard may cover the central or lower-middle playfield.
 
-### Left
-- Observe
-- Influence
-- Build
-- Zones
-- Map
+### Primary navigation
+- World
+- People
+- Systems
+- Items / Craft
+- Chronicle
 
-### Right
-Selected Clone Inspector
+Manual Clone creation is an Inspector influence action, not a primary-navigation verb.
 
-### Bottom
-Timeline + Chronicle events
+### Context surfaces
+- Selected Clone → Inspector / bottom sheet.
+- AI Autonomy → live Decision Feed.
+- Systems → seven primary gameplay-system cards.
+- Full runtime catalog → Advanced disclosure only.
+- Chronicle → event drill-down and later event-to-place / event-to-agent navigation.
 
 ---
 
@@ -606,29 +615,76 @@ Timeline + Chronicle events
 ### Capability
 - Skills
 - knowledge source
+- personal inventory
+- equipped hand item
 
 ### Social
-- faction
-- relationships
+- mentor/student now
+- faction/relationships when authoritative
 
 ### Decision Trace
 - candidates
 - scores
 - selected action
 - why
+- deterministic factor breakdown
+
+The shortcut **Why?** remains first-class even if tabs are later consolidated.
+
+---
+
+## World Feedback
+
+World feedback is read-only presentation derived from authoritative state.
+
+Show:
+- selected Clone marker
+- emergency Need marker
+- persistent BUILD / CRAFT / PROCESS marker
+- short-lived icon-first marker for a newly started task
+- equipped tool when visually relevant
+- incomplete modular-house progress
+
+Transient task markers use simulation tick age, not wall-clock time, so presentation is reproducible for a given state.
+
+Do not:
+- write simulation state from a visual marker
+- invent motives not present in the decision trace
+- show every action permanently
+- create a second building-progress or task ledger
 
 ---
 
 ## Thought Bubble
 
 แสดงเฉพาะข้อมูลสำคัญ:
-- Need
-- Discovery
-- Social event
-- Conflict
-- Emergency
+- newly selected action for a short bounded window
+- productive BUILD / CRAFT / PROCESS
+- Emergency / critical Need
+- future Discovery / Social / Conflict events when their systems are authoritative
 
-ห้าม spam ทุก action
+ห้าม spam ทุก action และให้ icon-first บน world view
+
+---
+
+## Systems View
+
+Basic view exposes only the main gameplay layers:
+- Lifecycle
+- Housing
+- Production / Craft
+- Inventory / Equipment
+- Knowledge / Mentor
+- WorldSim Ecology
+- Kingdom systems
+
+Every implementation-visible subsystem may still be inspected in **Advanced Systems**, but Advanced is collapsed by default and labels each entry as:
+- LIVE
+- READY
+- SHADOW
+- INFRA
+
+A SHADOW or INFRA card must never imply gameplay authority.
 
 ---
 
@@ -638,17 +694,18 @@ Track:
 - Birth
 - Death
 - Discovery
-- Faction
-- Leader
-- Disaster
-- Conflict
+- Build
+- Craft / production milestone
+- Mentor / knowledge transfer
+- future Faction / Leader / Disaster / Conflict
 
-รองรับ:
+Roadmap:
 - event selection
-- replay
 - jump to agent
 - jump to place
+- cause / consequence chain
 - generation view
+- replay only when an actual replay authority exists
 
 ---
 
@@ -680,11 +737,13 @@ Track:
 
 ## Mobile UX
 
-- World เต็มจอ
+- World เต็มจอเป็น default
 - Inspector → Bottom Sheet
 - Main nav → Bottom Bar
-- Thought bubble → icon first
+- Thought / task feedback → icon first
+- Advanced systems → collapsed disclosure
 - Timeline → horizontal scroll
+- Large information surfaces must be dismissible and must pause/gate world interaction as appropriate
 
 ---
 
