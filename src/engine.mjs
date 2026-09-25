@@ -78,7 +78,7 @@ function killAgent(s,a,cause){
 export function createWorld(seed=230926){
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
-  ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);
+  ensureRustState(s);ensureProductionPlan(s,{newWorld:true});ensureMentorshipState(s);
   let nid=1;
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
     const river=20+Math.round(Math.sin(y*.26)*2), wet=x>=river&&x<river+3;
@@ -295,7 +295,7 @@ export function step(s,count=1,options={}){
       ageKnowledge(a,s.tick);
       if(a.task&&interrupt(s,a)){a.task=null;a.moveTick=0;}
     }
-    stepProductionPlanning(s,walkable);
+    stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
     const agents=living(s),rotation=s.tick%Math.max(1,agents.length);
