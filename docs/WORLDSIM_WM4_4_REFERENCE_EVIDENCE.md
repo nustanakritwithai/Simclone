@@ -1,29 +1,37 @@
-# WM4.4 Prep — Food Ecology Reference Evidence
+# WM4.4 — Food Ecology Reference Evidence
 
-Do not map relative quartiles directly to gameplay units.
+This gate is **analysis-only**. It does not activate a new food regeneration
+formula and does not change the existing WorldSim WM4.1 writer.
 
-Relative ranks are useful diagnostics, but a relative rule always creates a
-bottom quartile even when the whole world is healthy. Before selecting an
-absolute FOOD regeneration formula, collect a reproducible reference dataset
-from the real engine.
+## Why the earlier candidate failed
+
+Fresh worlds start with food nodes at full capacity. Formula Lab correctly caps
+candidate output by each node's missing capacity, so every candidate produced
+zero units. Requiring “changed nodes > 0” on a full world was an invalid proof
+condition.
+
+## Corrected evidence method
+
+Two deterministic views are kept separate:
+
+1. **Untouched observation world** — records real raw ecology distribution.
+2. **Controlled-depletion scenario** — each food node is set to exactly three
+   missing units on a fresh copy, only for Formula Lab comparison.
 
 Reference matrix:
 
 - seeds: 230926, 1, 42, 2026, 90001
-- food-regeneration boundaries: 120, 240, 360, 480, 600, 720
+- boundaries: 120, 240, 360, 480, 600, 720 ticks
+- controlled formula scenario: 3 missing units per food node
 
-For each case record:
+The report records min, p10, p50, p90, max, relative bands and candidate-unit
+summaries for conservative / balanced / strong absolute-threshold formulas.
 
-- food-node count
-- average raw ecology potential
-- min
-- p10 / p50 / p90
-- max
-- relative quartile counts
+## Boundary
 
-The harness is analysis-only. It creates fresh deterministic worlds and never
-touches runtime saves.
+Do not map relative quartiles directly to gameplay units. Do not activate any
+candidate from this report alone. A later authority gate must compare
+survival/crisis/population continuity under a selected formula before changing
+the single WorldSim writer.
 
-A later behavior threshold should be derived from verified reference evidence,
-not from an assumed 0..1 uniform distribution and not from relative quartile
-alone.
+UNKNOWN is not PASS.
