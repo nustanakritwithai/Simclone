@@ -1,74 +1,29 @@
-# Next build gates — Knowledge + Memory 0.5.0 candidate
+# Remaining build gates
 
-These are implementation gates, not proof by themselves. Exact candidate and exact main workflows remain authoritative.
+Read STATUS and the exact current main/Actions/open PRs before changing code. Plan entries below are unfinished goals, not proof of implementation. Preserve existing tests, explicit migration, single writers and bounded history. UNKNOWN is not PASS.
 
-## Completed foundations
+## First release gate
 
-- V0.3.5 Death History + Migration — immutable death evidence and honest legacy UNKNOWN handling
-- V0.3.6 Historical Identity — bounded retained ancestry separated from the living work set
-- V0.4.0 Skill Provenance — initial/inherited/earned/legacy-unattributed XP with bounded evidence
+Finish exact candidate/main verification for Knowledge Continuity 1. Its implementation includes local belief revision, personal resource planning, an explicit paid archive, goal outcomes, source-cache pins and browser regression coverage. Do not mark it deployed from local tests alone.
 
-## V0.5.0 — First personal Knowledge + Memory slice
+## Gameplay and integration order
 
-Current candidate under [KNOWLEDGE_MEMORY_0.5.0.md](KNOWLEDGE_MEMORY_0.5.0.md).
+| Gate | Remaining concrete work | Required proof |
+|---|---|---|
+| WM4 ecology | Select an ecological food amount formula using calibration/Formula Lab; activate only the existing WorldSim writer | Survival/crisis/population/replay comparisons, no second writer, explicit policy/save compatibility |
+| Rust survival RS1–RS4 | Reconcile open crafting/possession/station/charcoal stack against current main, instead of merging stale parallel copies | Real inventory costs, station proximity, timed work, reservation symmetry, exact-once completion and save/load |
+| Knowledge follow-through | Intentional person-to-person teaching, richer observation, cultural retrieval and explicit information goals | No hidden-world leak, no XP from merely being told, source preserved across deaths |
+| Production planning | Multi-step resource -> station -> tool/processing chains with preconditions, interruption and verified completion | Failed steps spend nothing twice; hunger interrupts safely; plan continuation after save/load |
+| Kingdom authority | Move the remaining production/economy projections to gameplay individually; K5 labor scoring is already active | Baseline continuity before/after each switch; no blanket shadow-to-authority conversion |
+| Social | Event-based trust/affinity/respect/fear/debt and mentor/family links | Bounded provenance, actual behavioral effect, no fabricated motives from stale claims |
+| Faction and governance | Membership, leader/collective goals, rules and change/split conditions | Resource ownership, explainable membership/decisions, persistence and bounded history |
+| Economy | Real wallets/inventory, prices, wages/trade and production chains | Conservation, atomic transactions, no money/material duplication, survival reserves protected |
+| Cooperation/conflict | Joint work, disputes/mediation and later territorial conflict | Outcomes change behavior through real rules; no arbitrary narrative-only victories |
+| Culture/technology | Versioned techniques, teaching, experiments and adopted improvements | Discovery -> evidence -> publication -> uptake -> changed production, not renamed static levels |
+| Spatial maturity | Route memory, richer local exploration, danger/travel cost and settlement placement | Reachability and visibility boundaries, no teleportation, deterministic navigation |
+| Optional novelty layer | Bounded proposal queue, externally configured reasoning adapter, validator/approval/outcome verification | No keys in static frontend, no per-agent per-tick model calls, UNKNOWN does not promote a skill |
+| Full V1.0 acceptance | Original-only fresh start, autonomous expansion/building, generations, knowledge continuity and save/load without repeated player orders | Separate exact 100-day proof, long-run generation proof and public/native browser evidence |
 
-Implemented scope:
+## Release discipline
 
-- productive FORAGE / WOODCUT / MINE outcome creates direct resource evidence
-- direct resource belief is CONFIRMED
-- explicit engine-mediated share transfers only one selected claim
-- recipient stores the claim as UNVERIFIED with sourceAgentId + originEvidenceId
-- unrelated world nodes do not appear in recipient knowledge
-- knowledge state is bounded and retained through historical archive/save-load
-- 0.4.0 migration creates empty knowledge rather than invented historical discovery
-- Inspector explains direct versus relayed knowledge
-
-Release is still gated on exact candidate/main verification.
-
-## V0.5.1 — Verification and belief revision
-
-Add direct re-observation of relayed claims:
-
-```text
-UNVERIFIED message claim
-→ recipient reaches/experiences target
-→ CONFIRMED if supported
-→ STALE or REFUTED if contradicted under the defined evidence rule
-```
-
-Do not infer dishonesty merely from an outdated resource claim. Time/change and false claims must remain distinguishable.
-
-## V0.5.2 — Local knowledge affects planning
-
-Replace remaining hidden-global resource choice with a staged boundary:
-
-- known/observed resource candidates first
-- exploration when personal knowledge is insufficient
-- direct world validation still occurs at execution
-- no planner access to arbitrary resource nodes solely because they exist in authoritative state
-
-Definition of done: two agents with different experience can choose different plans under the same world truth for explainable reasons.
-
-## V0.6 — Multi-step goals / learning
-
-Borrow AstraLife's structured plan idea after the knowledge boundary is stable:
-
-- goal
-- ordered steps
-- prerequisites
-- interrupt conditions
-- outcome verification
-- bounded lessons
-
-No LLM is required for the deterministic first implementation.
-
-## Later society imports
-
-Only after personal knowledge and cooperation contracts are proven:
-
-- Kingdom Sandbox: occupation, scarcity/economy, governance, faction/rebellion
-- Pirate Fruit Living Economy: adaptive production/trader memory/reputation patterns
-- TestGE: proposal → verify → atomic commit → delta/replay hardening
-- PocketMonster/MonsterLifeServer: shared identity/materialization/server-authority patterns where relevant
-
-Do not copy whole donor repos into Simclone. Move contracts and verified behavior in vertical slices.
+Use a new branch from the verified current main, or continue the exact existing PR when repairing it. Re-check branch heads before writes, use non-forced updates, and preserve other branches. Keep native HTTP tests separate from offline Storage doubles. Regenerate browser source pins after runtime changes. Release only after exact candidate checks and exact main Pages test/upload/deploy succeed.

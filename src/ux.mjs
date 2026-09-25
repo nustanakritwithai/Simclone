@@ -1,3 +1,4 @@
+import {CULTURE_RULES} from './cultural-archive.mjs?v=0.5.0';
 import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 /** Observation UI 0.2.0. Read projections; all world mutations use the engine bridge. */
 import {VERSION,SKILLS,LABELS,level,day,living,capacity,survivalSummary,ageYears,lifeStage,lifespanYears,allPeople,findPerson,retainedCount,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
@@ -42,6 +43,7 @@ export function installUX(api){
  let expanded=false,identityKey='',tabKey='',candidate=null,lastPreview='',placement=null,railKey='',rosterFilter='all',historyFilter='all',rosterLimit=80,routeShadowKey='',routeShadow=null;
  const inspector=$('inspector'),stage=$('stage'),body=$('dialog-body');
  document.body.classList.add('ux-v2');
+ document.body.dataset.knowledgeVersion='knowledge-continuity-1';
  const staticIcons={observe:'eye',clone:'clone',build:'home',roster:'people',history:'history',recenter:'focus'};
  for(const [id,key] of Object.entries(staticIcons)){const button=$(id);const span=button.querySelector('span');if(span)span.innerHTML=icon(key);else button.innerHTML=icon(key);}
  const navIcons={world:'eye',people:'people',clone:'clone',build:'home',history:'history'};
@@ -77,6 +79,14 @@ export function installUX(api){
   if(b.dataset.ux==='expand'){expanded=!expanded;renderInspector();}
   if(b.dataset.ux==='why'){expanded=true;api.setTab('why');}
   if(b.dataset.ux==='clone')openClone();
+  if(b.dataset.ux==='publish-knowledge'){
+    const result=api.execute('PUBLISH_KNOWLEDGE',{agentId:api.read().selected,key:b.dataset.key});
+    api.toast(result.message);if(result.ok)api.save();
+  }
+  if(b.dataset.ux==='verify-knowledge'){
+    const result=api.execute('VERIFY_KNOWLEDGE',{agentId:api.read().selected,key:b.dataset.key});
+    api.toast(result.message);if(result.ok){api.save();renderInspector();}
+  }
   if(b.dataset.ux==='share-knowledge'){
     const result=api.execute('SHARE_KNOWLEDGE',{fromId:api.read().selected,key:b.dataset.key});
     api.toast(result.message);if(result.ok)api.save();
@@ -90,6 +100,10 @@ export function installUX(api){
  });
  body.addEventListener('input',e=>{if(e.target.id==='people-search'){rosterLimit=80;renderRosterList();}if(e.target.id==='story-search')renderHistoryList();});
  body.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.ux==='create-archive'){const result=api.execute('CREATE_ARCHIVE');api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='culture-automation'){const result=api.execute('SET_CULTURE_AUTOMATION',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='read-archive'){const result=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.key});api.toast(result.message);if(result.ok)api.save();}
+  if(b.dataset.ux==='planning-policy'){const result=api.execute('SET_PLANNING_POLICY',{policy:b.dataset.policy});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.rosterFilter){rosterFilter=b.dataset.rosterFilter;rosterLimit=80;renderRosterList();}
   if(b.dataset.ux==='more-people'){rosterLimit+=80;renderRosterList();}
   if(b.dataset.historyFilter){historyFilter=b.dataset.historyFilter;renderHistoryList();}
@@ -137,17 +151,20 @@ export function installUX(api){
   else if(tab==='knowledge'){
    const statusText={CONFIRMED:'ยืนยันจากประสบการณ์ตรง',UNVERIFIED:'ยังไม่ยืนยัน',STALE:'ข้อมูลเก่า',REFUTED:'ถูกหักล้าง'};
    const typeText={food:'อาหาร',wood:'ไม้',stone:'หิน'},beliefs=a.knowledgeState?.beliefs??[];
-   html=beliefs.map(b=>{const source=b.sourceKind==='direct'?'ประสบการณ์ตรง':'ได้รับจาก '+escape(findPerson(s,b.sourceAgentId)?.name??('#'+b.sourceAgentId));
+   html=beliefs.map(b=>{const fromArchive=(a.knowledgeState.evidence??[]).some(e=>b.evidenceIds.includes(e.evidenceId)&&e.channel==='archive');const source=b.sourceKind==='direct'?'ประสบการณ์ตรง':(fromArchive?'อ่านคลังที่บันทึกโดย ':'ได้รับจาก ')+escape(findPerson(s,b.sourceAgentId)?.name??('#'+b.sourceAgentId));
     const share=a.alive&&b.status==='CONFIRMED'?'<button class="secondary" data-ux="share-knowledge" data-key="'+escape(b.key)+'">แชร์ให้คนใกล้สุด</button>':'';
-    return `<div class="memory-item"><small>${escape(statusText[b.status]??b.status)} · ${source}</small><b>${escape(typeText[b.value.type]??b.value.type)} #${b.value.resourceId}</b><br>ตำแหน่ง ${b.value.x}, ${b.value.y}<br><span class="source-note">origin: ${escape(b.originEvidenceId)}</span>${share}</div>`;}).join('')||
+    const publish=a.alive&&b.status==='CONFIRMED'&&s.culture?'<button class="secondary" data-ux="publish-knowledge" data-key="'+escape(b.key)+'">บันทึกลงคลัง</button>':'';
+    const verify=a.alive?'<button class="secondary" data-ux="verify-knowledge" data-key="'+escape(b.key)+'">ตรวจสอบ ณ ตำแหน่งนี้</button>':'';
+    return `<div class="memory-item"><small>${escape(statusText[b.status]??b.status)} · ${source}</small><b>${escape(typeText[b.value.type]??b.value.type)} #${b.value.resourceId}</b><br>ตำแหน่ง ${b.value.x}, ${b.value.y}<br><span class="source-note">origin: ${escape(b.originEvidenceId)}</span>${share}${verify}${publish}</div>`;}).join('')||
     '<p class="empty-state">ยังไม่มีความรู้จากประสบการณ์จริง · Clone ต้องพบผลลัพธ์จากงานก่อน</p>';
-   html+='<p class="source-note">ความจริงของโลกไม่ถูกแจกให้ทุกคนอัตโนมัติ · ข้อมูลที่คนอื่นเล่าจะเริ่มเป็น “ยังไม่ยืนยัน”</p>';
+   html+='<p class="source-note">ข้อมูลที่คนอื่นเล่าเริ่มเป็น “ยังไม่ยืนยัน” · ตรวจได้เมื่ออยู่ในระยะ 4 ช่อง · แหล่งหมดชั่วคราวหรือข้อมูลอายุเกิน 720 ticks เป็น “ข้อมูลเก่า” ไม่ใช่ข้อสรุปว่าผู้ส่งโกหก</p>';
   }
   else if(tab==='memory')html=(a.knowledgeState?.episodes??[]).slice().reverse().map(e=>`<div class="memory-item"><small>tick ${e.tick} · ${e.kind==='discovery'?'ประสบการณ์':'รับข้อมูล'}</small>${escape(e.event)}<br><span class="source-note">${escape(e.perceivedOutcome)}</span></div>`).join('')||
     a.memory.slice().reverse().map(m=>`<div class="memory-item"><small>วันที่ ${1+Math.floor(m.tick/360)}</small>${escape(m.text)}</div>`).join('')||
     '<p class="empty-state">ยังไม่มีความทรงจำสำคัญ</p>';
   else if(tab==='why'){
    const chosen=a.trace.find(t=>t.status==='selected'),max=Math.max(1,...a.trace.map(t=>t.score));
+   const personalGoal=a.planning?.goal;
    if(chosen){html=`<div class="decision-callout">${icon('brain')}<div><small>เหตุผลจากการตัดสินใจล่าสุด</small><b>เลือก${LABELS[chosen.kind]} · ${chosen.score} คะแนน</b><p>Planner หลักยังเปรียบเทียบความต้องการ ความถนัด ทักษะ และระยะเดินจริง ส่วน K1 คำนวณ scarcity + อาชีพแบบ Kingdom เป็น shadow score เพื่อพิสูจน์ก่อนให้มีอำนาจเลือกงาน</p></div></div>`;}
    html+=(chosen?[chosen,...a.trace.filter(t=>t!==chosen).slice(0,5)]:a.trace.slice(0,6)).map(c=>`<div class="trace-row ${c.status==='selected'?'selected':''}"><span>${c.status==='selected'?'✓ ':''}${LABELS[c.kind]}${blockedLabels[c.status]?' · '+blockedLabels[c.status]:''}</span><b>${c.score}</b><div class="scorebar"><i style="width:${Math.max(0,c.score/max*100)}%"></i></div></div>`).join('');
    if(chosen){
@@ -155,7 +172,12 @@ export function installUX(api){
     const routeKey=JSON.stringify([a.id,a.x,a.y,a.task?.x,a.task?.y,a.task?.path]);
     if(routeKey!==routeShadowKey){routeShadowKey=routeKey;routeShadow=a.task?compareShadowRouting(s,{x:a.x,y:a.y},{x:a.task.x,y:a.task.y},a.task.path):null;}
     const worldShadow=routeShadow?.weighted?`<details class="score-details"><summary>WorldSim WM2.2 · shadow route</summary><dl><div><dt>เส้นทางปัจจุบัน</dt><dd>${routeShadow.current?.cost??'—'}</dd></div><div><dt>weighted candidate</dt><dd>${routeShadow.weighted.cost}</dd></div><div><dt>candidate steps</dt><dd>${routeShadow.weighted.steps}</dd></div><div><dt>shadow savings</dt><dd>${routeShadow.savings??'—'}</dd></div></dl><p class="source-note">ค่านี้ใช้สังเกตเท่านั้น · ยังไม่เปลี่ยน task, score, path หรือ movement จริง</p></details>`:'';
-    html+=`<details class="score-details"><summary>ดูส่วนประกอบคะแนน</summary><dl>${[['พื้นฐาน',f.base],['ความต้องการ',f.need],['ความถนัด',f.goal],['ทักษะ',f.skill],['ระยะเดินจริง',f.distance]].map(([key,v])=>`<div><dt>${key}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details>${k?`<details class="score-details"><summary>Kingdom K1 · shadow utility</summary><dl>${[['scarcity',k.scarcity],['อาชีพเดิม',k.profession],['deterministic jitter',k.utilityJitter]].map(([key,v])=>`<div><dt>${key}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details>`:''}${worldShadow}<p class="source-note">ระยะเดินตอนเลือก ${chosen.travelSteps??'—'} ช่อง · ${a.task?'เลือกเมื่อ tick '+a.task.started:'งานล่าสุดสิ้นสุดแล้ว'} · planner หลักยังเป็น authority; Kingdom K1 และ WorldSim weighted route ยังเป็น shadow evidence</p>`;
+    html+=`<details class="score-details"><summary>ดูส่วนประกอบคะแนน</summary><dl>${[['พื้นฐาน',f.base],['ความต้องการ',f.need],['ความถนัด',f.goal],['ทักษะ',f.skill],['ระยะเดินจริง',f.distance],...(f.laborMarket?[['แรงงาน K5',f.laborMarket]]:[])].map(([key,v])=>`<div><dt>${key}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details>${k?`<details class="score-details"><summary>Kingdom K1 · shadow utility</summary><dl>${[['scarcity',k.scarcity],['อาชีพเดิม',k.profession],['deterministic jitter',k.utilityJitter]].map(([key,v])=>`<div><dt>${key}</dt><dd>${v>0?'+':''}${v}</dd></div>`).join('')}</dl></details>`:''}${worldShadow}<p class="source-note">ระยะเดินตอนเลือก ${chosen.travelSteps??'—'} ช่อง · ${a.task?'เลือกเมื่อ tick '+a.task.started:'งานล่าสุดสิ้นสุดแล้ว'} · planner หลักยังเป็น authority; Kingdom K1 และ WorldSim weighted route ยังเป็น shadow evidence</p>`;
+   }
+   if(personalGoal){
+    const goals={'secure-food':'หาอาหาร','collect-wood':'หาไม้','collect-stone':'หาหิน','finish-shelter':'สร้างที่พัก','explore':'สำรวจพื้นที่'};
+    const phases={'visit-and-verify':'เดินไปยังจุดที่จำได้ → ตรวจสอบ → ทำงาน',verify:'ตรวจสอบข้อมูล',explore:'สำรวจจุดที่ยังไม่รู้',work:'ทำงาน → ตรวจผลผลิตจริง'};
+    html+=`<div class="memory-item" data-ui="personal-goal"><small>แผนต่อเนื่อง · ${escape(personalGoal.status)}</small><b>${escape(goals[personalGoal.goal]??personalGoal.goal)}</b><p>${escape(phases[personalGoal.phase]??personalGoal.phase)}</p><span class="source-note">ผลล่าสุด: ${escape(personalGoal.outcome)} · เป้าหมาย ${personalGoal.x}, ${personalGoal.y}</span></div>`;
    }
    if(!a.trace.length)html=a.archived?'<p class="empty-state">คลังประวัติเก็บตัวตน ทักษะ และความทรงจำ แต่ไม่เก็บคะแนนตัดสินใจชั่วคราว</p>':'<p class="empty-state">รอโลกเดิน tick แรกเพื่อดูคะแนนจริง</p>';
   }else{
@@ -210,6 +232,11 @@ export function installUX(api){
     <p>มีอาหารทั้งหมด ${v.food} หน่วย · เป้าสำรอง ${v.targets.food} หน่วย<br>คนความอิ่มต่ำกว่า 35: ${v.hungry} คน · พลังงานต่ำกว่า 12: ${v.exhausted} คน</p>
     <div class="clone-skills"><div><span>แหล่งทรัพยากรที่มีคนจอง</span><b>${v.nodeJobs} จุด</b></div><div><span>คนที่จองงานก่อสร้าง</span><b>${v.builders} คน</b></div><div><span>บ้านที่กำลังสร้าง</span><b>${v.unfinished} หลัง</b></div><div><span>ไม้ / เป้าสำรอง</span><b>${v.stock.wood} / ${v.targets.wood}</b></div><div><span>หิน / เป้าสำรอง</span><b>${v.stock.stone} / ${v.targets.stone}</b></div></div>
     <p class="source-note">แหล่งทรัพยากรรับคนทำงานครั้งละ 1 คน · บ้านรับคนสร้างได้ 2 คนพร้อมกัน<br>เลือกแหล่งที่ไปถึงได้ตามระยะเดินจริง ไม่วัดแค่ความใกล้บนจอ<br>เมื่อหิว คนเก็บอาหารกินผลผลิต 1 หน่วยที่จุดเก็บได้ ส่วนที่เหลือเข้าคลังรวม<br>คิดเป้าสำรองรวมผลผลิตของงานที่มีคนจองแล้ว งานชุดสุดท้ายอาจทำให้เกินเป้าได้เล็กน้อย</p>
+    <div class="life-summary"><div><small>Cultural Archive · คลังความรู้ที่แคมป์</small><b>${s.culture?s.culture.entries.length+' / '+CULTURE_RULES.entries+' รายการ':'ยังไม่สร้าง'}</b></div><div>${s.culture?`<button class="secondary" data-ux="culture-automation" data-enabled="${!s.culture.automation}">${s.culture.automation?'หยุด':'เปิด'}บันทึกและอ่านอัตโนมัติ</button>`:`<button class="secondary" data-ux="create-archive">สร้างคลัง · ไม้ ${CULTURE_RULES.woodCost} + หิน ${CULTURE_RULES.stoneCost}</button>`}</div></div>
+    <p class="source-note">ผู้ค้นพบตายได้ แต่ข้อมูลที่เขียนไว้ยังอ่านได้ · อ่านแล้วเริ่มเป็น “ยังไม่ยืนยัน” และไม่เพิ่ม XP · บันทึก/อ่านในระยะ ${CULTURE_RULES.range} ช่องจากแคมป์ · เก็บประวัติแก้ไขล่าสุด ${CULTURE_RULES.history} ครั้งต่อรายการ</p>
+    ${s.culture?.entries.length?`<details class="score-details"><summary>เปิดรายการความรู้ในคลัง</summary>${s.culture.entries.map(e=>`<div class="memory-item"><b>${escape(e.key)} · ฉบับ ${e.revision}</b><small>บันทึกโดย ${escape(findPerson(s,e.authorId)?.name??('#'+e.authorId))} · tick ${e.publishedTick}</small><p>ตำแหน่ง ${e.value.x}, ${e.value.y}</p><button class="secondary" data-ux="read-archive" data-key="${escape(e.key)}">ให้ตัวละครที่เลือกอ่าน</button></div>`).join('')}</details>`:''}
+    <div class="life-summary"><div><small>Personal Knowledge Planner</small><b>${s.planningPolicy?'ความรู้ส่วนตัว':'Survival เดิม'}</b></div><div><small>เปลี่ยนกฎการหาแหล่งทรัพยากร</small><button class="secondary" data-ux="planning-policy" data-policy="${s.planningPolicy?'legacy':'local'}">${s.planningPolicy?'กลับนโยบายเดิม':'ใช้ความรู้ส่วนตัว'}</button></div></div>
+    <p class="source-note">โหมดความรู้ส่วนตัวเห็นแหล่งในระยะ 4 ช่อง · จุดที่จำได้ต้องเดินไปตรวจ ไม่อ่านจำนวนทรัพยากรที่อยู่นอกสายตา · แผนที่ทางเดินและคลังกลางยังเป็นข้อมูลส่วนรวม</p>
     <div class="life-summary"><div><small>Kingdom K2 · แรงกดดันสูงสุด</small><b>${escape(v.kingdomEconomy.topPressure?.profession??'—')} ×${v.kingdomEconomy.topPressure?.premium??1}</b></div><div><small>ความหลากหลายอาชีพ</small><b>${v.kingdomEconomy.specialization.diversity} / 4</b></div></div>
     <div class="clone-skills"><div><span>Demand อาหาร</span><b>${v.kingdomEconomy.demand.food} · scarcity ×${v.kingdomEconomy.scarcity.food}</b></div><div><span>Demand ไม้</span><b>${v.kingdomEconomy.demand.wood} · scarcity ×${v.kingdomEconomy.scarcity.wood}</b></div><div><span>Demand หิน</span><b>${v.kingdomEconomy.demand.stone} · scarcity ×${v.kingdomEconomy.scarcity.stone}</b></div><div><span>แรงงาน หาอาหาร / ไม้ / หิน / สร้าง</span><b>${v.kingdomEconomy.specialization.counts.forager} / ${v.kingdomEconomy.specialization.counts.woodcutter} / ${v.kingdomEconomy.specialization.counts.miner} / ${v.kingdomEconomy.specialization.counts.builder}</b></div></div>
     <p class="source-note">Kingdom K2 ยังเป็น shadow economy: ใช้สูตร demand + scarcity + labor premium เพื่อสังเกตแรงกดดันของชุมชน แต่ยังไม่สร้างราคา เงิน ค่าแรง การค้า หรือบังคับเปลี่ยนงาน จึงไม่เปลี่ยน authority ของ Survival Core</p>

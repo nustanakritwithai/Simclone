@@ -114,3 +114,7 @@ with sync_playwright() as p:
  (OUT/'results.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
  print('TOTAL',len(checks),'PASS',flush=True)
  b.close()
+
+# Separate opt-in gameplay controls; preserve all original observation assertions.
+from knowledge_ui import run_knowledge_ui
+run_knowledge_ui()

@@ -104,7 +104,7 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Next knowledge work may borrow AstraLife's Observation/Memory/Belief contracts, but cognition may consume only Observation + owned memory/belief + delivered messages. No per-tick LLM calls and no hidden World Truth shortcut.
 
 
-## Knowledge + Memory 0.5.0 (current candidate)
+## Knowledge + Memory 0.5.0 (historical foundation)
 
 - Read `docs/KNOWLEDGE_MEMORY_0.5.0.md`, `docs/STATUS.md` and `docs/NEXT_STEPS.md` before changing cognition/knowledge persistence.
 - World truth remains authoritative. A person's cognition may contain only direct experienced evidence, owned knowledge/memory and explicitly delivered claims. Do not expose arbitrary `state.nodes` as personal knowledge.
@@ -115,3 +115,17 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Archive compaction must preserve `knowledgeState`; sourceAgentId must resolve through retained identity after the discoverer dies.
 - AstraLife is a donor for boundary/evidence contracts only in this slice. Do not import provider/LLM calls, trust scoring, faction or autonomous free-form messaging yet.
 - Release still requires exact candidate and exact main verification. UNKNOWN is not PASS.
+
+
+## Knowledge Continuity 1
+
+- Read `docs/KNOWLEDGE_CONTINUITY_1.md`, current STATUS and NEXT_STEPS first. The whole master game is not complete.
+- Base engine/UI/save stay 0.5.0; optional personal planning and cultural archive have explicit extension versions. Legacy resource planning is preserved unless explicitly switched.
+- `knowledge-revision.mjs` checks ownership/range before a local observation. Empty/time-old is STALE, not dishonesty; only actual local mismatch/absence refutes. Preserve original discovery/sender across later work.
+- `personal-planning.mjs` never exposes remote resource amount/existence to a person's candidates. Memory produces visit-and-verify targets. Shared path terrain/stock remain public; full private terrain memory is unimplemented.
+- Exploration must be able to beat idle. Keep the seed-230926 year-115 extinction regression and the five-seed 120-year policy proof. Never change birth/resource rules just to make that gate green.
+- `cultural-archive.mjs` is a paid camp upgrade. Keep 16 entries, three historical revisions each, 32k character budget, range four and one successful auto operation per 120 ticks. Reading is unverified and grants no XP. No silent archive creation in old saves.
+- Original survival/birth/death/120-year/1800-year gates remain mandatory. New personal-policy proof is a different scope.
+- Run `node scripts/pin-assets.mjs` after any runtime module change. Content-hash import maps avoid mixed cached versions without rewriting old save versions.
+- Browser fixtures use a deduplicated import-map/data-URL graph with an explicit Storage double. Keep all old UI assertions; `knowledge_ui.py` adds controls on a real earned-knowledge fixture. Never label offline tests as native HTTP, public Pages, or physical Android.
+- K5 labor scoring is already authoritative. Other Kingdom economic projections and the ecology Formula Lab are not automatically active. Rust crafting is still a separate pending stack.
