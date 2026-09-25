@@ -1,17 +1,21 @@
 /** WM4.3 prep — read-only food ecology calibration.
- * Converts raw WM3.4 regeneration potentials into deterministic relative ranks.
- * This does not select or apply a gameplay regeneration formula.
+ * Converts WM4.2 food-impact evidence into deterministic relative ranks.
+ *
+ * Dependency boundary: callers provide the impact projection explicitly.
+ * This keeps calibration pure/read-only and avoids rebuilding the WorldSim
+ * dependency graph when the observation UI already owns the impact evidence.
  */
-import {createFoodRegenerationImpact} from './worldsim-food-regen-impact.mjs?v=0.5.0';
-
 export const FOOD_ECOLOGY_CALIBRATION_VERSION='wm4.3-food-ecology-calibration-1';
 
 const bandForRank=rank=>rank<.25?'q1':rank<.5?'q2':rank<.75?'q3':'q4';
 
 export function calibrateFoodEcology(
-  state,
-  impact=createFoodRegenerationImpact(state)
+  _state,
+  impact
 ){
+  if(!impact||!Array.isArray(impact.rows)||!impact.summary||!impact.authority){
+    throw new Error('Food regeneration impact evidence is required');
+  }
   const sorted=[...impact.rows].sort((a,b)=>
     a.ecologyRegenerationPotential-b.ecologyRegenerationPotential||a.id-b.id
   );
@@ -57,5 +61,4 @@ export function calibrateFoodEcology(
   });
 }
 
-// Public factory name used by the observation UI; keep the original API stable.
 export const createFoodEcologyCalibration=calibrateFoodEcology;
