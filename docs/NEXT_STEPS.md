@@ -4,14 +4,14 @@ Read STATUS and the exact current main/Actions/open PRs before changing code. Pl
 
 ## First release gate
 
-Finish exact candidate/main verification for Knowledge Continuity 1. Its implementation includes local belief revision, personal resource planning, an explicit paid archive, goal outcomes, source-cache pins and browser regression coverage. Do not mark it deployed from local tests alone.
+Knowledge Continuity 1 is merged at `main@09260a3` and its exact main deployment job completed successfully. The active release gate is now the Rust RS1–RS4 integrated candidate; do not mark it released until its exact candidate and exact merged-main workflows pass.
 
 ## Gameplay and integration order
 
 | Gate | Remaining concrete work | Required proof |
 |---|---|---|
 | WM4 ecology | Select an ecological food amount formula using calibration/Formula Lab; activate only the existing WorldSim writer | Survival/crisis/population/replay comparisons, no second writer, explicit policy/save compatibility |
-| Rust survival RS1–RS4 | Reconcile open crafting/possession/station/charcoal stack against current main, instead of merging stale parallel copies | Real inventory costs, station proximity, timed work, reservation symmetry, exact-once completion and save/load |
+| Rust survival RS1–RS4 | **Implemented in PR #52 candidate:** physical crafting/possessions/stations, atomic committed materials, scheduler work, tool speed and Wood 2 -> Charcoal 1 | Exact candidate CI + offline Chromium + exact merged-main Pages; then move to autonomous production-chain planning |
 | Knowledge follow-through | Intentional person-to-person teaching, richer observation, cultural retrieval and explicit information goals | No hidden-world leak, no XP from merely being told, source preserved across deaths |
 | Production planning | Multi-step resource -> station -> tool/processing chains with preconditions, interruption and verified completion | Failed steps spend nothing twice; hunger interrupts safely; plan continuation after save/load |
 | Kingdom authority | Move the remaining production/economy projections to gameplay individually; K5 labor scoring is already active | Baseline continuity before/after each switch; no blanket shadow-to-authority conversion |
