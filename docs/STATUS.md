@@ -36,6 +36,12 @@ Merged at `48722b7` after exact candidate `5127931` passed Verify #296; Pages #3
 
 Merged at runtime main `f51138d` after exact candidate `b7413d9` passed Verify #303. Mentor → Student links are bounded and persistent; confirmed Mentor claims enter the student as UNVERIFIED, teaching grants no Skill XP, the same Mentor-link + key is idempotent, and death closes active links while preserving history. The Social tab exposes the relationship without inventing trust/affection/motives. See [MENTORSHIP_KF1](MENTORSHIP_KF1.md).
 
+## UX legibility release line
+
+UX V0.6 is released at `main@038318ac2ab8ced68896b8dcf4d3742df8640605`. Exact candidate `6f35fb77d9148bdf44448f08a6b20e9ce89f44e6` passed Verify #546 and exact main Pages #56 succeeded. The released UI keeps the world low-chrome, exposes an AI Decision Feed with direct Clone → Why navigation, shows seven primary system cards, and keeps the full 40+ runtime catalog behind Advanced disclosure.
+
+UX V0.7 World Feedback is the current candidate. It is presentation-only: selected/emergency/persistent productive actions remain visible, newly started tasks receive a bounded icon-first marker for 12 simulation ticks, equipped tools remain visible, and incomplete modular housing gets a derived progress chip. The progress and task markers are recomputed from authoritative state; they do not create a task/building ledger or write simulation state. Candidate evidence is not release proof until the exact PR head passes Verify and its merged main Pages deployment succeeds.
+
 ## Authority map
 
 | Area | Actual owner / activation |
