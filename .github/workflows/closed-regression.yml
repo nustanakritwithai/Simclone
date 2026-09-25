@@ -1,0 +1,46 @@
+name: Closed Regression Proofs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  closed-regression:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify released ecology authorities
+        run: npm run test:ecology
+
+      - name: Verify released Survival Core proof
+        run: npm run test:survival
+
+      - name: Verify released autonomous birth proof
+        run: npm run test:lifecycle
+
+      - name: Verify released deterministic death proof
+        run: npm run test:death
+
+      - name: Verify released continuity and history proof
+        run: npm run test:continuity
+
+      - name: Setup Python for archived browser regressions
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Verify released navigation and save recovery
+        run: python tests/navigation-smoke.py
+
+      - name: Verify released survival UI
+        run: python tests/survival-smoke.py
