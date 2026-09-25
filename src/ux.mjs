@@ -57,7 +57,7 @@ function rustPanel(s,api){
  return rustCatalog(s)+'<div class="life-summary"><div><small>Rust Survival · RS1–RS4</small><b>'+escape(actor.name)+'</b></div><div><small>ถ่านไม้ / สถานี</small><b>'+(s.rustMaterials?.charcoal??0)+' / '+(s.rustStations?.stations?.length??0)+'</b></div></div>'+
  '<div class="clone-skills"><div><span>กระเป๋า</span><b>'+bag.length+' / 4 ชิ้น</b></div><div><span>งานคราฟต์</span><b>'+(craft?escape(ITEM_CATALOG[RECIPE_CATALOG[craft.recipe]?.output]?.name??craft.recipe)+' '+Math.floor(craft.work)+'/'+craft.required:'ไม่มี')+'</b></div><div><span>งานเตา</span><b>'+(process?'ถ่านไม้ '+Math.floor(process.work)+'/'+process.required:'ไม่มี')+'</b></div><div><span>ของสวมอยู่</span><b>'+(equippedItem?escape(ITEM_CATALOG[equippedItem.kind]?.name??equippedItem.kind):'ไม่มี')+'</b></div></div>'+
  '<div class="life-summary"><div><small>RP1 · แผนผลิตอัตโนมัติ</small><b>'+(plan?.enabled?'เปิด':'ปิด')+'</b></div><div><small>สถานะล่าสุด</small><b>'+escape(goal?goal.goal+' · '+goal.outcome:'ยังไม่มีแผน')+'</b></div></div>'+
- '<div class="dialog-actions"><button class="secondary" data-ux="production-policy" data-enabled="'+(!plan?.enabled)+'">'+(plan?.enabled?'หยุดแผนผลิตอัตโนมัติ':'เปิดแผนผลิตอัตโนมัติ')+'</button>'+recipes+'<button class="secondary" data-ux="process-charcoal" '+(craft||process?'disabled':'')+'>เผาถ่าน Wood 2 → Charcoal 1</button></div>'+bagHtml+dropHtml+
+ '<div class="dialog-actions"><button class="secondary" data-ux="production-policy" data-enabled="'+(!plan?.enabled)+'">'+(plan?.enabled?'■ หยุดสร้างบ้าน + ทำของอัตโนมัติ':'▶ เริ่มให้ Clone สร้างบ้าน + ทำของอัตโนมัติ')+'</button>'+recipes+'<button class="secondary" data-ux="process-charcoal" '+(craft||process?'disabled':'')+'>เผาถ่าน Wood 2 → Charcoal 1</button></div>'+bagHtml+dropHtml+
  '<p class="source-note">RP1 เป็น deterministic coordinator: ใช้คำสั่ง Rust เดิมเพื่อสร้างขวาน/อีเต้อ → โต๊ะคราฟต์ → ค้อน → เตาหลอม → ถ่าน เป้าถ่าน 4 หน่วย · ไม่สร้างของเองนอก scheduler และ hunger/energy ยัง interrupt งานได้</p>'+
  '<p class="source-note">วัสดุถูก commit เข้า order แบบ atomic ตอนรับงาน · Clone เดิน/ทำงานตาม tick จริง · Stone Axe เร่ง WOODCUT ×1.25, Stone Pickaxe เร่ง MINE ×1.25 · Hammer ยังไม่เพิ่ม BUILD bonus</p>';
 }
@@ -94,6 +94,8 @@ export function installUX(api){
  const buildPanel=document.createElement('section');buildPanel.id='placement-panel';buildPanel.className='placement-panel';buildPanel.hidden=true;
  buildPanel.innerHTML=`<div class="placement-heading">${icon('home')}<div><b>บ้านพักใหม่</b><small>เพิ่มที่พัก 6 คนเมื่อสร้างเสร็จ</small></div><button id="cancel-placement" class="iconbtn" aria-label="ยกเลิกวางบ้าน">${icon('close')}</button></div><div class="placement-cost">${icon('wood')} ไม้ 12 <span>+</span> ${icon('stone')} หิน 6</div><p id="placement-status" role="status">แตะพื้นหญ้าเพื่อดูตำแหน่งก่อนสร้าง</p><div class="placement-actions"><button id="choose-position" class="secondary">ระบุช่อง</button><button id="confirm-placement" class="primary" disabled>ยืนยันตำแหน่ง</button></div>`;stage.append(buildPanel);
  const help=document.createElement('button');help.id='quick-help';help.className='quick-help';help.innerHTML=`${icon('help')}<span>เริ่มเล่นอย่างไร</span>`;help.onclick=openGuide;stage.append(help);
+ const auto=document.createElement('button');auto.id='auto-start';auto.className='auto-start';auto.setAttribute('aria-live','polite');stage.append(auto);
+ auto.onclick=()=>{const on=api.read().state.productionPlan?.enabled===true,result=api.execute('SET_PRODUCTION_POLICY',{enabled:!on});api.toast(result.message);if(result.ok)api.save();renderHUD();};
  $('all-people').onclick=()=>openRoster();$('cancel-placement').onclick=()=>api.observe();
  $('choose-position').onclick=()=>{
   api.openDialog('เลือกตำแหน่งบ้าน','BUILD · GRID',`<p>ระบุช่องบนแผนที่เพื่อดูตัวอย่างก่อนยืนยัน ยังไม่ใช้ทรัพยากรในขั้นนี้</p><div class="grid-input"><label>X <input id="grid-x" type="number" min="0" max="29" value="${candidate?.x??14}"></label><label>Y <input id="grid-y" type="number" min="0" max="25" value="${candidate?.y??11}"></label></div><button id="preview-grid" class="primary">ดูตำแหน่งนี้</button>`);
@@ -254,6 +256,11 @@ export function installUX(api){
   const building=mode==='build';buildPanel.hidden=!building;rail.hidden=building;document.body.classList.toggle('is-building',building);
   if(!building){candidate=null;placement=null;lastPreview='';}else refreshPlacement();
   $('quick-help').hidden=building||selected!==null;
+  const auto=$('auto-start'),autoOn=s.productionPlan?.enabled===true;
+  auto.hidden=building||selected!==null;
+  auto.classList.toggle('is-on',autoOn);
+  auto.textContent=autoOn?'✓ Clone กำลังสร้างบ้าน + ทำของ':'▶ เริ่มสร้างบ้าน + ทำของอัตโนมัติ';
+  auto.setAttribute('aria-pressed',String(autoOn));
   $('pause').setAttribute('aria-pressed',String(paused));$('observe').setAttribute('aria-pressed',String(!building));$('build').setAttribute('aria-pressed',String(building));
   const h=$('world-status');h.textContent=$('dialog').open?'หยุดเวลา · กำลังดูข้อมูล':paused?'หยุดเวลา · กด ▶ เพื่อเดินต่อ':'โลกกำลังดำเนินไปด้วยตัวเอง';
   document.body.classList.toggle('is-paused',paused||$('dialog').open);

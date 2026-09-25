@@ -295,7 +295,7 @@ export function step(s,count=1,options={}){
       ageKnowledge(a,s.tick);
       if(a.task&&interrupt(s,a)){a.task=null;a.moveTick=0;}
     }
-    stepProductionPlanning(s,walkable);
+    stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
     const agents=living(s),rotation=s.tick%Math.max(1,agents.length);
