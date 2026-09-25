@@ -48,6 +48,32 @@ const itemIconKind=kind=>kind==='STONE_AXE'?'wood':kind==='STONE_PICKAXE'?'stone
 const visualToken=(name,label='')=>'<span class="visual-token" aria-hidden="true">'+icon(name)+'</span>'+(label?'<span class="visual-label">'+escape(label)+'</span>':'');
 const menuMetric=(iconName,label,value,tone='')=>'<div class="menu-metric '+tone+'">'+visualToken(iconName)+'<div><small>'+escape(label)+'</small><b>'+escape(value)+'</b></div></div>';
 const menuSection=(iconName,title,body,{open=false,badge=''}={})=>'<details class="menu-section" '+(open?'open':'')+'><summary>'+visualToken(iconName)+'<span>'+escape(title)+'</span>'+(badge?'<b>'+escape(badge)+'</b>':'')+'</summary><div class="menu-section-body">'+body+'</div></details>';
+const clamp01=n=>Math.max(0,Math.min(1,Number.isFinite(n)?n:0));
+const barRow=(label,value,max,iconName='brain',meta='')=>{
+ const safeMax=Math.max(1,Number(max)||1),safeValue=Math.max(0,Number(value)||0),pct=Math.round(clamp01(safeValue/safeMax)*100);
+ return '<div class="viz-bar-row">'+visualToken(iconName)+'<div><span><b>'+escape(label)+'</b><small>'+escape(meta||String(safeValue)+' / '+String(max))+'</small></span><div class="viz-bar-track"><i style="width:'+pct+'%"></i></div></div></div>';
+};
+const barChart=(rows,title='')=>'<section class="viz-bar-chart" aria-label="'+escape(title||'กราฟแท่ง')+'">'+(title?'<div class="viz-chart-head">'+escape(title)+'</div>':'')+rows.join('')+'</section>';
+function eventTrend(events,currentDay){
+ const days=Array.from({length:7},(_,i)=>Math.max(1,currentDay-6+i)),counts=days.map(d=>events.filter(e=>1+Math.floor(e.tick/360)===d).length),max=Math.max(1,...counts);
+ const pts=counts.map((n,i)=>[12+i*(276/6),64-(n/max)*46]),poly=pts.map(p=>p.join(',')).join(' ');
+ return '<section class="viz-line-card" aria-label="กราฟเหตุการณ์ 7 วัน"><div class="viz-chart-head">เหตุการณ์ 7 วัน</div><svg class="viz-line-chart" viewBox="0 0 300 82" role="img" aria-label="จำนวนเหตุการณ์รายวัน"><polyline points="'+poly+'" fill="none" stroke="currentColor" stroke-width="2"/>'+pts.map((p,i)=>'<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3"><title>วัน '+days[i]+' · '+counts[i]+' เหตุการณ์</title></circle>').join('')+'<text x="10" y="78">D'+days[0]+'</text><text x="268" y="78">D'+days.at(-1)+'</text></svg></section>';
+}
+function knowledgeGraph(s,actor){
+ const entries=s.culture?.entries??[];if(!entries.length)return '<div class="kg-empty">'+visualToken('book')+'<span>ยังไม่มีโหนดความรู้</span></div>';
+ const authors=[...new Map(entries.map(e=>[e.authorId,findPerson(s,e.authorId)]).filter(x=>x[1]).map(([id,p])=>[id,p])).values()].sort((a,b)=>a.id-b.id);
+ const h=Math.max(240,Math.max(entries.length,authors.length)*44+44),ay=new Map(authors.map((a,i)=>[a.id,authors.length===1?h/2:28+i*((h-56)/(authors.length-1))]));
+ const ey=entries.map((e,i)=>entries.length===1?h/2:28+i*((h-56)/(entries.length-1)));
+ const known=new Set((actor?.knowledgeState?.beliefs??[]).map(b=>b.key));
+ const edges=entries.map((e,i)=>'<line class="kg-edge" data-kg-type="'+escape(e.value.type)+'" x1="18" y1="'+ay.get(e.authorId)+'" x2="52" y2="'+ey[i]+'"/>').join('')+
+  (actor?entries.filter(e=>known.has(e.key)).map((e,i)=>{const idx=entries.indexOf(e);return '<line class="kg-edge kg-known" data-kg-type="'+escape(e.value.type)+'" x1="52" y1="'+ey[idx]+'" x2="86" y2="'+(h/2)+'"/>';}).join(''):'');
+ const authorNodes=authors.map(a=>'<button class="kg-node kg-agent" data-kg-agent="'+a.id+'" style="left:18%;top:'+ay.get(a.id)+'px" aria-label="ดู '+escape(a.name)+'">'+escape(a.name.slice(0,7))+'</button>').join('');
+ const entryNodes=entries.map((e,i)=>'<button class="kg-node kg-entry" data-kg-key="'+escape(e.key)+'" data-kg-type="'+escape(e.value.type)+'" style="left:52%;top:'+ey[i]+'px" aria-label="'+escape(e.key)+'">'+(e.value.type==='food'?'●':e.value.type==='wood'?'▰':'◆')+' #'+e.value.resourceId+'</button>').join('');
+ const actorNode=actor?'<button class="kg-node kg-reader" data-kg-agent="'+actor.id+'" style="left:86%;top:'+(h/2)+'px" aria-label="ดู '+escape(actor.name)+'">'+escape(actor.name.slice(0,7))+'</button>':'';
+ const first=entries[0];
+ return '<section class="knowledge-graph-card"><div class="viz-chart-head">Knowledge Graph</div><div class="kg-filters">'+[['all','ทั้งหมด'],['food','อาหาร'],['wood','ไม้'],['stone','หิน']].map(([id,t])=>'<button class="secondary" data-kg-filter="'+id+'">'+t+'</button>').join('')+'</div><div class="kg-canvas" style="height:'+h+'px"><svg viewBox="0 0 100 '+h+'" preserveAspectRatio="none" aria-hidden="true">'+edges+'</svg><div class="kg-archive" style="top:'+(h/2)+'px">Archive</div>'+authorNodes+entryNodes+actorNode+'</div><div class="kg-legend"><span>ผู้บันทึก</span><span>ความรู้</span>'+(actor?'<span>Clone ที่เลือก</span>':'')+'</div><div id="kg-detail" class="kg-detail" data-kg-selected="'+escape(first.key)+'"><b>'+escape(first.key)+'</b><small>v'+first.revision+' · '+escape(findPerson(s,first.authorId)?.name??('#'+first.authorId))+'</small>'+(actor?'<button class="secondary" data-ux="read-archive" data-key="'+escape(first.key)+'">'+icon('eye')+' อ่าน</button>':'')+'</div></section>';
+}
+
 
 
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
