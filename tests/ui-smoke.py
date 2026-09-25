@@ -216,7 +216,7 @@ with sync_playwright() as p:
  m.locator('[data-quick-person="2"]').tap()
  check('quick portrait selects Nira', 'Nira' in m.locator('#inspector .identity').inner_text())
  m.locator('[data-nav="rust"]').tap()
- check('Rust dock exposes the bounded item catalog and craft controls',m.locator('#dialog-title').inner_text()=='ไอเทมและการคราฟต์' and m.locator('[data-rust-catalog-item]').count()==9 and m.locator('[data-ux="craft-item"]').count()==9)
+ check('Rust dock exposes the bounded item catalog and hand-craft controls',m.locator('#dialog-title').inner_text()=='ไอเทมและการคราฟต์' and m.locator('[data-rust-catalog-item]').count()==9 and m.locator('[data-ux="craft-item"]').count()==8)
  check('Rust menu uses visual hand-recipe cards progress-ready metrics and collapsed rules',m.locator('.visual-recipe-card[data-ux="craft-item"]').count()==8 and m.locator('.rust-menu-hero').count()==1 and m.locator('.menu-metric').count()>=4 and m.locator('.menu-explain').count()>=1)
  check('global Rust menu no longer owns Furnace processing',m.locator('[data-ux="process-charcoal"]').count()==0)
  m.locator('#dialog-close').tap()
