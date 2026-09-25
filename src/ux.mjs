@@ -108,7 +108,7 @@ export function installUX(api){
  const rail=document.createElement('section');rail.id='people-rail';rail.className='people-rail';rail.setAttribute('aria-label','เลือกตัวละครอย่างรวดเร็ว');
  rail.innerHTML='<div class="rail-heading"><span>ผู้คนในโลกนี้</span><button id="all-people">ดูทั้งหมด →</button></div><div id="people-chips"></div>';stage.append(rail);
  const help=document.createElement('button');help.id='quick-help';help.className='quick-help';help.innerHTML=`${icon('help')}<span>เริ่มเล่นอย่างไร</span>`;help.onclick=openGuide;stage.append(help);
- const auto=document.createElement('div');auto.id='autonomy-status';auto.className='autonomy-status';auto.setAttribute('aria-live','polite');stage.append(auto);
+ const auto=document.createElement('button');auto.type='button';auto.id='autonomy-status';auto.className='autonomy-status';auto.setAttribute('aria-live','polite');auto.setAttribute('aria-haspopup','dialog');auto.onclick=()=>openDecisionFeed();stage.append(auto);
  $('all-people').onclick=()=>openRoster();
  rail.addEventListener('click',e=>{const b=e.target.closest('[data-quick-person]');if(b)api.select(Number(b.dataset.quickPerson),true);});
  inspector.addEventListener('click',e=>{
@@ -166,6 +166,7 @@ export function installUX(api){
   if(b.dataset.ux==='pickup-rust'){const result=api.execute('PICKUP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='systems-rust')openRust();
   if(b.dataset.ux==='systems-survival')openSurvival();
+  if(b.dataset.aiPerson){const id=Number(b.dataset.aiPerson);api.closeDialog();api.select(id,true);expanded=true;api.setTab('why');return;}
   if(b.dataset.rosterFilter){rosterFilter=b.dataset.rosterFilter;rosterLimit=80;renderRosterList();}
   if(b.dataset.ux==='more-people'){rosterLimit+=80;renderRosterList();}
   if(b.dataset.historyFilter){historyFilter=b.dataset.historyFilter;renderHistoryList();}
@@ -250,6 +251,20 @@ export function installUX(api){
   }
   if(panel.dataset.content!==html){const oldOpen=panel.querySelector('details')?.open,scroll=inspector.scrollTop;replaceIfChanged(panel,html);if(oldOpen&&panel.querySelector('details'))panel.querySelector('details').open=true;inspector.scrollTop=scroll;}
  }
+ function currentDecisions(s,limit=12){
+  const factorLabels={base:'พื้นฐาน',need:'ความต้องการ',goal:'ความถนัด',skill:'ทักษะ',distance:'ระยะเดิน',laborMarket:'แรงงาน K5'};
+  return living(s).map(a=>{
+   const chosen=(a.trace??[]).find(t=>t.status==='selected');if(!chosen)return null;
+   const causes=Object.entries(chosen.factors??{}).filter(([k,v])=>k in factorLabels&&Number.isFinite(v)&&v!==0).sort((x,y)=>Math.abs(y[1])-Math.abs(x[1])||x[0].localeCompare(y[0])).slice(0,3).map(([k,v])=>factorLabels[k]+' '+(v>0?'+':'')+v);
+   return {agent:a,chosen,causes,started:a.task?.started??-1};
+  }).filter(Boolean).sort((a,b)=>b.started-a.started||a.agent.id-b.agent.id).slice(0,limit);
+ }
+ function openDecisionFeed(){
+  const s=api.read().state,rows=currentDecisions(s);
+  const html=rows.length?rows.map(({agent,chosen,causes})=>'<button class="decision-feed-row" data-ai-person="'+agent.id+'" aria-label="ดูเหตุผลของ '+escape(agent.name)+'"><div class="decision-feed-title"><b>'+escape(agent.name)+'</b><span>'+escape(LABELS[chosen.kind]??chosen.kind)+' · '+chosen.score+' คะแนน</span></div><p>'+escape(causes.join(' · ')||'ดู trace การตัดสินใจล่าสุด')+'</p><small>เปิด Clone → เหตุผล →</small></button>').join(''):'<p class="empty-state">ยังไม่มี decision trace · ปล่อยโลกเดินอย่างน้อย 1 tick</p>';
+  api.openDialog('AI กำลังตัดสินใจอะไร','AI DECISION FEED · LIVE','<p class="decision-feed-intro">นี่คือการตัดสินใจจริงจาก planner ปัจจุบัน ไม่ใช่ข้อความแต่ง · แตะแถวเพื่อไปยัง Clone และเปิด “เหตุผล” โดยตรง</p><div class="decision-feed-list">'+html+'</div>');
+  $('dialog').dataset.kind='decisions';renderHUD();
+ }
  function renderHUD(){
   const {state:s,selected,mode,paused}=api.read(),agents=living(s);
   const key=agents.map(a=>a.id+':'+a.name+':'+a.alive).join('|');
@@ -258,9 +273,10 @@ export function installUX(api){
   }
   for(const b of rail.querySelectorAll('[data-quick-person]')){const active=Number(b.dataset.quickPerson)===selected;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));}
   $('quick-help').hidden=selected!==null;
-  const auto=$('autonomy-status'),autoOn=s.productionPlan?.enabled===true;
+  const auto=$('autonomy-status'),autoOn=s.productionPlan?.enabled===true,latestDecision=currentDecisions(s,1)[0];
   auto.hidden=selected!==null;
-  auto.innerHTML='<b>AI AUTONOMY · ACTIVE</b><span>Housing LIVE · RP1 '+(autoOn?'LIVE':'READY')+'</span>';
+  auto.innerHTML='<b>AI AUTONOMY · ACTIVE</b><span>'+(latestDecision?escape(latestDecision.agent.name)+' → '+escape(LABELS[latestDecision.chosen.kind]??latestDecision.chosen.kind)+' · ทำไม?':'Housing LIVE · RP1 '+(autoOn?'LIVE':'READY'))+'</span>';
+  auto.setAttribute('aria-label',latestDecision?'เปิด AI Decision Feed · '+latestDecision.agent.name+' เลือก '+(LABELS[latestDecision.chosen.kind]??latestDecision.chosen.kind):'เปิด AI Decision Feed');
   $('pause').setAttribute('aria-pressed',String(paused));$('observe').setAttribute('aria-pressed','true');
   const h=$('world-status');h.textContent=$('dialog').open?'หยุดเวลา · กำลังดูข้อมูล':paused?'หยุดเวลา · กด ▶ เพื่อเดินต่อ':'โลกกำลังดำเนินไปด้วยตัวเอง';
   document.body.classList.toggle('is-paused',paused||$('dialog').open);
@@ -352,12 +368,12 @@ export function installUX(api){
  ];
  const allSystems=groups.flatMap(g=>g[1]),counts=allSystems.reduce((o,x)=>(o[x.status]=(o[x.status]??0)+1,o),{});
  const row=x=>'<div class="system-row" data-system-status="'+x.status+'"><div><b>'+escape(x.name)+'</b><p>'+escape(x.detail)+'</p></div>'+badge(x.status)+'</div>';
- const catalog=groups.map(([title,list],i)=>'<details class="system-catalog" '+(i<2?'open':'')+'><summary><span>'+escape(title)+'</span><b>'+list.length+' ระบบ</b></summary>'+list.map(row).join('')+'</details>').join('');
+ const catalog=groups.map(([title,list])=>'<details class="system-catalog"><summary><span>'+escape(title)+'</span><b>'+list.length+' ระบบ</b></summary>'+list.map(row).join('')+'</details>').join('');
  api.openDialog('ระบบที่กำลังขับเคลื่อนโลก','WORLD SYSTEMS · AUTONOMOUS',
   '<section class="system-hero"><span class="eyebrow">AI WORLD STATUS</span><h3>โลกทำงานเอง · ทุกระบบที่มีจริงต้องมองเห็นได้</h3><p>แยกชัดว่า LIVE, READY, SHADOW หรือ INFRA เพื่อไม่ให้ระบบซ่อนอยู่หลังโค้ด</p><div class="system-counts"><span>LIVE '+(counts.LIVE??0)+'</span><span>READY '+(counts.READY??0)+'</span><span>SHADOW '+(counts.SHADOW??0)+'</span><span>INFRA '+(counts.INFRA??0)+'</span></div></section>'+
   '<div class="system-grid">'+cards+'</div>'+
   '<section class="ai-activity"><div class="system-section-head"><div><span class="eyebrow">LIVE ACTIVITY</span><h3>ตอนนี้ Clone กำลังทำอะไร</h3></div><b>'+agents.length+' คน</b></div><div class="activity-grid">'+activity+'</div></section>'+
-  '<section class="all-systems"><div class="system-section-head"><div><span class="eyebrow">FULL RUNTIME CATALOG</span><h3>ระบบทั้งหมดที่มีอยู่ในเกม</h3></div><b>'+allSystems.length+' ระบบ</b></div>'+catalog+'</section>'+
+  '<details class="system-advanced"><summary><div><span class="eyebrow">ADVANCED SYSTEMS</span><b>ดูระบบทั้งหมด '+allSystems.length+' ระบบ</b></div><span>LIVE / READY / SHADOW / INFRA</span></summary><section class="all-systems"><div class="system-section-head"><div><span class="eyebrow">FULL RUNTIME CATALOG</span><h3>ระบบทั้งหมดที่มีอยู่ในเกม</h3></div><b>'+allSystems.length+' ระบบ</b></div>'+catalog+'</section></details>'+
   '<div class="system-actions"><button class="secondary" data-ux="systems-survival">รายละเอียด Survival / Ecology</button><button class="secondary" data-ux="systems-rust">รายละเอียดของ / คราฟต์</button></div>'+
   '<p class="source-note">LIVE = เขียนผลเกมจริง · READY = ระบบพร้อมแต่ policy/สิ่งปลูกสร้างยังไม่เปิด · SHADOW = คำนวณเพื่อสังเกต · INFRA = ระบบพื้นฐานที่รองรับ gameplay แต่ไม่ใช่ decision authority</p>');
  $('dialog').dataset.kind='systems';renderHUD();
@@ -438,5 +454,5 @@ export function installUX(api){
   $('dialog').dataset.kind='survival';
  }
  function openGuide(){api.openDialog('เริ่มจากการดูโลกที่กำลังคิดเอง','OBSERVE → UNDERSTAND → TRACE',`<div class="guide-step"><span>01</span><div><b>เปิด “ระบบโลก”</b><p>ดูว่า Housing, Production, Inventory, Knowledge, Ecology และระบบอื่นกำลัง LIVE, READY หรือ SHADOW</p></div></div><div class="guide-step"><span>02</span><div><b>แตะ Clone ที่สนใจ</b><p>ดูสิ่งที่กำลังทำ กระเป๋า อุปกรณ์ ทักษะ ความรู้ ความสัมพันธ์ และกด “ทำไม?” เพื่อดูเหตุผลจริง</p></div></div><div class="guide-step"><span>03</span><div><b>ปล่อยให้โลกสร้างเรื่องของมันเอง</b><p>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การโคลนแบบ manual ยังอยู่ใน Inspector แต่ไม่ใช่แกนหลักของเกม</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างข้อมูลหยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">กลับไปดูโลก</button></div>`);$('dialog').dataset.kind='guide';}
- return {renderInspector,renderHUD,openRoster,openHistory,openClone,openRust,openSurvival,openSystems};
+ return {renderInspector,renderHUD,openRoster,openHistory,openClone,openRust,openSurvival,openSystems,openDecisionFeed};
 }
