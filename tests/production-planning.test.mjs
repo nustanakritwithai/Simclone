@@ -75,7 +75,12 @@ test('RP1 save/load mid-chain resumes without duplicate station or recipe output
   assert.equal(s.rustStations.stations.filter(x=>x.kind==='FURNACE').length,1);
   assert.equal(s.rustPossessions.items.filter(x=>x.kind==='STONE_AXE').length,1);
   assert.equal(s.rustPossessions.items.filter(x=>x.kind==='STONE_PICKAXE').length,1);
-  assert.equal(s.rustPossessions.items.filter(x=>x.kind==='HAMMER').length,1);
+  // IC2 owns one Hammer per person, not one per world. Keep identity and replay invariants.
+  const hammers=s.rustPossessions.items.filter(i=>i.kind==='HAMMER');
+  assert.ok(hammers.length>=1);
+  assert.equal(new Set(hammers.map(i=>i.createdBy)).size,hammers.length,'no duplicate Hammer for one founder');
+  assert.equal(new Set(hammers.map(i=>i.id)).size,hammers.length,'no duplicate item identity');
+  for(const i of hammers)assert.equal(i.location.agentId,i.createdBy,'each Hammer belongs to its actual founder');
   assert.ok(s.productionPlan.history.length>=Math.min(before.history,PRODUCTION_RULES.history));
   assert.deepEqual(validate(s),[]);
 });

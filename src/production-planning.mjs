@@ -1,3 +1,5 @@
+import {isIndependent,materialStock} from './individual-resources.mjs?v=0.5.0';
+import {personalHomeSite,homeOf} from './individual-housing.mjs?v=0.5.0';
 /** RP1 — deterministic autonomous Rust production coordinator.
  * It never completes work itself. It only issues existing validated Rust commands.
  */
@@ -6,8 +8,8 @@ import {rustCommand} from './rust-runtime.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {housingCapacity,evaluateModularHouses,houseSite,nextHousePiece} from './housing.mjs?v=0.5.0';
 import {canonicalEdge,placementIdFor} from './rust-stations.mjs?v=0.5.0';
-import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 import {personalHomeIntent} from './individual-home-planning.mjs?v=0.5.0';
+import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 
 export const PRODUCTION_PLAN_VERSION='RP1-0.2';
 export const PRODUCTION_POLICY='rust-production-2';
@@ -83,10 +85,6 @@ function queueRecipe(s,recipeId,profession,isWalkable){
   const a=roleAgent(s,profession);if(!a)return {ok:false,reason:'no-worker'};
   return rustCommand(s,'CRAFT_ITEM',{agentId:a.id,recipeId},isWalkable);
 }
-function queueRecipeForAgent(s,recipeId,a,isWalkable){
-  if(!a?.alive||!canPerformProductiveWork(s,a))return {ok:false,reason:'no-worker'};
-  return rustCommand(s,'CRAFT_ITEM',{agentId:a.id,recipeId},isWalkable);
-}
 function queueCharcoal(s,isWalkable){
   const furnace=s.rustStations.stations.filter(st=>st.complete&&st.kind==='FURNACE').sort((a,b)=>a.id-b.id)[0];
   if(!furnace)return {ok:false,reason:'station'};
@@ -125,46 +123,20 @@ function stepHousePlan(s,p,isWalkable){
   record(p,s.tick,'craft-'+piece.pieceKind,r?.ok?'accepted':(r?.reason??'blocked'),r?.ok?builder.id:null);
   return r;
 }
-/** IC2 personal-home coordinator. It consumes one pure intent and delegates every mutation
- * to existing Rust commands. Physical placement remains an engine BUILD task.
- */
 function stepPersonalHomePlan(s,p,isWalkable){
-  const rows=eligible(s).map(a=>({a,intent:personalHomeIntent(s,a,isWalkable)}))
-    .filter(x=>!['HOME_COMPLETE','INELIGIBLE'].includes(x.intent.kind));
-  if(!rows.length){
-    if(p.goal?.goal!=='personal-homes-complete')record(p,s.tick,'personal-homes-complete','completed');
-    return null;
-  }
-  const row=rows.find(x=>x.intent.kind!=='NO_SITE')??rows[0],a=row.a,intent=row.intent;
-  const note=(goal,outcome)=>{if(p.goal?.goal!==goal||p.goal?.outcome!==outcome||p.goal?.agentId!==a.id)record(p,s.tick,goal,outcome,a.id);};
-  const reserveOk=recipeId=>{
-    const recipe=RECIPE_CATALOG[recipeId];if(!recipe)return false;
-    const wood=recipe.materials.wood??0;
-    return s.stock.wood>=wood+BIRTH_RULES.woodSafetyFloor;
-  };
-  if(intent.kind==='NO_SITE'){note('personal-home-site','no-site');return {ok:false,reason:'no-site',agentId:a.id};}
-  if(intent.kind==='NEED_HAMMER'){
-    if(!stationKind(s,'CRAFTING_TABLE_LV1')){note('personal-home-hammer','station');return {ok:false,reason:'station',agentId:a.id};}
-    if(!reserveOk('HAMMER')){note('personal-home-hammer','materials');return {ok:false,reason:'materials',agentId:a.id};}
-    const r=queueRecipeForAgent(s,'HAMMER',a,isWalkable);
-    record(p,s.tick,'personal-home-hammer',r?.ok?'accepted':(r?.reason??'blocked'),a.id);return r;
-  }
-  if(intent.kind==='EQUIP_HAMMER'){
-    const r=rustCommand(s,'EQUIP_ITEM',{agentId:a.id,itemId:intent.itemId},isWalkable);
-    record(p,s.tick,'personal-home-equip-hammer',r?.ok?'completed':(r?.reason??'blocked'),a.id);return r;
-  }
-  if(intent.kind==='NEED_MATERIALS'){note('personal-home-'+(intent.pieceKind??'piece'),'materials');return {ok:false,reason:'materials',agentId:a.id};}
-  if(intent.kind==='CRAFT_PIECE'){
-    if(!reserveOk(intent.recipeId)){note('personal-home-'+intent.pieceKind,'materials');return {ok:false,reason:'materials',agentId:a.id};}
-    const r=queueRecipeForAgent(s,intent.recipeId,a,isWalkable);
-    record(p,s.tick,'personal-home-craft-'+intent.pieceKind,r?.ok?'accepted':(r?.reason??'blocked'),a.id);return r;
-  }
-  if(intent.kind==='PLACE_PIECE'){
-    note('personal-home-place-'+intent.pieceKind,'waiting');
-    return {ok:true,waiting:true,agentId:a.id,itemInstanceId:intent.itemInstanceId,pieceKind:intent.pieceKind};
-  }
-  note('personal-home-intent',intent.kind.toLowerCase());
-  return {ok:false,reason:intent.kind.toLowerCase(),agentId:a.id};
+ const rows=eligible(s).map(a=>({a,intent:personalHomeIntent(s,a,isWalkable)})).filter(x=>!['HOME_COMPLETE','INELIGIBLE'].includes(x.intent.kind));
+ if(!rows.length)return null;
+ const {a,intent}=rows.find(x=>x.intent.kind!=='NO_SITE')??rows[0];
+ const note=(goal,outcome)=>{if(p.goal?.goal!==goal||p.goal?.outcome!==outcome||p.goal?.agentId!==a.id)record(p,s.tick,goal,outcome,a.id);};
+ if(intent.kind==='NO_SITE'){note('personal-home-site','no-site');return {ok:false,reason:'no-site',agentId:a.id};}
+ if(intent.kind==='PLACE_PIECE'){note('personal-home-place-'+intent.pieceKind,'waiting');return {ok:true,waiting:true,agentId:a.id};}
+ if(intent.kind==='EQUIP_HAMMER'){
+  const r=rustCommand(s,'EQUIP_ITEM',{agentId:a.id,itemId:intent.itemId},isWalkable);note('personal-home-equip-hammer',r.ok?'completed':r.reason);return r;
+ }
+ const recipeId=intent.kind==='NEED_HAMMER'?'HAMMER':intent.recipeId;
+ const goal=intent.kind==='NEED_HAMMER'?'personal-home-hammer':'personal-home-craft-'+intent.pieceKind;
+ if(!recipeId||s.stock.wood<(RECIPE_CATALOG[recipeId].materials.wood??0)+BIRTH_RULES.woodSafetyFloor){note(goal,'materials');return {ok:false,reason:'materials'};}
+ const r=rustCommand(s,'CRAFT_ITEM',{agentId:a.id,recipeId},isWalkable);note(goal,r.ok?'accepted':r.reason);return r;
 }
 export function productionCommand(s,type,data={}){
   if(type!=='SET_PRODUCTION_POLICY')return null;
@@ -172,8 +144,43 @@ export function productionCommand(s,type,data={}){
   p.enabled=enabled;p.goal={goal:'policy',outcome:enabled?'enabled':'disabled',agentId:null,tick:s.tick};
   return {ok:true,enabled,message:enabled?'เปิดแผนผลิตอัตโนมัติแล้ว':'หยุดแผนผลิตอัตโนมัติแล้ว'};
 }
+/** IC3 runs the same Rust orders per person. No colony-wide head-of-line lock. */
+function stepIndependentHomePlans(s,p,isWalkable){
+ if(s.tick-p.lastAttemptTick<PRODUCTION_RULES.attemptPeriod)return null;
+ p.lastAttemptTick=s.tick;
+ const agents=eligible(s);if(!agents.length)return null;
+ const offset=Math.floor(s.tick/PRODUCTION_RULES.attemptPeriod)%agents.length;
+ for(let i=0;i<agents.length;i++){
+  const a=agents[(i+offset)%agents.length];
+  if(a.satiety<35||a.energy<12||homeOf(s,a.id,{completeOnly:true}))continue;
+  if(s.rustPossessions.orders.some(o=>o.agentId===a.id)||s.rustMaterials.orders.some(o=>o.agentId===a.id))continue;
+  const site=personalHomeSite(s,a,isWalkable);if(!site)continue;
+  if(!a.homePlan||a.homePlan.x!==site.origin.x||a.homePlan.y!==site.origin.y)a.homePlan={version:'home-plan-1',x:site.origin.x,y:site.origin.y,createdTick:s.tick};
+  const bag=s.rustPossessions.items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===a.id);
+  const table=s.rustStations.stations.find(st=>st.complete&&st.kind==='CRAFTING_TABLE_LV1'&&st.placedBy===a.id);
+  let recipeId=null;
+  if(!table){if(bag.some(i=>i.kind==='CRAFTING_TABLE_LV1'))continue;recipeId='CRAFTING_TABLE_LV1';}
+  else{
+   const intent=personalHomeIntent(s,a,isWalkable);
+   if(intent.kind==='EQUIP_HAMMER'){
+    const r=rustCommand(s,'EQUIP_ITEM',{agentId:a.id,itemId:intent.itemId},isWalkable);
+    if(r.ok){record(p,s.tick,'personal-home-equip-hammer','completed',a.id);return r;}continue;
+   }
+   if(intent.kind==='NEED_HAMMER')recipeId='HAMMER';
+   else if(intent.kind==='CRAFT_PIECE')recipeId=intent.recipeId;
+   else continue;
+  }
+  const stock=materialStock(s,a),recipe=RECIPE_CATALOG[recipeId];
+  if(!recipe||Object.entries(recipe.materials).some(([k,n])=>stock[k]<n))continue;
+  const r=rustCommand(s,'CRAFT_ITEM',{agentId:a.id,recipeId,stationId:recipeId==='HAMMER'?table.id:null},isWalkable);
+  if(r.ok){record(p,s.tick,'personal-home-craft-'+recipeId,'accepted',a.id);return r;}
+ }
+ return null;
+}
 export function stepProductionPlanning(s,isWalkable,dispatch=null){
-  const p=ensureProductionPlan(s),housingOnly=p.enabled!==true&&autonomousHousingNeeded(s);
+  const p=ensureProductionPlan(s);
+  if(isIndependent(s))return stepIndependentHomePlans(s,p,isWalkable);
+  const housingOnly=p.enabled!==true&&autonomousHousingNeeded(s);
   if(!p.enabled&&!housingOnly)return null;
   if(activeOrders(s)>0)return null;
   // Resolve completed physical outputs before starting the next chain step.
@@ -212,10 +219,9 @@ export function stepProductionPlanning(s,isWalkable,dispatch=null){
   if(s.rustMaterials.charcoal<PRODUCTION_RULES.charcoalTarget){
     const r=queueCharcoal(s,isWalkable);record(p,s.tick,'charcoal',r?.ok?'accepted':(r?.reason??'blocked'));return r?.ok?r:null;
   }
-  // IC2: full RP1 now advances personal homes one owner at a time. Default housing-only
-  // autonomy above remains the legacy settlement-pressure path until IC3 changes defaults.
-  const personal=stepPersonalHomePlan(s,p,isWalkable);
-  if(personal)return personal.ok?personal:null;
+  // Shelter BUILD is gone; settlement growth is one modular house at a time, after Hammer and charcoal.
+  const house=stepPersonalHomePlan(s,p,isWalkable);
+  if(house)return house.ok?house:null;
   if(p.goal?.goal!=='stable')record(p,s.tick,'stable','target-met');
   return null;
 }

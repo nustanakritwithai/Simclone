@@ -6,11 +6,15 @@ feature: Independent Clone World
 status: active
 canonical: true
 owner: Project Brain
-validation: implementation-in-progress
+validation: ic3-candidate-local-proof-complete
 last_reviewed: 2026-09-26
 ---
 
 # Independent Clone World
+
+## Current implementation pointer
+
+The approved individual-first direction now has a combined IC2/IC3 implementation candidate, not only the original IC1 projection. Its normative mode, private resource, birth/guardian, archive-host and save contracts are [IC3](IC3_INDEPENDENT_START_SUCCESS_CONTRACT.md). Current evidence and pending exact CI/deployment are [IC3 work state](IC3_WORK_STATE.md). The IC1 migration notes below describe the original incremental slice; later independent-mode changes explicitly supersede them. Legacy saves remain unchanged.
 
 ## Design goal
 

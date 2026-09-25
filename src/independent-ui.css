@@ -1,0 +1,17 @@
+
+/* Independent-world observation uses existing UI/command authority. */
+.personal-home-summary{margin-top:10px;padding:8px 10px;border:1px solid #8fb79b44;border-radius:10px;background:#16342b;max-width:100%;font-size:11px}
+.personal-home-summary[hidden]{display:none}.personal-home-summary>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:6px}.personal-home-summary small{display:block;color:#b0c4ad;font-size:10px;margin:4px 0}.personal-stock{display:flex;gap:12px;flex-wrap:wrap}.personal-stock b{color:#efdeaa}
+.personal-house-detail{text-align:center;overflow-wrap:anywhere}.personal-house-hero{font-size:60px;color:#d6be7e}.personal-house-detail .source-note{max-width:400px;margin:12px auto}
+#dialog[data-kind="personal-home"],#dialog[data-kind="world-object"]{max-width:560px}
+.independent-world #seed-label{max-width:100%;font-size:10px}
+@media(max-width:700px){.personal-home-summary{padding:5px 8px;margin-top:5px}.personal-home-summary small{font-size:9px}.personal-stock{gap:10px}.independent-world .inspector:not(.is-expanded) .personal-home-summary{display:none}}
+
+#resource-scope{position:absolute;right:0;top:100%;font-size:9px;color:#c2d0b7;padding-top:3px}#resource-scope[hidden]{display:none}
+@media(max-width:700px){#resource-scope{right:16px}}
+@media(max-height:540px) and (min-width:701px){
+ .independent-world .chronicle-strip{display:none}
+ .independent-world .toolbar{top:auto;bottom:8px;left:18px;display:flex;flex-direction:row;gap:3px;padding:3px;max-width:calc(100vw - 36px)}
+ .independent-world .toolbar .tool{min-width:44px;min-height:44px;padding:4px 8px}.independent-world .toolbar .divider{display:none}
+ .independent-world .camera{bottom:64px}.independent-world .inspector{top:70px;max-height:calc(100% - 82px)}
+}

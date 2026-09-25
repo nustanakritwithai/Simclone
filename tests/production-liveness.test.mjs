@@ -75,7 +75,12 @@ test('same-schema shared-hand save recovers without reset or duplicate outputs',
   assert.equal(serialize(continuous),serialize(resumed));
   assert.ok(completedChain(resumed));
   assert.equal(resumed.rustPossessions.items.filter(i=>i.kind==='STONE_AXE').length,1);
-  assert.equal(resumed.rustPossessions.items.filter(i=>i.kind==='HAMMER').length,1);
+  // IC2 owns one Hammer per person, not one per world. Keep identity and replay invariants.
+  const hammers=resumed.rustPossessions.items.filter(i=>i.kind==='HAMMER');
+  assert.ok(hammers.length>=1);
+  assert.equal(new Set(hammers.map(i=>i.createdBy)).size,hammers.length,'no duplicate Hammer for one founder');
+  assert.equal(new Set(hammers.map(i=>i.id)).size,hammers.length,'no duplicate item identity');
+  for(const i of hammers)assert.equal(i.location.agentId,i.createdBy,'each Hammer belongs to its actual founder');
   assert.equal(resumed.rustStations.stations.filter(st=>st.kind==='FURNACE').length,1);
   assert.deepEqual(validate(resumed),[]);
 });

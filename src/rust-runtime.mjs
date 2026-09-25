@@ -1,6 +1,6 @@
 import {ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
 import {createRustPossessions,queueCraft,advanceCraft,equipTool,unequipTool,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
-import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS} from './rust-stations.mjs?v=0.5.0';
+import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS,stationLimit} from './rust-stations.mjs?v=0.5.0';
 import {completedHouseIds} from './housing.mjs?v=0.5.0';
 import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
 export const RUST_RUNTIME_VERSION='RS1-RS4-integrated-0.2';
@@ -82,7 +82,7 @@ export function validateRustState(s){
     for(const o of p.orders)if(!o||!alive.has(o.agentId)||!RECIPE_CATALOG[o.recipe]||!Number.isFinite(o.work)||o.work<0||!Number.isFinite(o.required)||o.required<1||!o.reserved)e.push('Rust craft order');
     const equippedAgents=new Set();for(const q of p.equipment){if(!alive.has(q.agentId)||equippedAgents.has(q.agentId)||!p.items.some(i=>i.id===q.itemId&&i.location?.kind==='bag'&&i.location.agentId===q.agentId&&ITEM_CATALOG[i.kind]?.category==='tool'&&ITEM_CATALOG[i.kind]?.equipSlot==='hand'))e.push('Rust equipment');equippedAgents.add(q.agentId);}
   }
-  if(!rs||rs.version!==RUST_STATIONS_VERSION||!Number.isSafeInteger(rs.nextStation)||!Array.isArray(rs.stations)||rs.stations.length>STATION_LIMITS.maxStations)e.push('Rust stations');
+  if(!rs||rs.version!==RUST_STATIONS_VERSION||!Number.isSafeInteger(rs.nextStation)||!Array.isArray(rs.stations)||rs.stations.length>stationLimit(s))e.push('Rust stations');
   else{
     for(const st of rs.stations)if(!st||!Number.isSafeInteger(st.id)||!PLACEABLE_KINDS.includes(st.kind)||!Number.isInteger(st.x)||!Number.isInteger(st.y)||!people.has(st.placedBy))e.push('Rust station');
     e.push(...validateRustStations(s));

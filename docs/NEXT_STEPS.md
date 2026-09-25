@@ -1,26 +1,16 @@
-# Remaining build gates
+# Active gate — Independent Clone World delivery
 
-Read STATUS and the exact current main/Actions/open PRs before changing code. Plan entries below are unfinished goals, not proof of implementation. Preserve existing tests, explicit migration, single writers and bounded history. UNKNOWN is not PASS.
+1. Complete exact candidate CI for PR #88. The new candidate includes IC2 repair and IC3 no-Camp/private-resources/personal-home/guardian/archive-host behavior.
+2. Retain both the legacy compatibility suite and explicit independent-profile browser suite. Native HTTP/public Pages and physical Android are separate scopes.
+3. After exact candidate success, merge and verify exact-main Pages/public bytes. A local pass or a merge alone is not release proof.
+4. After publishing any candidate, obtain its run URL once, send it to the user, and stop polling. Do not sit waiting for CI or create a watcher.
 
-## Independent Clone World branch
+Current source of truth: [IC3 contract](IC3_INDEPENDENT_START_SUCCESS_CONTRACT.md) and [IC3 work state](IC3_WORK_STATE.md).
+Future gameplay: explicit inheritance/property transfer; relationship-based cohabitation/cooperation/trade; emergent neighborhoods. These are deferred, not completed by the current independent start.
 
-IC1 is merged to `main@3139e979b4446fd3f9873bb8b6fbbfae5ee6248d`.
+## Historical release/backlog context
 
-- **IC0 — SAT design baseline:** canonical individual-first architecture.
-- **IC1 — SAT + merged:** evidence-derived personal home ownership and Camp-independent personal site selection.
-- **IC2 — implementation candidate:** full RP1 now consumes a pure personal-home intent and routes craft/equip/BUILD placement through existing Rust/engine authority. Default housing-only autonomy remains legacy until IC3.
-- **IC3 after IC2 SAT:** remove the default settlement-pressure prerequisite and establish an independent-start mode without mandatory Camp authority.
-
-IC2 required proof:
-- pure planner remains read-only;
-- one person's bag/Hammer cannot satisfy another person's ownership path;
-- coordinator Rust orders retain the intended `agentId`;
-- founding Foundation `placedBy` resolves to the same IC1 owner;
-- no second ledger/executor;
-- existing regressions and exact candidate CI SAT;
-- Game Studio capture remains separate evidence and UNKNOWN while `game-dev` is unavailable.
-
-Do not merge old settlement/building branches into this line. Reimplement useful ideas from verified current main.
+The remaining legacy backlog below is retained for context. Current independent-mode rules supersede its central-stock/Camp/housing assumptions, not the unchanged legacy save behavior.
 
 ## Closed release line
 
