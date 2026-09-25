@@ -17,8 +17,8 @@ function adjacentFree(s,a){
 
 test('RS1 catalog is bounded and keeps station progression',()=>{
   assert.deepEqual(validateCraftingCatalog(),[]);
-  assert.equal(Object.keys(ITEM_CATALOG).length,5);
-  assert.equal(Object.keys(RECIPE_CATALOG).length,5);
+  assert.equal(Object.keys(ITEM_CATALOG).length,9);
+  assert.equal(Object.keys(RECIPE_CATALOG).length,9);
   assert.equal(RECIPE_CATALOG.HAMMER.station,'CRAFTING_TABLE_LV1');
   assert.equal(RECIPE_CATALOG.FURNACE.station,'HAND');
 });
@@ -128,5 +128,34 @@ test('death drops finished possessions and cancels unfinished order without refu
   assert.equal(s.rustPossessions.equipment.some(e=>e.agentId===a.id),false);
   assert.equal(s.rustPossessions.items.find(i=>i.id===made.itemId).location.kind,'drop');
   assert.equal(s.stock.wood,afterCommit);
+  assert.deepEqual(validate(s),[]);
+});
+
+
+test('Rust-style modular building pieces require Hammer and structural support',()=>{
+  const s=createWorld(271828),a=s.agents[0];s.stock.wood=120;s.stock.stone=40;
+  // Build the progression tool first.
+  assert.equal(command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'CRAFTING_TABLE_LV1'}).ok,true);
+  const table=finishCraft(s,a.id,36),tableCell=adjacentFree(s,a);
+  const placedTable=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:table.itemId,...tableCell});assert.equal(placedTable.ok,true);
+  a.x=tableCell.x;a.y=tableCell.y;
+  assert.equal(command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'HAMMER',stationId:placedTable.stationId}).ok,true);
+  const hammer=finishCraft(s,a.id,28);assert.equal(hammer.completed,true);
+  // A foundation can be crafted but cannot be placed before the Hammer is equipped.
+  assert.equal(command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'WOOD_FOUNDATION'}).ok,true);
+  const foundation=finishCraft(s,a.id,18),ground=adjacentFree(s,a);
+  assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:foundation.itemId,...ground}).reason,'hammer');
+  assert.equal(command(s,'EQUIP_ITEM',{agentId:a.id,itemId:hammer.itemId}).ok,true);
+  const placedFoundation=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:foundation.itemId,...ground});
+  assert.equal(placedFoundation.ok,true);assert.equal(s.rustStations.stations.at(-1).kind,'WOOD_FOUNDATION');
+  // Unsupported wall is rejected; supported wall snaps to the one-cell structural graph.
+  assert.equal(command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'WOOD_WALL'}).ok,true);
+  const wall=finishCraft(s,a.id,14);
+  a.x=ground.x;a.y=ground.y;
+  const far={x:ground.x+2,y:ground.y};
+  assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:wall.itemId,...far}).reason,'range');
+  const supported=adjacentFree(s,a);
+  assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:wall.itemId,...supported}).ok,true);
+  assert.equal(s.rustStations.stations.at(-1).kind,'WOOD_WALL');
   assert.deepEqual(validate(s),[]);
 });
