@@ -108,6 +108,7 @@ with sync_playwright() as p:
  check('mobile world has no inspector covering it initially',not m.locator('#inspector').is_visible())
  check('mobile quick character rail and SVG dock present (5 tabs, no build tab)',m.locator('#people-rail').is_visible() and m.locator('.mobile-nav .ui-icon').count()==5 and m.locator('[data-nav="build"]').count()==0)
  check('mobile page no horizontal overflow',no_overflow(m))
+ check('recent event fallback is icon-only rather than paragraph-first',m.locator('#recent-events .diegetic-event-chip').count()>=1 and m.locator('#recent-events .diegetic-event-chip p').count()==0 and all(m.locator('#recent-events .diegetic-event-chip').nth(i).get_attribute('aria-label') for i in range(m.locator('#recent-events .diegetic-event-chip').count())))
  check('fresh world surfaces recent AI decisions transiently without selecting a clone',len(m.evaluate('simclone.worldFeedback().agents'))>=1)
  check('mobile diegetic UI caps simultaneous world bubbles',len(m.evaluate('simclone.worldFeedback().bubbles'))<=3)
  check('systems replaces manual clone in primary mobile navigation',m.locator('[data-nav="systems"]').count()==1 and m.locator('[data-nav="clone"]').count()==0)
