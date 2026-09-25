@@ -58,9 +58,10 @@ test('automatic mentorship shares at most one untaught confirmed claim per bound
   const student=s.agents.find(a=>a.id===2);
   assert.equal(student.knowledgeState.beliefs.find(b=>b.key===key)?.status,BELIEF_STATUS.UNVERIFIED);
   assert.deepEqual(s.mentorship.links[0].taughtKeys,[key]);
-  const evidenceCount=student.knowledgeState.evidence.length;
+  const mentorEvidence=()=>student.knowledgeState.evidence.filter(e=>e.type==='message'&&e.sourceAgentId===1&&e.key===key).length;
+  assert.equal(mentorEvidence(),1);
   step(s,MENTORSHIP_RULES.periodTicks);
-  assert.equal(student.knowledgeState.evidence.length,evidenceCount);
+  assert.equal(mentorEvidence(),1);
 });
 
 test('mentor death closes active link but preserves historical relationship',()=>{
