@@ -74,7 +74,7 @@ console.log(JSON.stringify(result));
         check('knowledge graph node selection updates evidence detail',page.locator('#kg-detail').get_attribute('data-kg-selected')==data['key'])
         page.locator('[data-kg-filter="food"]').click()
         check('knowledge graph filter is interactive',page.locator('[data-kg-filter="food"]').get_attribute('class').find('active')>=0)
-        page.locator(f'[data-ux="read-archive"][data-key="{data["key"]}"]').click()
+        page.locator(f'#kg-detail [data-ux="read-archive"][data-key="{data["key"]}"]').click()
         reader=next(a for a in snap(page)['agents'] if a['id']==data['reader'])
         belief=next(b for b in reader['knowledgeState']['beliefs'] if b['key']==data['key'])
         check('reading a publication produces unverified knowledge with original author',belief['status']=='UNVERIFIED' and belief['sourceAgentId']==data['author'])
