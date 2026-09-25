@@ -12,7 +12,7 @@ Future work starts from the verified current `main`, not from the archived branc
 
 | Gate | Remaining concrete work | Required proof |
 |---|---|---|
-| UX legibility | **V0.6 released:** Decision Feed + Basic/Advanced Systems. **V0.7 candidate:** transient task feedback + modular-house progress | Prove presentation is derived/read-only, world remains low-chrome on mobile/desktop, then V0.8 Event → Cause / jump-to-agent / jump-to-place without inventing replay authority |
+| UX legibility | **V0.6–V0.7 released:** Decision Feed, progressive Systems, transient task feedback and modular-house progress. **V0.8 candidate:** Event → Evidence/Cause detail | Prove retained evidence resolves only supported historical causes, missing cause stays UNKNOWN, jump-to-agent/place is read-only, and no replay/history ledger is invented |
 | WM4 ecology authority | **Released candidate:** WM4.5 food and WM4.6 wood ecology through the existing single writer | Next: harvest pressure (WM4.7), then shadow resource zones (WM4.8). Do not reselect the food formula |
 | Rust survival RS1–RS4 | **Released:** physical crafting/possessions/stations, atomic committed materials, scheduler work, tool speed and Wood 2 -> Charcoal 1 | Preserve conservation and single-authority tests while expanding content |
 | Knowledge follow-through | **KF1 released:** Mentor teaching exists; next add richer observation, cultural retrieval and explicit information goals | No hidden-world leak, no XP from merely being told, source preserved across deaths |
