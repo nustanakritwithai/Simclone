@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   FOOD_ECOLOGY_REFERENCE_SEEDS,
   FOOD_ECOLOGY_REFERENCE_TICKS,
+  FOOD_FORMULA_CANDIDATES,
   buildFoodEcologyReference
 } from '../scripts/worldsim-food-ecology-reference.mjs';
 
@@ -44,3 +45,31 @@ test('reference report is deterministic',()=>{
 
 
 test('reference matrix is emitted for formula selection evidence',()=>{console.log('WM4_REFERENCE_EVIDENCE '+JSON.stringify(buildFoodEcologyReference()));});
+
+
+test('absolute formula candidates are monotonic bounded integer functions',()=>{
+  const samples=[0,.002,.003,.005,.01,.015,.025,.035,.05,.1,.25,1];
+  for(const formula of Object.values(FOOD_FORMULA_CANDIDATES)){
+    let previous=-1;
+    for(const potential of samples){
+      const value=formula(potential);
+      assert.ok(Number.isInteger(value)&&value>=0&&value<=3);
+      assert.ok(value>=previous);previous=value;
+    }
+  }
+});
+
+test('candidate severity ordering is conservative >= balanced >= strong and never exceeds legacy',()=>{
+  const x=buildFoodEcologyReference();
+  let changed=0;
+  for(const row of x.rows){
+    const a=row.formulas.conservative,b=row.formulas.balanced,c=row.formulas.strong;
+    assert.ok(a.candidateUnits<=a.legacyUnits);
+    assert.ok(b.candidateUnits<=b.legacyUnits);
+    assert.ok(c.candidateUnits<=c.legacyUnits);
+    assert.ok(a.candidateUnits>=b.candidateUnits);
+    assert.ok(b.candidateUnits>=c.candidateUnits);
+    changed+=a.changedNodes;
+  }
+  assert.ok(changed>0,'reference matrix must include ecology-sensitive conservative changes');
+});
