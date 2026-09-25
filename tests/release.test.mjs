@@ -24,11 +24,16 @@ test('birth UI reads engine rules and does not deny implemented autonomous birth
  assert.ok(!ux.includes('เกิดได้สูงสุด 1 คนต่อปีจำลอง'));
  assert.ok(!ux.includes('รุ่นนี้โคลนด้วยคำสั่งผู้เล่น ยังไม่มีการเกิดหรือเติบโตอัตโนมัติ'));
 });
-test('Pages gates publication on engine, continuity, and browser recovery',()=>{
- const s=read('.github/workflows/pages.yml'),deploy=s.indexOf('      - name: Setup Pages');assert.ok(deploy>0);
- for(const command of ['npm test','npm run test:survival','npm run test:lifecycle','npm run test:death','npm run test:continuity','python tests/ui-smoke.py','python tests/navigation-smoke.py','python tests/survival-smoke.py']){
-  assert.ok(s.indexOf('run: '+command)>=0,command);assert.ok(s.indexOf('run: '+command)<deploy,command+' precedes publication');
+test('Pages gates publication on active regressions while closed proofs stay manually runnable',()=>{
+ const pages=read('.github/workflows/pages.yml'),closed=read('.github/workflows/closed-regression.yml'),deploy=pages.indexOf('      - name: Setup Pages');assert.ok(deploy>0);
+ for(const command of ['npm test','python tests/ui-smoke.py']){
+  assert.ok(pages.indexOf('run: '+command)>=0,command);assert.ok(pages.indexOf('run: '+command)<deploy,command+' precedes publication');
  }
+ for(const command of ['npm run test:ecology','npm run test:survival','npm run test:lifecycle','npm run test:death','npm run test:continuity','python tests/navigation-smoke.py','python tests/survival-smoke.py']){
+  assert.equal(pages.indexOf('run: '+command),-1,command+' retired from every Pages deploy');
+  assert.ok(closed.indexOf('run: '+command)>=0,command+' remains available in closed regression workflow');
+ }
+ assert.ok(closed.includes('workflow_dispatch:'));
 });
 test('real V0.3.3 save migrates explicitly without identity drift and continues deterministically',()=>{
  const text=read('tests/fixtures/legacy-0.3.3-save.json'),meta=JSON.parse(read('tests/fixtures/legacy-0.3.3-provenance.json')),raw=JSON.parse(text);
