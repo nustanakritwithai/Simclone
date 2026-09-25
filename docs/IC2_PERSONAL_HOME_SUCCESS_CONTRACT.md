@@ -6,7 +6,7 @@ feature: Independent Clone World IC2
 status: active
 canonical: true
 owner: Project Brain
-validation: prepared-not-executing
+validation: implementation-candidate
 last_reviewed: 2026-09-26
 ---
 
@@ -16,7 +16,7 @@ last_reviewed: 2026-09-26
 
 A homeless productive adult must be able to derive a deterministic personal-home plan for **their own** house without reading settlement housing pressure and without introducing a second crafting, material, item, or placement authority.
 
-IC2 preparation separates **decision intent** from **execution**.
+IC2 keeps **decision intent** separate from **execution**. The pure planner remains read-only; a bounded coordinator may consume one intent and delegate mutations only to existing Rust/engine authorities.
 
 ```text
 Personal state
@@ -29,11 +29,19 @@ Personal state
 
 ## Scope
 
-IC2 planner owns only the question:
+The IC2 planner owns only the question:
 
 > "What is the next valid step for this person toward their own home?"
 
-It does not mutate world state.
+The planner does not mutate world state.
+
+The IC2 coordinator is a separate consumer:
+- active only when full RP1 is explicitly enabled;
+- selects one unresolved productive person deterministically;
+- may issue existing `CRAFT_ITEM` / `EQUIP_ITEM` commands for that person;
+- never places a structure directly;
+- `PLACE_PIECE` becomes an existing engine BUILD task and reaches the existing `PLACE_STATION` executor;
+- default housing-only autonomy remains the legacy settlement-pressure path until IC3.
 
 ### Planned intent states
 
@@ -80,16 +88,16 @@ IC2 reuses:
 
 ## Explicit exclusions
 
-IC2 preparation does not:
-- alter `stepProductionPlanning`
-- alter engine candidate scores
-- alter birth rules
-- remove Camp
-- remove global stock
-- add household/resident state
-- change save version
-- add UI
-- add Game Studio adapter software
+IC2 does not:
+- change default housing-only autonomy;
+- alter birth rules;
+- remove Camp;
+- remove global stock;
+- add household/resident state;
+- change save version;
+- add a second crafting/material/item/build executor;
+- add UI;
+- add Game Studio adapter software.
 
 ## Acceptance
 
@@ -131,8 +139,15 @@ All must refer to the expected person except explicitly logged helpers.
 
 ## Gate
 
-Prepared/scaffolded is not SAT.
+IC1 is SAT and merged.
 
-IC2 may activate in the engine only after IC1 is SAT and the pure planner tests are SAT.
+IC2 is a candidate only until:
+- pure planner tests pass;
+- coordinator-to-Rust command tests pass;
+- personal placement ownership tests pass;
+- existing regressions remain green;
+- exact candidate CI is SAT.
+
+Game Studio runtime/pixel evidence remains UNKNOWN while `game-dev` is unavailable.
 
 UNKNOWN is never PASS.
