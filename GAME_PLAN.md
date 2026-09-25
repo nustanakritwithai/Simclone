@@ -633,6 +633,36 @@ The shortcut **Why?** remains first-class even if tabs are later consolidated.
 
 ---
 
+## Visual Language — Icon / Image First
+
+Player-facing information follows this disclosure order:
+
+```text
+ICON / PORTRAIT / WORLD IMAGE
+→ SHORT NUMBER / STATUS
+→ TAP / EXPAND
+→ EXPLANATION / PROVENANCE
+```
+
+Default rules:
+- Prefer icons, portraits, item/building pictograms, progress bars/rings, status colour and world-space markers over prose.
+- Persistent HUD labels stay short; mobile may hide visual labels when an accessible `aria-label` remains.
+- Chronicle uses event icon + related portrait + one-line event summary before any evidence text.
+- Systems use large system icons + status badge + primary value; implementation detail stays collapsed.
+- Inventory uses visual slots and item pictograms; item-instance IDs/details are secondary.
+- Inspector tabs are icon-first. **Why?** remains a first-class visual shortcut.
+- Long explanation, provenance and technical truth remain available on demand; visual-first never means deleting evidence.
+- Images/icons are presentation only and must not imply authority that runtime does not have.
+- Colour is never the only carrier of meaning; status also has shape/icon/text for accessibility.
+
+Avoid:
+- paragraph-first HUD cards
+- repeated explanatory copy on every visible surface
+- decorative imagery that invents gameplay state
+- replacing `UNKNOWN` with a confident visual guess
+
+---
+
 ## World Feedback
 
 World feedback is read-only presentation derived from authoritative state.
