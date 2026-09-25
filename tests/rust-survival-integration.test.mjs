@@ -143,7 +143,13 @@ test('Rust-style modular building pieces require Hammer and structural support',
   const hammer=finishCraft(s,a.id,28);assert.equal(hammer.completed,true);
   // A foundation can be crafted but cannot be placed before the Hammer is equipped.
   assert.equal(command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'WOOD_FOUNDATION'}).ok,true);
-  const foundation=finishCraft(s,a.id,18),ground=adjacentFree(s,a);
+  const foundation=finishCraft(s,a.id,18);
+  let ground=null;
+  for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1]]){
+    const x=a.x+dx,y=a.y+dy;
+    if(walkable(s,x,y)&&s.tiles[y*30+x]==='grass'&&!s.nodes.some(n=>n.x===x&&n.y===y)&&!s.buildings.some(b=>b.x===x&&b.y===y)&&!s.rustStations.stations.some(st=>st.x===x&&st.y===y)){ground={x,y};break;}
+  }
+  assert.ok(ground,'expected adjacent grass cell for foundation');
   assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:foundation.itemId,...ground}).reason,'hammer');
   assert.equal(command(s,'EQUIP_ITEM',{agentId:a.id,itemId:hammer.itemId}).ok,true);
   const placedFoundation=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:foundation.itemId,...ground});
