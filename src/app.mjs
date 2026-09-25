@@ -133,8 +133,10 @@ function rustStation(c,st,structureCtx=null){
  }
  c.restore();
 }
-const WORLD_FEEDBACK_TICKS=12;
+const WORLD_FEEDBACK_TICKS=12,COMMUNICATION_FEEDBACK_TICKS=18,LIFE_EVENT_FEEDBACK_TICKS=24,ACHIEVEMENT_FEEDBACK_TICKS=18;
 const TASK_GLYPHS=Object.freeze({EAT:'●',REST:'z',BUILD:'⌂',CRAFT:'⚒',PROCESS:'♨',FORAGE:'✦',WOODCUT:'╱',MINE:'◆',EXPLORE:'…'});
+const TASK_SHORT=Object.freeze({EAT:'กิน',REST:'พัก',BUILD:'สร้าง',CRAFT:'คราฟต์',PROCESS:'เตา',FORAGE:'อาหาร',WOODCUT:'ไม้',MINE:'หิน',EXPLORE:'สำรวจ',IDLE:'พัก'});
+const EVENT_GLYPHS=Object.freeze({birth:'○',death:'†',knowledge:'↗',mentor:'↔',build:'⌂',craft:'⚒',skill:'★',career:'◇',day:'☼'});
 function houseFeedback(s){
  return evaluateModularHouses(s).houses.filter(h=>!h.complete).map(h=>{
   const cells=new Set(h.cells.map(c=>c.x+':'+c.y));let perimeter=0;
@@ -144,21 +146,131 @@ function houseFeedback(s){
   return {houseId:h.houseId,x,y,progress:blocked?null:Math.max(0,Math.min(99,Math.round(placed/Math.max(1,total)*100))),missing:h.missing.length,status:blocked?'blocked':'building'};
  });
 }
-function worldFeedbackSnapshot(s,selectedId=null){
- const agents=living(s).map(a=>{
-  const kind=a.task?.kind??null,recent=Boolean(a.task&&Number.isInteger(a.task.started)&&s.tick>=a.task.started&&s.tick-a.task.started<=WORLD_FEEDBACK_TICKS);
-  const persistent=['BUILD','CRAFT','PROCESS'].includes(kind),emergency=a.satiety<24,selectedAgent=a.id===selectedId;
-  if(!selectedAgent&&!emergency&&!persistent&&!recent)return null;
-  return {agentId:a.id,kind,glyph:emergency?'!':(TASK_GLYPHS[kind]??'…'),reason:emergency?'need':selectedAgent?'selected':persistent?'productive':'recent'};
- }).filter(Boolean);
- return {agents,houses:houseFeedback(s)};
+function communicationRecipient(s,event){
+ if(!event?.agentId||!['knowledge','mentor'].includes(event.type))return null;
+ const direct=living(s).filter(a=>a.id!==event.agentId).flatMap(a=>(a.knowledgeState?.evidence??[]).filter(e=>e.tick===event.tick&&e.type==='message'&&e.sourceAgentId===event.agentId&&!e.channel).map(e=>({agentId:a.id,key:e.key}))).sort((a,b)=>a.agentId-b.agentId)[0];
+ if(direct)return direct;
+ if(event.type==='mentor'){
+  const link=(s.mentorship?.links??[]).filter(l=>l.mentorId===event.agentId&&l.createdTick===event.tick).sort((a,b)=>a.id-b.id)[0];
+  if(link)return {agentId:link.studentId,key:null};
+ }
+ return null;
 }
-function drawHouseFeedback(c,h){
- const p=proj(h.x,h.y),label=h.status==='blocked'?'⌂ ติดขัด':'⌂ '+h.progress+'%';c.save();c.font='9px system-ui';c.textAlign='center';
- const w=Math.max(42,c.measureText(label).width+14);c.fillStyle='#17352ae8';c.beginPath();c.roundRect(p.x-w/2,p.y-70,w,17,5);c.fill();
+function recentCommunicationLinks(s){
+ return s.events.slice().reverse().filter(e=>s.tick>=e.tick&&s.tick-e.tick<=COMMUNICATION_FEEDBACK_TICKS&&['knowledge','mentor'].includes(e.type)).map(e=>{
+  const recipient=communicationRecipient(s,e),from=s.agents.find(a=>a.id===e.agentId&&a.alive),to=recipient&&s.agents.find(a=>a.id===recipient.agentId&&a.alive);
+  return from&&to?{eventId:e.id,tick:e.tick,type:e.type,fromId:from.id,toId:to.id,key:recipient.key??null,glyph:e.type==='knowledge'?'↗':'↔',label:e.type==='knowledge'?'ความรู้':'Mentor'}:null;
+ }).filter(Boolean).sort((a,b)=>b.tick-a.tick||a.eventId-b.eventId).slice(0,3);
+}
+function agentBubbleSignal(s,a,selectedId=null,communications=recentCommunicationLinks(s)){
+ const task=a.task,kind=task?.kind??null,recent=Boolean(task&&Number.isInteger(task.started)&&s.tick>=task.started&&s.tick-task.started<=WORLD_FEEDBACK_TICKS);
+ if(a.id===selectedId)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:100,source:'selected',target:task?{x:task.x,y:task.y,kind}:null};
+ const comm=communications.find(x=>x.fromId===a.id);
+ if(comm)return {agentId:a.id,kind:'speech',glyph:comm.glyph,label:comm.label,priority:90,eventId:comm.eventId,source:'event',recipientId:comm.toId,target:null};
+ if(a.satiety<24)return {agentId:a.id,kind:'thought',glyph:'!',label:'หิว',priority:84,source:'need',need:'satiety',target:task?{x:task.x,y:task.y,kind}:null};
+ if(a.hp<35)return {agentId:a.id,kind:'thought',glyph:'♥',label:'HP',priority:83,source:'need',need:'hp',target:task?{x:task.x,y:task.y,kind}:null};
+ if(a.energy<12)return {agentId:a.id,kind:'thought',glyph:'z',label:'เพลีย',priority:82,source:'need',need:'energy',target:task?{x:task.x,y:task.y,kind}:null};
+ if(['BUILD','CRAFT','PROCESS'].includes(kind))return {agentId:a.id,kind:'work',glyph:TASK_GLYPHS[kind],label:TASK_SHORT[kind],priority:70,source:'task',target:{x:task.x,y:task.y,kind}};
+ if(recent)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:50,source:'task',target:{x:task.x,y:task.y,kind}};
+ return null;
+}
+function worldBubbleSignals(s,selectedId=null,limit=5){
+ const communications=recentCommunicationLinks(s);
+ return living(s).map(a=>agentBubbleSignal(s,a,selectedId,communications)).filter(Boolean).sort((a,b)=>b.priority-a.priority||a.agentId-b.agentId).slice(0,limit);
+}
+function droppedWorldItems(s){
+ return (s.rustPossessions?.items??[]).filter(i=>i.location?.kind==='drop'&&Number.isFinite(i.location.x)&&Number.isFinite(i.location.y)).map(i=>({itemId:i.id,kind:i.kind,x:i.location.x,y:i.location.y,sourceAgentId:i.location.sourceAgentId??null}));
+}
+function selectedRelationshipLinks(s,selectedId){
+ const a=s.agents.find(x=>x.id===selectedId&&x.alive);if(!a)return [];
+ const rows=[];
+ if(a.parentId!==null){const p=s.agents.find(x=>x.id===a.parentId&&x.alive);if(p)rows.push({kind:'parent',fromId:p.id,toId:a.id,glyph:'⌁'});}
+ for(const child of s.agents.filter(x=>x.alive&&x.parentId===a.id).sort((x,y)=>x.id-y.id))rows.push({kind:'child',fromId:a.id,toId:child.id,glyph:'⌁'});
+ for(const l of (s.mentorship?.links??[]).filter(l=>l.endedTick===null&&(l.mentorId===a.id||l.studentId===a.id))){
+  const from=s.agents.find(x=>x.id===l.mentorId&&x.alive),to=s.agents.find(x=>x.id===l.studentId&&x.alive);if(from&&to)rows.push({kind:'mentor',fromId:from.id,toId:to.id,glyph:'↔'});
+ }
+ return rows.slice(0,3);
+}
+function recentLifeBursts(s){
+ return s.events.slice().reverse().filter(e=>s.tick>=e.tick&&s.tick-e.tick<=LIFE_EVENT_FEEDBACK_TICKS&&(e.type==='birth'||e.type==='death')).map(e=>{
+  const p=findPerson(s,e.agentId);return p&&Number.isFinite(p.x)&&Number.isFinite(p.y)?{eventId:e.id,type:e.type,agentId:p.id,x:p.x,y:p.y,glyph:e.type==='birth'?'○':'†'}:null;
+ }).filter(Boolean).slice(0,3);
+}
+function recentAchievementBursts(s){
+ return s.events.slice().reverse().filter(e=>s.tick>=e.tick&&s.tick-e.tick<=ACHIEVEMENT_FEEDBACK_TICKS&&['skill','craft','build'].includes(e.type)).map(e=>{
+  const p=findPerson(s,e.agentId);if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))return null;
+  return {eventId:e.id,type:e.type,agentId:p.id,x:p.x,y:p.y,glyph:e.type==='skill'?'★':e.type==='craft'?'⚒':'⌂'};
+ }).filter(Boolean).slice(0,3);
+}
+function resourceTargetPulses(s,bubbles){
+ const seen=new Set(),rows=[];
+ for(const signal of bubbles){const task=s.agents.find(a=>a.id===signal.agentId)?.task,node=task&&s.nodes.find(n=>n.id===task.targetId);if(!node||seen.has(node.id))continue;seen.add(node.id);rows.push({nodeId:node.id,type:node.type,x:node.x,y:node.y,agentId:signal.agentId});}
+ return rows.slice(0,4);
+}
+function worldFeedbackSnapshot(s,selectedId=null){
+ const bubbles=worldBubbleSignals(s,selectedId,innerWidth<=700?3:5),communications=recentCommunicationLinks(s);
+ return {agents:bubbles.map(x=>({agentId:x.agentId,kind:s.agents.find(a=>a.id===x.agentId)?.task?.kind??null,glyph:x.glyph,reason:x.source,bubbleKind:x.kind,label:x.label,eventId:x.eventId??null,recipientId:x.recipientId??null,target:x.target??null})),bubbles,communications,relationships:selectedRelationshipLinks(s,selectedId),resourcePulses:resourceTargetPulses(s,bubbles),lifeBursts:recentLifeBursts(s),achievementBursts:recentAchievementBursts(s),drops:droppedWorldItems(s),houses:houseFeedback(s)};
+}
+function drawCommunicationLink(c,link){
+ const from=state.agents.find(a=>a.id===link.fromId&&a.alive),to=state.agents.find(a=>a.id===link.toId&&a.alive);if(!from||!to)return;
+ const a=proj(from.x,from.y),b=proj(to.x,to.y);c.save();c.setLineDash([3,4]);line(c,[[a.x,a.y-30],[b.x,b.y-30]],'#cfe3c596',1);c.setLineDash([]);
+ const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-34;c.fillStyle='#dceadcf0';c.beginPath();c.arc(mx,my,7,0,Math.PI*2);c.fill();c.strokeStyle='#8eb69aaa';c.lineWidth=.8;c.stroke();
+ c.fillStyle='#36503f';c.font='8px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(link.glyph,mx,my+.5);c.restore();
+}
+function drawRelationshipLink(c,link){
+ const from=state.agents.find(a=>a.id===link.fromId&&a.alive),to=state.agents.find(a=>a.id===link.toId&&a.alive);if(!from||!to)return;
+ const a=proj(from.x,from.y),b=proj(to.x,to.y),mentor=link.kind==='mentor',family=link.kind==='parent'||link.kind==='child';c.save();c.setLineDash(mentor?[2,3]:family?[6,4]:[4,4]);line(c,[[a.x,a.y-14],[b.x,b.y-14]],mentor?'#9fd0c49a':'#e2c79990',1.15);c.setLineDash([]);
+ const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-17;c.fillStyle=mentor?'#173f37e8':'#453a28df';c.beginPath();c.arc(mx,my,6,0,Math.PI*2);c.fill();c.fillStyle='#f0dfb5';c.font='8px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(link.glyph,mx,my+.4);c.restore();
+}
+function drawResourcePulse(c,pulse,time){
+ const p=proj(pulse.x,pulse.y),phase=(Math.sin(time*.006+pulse.nodeId)+1)/2,r=9+phase*6;c.save();c.strokeStyle=pulse.type==='food'?'#d9d58f99':pulse.type==='wood'?'#c8a36f99':'#c4c8c6aa';c.lineWidth=1.1;c.beginPath();c.arc(p.x,p.y-6,r,0,Math.PI*2);c.stroke();c.restore();
+}
+function drawLifeBurst(c,burst,time){
+ const p=proj(burst.x,burst.y),age=Math.max(0,state.tick-(state.events.find(e=>e.id===burst.eventId)?.tick??state.tick)),fade=Math.max(.25,1-age/LIFE_EVENT_FEEDBACK_TICKS),phase=(Math.sin(time*.01+burst.eventId)+1)/2;c.save();c.globalAlpha=fade;
+ c.strokeStyle=burst.type==='birth'?'#e9d98c':'#b8c0c6';c.lineWidth=1;const r=12+phase*5;c.beginPath();c.arc(p.x,p.y-30,r,0,Math.PI*2);c.stroke();
+ for(let i=0;i<8;i++){const a=i*Math.PI/4;c.beginPath();c.moveTo(p.x+Math.cos(a)*(r+2),p.y-30+Math.sin(a)*(r+2));c.lineTo(p.x+Math.cos(a)*(r+7),p.y-30+Math.sin(a)*(r+7));c.stroke();}
+ c.fillStyle=burst.type==='birth'?'#f0dda4':'#d5d8d7';c.font='12px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(burst.glyph,p.x,p.y-30);c.restore();
+}
+function drawAchievementBurst(c,burst,time){
+ const p=proj(burst.x,burst.y),age=Math.max(0,state.tick-(state.events.find(e=>e.id===burst.eventId)?.tick??state.tick)),fade=Math.max(.2,1-age/ACHIEVEMENT_FEEDBACK_TICKS),lift=Math.min(12,age*.55);
+ c.save();c.globalAlpha=fade;c.fillStyle=burst.type==='skill'?'#f0dc8f':burst.type==='craft'?'#d8c49a':'#dfbe83';c.font='13px Georgia';c.textAlign='center';c.fillText(burst.glyph,p.x,p.y-42-lift);
+ c.strokeStyle='#ead69b77';c.lineWidth=.8;c.beginPath();c.arc(p.x,p.y-40-lift,8+(Math.sin(time*.012+burst.eventId)+1)*2,0,Math.PI*2);c.stroke();c.restore();
+}
+function drawTaskTarget(c,signal){
+ const t=signal?.target;if(!t||!Number.isFinite(t.x)||!Number.isFinite(t.y))return;
+ const p=proj(t.x,t.y),glyph=TASK_GLYPHS[t.kind]??'◇';c.save();c.strokeStyle='#efd29599';c.lineWidth=1;c.beginPath();c.arc(p.x,p.y-10,9,0,Math.PI*2);c.stroke();
+ c.fillStyle='#17352ad8';c.beginPath();c.arc(p.x,p.y-10,7,0,Math.PI*2);c.fill();c.fillStyle='#f0ddb0';c.font='9px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(glyph,p.x,p.y-10);c.restore();
+}
+function drawDroppedItem(c,item){
+ const p=proj(item.x,item.y),glyph=item.kind==='STONE_AXE'?'╱':item.kind==='STONE_PICKAXE'?'◆':item.kind==='HAMMER'?'⚒':['WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF'].includes(item.kind)?'⌂':'□';
+ c.save();ellipse(c,p.x,p.y+2,10,4,'#17352a55');c.fillStyle='#e9dfb9';c.beginPath();c.roundRect(p.x-8,p.y-15,16,14,4);c.fill();c.strokeStyle='#af9e72';c.lineWidth=.7;c.stroke();c.fillStyle='#405141';c.font='9px Georgia';c.textAlign='center';c.fillText(glyph,p.x,p.y-5);c.restore();
+}
+function drawThoughtCloud(c,x,y,w,h,fill,stroke){
+ c.save();c.fillStyle=fill;c.strokeStyle=stroke;c.lineWidth=.8;
+ const parts=[[x-w*.28,y, w*.26,h*.46],[x,y-h*.12,w*.34,h*.58],[x+w*.3,y,w*.26,h*.45]];
+ for(const [cx,cy,rx,ry] of parts){c.beginPath();c.ellipse(cx,cy,rx,ry,0,0,Math.PI*2);c.fill();c.stroke();}
+ c.beginPath();c.arc(x-w*.38,y+h*.52,2.8,0,Math.PI*2);c.fill();c.stroke();c.beginPath();c.arc(x-w*.46,y+h*.68,1.5,0,Math.PI*2);c.fill();c.stroke();c.restore();
+}
+function drawSpeechBox(c,x,y,w,h,fill,stroke){
+ c.save();c.fillStyle=fill;c.strokeStyle=stroke;c.lineWidth=.8;c.beginPath();c.roundRect(x-w/2,y-h/2,w,h,6);c.fill();c.stroke();
+ polygon(c,[[x-w*.25,y+h/2-1],[x-w*.12,y+h/2+7],[x-w*.05,y+h/2-1]],fill,stroke);c.restore();
+}
+function drawAgentBubble(c,signal){
+ if(!signal)return;
+ const label=signal.label??'',glyph=signal.glyph??'…';c.save();c.font='9px system-ui';const labelW=label?c.measureText(label).width:0,w=Math.max(30,18+labelW),h=20,x=17,y=-61;
+ if(signal.kind==='thought')drawThoughtCloud(c,x,y,w,h,'#f0ead8f2','#b8b596aa');
+ else drawSpeechBox(c,x,y,w,h,signal.kind==='speech'?'#dceadcf4':'#efe2bcf3',signal.kind==='speech'?'#8eb69aaa':'#c5a96eaa');
+ c.textAlign='center';c.textBaseline='middle';c.fillStyle='#32483a';c.font='11px Georgia';c.fillText(glyph,x-(label?labelW*.25:0),y);
+ if(label){c.font='8px system-ui';c.fillText(label,x+9,y+.5);}
+ c.restore();
+}
+function drawHouseFeedback(c,h,time){
+ const p=proj(h.x,h.y),label=h.status==='blocked'?'⌂ !':'⌂ '+h.progress+'%',phase=(Math.sin(time*.006+h.houseId)+1)/2;c.save();c.font='9px system-ui';c.textAlign='center';
+ c.strokeStyle=h.status==='blocked'?'#d69b7a88':'#e1c98b66';c.lineWidth=1;c.beginPath();c.arc(p.x,p.y-14,18+phase*7,0,Math.PI*2);c.stroke();
+ const w=Math.max(36,c.measureText(label).width+12);c.fillStyle='#17352ae8';c.beginPath();c.roundRect(p.x-w/2,p.y-70,w,17,5);c.fill();
  c.strokeStyle=h.status==='blocked'?'#d69b7a99':'#e1c98b99';c.lineWidth=.8;c.stroke();c.fillStyle='#efe0b8';c.fillText(label,p.x,p.y-58);c.restore();
 }
-function person(c,a,time){
+function person(c,a,time,bubble=null){
  let v=positions.get(a.id);if(!v){v={x:a.x,y:a.y};positions.set(a.id,v);}v.x+=(a.x-v.x)*.2;v.y+=(a.y-v.y)*.2;
  const p=proj(v.x,v.y),ap=a.appearance,moving=a.task?.path.length>0;
  const stride=moving?Math.sin(time*.012+a.id)*3:0;c.save();c.translate(p.x,p.y);
@@ -176,12 +288,7 @@ function person(c,a,time){
  if(!moving&&tool==='STONE_AXE'){line(c,[[10,-12],[18,-23]],'#a69265',2);polygon(c,[[16,-24],[23,-21],[20,-16]],'#c4c9b4');}
  if(!moving&&tool==='STONE_PICKAXE')line(c,[[10,-12],[17,-26],[24,-24]],'#b5bba5',2);
  if(!moving&&tool==='HAMMER'){line(c,[[10,-12],[17,-23]],'#a69265',2.4);c.fillStyle='#b8bdad';c.fillRect(14,-27,9,5);}
- const visibleWork=['BUILD','CRAFT','PROCESS'].includes(a.task?.kind),recentDecision=Boolean(a.task&&Number.isInteger(a.task.started)&&state.tick>=a.task.started&&state.tick-a.task.started<=WORLD_FEEDBACK_TICKS);
- if(a.id===selected||a.satiety<24||visibleWork||recentDecision){
-  const glyph=a.satiety<24?'!':(TASK_GLYPHS[a.task?.kind]||'…');
-  c.fillStyle='#ece6cf';c.beginPath();c.roundRect(8,-53,24,17,5);c.fill();polygon(c,[[11,-37],[10,-32],[18,-37]],'#ece6cf');
-  c.fillStyle='#3a5039';c.font='12px Georgia';c.textAlign='center';c.fillText(glyph,20,-41);
- }
+ drawAgentBubble(c,bubble);
  c.restore();
 }
 function cameraOrigin(){return nav?.anchor()??{x:cw/2,y:ch/2};}
@@ -218,10 +325,16 @@ function render(time){
  ctx.drawImage(ground,-SIZE.h*hw-60,-32);
  const a=state.agents.find(a=>a.id===selected&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
- const structureCtx=structureRenderContext();
- const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
- for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else person(ctx,o.data,time);}
- for(const h of houseFeedback(state))drawHouseFeedback(ctx,h);
+ const structureCtx=structureRenderContext(),bubbles=worldBubbleSignals(state,selected,innerWidth<=700?3:5),bubbleMap=new Map(bubbles.map(x=>[x.agentId,x]));
+ for(const link of selectedRelationshipLinks(state,selected))drawRelationshipLink(ctx,link);
+ for(const link of recentCommunicationLinks(state))drawCommunicationLink(ctx,link);
+ const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...droppedWorldItems(state).map(item=>({kind:'drop-item',data:item,depth:item.x+item.y+.15})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
+ for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else if(o.kind==='drop-item')drawDroppedItem(ctx,o.data);else person(ctx,o.data,time,bubbleMap.get(o.data.id)??null);}
+ for(const pulse of resourceTargetPulses(state,bubbles))drawResourcePulse(ctx,pulse,time);
+ for(const signal of bubbles)drawTaskTarget(ctx,signal);
+ for(const burst of recentLifeBursts(state))drawLifeBurst(ctx,burst,time);
+ for(const burst of recentAchievementBursts(state))drawAchievementBurst(ctx,burst,time);
+ for(const h of houseFeedback(state))drawHouseFeedback(ctx,h,time);
  if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
  ctx.restore();
  const h=hour(state);if(h>=19||h<6){ctx.fillStyle='#10294460';ctx.fillRect(0,0,cw,ch);}
@@ -237,7 +350,7 @@ function updateUI(){
  $('pause').textContent=paused?'▶':'Ⅱ';$('pause').setAttribute('aria-label',paused?'เล่นต่อ':'หยุดเวลา');
  $('world-status').textContent=paused||dialog.open?'หยุดเวลา · โลกยังอยู่ตรงนี้':'โลกกำลังดำเนินไปด้วยตัวเอง';
  $('seed-label').textContent='SEED '+state.seed;
- $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip" data-event="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · ${e.type.toUpperCase()}</small><p>${esc(e.text)}</p></button>`).join('');
+ $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip diegetic-event-chip" data-event="${e.id}" aria-label="${esc(e.text)}"><b aria-hidden="true">${EVENT_GLYPHS[e.type]??'•'}</b><small>D${1+Math.floor(e.tick/360)}</small></button>`).join('');
  inspect();ux?.renderHUD();nav?.update();
 }
 function selectAgent(id,center=false){follow=false;selected=id;tab='about';mode='observe';$('mode-hint').hidden=true;$('observe').classList.add('active');const a=findPerson(state,id);if(a&&(center||innerWidth<=700)){focus={x:a.x,y:a.y};pan={x:0,y:0};}updateUI();}
@@ -246,7 +359,24 @@ function roster(){ux?.openRoster();}
 function history(){ux?.openHistory();}
 function systems(){ux?.openSystems();}
 function cloneDialog(){ux?.openClone();}
-function menu(){openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,`<p class="menu-save-note"><strong>${esc(saveLabel(store.status()))}</strong><br>เซฟอยู่ในเบราว์เซอร์นี้เท่านั้น ไม่ได้ซิงก์ขึ้นคลาวด์</p><div class="menu-grid"><button data-action="systems">ระบบโลก / AI</button><button data-action="survival">ภาพรวมการอยู่รอด</button>${store.status().protected&&store.originalText()!==null?'<button data-action="export-original">สำรองไฟล์เซฟเดิมที่มีปัญหา</button>':''}<button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>Engine ปัจจุบันคือ V0.5.0 + Knowledge Continuity 1 · รุ่นใหม่เกิดเองและทุกคนมีอายุขัย deterministic 78–92 ปี · ยังไม่ใช่ Living World V1.0</div>`);}
+function menu(){
+ const status=store.status(),protectedSave=status.protected&&store.originalText()!==null;
+ const card=(action,glyph,label,meta='')=>'<button class="visual-menu-card" data-action="'+action+'" aria-label="'+esc(label)+'"><b aria-hidden="true">'+glyph+'</b><span>'+esc(label)+'</span>'+(meta?'<small>'+esc(meta)+'</small>':'')+'</button>';
+ openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,
+  '<section class="visual-menu-status"><div class="visual-menu-status-icon" aria-hidden="true">◈</div><div><small>SAVE</small><b>'+esc(saveLabel(status))+'</b><span>Local browser</span></div></section>'+
+  '<div class="visual-menu-grid">'+
+   card('systems','◇','ระบบโลก','AI / Systems')+
+   card('survival','♥','การอยู่รอด','World / Needs')+
+   card('save','↓','บันทึก','Local')+
+   card('export','↗','ส่งออก','JSON')+
+   card('import','↥','นำเข้า','JSON')+
+   (protectedSave?card('export-original','⛨','สำรองเซฟเดิม','Recovery'):'')+
+   card('reset','○','โลกใหม่','Reset')+
+   '<a class="visual-menu-card" href="./plan.html" target="_blank" rel="noopener" aria-label="แผนพัฒนา"><b aria-hidden="true">⌘</b><span>แผนพัฒนา</span><small>Roadmap</small></a>'+
+   card('help','?','วิธีเล่น','Visual guide')+
+  '</div>'+
+  '<details class="menu-explain"><summary>ข้อมูลระบบ</summary><p>เล่นได้โดยไม่ต้องต่อ AI API · simulation ใช้กฎและคะแนนบน CPU · auto-save ทุก 10 วินาที · ปิดเว็บแล้วโลกหยุด</p><small>Engine '+VERSION+' · Knowledge Continuity 1</small></details>');
+}
 function download(){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='simclone-day-'+day(state)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกไฟล์โลกแล้ว');}
 $('dialog-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{accumulator=0;updateUI();});
 $('dialog-body').addEventListener('click',e=>{
@@ -266,7 +396,7 @@ $('dialog-body').addEventListener('click',e=>{
   const seed=Number($('seed-input').value);if(!Number.isInteger(seed)||seed<0||seed>4294967295){toast('กรอก seed เป็นจำนวนเต็ม 0–4294967295');return;}
   state=createWorld(seed);store.allowReplacement();paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
  }
- if(action==='help')openDialog('ดูโลกที่กำลังคิดและสร้างเอง','HOW TO PLAY',`<p><b>1. ดูระบบโลก</b><br>เปิด “ระบบโลก” เพื่อดูว่า Housing, Production, Inventory, Knowledge, Ecology และระบบอื่นกำลัง LIVE, READY หรือ SHADOW</p><p><b>2. เจาะ Clone รายคน</b><br>แตะคนเพื่อดูงาน กระเป๋า อุปกรณ์ ทักษะ ความรู้ ความสัมพันธ์ และเปิด “เหตุผล” เพื่อดูคะแนนการตัดสินใจจริง</p><p><b>3. ปล่อยให้ AI ดำเนินโลก</b><br>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การสร้าง Clone แบบ manual ยังทำได้จาก Inspector แต่ไม่ใช่แกนหลัก</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">LIVE คือ authority จริง · READY คือระบบพร้อมแต่ policy เต็มยังไม่เปิด · SHADOW คือการคำนวณเพื่อสังเกตโดยยังไม่เขียนผลจริง</div>`);
+ if(action==='help')openDialog('ดูโลกที่กำลังคิดและสร้างเอง','HOW TO PLAY',`<p><b>1. แตะสิ่งที่อยู่ในโลก</b><br>Clone เปิด Inspector · Camp เปิด Cultural Archive · Crafting Table เปิดสูตรโต๊ะ · Furnace เปิด Charcoal · บ้านเปิด Housing status</p><p><b>2. เมนูรวมใช้ดูภาพรวม</b><br>Survival / Systems / Items แยกหน้าที่ชัดเจน และไม่ถือ action ของสิ่งปลูกสร้างแทนตัวสิ่งปลูกสร้าง</p><p><b>3. ปล่อยให้ AI ดำเนินโลก</b><br>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การสร้าง Clone แบบ manual ยังทำได้จาก Inspector แต่ไม่ใช่แกนหลัก</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">LIVE คือ authority จริง · READY คือระบบพร้อมแต่ policy เต็มยังไม่เปิด · SHADOW คือการคำนวณเพื่อสังเกตโดยยังไม่เขียนผลจริง</div>`);
 });
 $('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>HISTORY_LIMITS.maxSaveCharacters*3)throw new Error('ไฟล์ใหญ่เกินงบการนำเข้า');const candidate=restore(await file.text());
  openDialog('นำเข้าโลกที่บันทึกไว้','IMPORT WORLD',`<p>วันที่ ${day(candidate)} · ประชากร ${living(candidate).length} คน<br>การนำเข้าจะแทนที่โลกปัจจุบันในเบราว์เซอร์</p><div class="dialog-actions"><button id="confirm-import" class="primary">ยืนยันนำเข้า</button><button class="secondary" data-action="cancel">ยกเลิก</button></div>`);
@@ -283,6 +413,13 @@ for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.q
 $('recenter').onclick=()=>{focus={x:11,y:12};pan={x:0,y:0};follow=false;};
 const setZoom=z=>{zoom=Math.max(.5,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
 canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
+function structureTargetAtScreen(sx,sy){
+ const rows=[];
+ for(const b of state.buildings.filter(b=>b.type!=='shelter')){const p=screenPoint(b.x,b.y);rows.push({type:'building',id:b.id,d:Math.hypot(sx-p.x,sy-(p.y-16*zoom))});}
+ for(const st of (state.rustStations?.stations??[])){const p=screenPoint(st.x,st.y);rows.push({type:'station',id:st.id,d:Math.hypot(sx-p.x,sy-(p.y-14*zoom))});}
+ return rows.sort((a,b)=>a.d-b.d||a.type.localeCompare(b.type)||a.id-b.id).find(x=>x.d<Math.max(24,34*zoom))??null;
+}
+
 const pointers=new Map();let drag=null,pinch=0,multiTouch=false;
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});follow=false;
  if(pointers.size===1){multiTouch=false;drag={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y,moved:false};}
@@ -296,7 +433,7 @@ canvas.addEventListener('pointermove',e=>{
 canvas.addEventListener('pointerup',e=>{
  pointers.delete(e.pointerId);if(!drag||drag.moved||multiTouch){if(!pointers.size){drag=null;multiTouch=false;}return;}
  const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
- {let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{selected=null;follow=false;updateUI();}}
+ {let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{const structure=structureTargetAtScreen(sx,sy);if(structure)ux?.openStructure(structure);else{selected=null;follow=false;updateUI();}}}
  drag=null;
 });
 canvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);drag=null;multiTouch=false;});
@@ -325,4 +462,4 @@ setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y)});

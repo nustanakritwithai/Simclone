@@ -633,6 +633,123 @@ The shortcut **Why?** remains first-class even if tabs are later consolidated.
 
 ---
 
+## Visual Language — Icon / Image First
+
+Player-facing information follows this disclosure order:
+
+```text
+ICON / PORTRAIT / WORLD IMAGE
+→ SHORT NUMBER / STATUS
+→ TAP / EXPAND
+→ EXPLANATION / PROVENANCE
+```
+
+Default rules:
+- Prefer icons, portraits, item/building pictograms, progress bars/rings, status colour and world-space markers over prose.
+- Persistent HUD labels stay short; mobile may hide visual labels when an accessible `aria-label` remains.
+- Chronicle uses event icon + related portrait + one-line event summary before any evidence text.
+- Systems use large system icons + status badge + primary value; implementation detail stays collapsed.
+- Inventory uses visual slots and item pictograms; item-instance IDs/details are secondary.
+- Inspector tabs are icon-first. **Why?** remains a first-class visual shortcut.
+- Long explanation, provenance and technical truth remain available on demand; visual-first never means deleting evidence.
+- Images/icons are presentation only and must not imply authority that runtime does not have.
+- Colour is never the only carrier of meaning; status also has shape/icon/text for accessibility.
+
+Avoid:
+- paragraph-first HUD cards
+- repeated explanatory copy on every visible surface
+- decorative imagery that invents gameplay state
+- replacing `UNKNOWN` with a confident visual guess
+
+## Menu Interior Contract
+
+Menus are secondary evidence/detail surfaces, not dashboards that replace the world.
+
+Default structure:
+- visual hero / identity
+- 3–6 primary metric tiles
+- icon-first actions
+- portrait/item cards for people and possessions
+- progress bars for active work
+- advanced/shadow/provenance content behind collapsed disclosure
+- long explanatory prose behind `details`
+
+Specific expectations:
+- **Main Menu** → visual action cards and compact save status.
+- **People** → portrait cards + mini Need bars; search/filter remains accessible.
+- **Survival** → settlement overview only; it must not own actions that belong to a physical structure.
+- **Items / Rust** → personal possessions, hand crafting and global production policy; station-specific work is not nested here.
+- **Structure Context Menus** → tap the world object itself:
+  - Camp owns Cultural Archive creation/automation/reading.
+  - Crafting Table owns recipes requiring `CRAFTING_TABLE_LV1`.
+  - Furnace owns Charcoal processing.
+  - Modular House owns its derived completion/capacity/missing-piece/builder status.
+- **Systems** → icon/status/value first; detailed descriptions collapsed.
+- **Chronicle/Event/Decision Feed** → event/agent imagery first, evidence and deep trace on demand.
+- **Inspector** → icon-first tabs on mobile with accessible labels.
+
+Menu redesign must not remove an existing command path or hide an action required for an accepted gameplay workflow.
+
+Structure menus are contextual surfaces opened from world-space hit targets. They must reuse existing command authorities and canonical evaluators; they do not create a separate Building Mode, station ledger, housing completion rule, or resource writer.
+
+## Visual Analytics Contract
+
+Interactive visualizations are projections of existing evidence, never a new data source.
+
+- **Knowledge Graph** lives at the Camp/Cultural Archive and may connect retained authors → archive entries → the currently selected Clone only when those relationships exist in `culture.entries` and personal `knowledgeState`.
+- Knowledge Graph filtering/selection is UI-local. Reading an archive entry still routes through the existing `READ_ARCHIVE` command.
+- **Bar charts** may compare current stock to canonical reserve targets, current task counts to living population, or derived missing-piece composition. Values must come from current state/evaluators.
+- **Trend/line graphs** require retained historical points. Chronicle may graph event counts by day because event ticks are retained; do not synthesize missing telemetry or invent historical resource curves.
+- Graphs may support filter/select/focus interactions, but visual interaction must remain read-only unless it invokes an already-authoritative command.
+- A graph must expose the same `LIVE / READY / SHADOW / INFRA` semantics as text surfaces where authority status matters.
+
+
+---
+
+## Diegetic World UI — Bubble First
+
+The world itself is the primary information surface. Prefer in-world bubbles and markers before opening a menu.
+
+Bubble semantics:
+- **Thought cloud** → current selected/recent decision or an actual Need derived from state.
+- **Speech bubble** → only a real communication event such as Knowledge sharing or Mentor communication. Never invent dialogue.
+- **Work bubble** → current authoritative BUILD / CRAFT / PROCESS task.
+- **World marker** → building progress, resource/place state, or another spatial fact owned by runtime.
+
+Budgets:
+- mobile: at most 3 simultaneous agent bubbles
+- desktop/tablet: at most 5 simultaneous agent bubbles
+- selected Clone gets priority
+- communication and emergencies outrank ordinary recent-task bubbles
+
+Menus/dialogs are secondary and should mainly provide:
+- exact evidence / provenance
+- advanced system detail
+- inventory actions
+- save/import/reset
+- accessibility fallback and searchable history
+
+Do not:
+- turn a current decision into historical intent
+- render speech when no communication event exists
+- persist a second thought/dialogue history just for UI
+- let bubbles write simulation state
+
+Additional world-story cues:
+- **Communication link** → a short-lived line may connect sender and receiver only when retained message/Mentor evidence identifies both agents.
+- **Relationship link** → selecting a Clone may show bounded living Parent/Child and active Mentor links from existing `parentId` / mentorship records.
+- **Task target marker** → selected/recent productive work may show a small pictogram at the authoritative `task.x/y` destination.
+- **Resource pulse** → a resource node may pulse only when an exposed current task actually targets that node.
+- **Dropped item marker** → physical dropped Rust items are rendered from the existing item ledger and its `location.x/y`.
+- **Life burst** → recent retained Birth/Death events may create short visual bursts at the retained agent position.
+- **Achievement burst** → recent Skill/Craft/Build events may create a bounded success burst.
+- **Construction pulse** → incomplete modular houses may animate their already-derived progress marker.
+- These cues are projections, not additional ownership or history.
+
+There is currently **no general Emotion Authority**. Do not label a Clone sad, angry, afraid, happy, etc. unless a future authoritative system owns those states. Visual reactions may show factual Needs such as hunger, low energy or low HP, but must not reinterpret those Needs as emotion.
+
+---
+
 ## World Feedback
 
 World feedback is read-only presentation derived from authoritative state.
