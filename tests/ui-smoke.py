@@ -89,7 +89,7 @@ with sync_playwright() as p:
  m.locator('[data-nav="systems"]').tap()
  check('world systems dashboard exposes released and shadow systems',m.locator('#dialog-title').inner_text()=='ระบบที่กำลังขับเคลื่อนโลก' and m.locator('[data-system-card]').count()>=7 and 'LIVE' in m.locator('#dialog-body').inner_text() and 'SHADOW' in m.locator('#dialog-body').inner_text())
  check('systems dashboard exposes housing inventory knowledge and ecology',all(x in m.locator('#dialog-body').inner_text() for x in ['Housing','Inventory + Equipment','Knowledge + Mentor','WorldSim Ecology']))
- check('full runtime catalog exposes previously hidden systems',m.locator('[data-system-status]').count()>=40 and all(x in m.locator('#dialog-body').inner_text() for x in ['Climate','Hydrology','Soil','Vegetation','Weighted Routing','K1 Utility + Career','K5 Labor Authority','Skill Provenance','History / Identity Archive','Save / Restore']))
+ check('full runtime catalog exposes previously hidden systems',m.locator('[data-system-status]').count()>=40 and all(x in m.locator('#dialog-body').text_content() for x in ['Climate','Hydrology','Soil','Vegetation','Weighted Routing','K1 Utility + Career','K5 Labor Authority','Skill Provenance','History / Identity Archive','Save / Restore']))
  m.locator('#dialog-close').tap()
  m.screenshot(path=str(OUT/'mobile-world.png'))
  m.locator('[data-quick-person="2"]').tap()
