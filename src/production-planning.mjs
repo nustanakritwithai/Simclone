@@ -7,10 +7,21 @@ import {ITEM_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 
 export const PRODUCTION_PLAN_VERSION='RP1-0.2';
 export const PRODUCTION_POLICY='rust-production-2';
-export const PRODUCTION_RULES=Object.freeze({attemptPeriod:12,charcoalTarget:4,history:12,housePopulationBuffer:2,houseWood:12,houseStone:6,maxBuildings:12});
+export const PRODUCTION_RULES=Object.freeze({attemptPeriod:12,charcoalTarget:4,history:12,housePopulationBuffer:6,houseWood:12,houseStone:6,maxBuildings:12});
 
-export const createProductionPlan=()=>({version:PRODUCTION_PLAN_VERSION,enabled:false,goal:null,lastAttemptTick:-1,history:[]});
-export function ensureProductionPlan(s){if(s.productionPlan===undefined)s.productionPlan=createProductionPlan();return s.productionPlan;}
+export const createProductionPlan=({enabled=false}={})=>({version:PRODUCTION_PLAN_VERSION,enabled,goal:null,lastAttemptTick:-1,history:[]});
+export function ensureProductionPlan(s,{newWorld=false}={}){
+  if(s.productionPlan===undefined){s.productionPlan=createProductionPlan({enabled:newWorld});return s.productionPlan;}
+  const p=s.productionPlan;
+  if(p?.version==='RP1-0.1'){
+    const untouched=p.enabled===false&&p.goal===null&&p.lastAttemptTick===-1&&Array.isArray(p.history)&&p.history.length===0;
+    p.version=PRODUCTION_PLAN_VERSION;
+    // Old worlds that never made a production-policy choice join the visible
+    // autonomous loop. An explicit prior disable remains disabled.
+    if(untouched)p.enabled=true;
+  }
+  return p;
+}
 
 const eligible=s=>s.agents.filter(a=>a.alive&&canPerformProductiveWork(s,a)).sort((a,b)=>a.id-b.id);
 const itemDef=(s,item)=>item&&ITEM_CATALOG[item.kind];
@@ -31,16 +42,14 @@ const settlementCell=(s,isWalkable)=>{
   }
   return null;
 };
-function queueHouse(s,isWalkable){
+function queueHouse(s,isWalkable,dispatch){
   if(!needsHouse(s))return null;
   if(s.stock.wood<PRODUCTION_RULES.houseWood||s.stock.stone<PRODUCTION_RULES.houseStone)return {ok:false,reason:'materials'};
   const cell=settlementCell(s,isWalkable);if(!cell)return {ok:false,reason:'no-placement-cell'};
-  // Mirror the existing BUILD command contract here without a second work executor:
-  // materials commit once, then normal BUILD candidates/workers finish the structure.
-  s.stock.wood-=PRODUCTION_RULES.houseWood;s.stock.stone-=PRODUCTION_RULES.houseStone;
-  const building={id:s.nextBuilding++,type:'shelter',x:cell.x,y:cell.y,complete:false,progress:0};
-  s.buildings.push(building);
-  return {ok:true,buildingId:building.id,x:cell.x,y:cell.y};
+  // BUILD remains the single shelter-placement authority. RP1 only proposes
+  // the deterministic cell and dispatches the existing validated command.
+  if(typeof dispatch!=='function')return {ok:false,reason:'no-build-dispatch'};
+  return dispatch('BUILD',cell);
 }
 const roleAgent=(s,profession)=>{
   const xs=eligible(s),preferred=xs.filter(a=>a.profession===profession);
@@ -91,13 +100,13 @@ export function productionCommand(s,type,data={}){
   p.enabled=enabled;p.goal={goal:'policy',outcome:enabled?'enabled':'disabled',agentId:null,tick:s.tick};
   return {ok:true,enabled,message:enabled?'เปิดแผนผลิตอัตโนมัติแล้ว':'หยุดแผนผลิตอัตโนมัติแล้ว'};
 }
-export function stepProductionPlanning(s,isWalkable){
+export function stepProductionPlanning(s,isWalkable,dispatch=null){
   const p=ensureProductionPlan(s);if(!p.enabled)return null;
   if(activeOrders(s)>0)return null;
   // Settlement growth is visible gameplay: RP1 may reserve one house plan when
   // capacity is nearly full. Existing BUILD workers remain the only executor.
   if(needsHouse(s)){
-    const house=queueHouse(s,isWalkable);
+    const house=queueHouse(s,isWalkable,dispatch);
     if(house?.ok){record(p,s.tick,'build-shelter','accepted');return house;}
   }
   // Resolve completed physical outputs before starting the next chain step.
