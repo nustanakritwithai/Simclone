@@ -194,7 +194,7 @@ function render(time){
  const a=state.agents.find(a=>a.id===selected&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
  const structureCtx=structureRenderContext();
- const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
+ const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
  for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else person(ctx,o.data,time);}
  if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
  ctx.restore();

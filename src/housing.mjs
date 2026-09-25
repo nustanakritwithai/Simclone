@@ -109,7 +109,7 @@ export function nextHousePiece(s,site){
 }
 /** BUILD targets for one person: only while RP1 is enabled, only the next missing piece, only if they carry it. */
 export function pendingPlacements(s,a,isWalkable=()=>true){
-  if(s.productionPlan?.enabled!==true||!a?.alive)return [];
+  if(!a?.alive)return [];
   const bag=(s.rustPossessions?.items??[]).filter(i=>i.location?.kind==='bag'&&i.location.agentId===a.id&&['WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF'].includes(i.kind));
   if(!bag.length)return [];
   const piece=nextHousePiece(s,houseSite(s,isWalkable));if(!piece?.pieceKind)return [];
