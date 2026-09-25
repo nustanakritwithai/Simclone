@@ -25,6 +25,31 @@ export const RESOURCE_REGEN_AUTHORITY=Object.freeze({
   stone:K6_RESOURCE_REGEN.stone
 });
 
+const ECOLOGY_CACHE_LIMIT=64;
+const ecologyCache=new Map();
+
+function ecologySignature(state){
+  const phase=((state.tick%360)+360)%360;
+  const tiles=(state.tiles??[]).join(',');
+  const nodes=(state.nodes??[]).map(n=>`${n.id}:${n.type}:${n.x}:${n.y}`).join(';');
+  const buildings=(state.buildings??[]).map(b=>`${b.id}:${b.type}:${b.x}:${b.y}:${b.complete===false?0:1}`).join(';');
+  return `${state.seed}|${phase}|${tiles}|${nodes}|${buildings}`;
+}
+
+function cachedEcologyPotentials(state){
+  const key=ecologySignature(state);
+  if(ecologyCache.has(key)){
+    const value=ecologyCache.get(key);
+    ecologyCache.delete(key);ecologyCache.set(key,value);
+    return value;
+  }
+  const ecology=createResourceEcologyShadow(state);
+  const potentials=Object.freeze(ecology.cells.map(c=>c.vegetationRegenerationPotential));
+  if(ecologyCache.size>=ECOLOGY_CACHE_LIMIT)ecologyCache.delete(ecologyCache.keys().next().value);
+  ecologyCache.set(key,potentials);
+  return potentials;
+}
+
 export function foodEcologyIncrement(potential){
   if(typeof potential!=='number'||!Number.isFinite(potential)||potential<0||potential>1)
     throw new Error('Invalid food ecology potential');
@@ -43,10 +68,10 @@ export function applyWorldResourceRegeneration(state,{foodMode='ecology'}={}){
 
   // Preserve the historical write order: food first, then wood.
   if(tick%RESOURCE_REGEN_AUTHORITY.food.periodTicks===0){
-    const ecology=foodMode==='ecology'?createResourceEcologyShadow(state):null;
+    const potentials=foodMode==='ecology'?cachedEcologyPotentials(state):null;
     for(const node of state.nodes)if(node.type==='food'){
       const before=node.amount;
-      const potential=ecology?.cells?.[node.y*MAP_SIZE.w+node.x]?.vegetationRegenerationPotential??0;
+      const potential=potentials?.[node.y*MAP_SIZE.w+node.x]??0;
       const increment=foodMode==='legacy'
         ? RESOURCE_REGEN_AUTHORITY.food.amount
         : foodEcologyIncrement(potential);
