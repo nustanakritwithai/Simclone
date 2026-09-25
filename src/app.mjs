@@ -359,7 +359,24 @@ function roster(){ux?.openRoster();}
 function history(){ux?.openHistory();}
 function systems(){ux?.openSystems();}
 function cloneDialog(){ux?.openClone();}
-function menu(){openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,`<p class="menu-save-note"><strong>${esc(saveLabel(store.status()))}</strong><br>เซฟอยู่ในเบราว์เซอร์นี้เท่านั้น ไม่ได้ซิงก์ขึ้นคลาวด์</p><div class="menu-grid"><button data-action="systems">ระบบโลก / AI</button><button data-action="survival">ภาพรวมการอยู่รอด</button>${store.status().protected&&store.originalText()!==null?'<button data-action="export-original">สำรองไฟล์เซฟเดิมที่มีปัญหา</button>':''}<button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>Engine ปัจจุบันคือ V0.5.0 + Knowledge Continuity 1 · รุ่นใหม่เกิดเองและทุกคนมีอายุขัย deterministic 78–92 ปี · ยังไม่ใช่ Living World V1.0</div>`);}
+function menu(){
+ const status=store.status(),protectedSave=status.protected&&store.originalText()!==null;
+ const card=(action,glyph,label,meta='')=>'<button class="visual-menu-card" data-action="'+action+'" aria-label="'+esc(label)+'"><b aria-hidden="true">'+glyph+'</b><span>'+esc(label)+'</span>'+(meta?'<small>'+esc(meta)+'</small>':'')+'</button>';
+ openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,
+  '<section class="visual-menu-status"><div class="visual-menu-status-icon" aria-hidden="true">◈</div><div><small>SAVE</small><b>'+esc(saveLabel(status))+'</b><span>Local browser</span></div></section>'+
+  '<div class="visual-menu-grid">'+
+   card('systems','◇','ระบบโลก','AI / Systems')+
+   card('survival','♥','การอยู่รอด','World / Needs')+
+   card('save','↓','บันทึก','Local')+
+   card('export','↗','ส่งออก','JSON')+
+   card('import','↥','นำเข้า','JSON')+
+   (protectedSave?card('export-original','⛨','สำรองเซฟเดิม','Recovery'):'')+
+   card('reset','○','โลกใหม่','Reset')+
+   '<a class="visual-menu-card" href="./plan.html" target="_blank" rel="noopener" aria-label="แผนพัฒนา"><b aria-hidden="true">⌘</b><span>แผนพัฒนา</span><small>Roadmap</small></a>'+
+   card('help','?','วิธีเล่น','Visual guide')+
+  '</div>'+
+  '<details class="menu-explain"><summary>ข้อมูลระบบ</summary><p>เล่นได้โดยไม่ต้องต่อ AI API · simulation ใช้กฎและคะแนนบน CPU · auto-save ทุก 10 วินาที · ปิดเว็บแล้วโลกหยุด</p><small>Engine '+VERSION+' · Knowledge Continuity 1</small></details>');
+}
 function download(){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='simclone-day-'+day(state)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกไฟล์โลกแล้ว');}
 $('dialog-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{accumulator=0;updateUI();});
 $('dialog-body').addEventListener('click',e=>{
