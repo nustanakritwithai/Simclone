@@ -54,7 +54,7 @@ with sync_playwright() as p:
  unknown_saved['events'].append({'id':unknown_event_id,'tick':0,'type':'build','text':'legacy build without retained placement evidence','agentId':2})
  unknownpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(unknownpage,json.dumps(unknown_saved,ensure_ascii=False));paused(unknownpage)
  unknownpage.locator('[data-nav="history"]').tap();unknownpage.locator('[data-history-filter="build"]').tap();unknownpage.locator(f'[data-story="{unknown_event_id}"]').tap()
- check('missing historical cause stays explicit UNKNOWN',unknownpage.locator('[data-event-evidence-status="UNKNOWN"]').count()==1 and 'UNKNOWN ไม่ถูกนับเป็นเหตุผลย้อนหลัง' in unknownpage.locator('#dialog-body').inner_text())
+ check('missing historical cause stays explicit UNKNOWN',unknownpage.locator('[data-event-evidence-status="UNKNOWN"]').count()==1 and 'ไม่มีหลักฐานย้อนหลังพอ จึงไม่เดาเหตุการณ์นี้' in unknownpage.locator('#dialog-body').text_content())
  feedback_saved=json.loads(saved);rs=feedback_saved['rustStations'];fid=rs['nextStation'];rs['nextStation']+=1
  feedback_item_id=99001
  rs['stations'].append({'id':fid,'kind':'WOOD_FOUNDATION','buildingType':'wood_foundation','x':14,'y':11,'complete':True,'placedBy':2,'placedTick':feedback_saved['tick'],'structurePiece':True,'socket':{'type':'cell','x':14,'y':11,'level':0},'sourceItemId':feedback_item_id,'placementId':'ui-v07-foundation'})
