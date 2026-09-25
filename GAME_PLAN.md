@@ -677,13 +677,20 @@ Default structure:
 Specific expectations:
 - **Main Menu** → visual action cards and compact save status.
 - **People** → portrait cards + mini Need bars; search/filter remains accessible.
-- **Survival** → six primary settlement metrics; Knowledge remains immediately actionable; Kingdom/WorldSim/Lifecycle detail is progressively disclosed.
-- **Rust** → visual recipe cards, item slots and active-work progress.
+- **Survival** → settlement overview only; it must not own actions that belong to a physical structure.
+- **Items / Rust** → personal possessions, hand crafting and global production policy; station-specific work is not nested here.
+- **Structure Context Menus** → tap the world object itself:
+  - Camp owns Cultural Archive creation/automation/reading.
+  - Crafting Table owns recipes requiring `CRAFTING_TABLE_LV1`.
+  - Furnace owns Charcoal processing.
+  - Modular House owns its derived completion/capacity/missing-piece/builder status.
 - **Systems** → icon/status/value first; detailed descriptions collapsed.
 - **Chronicle/Event/Decision Feed** → event/agent imagery first, evidence and deep trace on demand.
 - **Inspector** → icon-first tabs on mobile with accessible labels.
 
 Menu redesign must not remove an existing command path or hide an action required for an accepted gameplay workflow.
+
+Structure menus are contextual surfaces opened from world-space hit targets. They must reuse existing command authorities and canonical evaluators; they do not create a separate Building Mode, station ledger, housing completion rule, or resource writer.
 
 ---
 
