@@ -94,6 +94,7 @@
 .ux-v2 .event-chip{min-height:44px;min-width:170px}
 .ux-v2 .event-chip p{font-size:11px}
 .ux-v2 .event-chip small{font-size:9px}
+.diegetic-event-chip{min-width:48px!important;width:48px!important;padding:5px!important;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:10px}.diegetic-event-chip b{font:18px Georgia,serif;color:#e7cd93;line-height:1}.diegetic-event-chip small{font-size:8px!important;color:#aebcae}.diegetic-event-chip p{display:none!important}
 .ux-v2 .mode-hint{display:none!important}
 .placement-panel{position:absolute;bottom:125px;left:50%;transform:translateX(-50%);width:360px;padding:16px;background:var(--panel);border:1px solid #e3cca467;border-radius:14px;box-shadow:0 20px 45px #0004;z-index:7}
 .placement-heading{display:flex;gap:11px;align-items:center}
