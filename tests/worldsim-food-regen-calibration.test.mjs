@@ -1,19 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,serialize} from '../src/engine.mjs';
+import {createFoodRegenerationImpact} from '../src/worldsim-food-regen-impact.mjs';
 import {calibrateFoodEcology} from '../src/worldsim-food-regen-calibration.mjs';
 
+const evidence=state=>createFoodRegenerationImpact(state);
+
 test('food ecology calibration is deterministic and read-only',()=>{
-  const s=createWorld(230926),before=serialize(s);
-  const a=calibrateFoodEcology(s),b=calibrateFoodEcology(s);
+  const s=createWorld(230926),before=serialize(s),impact=evidence(s);
+  const a=calibrateFoodEcology(s,impact),b=calibrateFoodEcology(s,impact);
   assert.deepEqual(a,b);assert.equal(serialize(s),before);
   assert.equal(a.authority.writer,'worldsim-wm4.1');
   assert.equal(a.authority.mutatesNodes,false);
   assert.equal(a.authority.unitFormula,'none');
 });
 
+test('calibration requires explicit impact evidence',()=>{
+  assert.throws(()=>calibrateFoodEcology(createWorld(42)),/impact evidence is required/i);
+});
+
 test('every calibrated food node has bounded rank and one relative band',()=>{
-  const x=calibrateFoodEcology(createWorld(42));
+  const s=createWorld(42),x=calibrateFoodEcology(s,evidence(s));
   const count=Object.values(x.summary.relativeBands).reduce((a,b)=>a+b,0);
   assert.equal(count,x.summary.nodes);
   for(const r of x.rows){
@@ -23,7 +30,8 @@ test('every calibrated food node has bounded rank and one relative band',()=>{
 });
 
 test('relative rank is monotonic with raw ecology potential',()=>{
-  const rows=calibrateFoodEcology(createWorld(2026)).rows.slice()
+  const s=createWorld(2026);
+  const rows=calibrateFoodEcology(s,evidence(s)).rows.slice()
     .sort((a,b)=>a.rawPotential-b.rawPotential||a.id-b.id);
   for(let i=1;i<rows.length;i++)assert.ok(rows[i].relativeRank>=rows[i-1].relativeRank);
 });
@@ -43,7 +51,7 @@ test('equal raw potentials receive the same deterministic midpoint rank',()=>{
 });
 
 test('calibration preserves raw p10/p50/p90 evidence',()=>{
-  const x=calibrateFoodEcology(createWorld(90001));
+  const s=createWorld(90001),x=calibrateFoodEcology(s,evidence(s));
   assert.ok(x.summary.rawP10<=x.summary.rawP50);
   assert.ok(x.summary.rawP50<=x.summary.rawP90);
   assert.ok(x.summary.rawMin<=x.summary.rawP10);
