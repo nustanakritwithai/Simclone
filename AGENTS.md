@@ -129,3 +129,11 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Run `node scripts/pin-assets.mjs` after any runtime module change. Content-hash import maps avoid mixed cached versions without rewriting old save versions.
 - Browser fixtures use a deduplicated import-map/data-URL graph with an explicit Storage double. Keep all old UI assertions; `knowledge_ui.py` adds controls on a real earned-knowledge fixture. Never label offline tests as native HTTP, public Pages, or physical Android.
 - K5 labor scoring is already authoritative. Other Kingdom economic projections and the ecology Formula Lab are not automatically active. Rust crafting is still a separate pending stack.
+
+
+## Mentorship KF1 candidate
+
+- Read `docs/MENTORSHIP_KF1.md` before changing teaching or mentor relationships.
+- Teaching transfers a confirmed personal claim as UNVERIFIED; never add Skill XP merely because someone was told.
+- Keep mentorship bounded and persistent. Death ends active links but does not erase historical links.
+- UI creates relationships through engine commands only. Do not infer trust/motives from mentorship alone.
