@@ -146,22 +146,57 @@ function houseFeedback(s){
   return {houseId:h.houseId,x,y,progress:blocked?null:Math.max(0,Math.min(99,Math.round(placed/Math.max(1,total)*100))),missing:h.missing.length,status:blocked?'blocked':'building'};
  });
 }
-function agentBubbleSignal(s,a,selectedId=null){
+function communicationRecipient(s,event){
+ if(!event?.agentId||!['knowledge','mentor'].includes(event.type))return null;
+ const direct=living(s).filter(a=>a.id!==event.agentId).flatMap(a=>(a.knowledgeState?.evidence??[]).filter(e=>e.tick===event.tick&&e.type==='message'&&e.sourceAgentId===event.agentId&&!e.channel).map(e=>({agentId:a.id,key:e.key}))).sort((a,b)=>a.agentId-b.agentId)[0];
+ if(direct)return direct;
+ if(event.type==='mentor'){
+  const link=(s.mentorship?.links??[]).filter(l=>l.mentorId===event.agentId&&l.createdTick===event.tick).sort((a,b)=>a.id-b.id)[0];
+  if(link)return {agentId:link.studentId,key:null};
+ }
+ return null;
+}
+function recentCommunicationLinks(s){
+ return s.events.slice().reverse().filter(e=>s.tick>=e.tick&&s.tick-e.tick<=COMMUNICATION_FEEDBACK_TICKS&&['knowledge','mentor'].includes(e.type)).map(e=>{
+  const recipient=communicationRecipient(s,e),from=s.agents.find(a=>a.id===e.agentId&&a.alive),to=recipient&&s.agents.find(a=>a.id===recipient.agentId&&a.alive);
+  return from&&to?{eventId:e.id,tick:e.tick,type:e.type,fromId:from.id,toId:to.id,key:recipient.key??null,glyph:e.type==='knowledge'?'↗':'↔',label:e.type==='knowledge'?'ความรู้':'Mentor'}:null;
+ }).filter(Boolean).sort((a,b)=>b.tick-a.tick||a.eventId-b.eventId).slice(0,3);
+}
+function agentBubbleSignal(s,a,selectedId=null,communications=recentCommunicationLinks(s)){
  const task=a.task,kind=task?.kind??null,recent=Boolean(task&&Number.isInteger(task.started)&&s.tick>=task.started&&s.tick-task.started<=WORLD_FEEDBACK_TICKS);
- if(a.id===selectedId)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:100,source:'selected'};
- const recentSpeech=s.events.slice().reverse().find(e=>e.agentId===a.id&&s.tick>=e.tick&&s.tick-e.tick<=COMMUNICATION_FEEDBACK_TICKS&&(e.type==='knowledge'||e.type==='mentor'));
- if(recentSpeech)return {agentId:a.id,kind:'speech',glyph:recentSpeech.type==='knowledge'?'↗':'↔',label:recentSpeech.type==='knowledge'?'ความรู้':'Mentor',priority:90,eventId:recentSpeech.id,source:'event'};
- if(a.satiety<24)return {agentId:a.id,kind:'thought',glyph:'!',label:'หิว',priority:80,source:'need'};
- if(['BUILD','CRAFT','PROCESS'].includes(kind))return {agentId:a.id,kind:'work',glyph:TASK_GLYPHS[kind],label:TASK_SHORT[kind],priority:70,source:'task'};
- if(recent)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:50,source:'task'};
+ if(a.id===selectedId)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:100,source:'selected',target:task?{x:task.x,y:task.y,kind}:null};
+ const comm=communications.find(x=>x.fromId===a.id);
+ if(comm)return {agentId:a.id,kind:'speech',glyph:comm.glyph,label:comm.label,priority:90,eventId:comm.eventId,source:'event',recipientId:comm.toId,target:null};
+ if(a.satiety<24)return {agentId:a.id,kind:'thought',glyph:'!',label:'หิว',priority:80,source:'need',target:task?{x:task.x,y:task.y,kind}:null};
+ if(['BUILD','CRAFT','PROCESS'].includes(kind))return {agentId:a.id,kind:'work',glyph:TASK_GLYPHS[kind],label:TASK_SHORT[kind],priority:70,source:'task',target:{x:task.x,y:task.y,kind}};
+ if(recent)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:50,source:'task',target:{x:task.x,y:task.y,kind}};
  return null;
 }
 function worldBubbleSignals(s,selectedId=null,limit=5){
- return living(s).map(a=>agentBubbleSignal(s,a,selectedId)).filter(Boolean).sort((a,b)=>b.priority-a.priority||a.agentId-b.agentId).slice(0,limit);
+ const communications=recentCommunicationLinks(s);
+ return living(s).map(a=>agentBubbleSignal(s,a,selectedId,communications)).filter(Boolean).sort((a,b)=>b.priority-a.priority||a.agentId-b.agentId).slice(0,limit);
+}
+function droppedWorldItems(s){
+ return (s.rustPossessions?.items??[]).filter(i=>i.location?.kind==='drop'&&Number.isFinite(i.location.x)&&Number.isFinite(i.location.y)).map(i=>({itemId:i.id,kind:i.kind,x:i.location.x,y:i.location.y,sourceAgentId:i.location.sourceAgentId??null}));
 }
 function worldFeedbackSnapshot(s,selectedId=null){
- const bubbles=worldBubbleSignals(s,selectedId,innerWidth<=700?3:5);
- return {agents:bubbles.map(x=>({agentId:x.agentId,kind:s.agents.find(a=>a.id===x.agentId)?.task?.kind??null,glyph:x.glyph,reason:x.source,bubbleKind:x.kind,label:x.label,eventId:x.eventId??null})),bubbles,houses:houseFeedback(s)};
+ const bubbles=worldBubbleSignals(s,selectedId,innerWidth<=700?3:5),communications=recentCommunicationLinks(s);
+ return {agents:bubbles.map(x=>({agentId:x.agentId,kind:s.agents.find(a=>a.id===x.agentId)?.task?.kind??null,glyph:x.glyph,reason:x.source,bubbleKind:x.kind,label:x.label,eventId:x.eventId??null,recipientId:x.recipientId??null,target:x.target??null})),bubbles,communications,drops:droppedWorldItems(s),houses:houseFeedback(s)};
+}
+function drawCommunicationLink(c,link){
+ const from=state.agents.find(a=>a.id===link.fromId&&a.alive),to=state.agents.find(a=>a.id===link.toId&&a.alive);if(!from||!to)return;
+ const a=proj(from.x,from.y),b=proj(to.x,to.y);c.save();c.setLineDash([3,4]);line(c,[[a.x,a.y-30],[b.x,b.y-30]],'#cfe3c596',1);c.setLineDash([]);
+ const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-34;c.fillStyle='#dceadcf0';c.beginPath();c.arc(mx,my,7,0,Math.PI*2);c.fill();c.strokeStyle='#8eb69aaa';c.lineWidth=.8;c.stroke();
+ c.fillStyle='#36503f';c.font='8px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(link.glyph,mx,my+.5);c.restore();
+}
+function drawTaskTarget(c,signal){
+ const t=signal?.target;if(!t||!Number.isFinite(t.x)||!Number.isFinite(t.y))return;
+ const p=proj(t.x,t.y),glyph=TASK_GLYPHS[t.kind]??'◇';c.save();c.strokeStyle='#efd29599';c.lineWidth=1;c.beginPath();c.arc(p.x,p.y-10,9,0,Math.PI*2);c.stroke();
+ c.fillStyle='#17352ad8';c.beginPath();c.arc(p.x,p.y-10,7,0,Math.PI*2);c.fill();c.fillStyle='#f0ddb0';c.font='9px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(glyph,p.x,p.y-10);c.restore();
+}
+function drawDroppedItem(c,item){
+ const p=proj(item.x,item.y),glyph=item.kind==='STONE_AXE'?'╱':item.kind==='STONE_PICKAXE'?'◆':item.kind==='HAMMER'?'⚒':['WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF'].includes(item.kind)?'⌂':'□';
+ c.save();ellipse(c,p.x,p.y+2,10,4,'#17352a55');c.fillStyle='#e9dfb9';c.beginPath();c.roundRect(p.x-8,p.y-15,16,14,4);c.fill();c.strokeStyle='#af9e72';c.lineWidth=.7;c.stroke();c.fillStyle='#405141';c.font='9px Georgia';c.textAlign='center';c.fillText(glyph,p.x,p.y-5);c.restore();
 }
 function drawThoughtCloud(c,x,y,w,h,fill,stroke){
  c.save();c.fillStyle=fill;c.strokeStyle=stroke;c.lineWidth=.8;
@@ -242,9 +277,11 @@ function render(time){
  ctx.drawImage(ground,-SIZE.h*hw-60,-32);
  const a=state.agents.find(a=>a.id===selected&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
- const structureCtx=structureRenderContext(),bubbleMap=new Map(worldBubbleSignals(state,selected,innerWidth<=700?3:5).map(x=>[x.agentId,x]));
- const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
- for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else person(ctx,o.data,time,bubbleMap.get(o.data.id)??null);}
+ const structureCtx=structureRenderContext(),bubbles=worldBubbleSignals(state,selected,innerWidth<=700?3:5),bubbleMap=new Map(bubbles.map(x=>[x.agentId,x]));
+ for(const link of recentCommunicationLinks(state))drawCommunicationLink(ctx,link);
+ const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...droppedWorldItems(state).map(item=>({kind:'drop-item',data:item,depth:item.x+item.y+.15})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
+ for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else if(o.kind==='drop-item')drawDroppedItem(ctx,o.data);else person(ctx,o.data,time,bubbleMap.get(o.data.id)??null);}
+ for(const signal of bubbles)drawTaskTarget(ctx,signal);
  for(const h of houseFeedback(state))drawHouseFeedback(ctx,h);
  if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
  ctx.restore();
