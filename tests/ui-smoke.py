@@ -54,7 +54,7 @@ with sync_playwright() as p:
  inventory_saved['rustPossessions']['items']=[{'id':1,'kind':'STONE_AXE','createdBy':2,'createdTick':inventory_saved['tick'],'location':{'kind':'bag','agentId':2}}]
  inventory_saved['rustPossessions']['nextItem']=2;inventory_saved['rustPossessions']['equipment']=[]
  invpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(invpage,json.dumps(inventory_saved,ensure_ascii=False));paused(invpage)
- invpage.locator('[data-nav="people"]').tap();invpage.locator('[data-person="2"]').tap();invpage.locator('[data-tab="inventory"]').tap()
+ invpage.locator('[data-nav="people"]').tap();invpage.locator('[data-person="2"]').tap();invpage.locator('[data-ux="expand"]').tap();invpage.locator('[data-tab="inventory"]').tap()
  check('personal inventory shows four owned bag slots and hand equipment',invpage.locator('[data-inventory-slot]').count()==4 and '1 / 4 ช่อง' in invpage.locator('#ux-tab-content').inner_text() and 'อุปกรณ์ · มือ' in invpage.locator('#ux-tab-content').inner_text())
  invpage.locator('[data-ux="equip-item"]').tap();equipped=snap(invpage)['rustPossessions']['equipment']
  check('inventory equip action routes through engine and owns the selected item',equipped==[{'agentId':2,'itemId':1}] and invpage.locator('[data-ux="unequip-item"]').count()==1)
