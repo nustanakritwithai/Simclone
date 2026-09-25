@@ -61,11 +61,11 @@ test('2. unfinished shelter from an old save completes without refund or double 
   assert.deepEqual(validate(s),[]);
 });
 
-test('3. starting capacity stays 12 and seed ecology/food regrowth is unchanged vs dffa2d2',()=>{
+test('3. starting capacity stays 12 and seed ecology/food regrowth is unchanged vs main 3044698',()=>{
   const s=createWorld(230926);
   assert.equal(capacity(s),12);assert.equal(housingCapacity(s),12);
   assert.deepEqual(s.buildings.map(b=>b.type),['camp','shelter']);
-  // Hashes recorded on dffa2d2 (#65 head) before shelter removal, RP1 off.
+  // Hashes recorded on main 3044698 (branch base, after WM4.6 merge), RP1 off.
   assert.equal(sha(signature(s)),'5ce3d9efcb64873448c47be9f062c8dfb91cc4da664f761a63013cafb17394a4');
   step(s,720);
   assert.equal(sha(signature(s)),'5ce3d9efcb64873448c47be9f062c8dfb91cc4da664f761a63013cafb17394a4');
@@ -234,4 +234,41 @@ test('save/load in the middle of the RP1 house plan resumes without duplicate pi
   assert.equal(new Set(pieces.map(p=>socketKey(p.socket))).size,pieces.length,'no socket used twice');
   assert.ok(evaluateModularHouses(resumed).houses.some(h=>h.complete));
   assert.deepEqual(validate(resumed),[]);
+});
+
+test('wood is charged once per piece: at craft acceptance only, never on placement, and not on a rejected placement',async()=>{
+  const {queueCraft,advanceCraft}=await import('../src/rust-possessions.mjs');
+  const {RECIPE_CATALOG}=await import('../src/crafting-catalog.mjs');
+  const f=builderFixture(),{s,a,site}=f;s.stock.wood=100;s.stock.stone=100;
+  // Craft: wood drops by the recipe cost once at acceptance, completion spends nothing more.
+  const cost=RECIPE_CATALOG.WOOD_FOUNDATION.materials.wood,w0=s.stock.wood;
+  assert.equal(queueCraft(s,{agentId:a.id,recipeId:'WOOD_FOUNDATION'}).ok,true);
+  assert.equal(s.stock.wood,w0-cost);
+  let done=null;for(let i=0;i<100&&!done;i++){s.tick++;const r=advanceCraft(s,a.id);if(r.completed)done=r;}
+  assert.ok(done);assert.equal(s.stock.wood,w0-cost,'completion does not charge again');
+  // Successful placement consumes the item once and leaves stock untouched.
+  const stock={...s.stock},pid='pl:'+s.tick+':'+a.id+':'+done.itemId;
+  const ok=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:done.itemId,socket:{type:'cell',...site},placementId:pid});
+  assert.equal(ok.ok,true);assert.deepEqual(s.stock,stock);
+  assert.equal(s.rustPossessions.items.some(i=>i.id===done.itemId&&i.location?.kind==='bag'),false,'item left the bag');
+  assert.equal(s.rustStations.stations.filter(st=>st.sourceItemId===done.itemId).length,1);
+  // Retry with the same placementId: no charge, no second station.
+  command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:done.itemId,socket:{type:'cell',...site},placementId:pid});
+  assert.deepEqual(s.stock,stock);assert.equal(s.rustStations.stations.filter(st=>st.sourceItemId===done.itemId).length,1);
+  // Rejected placement (wall with no foundation beside it): nothing changes, item stays in the bag.
+  const wid=f.give('WOOD_WALL'),before=serialize(s);
+  const bad=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:wid,socket:{type:'edge',x:site.x+3,y:site.y,side:'W'},placementId:'pl:'+s.tick+':'+a.id+':'+wid});
+  assert.equal(bad.ok,false);assert.equal(serialize(s),before);
+  assert.ok(s.rustPossessions.items.some(i=>i.id===wid&&i.location?.kind==='bag'));
+});
+
+test('RP1 on seed 230926 crafts exactly the six pieces of one 1x1 house and places each once',()=>{
+  const s=createWorld(230926);command(s,'SET_PRODUCTION_POLICY',{enabled:true});
+  const kinds=['WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF'];
+  for(let i=0;i<3200&&!evaluateModularHouses(s).houses.some(h=>h.complete);i++)step(s,1);
+  const crafted=s.rustPossessions.items.filter(i=>kinds.includes(i.kind));
+  const placed=s.rustStations.stations.filter(st=>st.structurePiece);
+  assert.equal(placed.length,6);
+  assert.equal(new Set(placed.map(p=>p.sourceItemId)).size,6);
+  assert.equal(crafted.filter(i=>i.location?.kind==='bag').length+s.rustPossessions.orders.filter(o=>kinds.includes(o.recipe)).length,0,'no extra piece crafted or left over');
 });
