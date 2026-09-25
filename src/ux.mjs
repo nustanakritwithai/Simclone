@@ -589,7 +589,7 @@ export function installUX(api){
     menuMetric('home','Build',v.unfinished)+
    '</div>'+
    '<section class="menu-section menu-section-static"><div class="menu-section-static-head">'+visualToken('book')+'<span>ความรู้ / วัฒนธรรม</span><b>'+(s.culture?'LIVE':'READY')+'</b></div><div class="menu-section-body">'+knowledgeBody+'</div></section>'+
-   menuSection('hammer','ของ / การผลิต',rustPanel(s,api),{badge:s.productionPlan?.enabled?'LIVE':'READY'})+
+   '<div class="structure-callout">'+visualToken('hammer')+'<div><b>การผลิตแยกตามจุดใช้งาน</b><small>ของติดตัว/คราฟต์มืออยู่เมนู “ของ” · โต๊ะคราฟต์และเตาหลอมแตะบนโลกโดยตรง</small></div></div>'+
    menuSection('people','Kingdom',kingdomBody,{badge:'SHADOW'})+
    menuSection('leaf','WorldSim',worldBody,{badge:'SHADOW'})+
    menuSection('history','ชีวิต / ประวัติ',lifeBody,{badge:'LIVE'})+
