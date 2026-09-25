@@ -127,15 +127,14 @@ Do not add:
 
 ## Game Studio evidence plan
 
-When `game-dev` becomes available, retain fixed-seed scenarios:
+Canonical scenario definitions live in:
+`docs/INDEPENDENT_CLONE_GAME_STUDIO_SCENARIOS.md`
 
-- `IC_SC05_PERSONAL_HOME_SURVIVAL` — owner REST/EAT uses own modular home.
-- `IC_SC06_DEFAULT_PERSONAL_AUTONOMY` — homeless adult starts personal-home loop without housing pressure.
-- `IC_SC07_BIRTH_WITHOUT_GLOBAL_CAPACITY` — birth proof with lineage/resource/cooldown evidence.
-- `IC_SC08_NO_CAMP_START` — fresh world without Camp, separated starts, home construction, save/load.
-
-Required telemetry correlation:
-`agentId → home ownerId → task target → Rust order/item → placementId → station.placedBy → houseId`.
+IC3 uses:
+- `IC_SC05_PERSONAL_HOME_SURVIVAL`
+- `IC_SC06_DEFAULT_PERSONAL_AUTONOMY`
+- `IC_SC07_BIRTH_WITHOUT_GLOBAL_CAPACITY`
+- `IC_SC08_NO_CAMP_START`
 
 Game Studio process/pixel/performance evidence remains UNKNOWN while `game-dev` is unavailable.
 
