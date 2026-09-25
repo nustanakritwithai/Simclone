@@ -129,3 +129,15 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Run `node scripts/pin-assets.mjs` after any runtime module change. Content-hash import maps avoid mixed cached versions without rewriting old save versions.
 - Browser fixtures use a deduplicated import-map/data-URL graph with an explicit Storage double. Keep all old UI assertions; `knowledge_ui.py` adds controls on a real earned-knowledge fixture. Never label offline tests as native HTTP, public Pages, or physical Android.
 - K5 labor scoring is already authoritative. Other Kingdom economic projections and the ecology Formula Lab are not automatically active. Rust crafting is still a separate pending stack.
+
+
+## Rust Survival RS1–RS4 integrated candidate
+
+- Read `docs/RUST_SURVIVAL_RS1_RS4_INTEGRATED.md` before changing crafting, possessions or stations.
+- `src/rust-runtime.mjs` is the engine bridge; UI must use engine commands, never mutate Rust ledgers directly.
+- Material input is committed once at order acceptance. Do not also deduct it at completion and do not create a second reservation registry.
+- Accepted orders survive hunger/energy task interruption. Death cancels unfinished work and drops finished bag items without duplicating committed input.
+- Crafting Table and Furnace are physical stations. Hammer requires the table. Only Wood 2 -> Charcoal 1 has furnace authority; meat/water remain blocked.
+- Stone Axe and Stone Pickaxe affect matching productive work rate; Hammer BUILD multiplier remains 1 until separately proven.
+- Base save version stays 0.5.0; missing Rust extensions on an older valid 0.5.0 save migrate to empty bounded ledgers.
+- Regenerate runtime source pins after any `src/*.mjs` change. Exact candidate and exact main workflows remain release authority.
