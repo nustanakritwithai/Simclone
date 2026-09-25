@@ -2,7 +2,7 @@
 
 A deterministic autonomous-society survival simulation where a lineage can survive, learn, reproduce, die, preserve knowledge, craft physical tools and build bounded production/social structures across generations.
 
-**Current release line:** Knowledge Continuity 1 + Rust Survival RS1–RS4 + Production Planning RP1 + Mentorship KF1 on the 0.5.0 engine/UI/save family.
+**Current release line:** Knowledge Continuity 1 + Rust Survival RS1–RS4 + Production Planning RP1 + Mentorship KF1 + WorldSim WM4.5 food ecology authority + visible Rust item/crafting UI on the 0.5.0 engine/UI/save family.
 
 Play: https://nustanakritwithai.github.io/Simclone/
 
@@ -18,11 +18,12 @@ Play: https://nustanakritwithai.github.io/Simclone/
 - authoritative Wood 2 → Charcoal 1 timed furnace processing
 - opt-in RP1 production coordinator for the bounded tool → station → charcoal chain
 - bounded Mentor → Student links; teaching transfers UNVERIFIED knowledge and never grants XP
-- WorldSim ecology/climate/hydrology/vegetation evidence and WM4.4 controlled formula comparison
+- WorldSim ecology/climate/hydrology/vegetation evidence plus active WM4.5 conservative ecology-sensitive food regeneration
+- dedicated desktop/mobile Rust item + crafting entry point for the five released RS1–RS4 items
 
 ## Important authority boundary
 
-WorldSim WM4.1 is still the single resource-regeneration writer. WM4.4 is evidence only; **no ecology-dependent food amount formula is active yet**.
+WorldSim remains the single resource-regeneration authority. **WM4.5 ecology-sensitive food regeneration is now active** through that writer; WM4.2–WM4.4 remain evidence/calibration layers.
 
 Simulation rules remain deterministic: no DOM, wall-clock time, Math.random or external API calls in the engine. UI mutations go through validated commands. UNKNOWN is never PASS.
 
@@ -45,4 +46,4 @@ Exact candidate checks and exact merged-main GitHub Pages runs are release autho
 
 [Status](docs/STATUS.md) · [Next steps](docs/NEXT_STEPS.md) · [Game plan](GAME_PLAN.md) · [Closeout handoff](docs/HANDOFF_2026-09-25_CLOSEOUT.md)
 
-Next major gates are ecology formula authority, richer information goals, event-based social state, factions/governance, real economy/trade, cooperation/conflict, technology/culture, spatial maturity and the Original-only V1.0 autonomous proof.
+Next major gate is **R1 Rust Survival Complete**: fiber/rope, bounded food/water processing, durability/repair and physical storage. Then expand autonomous production/daily life before richer knowledge/social/faction/economy/conflict/technology/spatial systems and the Original-only V1.0 autonomous proof.
