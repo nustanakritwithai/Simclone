@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   FOOD_ECOLOGY_REFERENCE_SEEDS,
   FOOD_ECOLOGY_REFERENCE_TICKS,
+  FOOD_REFERENCE_MISSING_UNITS,
   FOOD_FORMULA_CANDIDATES,
   buildFoodEcologyReference
 } from '../scripts/worldsim-food-ecology-reference.mjs';
@@ -25,10 +26,8 @@ test('reference raw ecology evidence is bounded and percentile ordered',()=>{
 
 test('relative bands classify every reference food node',()=>{
   const x=buildFoodEcologyReference();
-  for(const r of x.rows){
-    const total=Object.values(r.relativeBands).reduce((a,b)=>a+b,0);
-    assert.equal(total,r.nodes);
-  }
+  for(const r of x.rows)
+    assert.equal(Object.values(r.relativeBands).reduce((a,b)=>a+b,0),r.nodes);
 });
 
 test('reference captures deterministic seasonal variation rather than assuming static ecology',()=>{
@@ -43,9 +42,12 @@ test('reference report is deterministic',()=>{
   assert.deepEqual(buildFoodEcologyReference(),buildFoodEcologyReference());
 });
 
-
-test('reference matrix is emitted for formula selection evidence',()=>{console.log('WM4_REFERENCE_EVIDENCE '+JSON.stringify(buildFoodEcologyReference()));});
-
+test('formula comparison uses explicit controlled missing capacity',()=>{
+  const x=buildFoodEcologyReference();
+  assert.equal(x.formulaScenario.missingUnitsPerFoodNode,FOOD_REFERENCE_MISSING_UNITS);
+  assert.equal(FOOD_REFERENCE_MISSING_UNITS,3);
+  assert.ok(x.rows.every(r=>r.formulaScenario.missingUnitsPerFoodNode===3));
+});
 
 test('absolute formula candidates are monotonic bounded integer functions',()=>{
   const samples=[0,.002,.003,.005,.01,.015,.025,.035,.05,.1,.25,1];
@@ -60,8 +62,7 @@ test('absolute formula candidates are monotonic bounded integer functions',()=>{
 });
 
 test('candidate severity ordering is conservative >= balanced >= strong and never exceeds legacy',()=>{
-  const x=buildFoodEcologyReference();
-  let changed=0;
+  const x=buildFoodEcologyReference();let changed=0;
   for(const row of x.rows){
     const a=row.formulas.conservative,b=row.formulas.balanced,c=row.formulas.strong;
     assert.ok(a.candidateUnits<=a.legacyUnits);
@@ -71,5 +72,9 @@ test('candidate severity ordering is conservative >= balanced >= strong and neve
     assert.ok(b.candidateUnits>=c.candidateUnits);
     changed+=a.changedNodes;
   }
-  assert.ok(changed>0,'reference matrix must include ecology-sensitive conservative changes');
+  assert.ok(changed>0,'controlled depletion must expose ecology-sensitive changes');
+});
+
+test('reference matrix is emitted for formula selection evidence',()=>{
+  console.log('WM4_REFERENCE_EVIDENCE '+JSON.stringify(buildFoodEcologyReference()));
 });
