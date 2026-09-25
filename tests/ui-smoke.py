@@ -91,18 +91,24 @@ with sync_playwright() as p:
  # Placement preview, dry run, cancel, invalid grid, successful commit.
  m.locator('[data-nav="build"]').tap();check('build shows confirmation controls',m.locator('#placement-panel').is_visible() and m.locator('#confirm-placement').is_disabled())
  s=snap(m);m.locator('#choose-position').tap();m.locator('#grid-x').fill('14');m.locator('#grid-y').fill('11');m.locator('#preview-grid').tap()
- check('valid preview enables confirm but does not spend',not m.locator('#confirm-placement').is_disabled() and snap(m)==s)
+ # Shelter BUILD is removed at the engine: the preview is rejected, confirm stays disabled and nothing is spent.
+ check('shelter preview rejected by engine and does not spend',m.locator('#confirm-placement').is_disabled() and snap(m)==s and 'Shelter' in m.locator('#placement-status').inner_text())
  m.screenshot(path=str(OUT/'mobile-build.png'))
  m.locator('#cancel-placement').tap();check('cancel build leaves engine unchanged',snap(m)==s and not m.locator('#placement-panel').is_visible())
  m.locator('[data-nav="build"]').tap();m.locator('#choose-position').tap();idx=s['tiles'].index('water');m.locator('#grid-x').fill(str(idx%30));m.locator('#grid-y').fill(str(idx//30));m.locator('#preview-grid').tap()
  check('water preview rejected by engine',m.locator('#confirm-placement').is_disabled() and snap(m)==s)
- m.locator('#choose-position').tap();m.locator('#grid-x').fill('14');m.locator('#grid-y').fill('11');m.locator('#preview-grid').tap();m.locator('#confirm-placement').tap();after=snap(m)
- check('confirm spends correct cost exactly once',len(after['buildings'])==3 and after['stock']['wood']==s['stock']['wood']-12 and after['stock']['stone']==s['stock']['stone']-6)
- m.locator('#pause').tap();m.locator('[data-speed="5"]').tap();m.wait_for_function('simclone.snapshot().buildings.at(-1).complete',timeout=25000)
- check('house construction still completes autonomously');paused(m)
- m.locator('[data-nav="history"]').tap();m.locator('[data-history-filter="build"]').tap()
- check('chronicle filter shows only construction',m.locator('.history-event').count()>=2 and all('สิ่งปลูกสร้าง' in x for x in m.locator('.history-event').all_inner_texts()))
- m.screenshot(path=str(OUT/'mobile-chronicle.png'));m.locator('#dialog-close').tap()
+ m.locator('#choose-position').tap();m.locator('#grid-x').fill('14');m.locator('#grid-y').fill('11');m.locator('#preview-grid').tap()
+ check('new shelter cannot be confirmed',m.locator('#confirm-placement').is_disabled() and snap(m)==s);m.locator('#cancel-placement').tap()
+ # An unfinished shelter from an old (RS3-0.2) save is still finished by Clones, without refund or second charge.
+ legacy_build=json.loads(saved);legacy_build['rustStations']['version']='RS3-0.2';legacy_build['rustStations'].pop('placements',None)
+ legacy_build['buildings'].append({'id':legacy_build['nextBuilding'],'type':'shelter','x':14,'y':11,'complete':False,'progress':0});legacy_build['nextBuilding']+=1
+ lb=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(lb,json.dumps(legacy_build,ensure_ascii=False))
+ check('old save with unfinished shelter loads and migrates Rust stations',snap(lb)['rustStations']['version']=='RS3-0.3' and snap(lb)['buildings'][-1]['complete'] is False)
+ lb.locator('[data-speed="5"]').tap();lb.wait_for_function('simclone.snapshot().buildings.at(-1).complete',timeout=25000)
+ check('unfinished legacy shelter still completes autonomously');paused(lb)
+ lb.locator('[data-nav="history"]').tap();lb.locator('[data-history-filter="build"]').tap()
+ check('chronicle filter shows only construction',lb.locator('.history-event').count()>=1 and all('สิ่งปลูกสร้าง' in x for x in lb.locator('.history-event').all_inner_texts()))
+ lb.screenshot(path=str(OUT/'mobile-chronicle.png'));lb.locator('#dialog-close').tap()
  m.locator('#menu').tap();before=snap(m);m.locator('#import-file').set_input_files({'name':'broken.json','mimeType':'application/json','buffer':b'{"version":"99"}'})
  check('invalid save import cannot replace world',snap(m)==before);m.locator('#dialog-close').tap()
  # Small and landscape layouts

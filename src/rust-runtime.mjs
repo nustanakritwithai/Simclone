@@ -1,6 +1,7 @@
 import {ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
 import {createRustPossessions,queueCraft,advanceCraft,equipTool,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
 import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS} from './rust-stations.mjs?v=0.5.0';
+import {completedHouseIds} from './housing.mjs?v=0.5.0';
 import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
 export const RUST_RUNTIME_VERSION='RS1-RS4-integrated-0.2';
 export function ensureRustState(s){
@@ -25,7 +26,11 @@ export function rustCommand(s,type,data={},isWalkable){
   if(type==='CRAFT_ITEM')r=queueCraft(s,data);
   else if(type==='EQUIP_ITEM')r=equipTool(s,data.agentId,data.itemId);
   else if(type==='PICKUP_ITEM')r=pickupDroppedItem(s,data.agentId,data.itemId);
-  else if(type==='PLACE_STATION')r=placeStationFromItem(s,data,isWalkable);
+  else if(type==='PLACE_STATION'){
+    const before=completedHouseIds(s);r=placeStationFromItem(s,data,isWalkable);
+    // A house counts once: only the placement that turns it from incomplete to complete reports it.
+    if(r.ok&&!r.duplicate){const done=[...completedHouseIds(s)].find(id=>!before.has(id));if(done)r={...r,completedHouse:done};}
+  }
   else if(type==='PROCESS_CHARCOAL')r=queueProcessing(s,{...data,processId:'CHARCOAL'});
   else return null;
   if(!r.ok)return {...r,message:msg(r)};

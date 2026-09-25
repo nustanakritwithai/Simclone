@@ -12,8 +12,9 @@ import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,re
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
-import {ensureRustState,rustCommand,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
-import {housingCapacity,evaluateModularHouses} from './housing.mjs?v=0.5.0';
+import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
+import {housingCapacity,unfinishedHousing,evaluateModularHouses,pendingPlacements} from './housing.mjs?v=0.5.0';
+import {placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {ensureProductionPlan,productionCommand,stepProductionPlanning,validateProductionPlan} from './production-planning.mjs?v=0.5.0';
 import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsForAgent,validateMentorship} from './mentor-teaching.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -101,12 +102,22 @@ export function createWorld(seed=230926){
 export const living = s => s.agents.filter(a=>a.alive);
 // Housing capacity has one definition: src/housing.mjs (camp + legacy shelters + complete modular houses).
 export const capacity = housingCapacity;
+/** UI placement preview: the same validator the executor re-runs, read-only on the live state. */
+export const previewPlacement = (s,data) => placementPreview(s,data,walkable);
 export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){
   const mentorship=mentorshipCommand(s,type,data);if(mentorship){if(mentorship.ok&&mentorship.changed)event(s,'mentor',mentorship.message,mentorship.mentorId??null);return mentorship;}
   const production=productionCommand(s,type,data);if(production)return production;
-  const rust=rustCommand(s,type,data,walkable);if(rust)return rust;
+  const rust=rustCommand(s,type,data,walkable);
+  if(rust){
+    // stats.built counts houses that a Clone actually finishes: once, on the completing placement.
+    if(type==='PLACE_STATION'&&rust.ok&&rust.completedHouse){
+      const a=s.agents.find(a=>a.id===data.agentId);s.stats.built++;
+      event(s,'build',(a?a.name+' ':'')+'สร้างบ้านสำเร็จ · ที่พักเพิ่ม 6 คน',a?.id??null);
+    }
+    return rust;
+  }
   const cultural=cultureCommand(s,type,data);if(cultural)return cultural;
   if(type==='SET_PLANNING_POLICY')return setPlanningPolicy(s,data.policy);
   if(type==='CLONE'){
@@ -145,17 +156,10 @@ export function command(s,type,data={}){
     event(s,'knowledge',sender.name+' ถ่ายทอด '+data.key+' ให้ '+receiver.name,sender.id);
     return {ok:true,message:'ถ่ายทอดความรู้ให้ '+receiver.name+' แล้ว',fromId:sender.id,toId:receiver.id,key:data.key};
   }
-  if(type==='BUILD'){
-    const {x,y}=data;
-    if(!walkable(s,x,y)||tileAt(s,x,y)!=='grass')return {ok:false,message:'วางบ้านบนพื้นหญ้าที่ว่างเท่านั้น'};
-    if(s.buildings.some(b=>distance(b,{x,y})<2)||s.nodes.some(n=>n.x===x&&n.y===y))return {ok:false,message:'พื้นที่นี้มีสิ่งปลูกสร้างหรือทรัพยากรอยู่'};
-    if(s.buildings.length>=12)return {ok:false,message:'ต้นแบบนี้รองรับสิ่งปลูกสร้าง 12 แห่ง'};
-    if(s.stock.wood<12||s.stock.stone<6)return {ok:false,message:'ต้องมีไม้ 12 และหิน 6'};
-    if(pathTo(s,s.buildings[0],{x,y})===null)return {ok:false,message:'ไม่มีเส้นทางจากหมู่บ้านถึงตำแหน่งนี้'};
-    s.stock.wood-=12;s.stock.stone-=6;
-    s.buildings.push({id:s.nextBuilding++,type:'shelter',x,y,complete:false,progress:0});
-    event(s,'build','วางแปลนบ้านแล้ว · Clone จะเลือกมาช่วยสร้าง');return {ok:true,message:'วางแปลนแล้ว · วัสดุถูกกันไว้สำหรับงานนี้'};
-  }
+  // Shelter BUILD is removed: modular pieces (PLACE_STATION) are the only construction system.
+  // Rejected before any read of the payload, so there is never a mutation. Unfinished shelters
+  // already in old saves are still finished by BUILD workers below (no refund, no second charge).
+  if(type==='BUILD')return {ok:false,reason:'shelter-removed',message:'ระบบบ้านพัก (Shelter) ถูกถอดแล้ว · สร้างบ้านจากฐาน ผนัง ประตู และหลังคาไม้แทน'};
   return {ok:false,message:'ไม่รู้จักคำสั่งนี้'};
 }
 /** One reachable destination per job family; busy nodes never hide a free alternative. */
@@ -164,7 +168,7 @@ function candidates(s,a,book,field){
   const out=[],targets=stockTargets(s),projected=plannedStock(s,book),freeFood=s.stock.food-book.meals.size;
   const productive=canPerformProductiveWork(s,a);
   const compare=(x,y)=>routeDistance(field,x)-routeDistance(field,y)||x.id-y.id;
-  const homes=s.buildings.filter(b=>b.complete&&routeDistance(field,b)>=0).sort(compare);
+  const homes=s.buildings.filter(b=>b.complete&&routeDistance(field,b)>=0).sort(compare),unfinished=unfinishedHousing(s);
   const home=homes[0];
   function add(kind,target,base,need=0,goal=0,status='candidate',extra={}){
     const travel=routeDistance(field,target),skillKind=extra.purposeKind??kind,skill=SKILLS.includes(skillKind)?level(a.skills[skillKind])*3:0;
@@ -194,15 +198,22 @@ function candidates(s,a,book,field){
     const hungerBonus=kind==='FORAGE'&&a.satiety<RULES.hungry&&freeFood<=0?210:0;
     const shortage=projected[type]<targets[type]/2?40:18;
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind,resourceType:type,projected,targets});
-    const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock:s.stock,unfinished:s.buildings.filter(b=>!b.complete).length,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
+    const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock:s.stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
     const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
     add(target.perception==='memory'?'EXPLORE':kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority,
       ...(target.perception?{purposeKind:kind,perception:target.perception,...(target.knowledgeKey?{knowledgeKey:target.knowledgeKey}:{})}: {})});
   }
   for(const b of s.buildings.filter(b=>!b.complete)){
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind:'BUILD',scarcityOverride:18});
-    const laborAuthority=laborAuthoritySignal({kind:'BUILD',agent:a,agents:s.agents,stock:s.stock,unfinished:s.buildings.filter(x=>!x.complete).length,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
+    const laborAuthority=laborAuthoritySignal({kind:'BUILD',agent:a,agents:s.agents,stock:s.stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
     add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved',{kingdomUtility:kingdom,laborAuthority});
+  }
+  // Modular house pieces: the carrier walks to the socket's anchor cell; placement itself goes through PLACE_STATION.
+  for(const p of pendingPlacements(s,a,walkable)){
+    const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind:'BUILD',scarcityOverride:18});
+    const laborAuthority=laborAuthoritySignal({kind:'BUILD',agent:a,agents:s.agents,stock:s.stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
+    add('BUILD',{id:p.itemInstanceId,x:p.anchor.x,y:p.anchor.y},56,0,a.preference==='BUILD'?18:0,!productive?'stage':book.buildings.has('piece:'+p.itemInstanceId)?'reserved':'candidate',
+      {kingdomUtility:kingdom,laborAuthority,placement:{itemInstanceId:p.itemInstanceId,pieceKind:p.pieceKind,socket:p.socket}});
   }
   const tx=5+(a.id*7+Math.floor(s.tick/40))%13,ty=5+(a.id*3+Math.floor(s.tick/60))%16;
   const exploration=personalExplorationTarget(s,a,target=>routeDistance(field,target)>=0);
@@ -218,7 +229,7 @@ function decide(s,a,book){
     a.task={kind:c.kind,targetId:c.targetId,x:c.x,y:c.y,path:routeTo(field,c),work:0,
       score:c.score,started:s.tick,policy:RULES.jobPolicy,fieldRest:c.fieldRest===true,
       ...(c.purposeKind?{purposeKind:c.purposeKind}:{}),...(c.knowledgeKey?{knowledgeKey:c.knowledgeKey}:{}),
-      ...(Number.isInteger(c.exploreCursor)?{exploreCursor:c.exploreCursor}:{})};
+      ...(Number.isInteger(c.exploreCursor)?{exploreCursor:c.exploreCursor}:{}),...(c.placement?{placement:{...c.placement,socket:{...c.placement.socket}}}:{})};
     if(!claim(book,s,a)){c.status='reserved';a.task=null;continue;}
     rememberPlanSelection(s,a,c);
     const career=adoptProfession(a,c.kind,s.tick);
@@ -251,6 +262,16 @@ function execute(s,a){
   }else if(t.kind==='REST'){
     a.energy=clamp(a.energy+(t.fieldRest?.9:2));if(!t.fieldRest&&a.satiety>30)a.hp=clamp(a.hp+.3);
     if(t.work>=26||a.energy>=99)a.task=null;
+  }else if(t.kind==='BUILD'&&t.placement){
+    // Arrived at the anchor: place through the single executor (command -> rustCommand -> placeStationFromItem).
+    const data={agentId:a.id,itemInstanceId:t.placement.itemInstanceId,pieceKind:t.placement.pieceKind,socket:{...t.placement.socket},placementId:placementIdFor(s.tick,a.id,t.placement.itemInstanceId)};
+    let r=command(s,'PLACE_STATION',data);
+    if(!r.ok&&r.reason==='hammer'){
+      const hammer=s.rustPossessions.items.filter(i=>i.kind==='HAMMER'&&i.location?.kind==='bag'&&i.location.agentId===a.id).sort((x,y)=>x.id-y.id)[0];
+      if(hammer&&command(s,'EQUIP_ITEM',{agentId:a.id,itemId:hammer.id}).ok)r=command(s,'PLACE_STATION',data);
+    }
+    if(r.ok&&r.completedHouse){gain(s,a,'BUILD',r.stationId);recordPlanProduction(s,a,t,1);}
+    a.task=null;
   }else if(t.kind==='BUILD'){
     const b=s.buildings.find(b=>b.id===t.targetId);
     if(!b||b.complete){a.task=null;return;}

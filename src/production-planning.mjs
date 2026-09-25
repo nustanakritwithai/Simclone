@@ -3,12 +3,14 @@
  */
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {rustCommand} from './rust-runtime.mjs?v=0.5.0';
-import {ITEM_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
-import {housingCapacity} from './housing.mjs?v=0.5.0';
+import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
+import {housingCapacity,evaluateModularHouses,houseSite,nextHousePiece} from './housing.mjs?v=0.5.0';
+import {canonicalEdge,placementIdFor} from './rust-stations.mjs?v=0.5.0';
+import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 
 export const PRODUCTION_PLAN_VERSION='RP1-0.2';
 export const PRODUCTION_POLICY='rust-production-2';
-export const PRODUCTION_RULES=Object.freeze({attemptPeriod:12,charcoalTarget:4,history:12,housePopulationBuffer:6,houseWood:12,houseStone:6,maxBuildings:12});
+export const PRODUCTION_RULES=Object.freeze({attemptPeriod:12,charcoalTarget:4,history:12,housePopulationBuffer:6});
 
 export const createProductionPlan=()=>({version:PRODUCTION_PLAN_VERSION,enabled:false,goal:null,lastAttemptTick:-1,history:[]});
 export function ensureProductionPlan(s){
@@ -23,27 +25,13 @@ const bagItems=(s,kind=null)=>s.rustPossessions.items.filter(i=>i.location?.kind
 const hasKind=(s,kind)=>s.rustPossessions.items.some(i=>i.kind===kind)||s.rustPossessions.orders.some(o=>o.recipe===kind);
 const stationKind=(s,kind)=>s.rustStations.stations.some(st=>st.complete&&st.kind===kind);
 const activeOrders=s=>s.rustPossessions.orders.length+s.rustMaterials.orders.length;
-const needsHouse=s=>s.buildings.every(b=>b.complete)&&s.buildings.length<PRODUCTION_RULES.maxBuildings&&housingCapacity(s)-eligible(s).length<=PRODUCTION_RULES.housePopulationBuffer;
-const settlementCell=(s,isWalkable)=>{
-  const camp=s.buildings.find(b=>b.type==='camp')??s.buildings[0];if(!camp)return null;
-  const occupied=(x,y)=>s.buildings.some(b=>Math.abs(b.x-x)+Math.abs(b.y-y)<2)||s.nodes.some(n=>n.x===x&&n.y===y)||s.rustStations.stations.some(st=>st.x===x&&st.y===y);
-  for(let radius=2;radius<=8;radius++)for(let dy=-radius;dy<=radius;dy++)for(let dx=-radius;dx<=radius;dx++){
-    if(Math.abs(dx)!==radius&&Math.abs(dy)!==radius)continue;
-    const x=camp.x+dx,y=camp.y+dy;
-    if(!isWalkable(s,x,y)||s.tiles[y*30+x]!=='grass'||occupied(x,y))continue;
-    return {x,y};
-  }
-  return null;
+// Housing need reads the single capacity definition in housing.mjs; RP1 never derives capacity itself.
+const openHouse=s=>evaluateModularHouses(s).houses.some(h=>!h.complete);
+const needsHouse=s=>{
+  const cap=housingCapacity(s);
+  return s.buildings.every(b=>b.complete)&&!openHouse(s)&&cap<BIRTH_RULES.maxPopulation&&cap-eligible(s).length<=PRODUCTION_RULES.housePopulationBuffer;
 };
-function queueHouse(s,isWalkable,dispatch){
-  if(!needsHouse(s))return null;
-  if(s.stock.wood<PRODUCTION_RULES.houseWood||s.stock.stone<PRODUCTION_RULES.houseStone)return {ok:false,reason:'materials'};
-  const cell=settlementCell(s,isWalkable);if(!cell)return {ok:false,reason:'no-placement-cell'};
-  // BUILD remains the single shelter-placement authority. RP1 only proposes
-  // the deterministic cell and dispatches the existing validated command.
-  if(typeof dispatch!=='function')return {ok:false,reason:'no-build-dispatch'};
-  return dispatch('BUILD',cell);
-}
+const HOUSE_GOALS=new Set(['equip-HAMMER-house','craft-WOOD_FOUNDATION','craft-WOOD_WALL','craft-WOOD_DOORWAY','craft-WOOD_ROOF','place-house-piece']);
 const roleAgent=(s,profession)=>{
   const xs=eligible(s),preferred=xs.filter(a=>a.profession===profession);
   return (preferred.length?preferred:xs)[0]??null;
@@ -81,7 +69,7 @@ function placeOwnedStation(s,kind,isWalkable){
   const item=bagItems(s,kind)[0];if(!item)return null;
   const a=s.agents.find(a=>a.id===item.location.agentId&&a.alive);if(!a)return null;
   const cell=freeNeighbor(s,a,isWalkable);if(!cell)return {ok:false,reason:'no-placement-cell'};
-  return rustCommand(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:item.id,...cell},isWalkable);
+  return rustCommand(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:item.id,...cell,placementId:placementIdFor(s.tick,a.id,item.id)},isWalkable);
 }
 function queueRecipe(s,recipeId,profession,isWalkable){
   const a=roleAgent(s,profession);if(!a)return {ok:false,reason:'no-worker'};
@@ -94,6 +82,37 @@ function queueCharcoal(s,isWalkable){
   if(!a)return {ok:false,reason:'no-worker'};
   return rustCommand(s,'PROCESS_CHARCOAL',{agentId:a.id,stationId:furnace.id},isWalkable);
 }
+/** Modular house after the tool chain and charcoal target. RP1 only orders pieces through the
+ * existing CRAFT_ITEM/EQUIP_ITEM authorities; the BUILD task places them via PLACE_STATION.
+ * The plan is derived from state each time (housing.mjs), so it is never persisted twice.
+ */
+function stepHousePlan(s,p,isWalkable){
+  const open=openHouse(s),last=[...p.history].reverse().find(h=>HOUSE_GOALS.has(h.goal)||h.goal==='house-complete');
+  // Blocked outcomes are recorded once, not every attempt period, so bounded history keeps its signal.
+  const note=(goal,outcome,agentId=null)=>{if(p.goal?.goal!==goal||p.goal?.outcome!==outcome)record(p,s.tick,goal,outcome,agentId);};
+  if(!open&&last&&last.goal!=='house-complete'){record(p,s.tick,'house-complete','completed');return {ok:true,houseComplete:true};}
+  if(!open&&!needsHouse(s))return null;
+  const builder=eligible(s).find(a=>bagItems(s,'HAMMER').some(i=>i.location.agentId===a.id));
+  if(!builder){note('house-site','no-builder');return {ok:false,reason:'no-builder'};}
+  const site=houseSite(s,isWalkable);
+  if(!site){note('house-site','no-site');return {ok:false,reason:'no-site'};}
+  const raw=nextHousePiece(s,site);
+  if(!raw?.pieceKind){note('house-site',raw?.reason??'blocked');return {ok:false,reason:raw?.reason??'blocked'};}
+  // Any E/S edge is canonicalized to N/W before it is compared, checked or used.
+  const piece=raw.socket.type==='edge'?{...raw,socket:canonicalEdge(raw.socket.x,raw.socket.y,raw.socket.side)}:raw;
+  const carrying=bagItems(s,piece.pieceKind).some(i=>i.location.agentId===builder.id);
+  if(carrying){note('place-house-piece','waiting',builder.id);return {ok:true,waiting:true};}
+  const equipped=s.rustPossessions.equipment.find(e=>e.agentId===builder.id),hammer=bagItems(s,'HAMMER').find(i=>i.location.agentId===builder.id);
+  if(equipped?.itemId!==hammer.id){
+    const r=rustCommand(s,'EQUIP_ITEM',{agentId:builder.id,itemId:hammer.id},isWalkable);
+    record(p,s.tick,'equip-HAMMER-house',r?.ok?'completed':(r?.reason??'blocked'),builder.id);if(!r?.ok)return r;
+  }
+  const wood=RECIPE_CATALOG[piece.pieceKind].materials.wood??0;
+  if(s.stock.wood<wood+BIRTH_RULES.woodSafetyFloor){note('craft-'+piece.pieceKind,'materials');return {ok:false,reason:'materials'};}
+  const r=rustCommand(s,'CRAFT_ITEM',{agentId:builder.id,recipeId:piece.pieceKind},isWalkable);
+  record(p,s.tick,'craft-'+piece.pieceKind,r?.ok?'accepted':(r?.reason??'blocked'),r?.ok?builder.id:null);
+  return r;
+}
 export function productionCommand(s,type,data={}){
   if(type!=='SET_PRODUCTION_POLICY')return null;
   const p=ensureProductionPlan(s),enabled=data.enabled===true;
@@ -103,12 +122,6 @@ export function productionCommand(s,type,data={}){
 export function stepProductionPlanning(s,isWalkable,dispatch=null){
   const p=ensureProductionPlan(s);if(!p.enabled)return null;
   if(activeOrders(s)>0)return null;
-  // Settlement growth is visible gameplay: RP1 may reserve one house plan when
-  // capacity is nearly full. Existing BUILD workers remain the only executor.
-  if(needsHouse(s)){
-    const house=queueHouse(s,isWalkable,dispatch);
-    if(house?.ok){record(p,s.tick,'build-shelter','accepted');return house;}
-  }
   // Resolve completed physical outputs before starting the next chain step.
   const equipped=equipForWork(s,isWalkable);
   if(equipped?.ok)record(p,s.tick,'equip-'+equipped.kind,'completed',equipped.agentId);
@@ -134,6 +147,9 @@ export function stepProductionPlanning(s,isWalkable,dispatch=null){
   if(s.rustMaterials.charcoal<PRODUCTION_RULES.charcoalTarget){
     const r=queueCharcoal(s,isWalkable);record(p,s.tick,'charcoal',r?.ok?'accepted':(r?.reason??'blocked'));return r?.ok?r:null;
   }
+  // Shelter BUILD is gone; settlement growth is one modular house at a time, after Hammer and charcoal.
+  const house=stepHousePlan(s,p,isWalkable);
+  if(house)return house.ok?house:null;
   if(p.goal?.goal!=='stable')record(p,s.tick,'stable','target-met');
   return null;
 }
