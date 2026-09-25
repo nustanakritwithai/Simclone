@@ -8,19 +8,14 @@ import {housingCapacity,evaluateModularHouses,houseSite,nextHousePiece} from './
 import {canonicalEdge,placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 
-export const PRODUCTION_PLAN_VERSION='RP1-0.3';
+export const PRODUCTION_PLAN_VERSION='RP1-0.2';
 export const PRODUCTION_POLICY='rust-production-2';
 export const PRODUCTION_RULES=Object.freeze({attemptPeriod:12,charcoalTarget:4,history:12,housePopulationBuffer:6});
 
-export const createProductionPlan=()=>({version:PRODUCTION_PLAN_VERSION,enabled:true,goal:null,lastAttemptTick:-1,history:[]});
+export const createProductionPlan=()=>({version:PRODUCTION_PLAN_VERSION,enabled:false,goal:null,lastAttemptTick:-1,history:[]});
 export function ensureProductionPlan(s){
   if(s.productionPlan===undefined)s.productionPlan=createProductionPlan();
-  if(s.productionPlan?.version==='RP1-0.1'||s.productionPlan?.version==='RP1-0.2'){
-    s.productionPlan.version=PRODUCTION_PLAN_VERSION;
-    // RP1-0.3 makes autonomous settlement construction the baseline. The old default-OFF
-    // policy would strand migrated worlds at camp capacity after legacy Shelter retirement.
-    s.productionPlan.enabled=true;
-  }
+  if(s.productionPlan?.version==='RP1-0.1')s.productionPlan.version=PRODUCTION_PLAN_VERSION;
   return s.productionPlan;
 }
 
@@ -35,6 +30,13 @@ const openHouse=s=>evaluateModularHouses(s).houses.some(h=>!h.complete);
 const needsHouse=s=>{
   const cap=housingCapacity(s);
   return s.buildings.every(b=>b.complete)&&!openHouse(s)&&cap<BIRTH_RULES.maxPopulation&&cap-eligible(s).length<=PRODUCTION_RULES.housePopulationBuffer;
+};
+// Even with full RP1 disabled, settlement housing is autonomous once population pressure is visible.
+// Starting six-person worlds stay baseline-equivalent; at population 7+ the coordinator uses only
+// the existing Rust commands needed for Table -> Hammer -> modular house, then becomes idle again.
+const autonomousHousingNeeded=s=>{
+  const population=(s.agents??[]).filter(a=>a.alive).length,cap=housingCapacity(s);
+  return population>6&&cap<BIRTH_RULES.maxPopulation&&cap-population<PRODUCTION_RULES.housePopulationBuffer;
 };
 const HOUSE_GOALS=new Set(['equip-HAMMER-house','craft-WOOD_FOUNDATION','craft-WOOD_WALL','craft-WOOD_DOORWAY','craft-WOOD_ROOF','place-house-piece']);
 const roleAgent=(s,profession)=>{
@@ -125,7 +127,8 @@ export function productionCommand(s,type,data={}){
   return {ok:true,enabled,message:enabled?'เปิดแผนผลิตอัตโนมัติแล้ว':'หยุดแผนผลิตอัตโนมัติแล้ว'};
 }
 export function stepProductionPlanning(s,isWalkable,dispatch=null){
-  const p=ensureProductionPlan(s);if(!p.enabled)return null;
+  const p=ensureProductionPlan(s),housingOnly=p.enabled!==true&&autonomousHousingNeeded(s);
+  if(!p.enabled&&!housingOnly)return null;
   if(activeOrders(s)>0)return null;
   // Resolve completed physical outputs before starting the next chain step.
   const equipped=equipForWork(s,isWalkable);
@@ -134,30 +137,38 @@ export function stepProductionPlanning(s,isWalkable,dispatch=null){
     const placed=placeOwnedStation(s,'CRAFTING_TABLE_LV1',isWalkable);
     if(placed){if(placed.ok)record(p,s.tick,'place-crafting-table','completed');return placed.ok?placed:null;}
   }
+  if(housingOnly){
+    if(s.tick-p.lastAttemptTick<PRODUCTION_RULES.attemptPeriod)return null;p.lastAttemptTick=s.tick;
+    if(!stationKind(s,'CRAFTING_TABLE_LV1')&&!hasKind(s,'CRAFTING_TABLE_LV1')){
+      const r=queueRecipe(s,'CRAFTING_TABLE_LV1','builder',isWalkable);record(p,s.tick,'craft-CRAFTING_TABLE_LV1',r?.ok?'accepted':(r?.reason??'blocked'),r?.ok?roleAgent(s,'builder')?.id??null:null);return r?.ok?r:null;
+    }
+    if(stationKind(s,'CRAFTING_TABLE_LV1')&&!hasKind(s,'HAMMER')){
+      const r=queueRecipe(s,'HAMMER','builder',isWalkable);record(p,s.tick,'craft-HAMMER',r?.ok?'accepted':(r?.reason??'blocked'),r?.ok?roleAgent(s,'builder')?.id??null:null);return r?.ok?r:null;
+    }
+    const house=stepHousePlan(s,p,isWalkable);
+    return house?.ok?house:null;
+  }
   if(!stationKind(s,'FURNACE')){
     const placed=placeOwnedStation(s,'FURNACE',isWalkable);
     if(placed){if(placed.ok)record(p,s.tick,'place-furnace','completed');return placed.ok?placed:null;}
   }
   if(s.tick-p.lastAttemptTick<PRODUCTION_RULES.attemptPeriod)return null;p.lastAttemptTick=s.tick;
-  const setupGoals=[
+  const goals=[
     ['STONE_AXE','woodcutter',()=>!hasKind(s,'STONE_AXE')],
     ['STONE_PICKAXE','miner',()=>!hasKind(s,'STONE_PICKAXE')],
     ['CRAFTING_TABLE_LV1','builder',()=>!stationKind(s,'CRAFTING_TABLE_LV1')&&!hasKind(s,'CRAFTING_TABLE_LV1')],
-    ['HAMMER','builder',()=>stationKind(s,'CRAFTING_TABLE_LV1')&&!hasKind(s,'HAMMER')]
+    ['HAMMER','builder',()=>stationKind(s,'CRAFTING_TABLE_LV1')&&!hasKind(s,'HAMMER')],
+    ['FURNACE','builder',()=>!stationKind(s,'FURNACE')&&!hasKind(s,'FURNACE')]
   ];
-  for(const [recipe,profession,needed] of setupGoals)if(needed()){
+  for(const [recipe,profession,needed] of goals)if(needed()){
     const r=queueRecipe(s,recipe,profession,isWalkable);record(p,s.tick,'craft-'+recipe,r?.ok?'accepted':(r?.reason??'blocked'),r?.ok?roleAgent(s,profession)?.id??null:null);return r?.ok?r:null;
-  }
-  // Housing is population-critical. Once a Hammer exists, finish one modular house before
-  // optional furnace/charcoal infrastructure so a fresh world visibly expands without player orders.
-  const house=stepHousePlan(s,p,isWalkable);
-  if(house)return house.ok?house:null;
-  if(!stationKind(s,'FURNACE')&&!hasKind(s,'FURNACE')){
-    const r=queueRecipe(s,'FURNACE','builder',isWalkable);record(p,s.tick,'craft-FURNACE',r?.ok?'accepted':(r?.reason??'blocked'),r?.ok?roleAgent(s,'builder')?.id??null:null);return r?.ok?r:null;
   }
   if(s.rustMaterials.charcoal<PRODUCTION_RULES.charcoalTarget){
     const r=queueCharcoal(s,isWalkable);record(p,s.tick,'charcoal',r?.ok?'accepted':(r?.reason??'blocked'));return r?.ok?r:null;
   }
+  // Shelter BUILD is gone; settlement growth is one modular house at a time, after Hammer and charcoal.
+  const house=stepHousePlan(s,p,isWalkable);
+  if(house)return house.ok?house:null;
   if(p.goal?.goal!=='stable')record(p,s.tick,'stable','target-met');
   return null;
 }
