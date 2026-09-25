@@ -12,7 +12,7 @@ Future work starts from the verified current `main`, not from the archived branc
 
 | Gate | Remaining concrete work | Required proof |
 |---|---|---|
-| UX legibility | **V0.6–V0.8 released; V0.9 candidate:** visual-first + diegetic thought/speech/work bubbles | Prove bubbles are derived/read-only, real communication alone creates speech, mobile <=3 / larger <=5 simultaneous bubbles, evidence remains accessible, and menus become secondary rather than a replacement world-state authority |
+| UX legibility | **V0.6–V0.8 released; V0.9 candidate:** visual-first + diegetic bubbles + evidence-backed communication links, task-target cues and dropped-item markers | Prove all world cues reuse authoritative state/evidence, speech requires a real sender/receiver, mobile <=3 / larger <=5 bubbles, no duplicate ledgers, and menus remain secondary evidence/detail surfaces |
 | WM4 ecology authority | **Released candidate:** WM4.5 food and WM4.6 wood ecology through the existing single writer | Next: harvest pressure (WM4.7), then shadow resource zones (WM4.8). Do not reselect the food formula |
 | Rust survival RS1–RS4 | **Released:** physical crafting/possessions/stations, atomic committed materials, scheduler work, tool speed and Wood 2 -> Charcoal 1 | Preserve conservation and single-authority tests while expanding content |
 | Knowledge follow-through | **KF1 released:** Mentor teaching exists; next add richer observation, cultural retrieval and explicit information goals | No hidden-world leak, no XP from merely being told, source preserved across deaths |
