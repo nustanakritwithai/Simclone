@@ -218,6 +218,7 @@ function selectAgent(id,center=false){follow=false;selected=id;tab='about';mode=
 function openDialog(title,kicker,body){$('dialog').dataset.kind='other';$('dialog-title').textContent=title;$('dialog-kicker').textContent=kicker;$('dialog-body').innerHTML=body;if(!dialog.open)dialog.showModal();updateUI();}
 function roster(){ux?.openRoster();}
 function history(){ux?.openHistory();}
+function systems(){ux?.openSystems();}
 function cloneDialog(){ux?.openClone();}
 function menu(){openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,`<p class="menu-save-note"><strong>${esc(saveLabel(store.status()))}</strong><br>เซฟอยู่ในเบราว์เซอร์นี้เท่านั้น ไม่ได้ซิงก์ขึ้นคลาวด์</p><div class="menu-grid"><button data-action="survival">ภาพรวมการอยู่รอด</button>${store.status().protected&&store.originalText()!==null?'<button data-action="export-original">สำรองไฟล์เซฟเดิมที่มีปัญหา</button>':''}<button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>Engine ปัจจุบันคือ V0.5.0 + Knowledge Continuity 1 · รุ่นใหม่เกิดเองและทุกคนมีอายุขัย deterministic 78–92 ปี · ยังไม่ใช่ Living World V1.0</div>`);}
 function download(){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='simclone-day-'+day(state)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกไฟล์โลกแล้ว');}
@@ -247,11 +248,11 @@ $('import-file').addEventListener('change',async e=>{const file=e.target.files[0
 $('inspector').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.ui==='close'){selected=null;follow=false;}else if(b.dataset.tab){tab=b.dataset.tab;frameSelected();}else if(b.dataset.ui==='follow'){follow=!follow;const a=state.agents.find(a=>a.id===selected);if(a){focus={x:a.x,y:a.y};pan={x:0,y:0};}}updateUI();});
 $('pause').onclick=()=>{paused=!paused;accumulator=0;updateUI();};
 for(const b of document.querySelectorAll('[data-speed]'))b.onclick=()=>{speed=Number(b.dataset.speed);document.querySelectorAll('[data-speed]').forEach(x=>x.classList.toggle('active',x===b));};
-$('clone').onclick=cloneDialog;$('roster').onclick=roster;$('history').onclick=history;$('open-chronicle').onclick=history;$('menu').onclick=menu;
+$('systems').onclick=systems;$('roster').onclick=roster;$('history').onclick=history;$('open-chronicle').onclick=history;$('menu').onclick=menu;
 function observe(){mode='observe';$('mode-hint').hidden=true;$('observe').classList.add('active');updateUI();}
 $('observe').onclick=observe;
 $('recent-events').onclick=e=>{const id=e.target.closest('[data-event]')?.dataset.event;if(!id)return;const ev=state.events.find(e=>e.id===Number(id));if(ev?.agentId)selectAgent(ev.agentId,true);else history();};
-for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===b));const n=b.dataset.nav;if(n==='people')roster();else if(n==='clone')cloneDialog();else if(n==='history')history();else{selected=null;follow=false;observe();}};
+for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===b));const n=b.dataset.nav;if(n==='people')roster();else if(n==='systems')systems();else if(n==='rust')ux?.openRust();else if(n==='history')history();else{selected=null;follow=false;observe();}};
 $('recenter').onclick=()=>{focus={x:11,y:12};pan={x:0,y:0};follow=false;};
 const setZoom=z=>{zoom=Math.max(.5,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
 canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
