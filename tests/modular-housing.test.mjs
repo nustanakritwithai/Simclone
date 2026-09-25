@@ -239,6 +239,28 @@ test('house evaluation: zero doorways or a 5-foundation component is not a house
   assert.ok(h,'five connected foundations form one component');assert.equal(h.complete,false);assert.equal(capacity(big),12);
 });
 
+test('house evaluation: a fully built 5-cell house (every piece placed through the executor) is too-large; the same 4-cell house is complete',()=>{
+  // Row of grass cells on seed 230926 starting at (9,0); the builder is moved beside each cell so range never rejects.
+  const build=n=>{
+    const f=builderFixture(),{s,a}=f,ox=9,oy=0;
+    const at=(cx,kind,socket)=>{a.x=cx;a.y=oy;return f.place(kind,socket);};
+    const results=[];
+    for(let i=0;i<n;i++)results.push(at(ox+i,'WOOD_FOUNDATION',{type:'cell',x:ox+i,y:oy}));
+    for(let i=0;i<n;i++)for(const side of ['N','S'])results.push(at(ox+i,i===2&&side==='S'?'WOOD_DOORWAY':'WOOD_WALL',canonicalEdge(ox+i,oy,side)));
+    results.push(at(ox,'WOOD_WALL',canonicalEdge(ox,oy,'W')),at(ox+n-1,'WOOD_WALL',canonicalEdge(ox+n-1,oy,'E')));
+    for(let i=0;i<n;i++)results.push(at(ox+i,'WOOD_ROOF',{type:'cell',x:ox+i,y:oy}));
+    assert.ok(results.every(r=>r.ok),'every piece is accepted by the executor');
+    return s;
+  };
+  const four=build(4),h4=evaluateModularHouses(four).houses.find(h=>h.cells.length===4);
+  assert.ok(h4);assert.equal(h4.complete,true);assert.equal(capacity(four),18);
+  const five=build(5),houses=evaluateModularHouses(five).houses;
+  assert.equal(houses.length,1);const h=houses[0];
+  assert.equal(h.cells.length,5);assert.equal(h.doorways,1);
+  assert.equal(h.complete,false);assert.equal(h.reason,'too-large');assert.deepEqual(h.missing,[]);
+  assert.equal(h.capacity,0);assert.equal(capacity(five),12);
+});
+
 test('save/load in the middle of the RP1 house plan resumes without duplicate pieces or double charge',()=>{
   const continuous=createWorld(230926);command(continuous,'SET_PRODUCTION_POLICY',{enabled:true});
   let mid=null;

@@ -70,7 +70,7 @@ with sync_playwright() as p:
  # Mobile
  m=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(m);paused(m)
  check('mobile world has no inspector covering it initially',not m.locator('#inspector').is_visible())
- check('mobile quick character rail and SVG dock present',m.locator('#people-rail').is_visible() and m.locator('.mobile-nav .ui-icon').count()==6)
+ check('mobile quick character rail and SVG dock present (5 tabs, no build tab)',m.locator('#people-rail').is_visible() and m.locator('.mobile-nav .ui-icon').count()==5)
  check('mobile page no horizontal overflow',no_overflow(m))
  m.screenshot(path=str(OUT/'mobile-world.png'))
  m.locator('[data-quick-person="2"]').tap()
@@ -88,17 +88,12 @@ with sync_playwright() as p:
  m.screenshot(path=str(OUT/'mobile-reasons.png'))
  m.locator('[data-ux="expand"]').tap();check('sheet can collapse',not m.locator('#inspector').evaluate('(e)=>e.classList.contains("is-expanded")'))
  m.locator('[data-ux="why"]').tap();m.locator('[data-ui="close"]').tap();check('camera returns after closing expanded sheet',m.locator('.camera').is_visible())
- # Placement preview, dry run, cancel, invalid grid, successful commit.
- m.locator('[data-nav="build"]').tap();check('build shows confirmation controls',m.locator('#placement-panel').is_visible() and m.locator('#confirm-placement').is_disabled())
- s=snap(m);m.locator('#choose-position').tap();m.locator('#grid-x').fill('14');m.locator('#grid-y').fill('11');m.locator('#preview-grid').tap()
- # Shelter BUILD is removed at the engine: the preview is rejected, confirm stays disabled and nothing is spent.
- check('shelter preview rejected by engine and does not spend',m.locator('#confirm-placement').is_disabled() and snap(m)==s and 'Shelter' in m.locator('#placement-status').inner_text())
- m.screenshot(path=str(OUT/'mobile-build.png'))
- m.locator('#cancel-placement').tap();check('cancel build leaves engine unchanged',snap(m)==s and not m.locator('#placement-panel').is_visible())
- m.locator('[data-nav="build"]').tap();m.locator('#choose-position').tap();idx=s['tiles'].index('water');m.locator('#grid-x').fill(str(idx%30));m.locator('#grid-y').fill(str(idx//30));m.locator('#preview-grid').tap()
- check('water preview rejected by engine',m.locator('#confirm-placement').is_disabled() and snap(m)==s)
- m.locator('#choose-position').tap();m.locator('#grid-x').fill('14');m.locator('#grid-y').fill('11');m.locator('#preview-grid').tap()
- check('new shelter cannot be confirmed',m.locator('#confirm-placement').is_disabled() and snap(m)==s);m.locator('#cancel-placement').tap()
+ # Shelter building is removed from the UI (spec 6.4/7.2): no build button, nav tab, panel or ghost, and tapping the world never builds.
+ s=snap(m);check('no shelter build UI remains',m.locator('[data-nav="build"]').count()==0 and m.locator('#build').count()==0 and m.locator('#placement-panel').count()==0 and m.locator('#confirm-placement').count()==0)
+ check('no shelter price text in UI','ไม้ 12 + หิน 6' not in m.locator('body').inner_text())
+ sb=m.locator('#stage').bounding_box();m.mouse.click(sb['x']+sb['width']*.5,sb['y']+sb['height']*.35)
+ check('tapping the world does not build or spend',len(snap(m)['buildings'])==len(s['buildings']) and snap(m)['stock']==s['stock'])
+ m.screenshot(path=str(OUT/'mobile-no-build.png'))
  # An unfinished shelter from an old (RS3-0.2) save is still finished by Clones, without refund or second charge.
  legacy_build=json.loads(saved);legacy_build['rustStations']['version']='RS3-0.2';legacy_build['rustStations'].pop('placements',None)
  legacy_build['buildings'].append({'id':legacy_build['nextBuilding'],'type':'shelter','x':14,'y':11,'complete':False,'progress':0});legacy_build['nextBuilding']+=1

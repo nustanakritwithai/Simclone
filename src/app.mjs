@@ -9,7 +9,7 @@ let ux=null,nav=null,worldMapView=null;
 const store=createWorldStore({getStorage:()=>localStorage,serialize,restore});
 let state=createWorld(),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
 let toastTimer,ground,cw=0,ch=0,dpr=1,zoom=innerWidth<700?1.12:1.25,pan={x:0,y:0};
-let focus={x:11,y:12},follow=false,ghost=null,positions=new Map(),lastUi=0,lastFrame=0,accumulator=0;
+let focus={x:11,y:12},follow=false,positions=new Map(),lastUi=0,lastFrame=0,accumulator=0;
 const hw=27,hh=13.5;
 const proj=(x,y)=>({x:(x-y)*hw,y:(x+y)*hh});
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),4200);}
@@ -167,7 +167,6 @@ function render(time){
  const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:st.x+st.y+.15})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
  for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data);else person(ctx,o.data,time);}
  if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
- if(mode==='build'&&ghost){const v=ux?.getPlacement()??ghost,p=proj(v.x,v.y);polygon(ctx,[[p.x,p.y-13],[p.x+27,p.y],[p.x,p.y+13],[p.x-27,p.y]],v.ok===false?'#d47f7f70':'#ecdb9b70',v.ok===false?'#efb6a6':'#f0d895');if(ux?.getPlacement()){ctx.textAlign='center';ctx.font='12px system-ui';ctx.fillStyle='#fff4d5';ctx.fillText(v.ok?'✓':'×',p.x,p.y+4);}}
  ctx.restore();
  const h=hour(state);if(h>=19||h<6){ctx.fillStyle='#10294460';ctx.fillRect(0,0,cw,ch);}
  // Gentle edge vignette keeps the central village legible.
@@ -185,15 +184,11 @@ function updateUI(){
  $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip" data-event="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · ${e.type.toUpperCase()}</small><p>${esc(e.text)}</p></button>`).join('');
  inspect();ux?.renderHUD();nav?.update();
 }
-function selectAgent(id,center=false){follow=false;selected=id;tab='about';mode='observe';$('mode-hint').hidden=true;$('build').classList.remove('active');$('observe').classList.add('active');const a=findPerson(state,id);if(a&&(center||innerWidth<=700)){focus={x:a.x,y:a.y};pan={x:0,y:0};}updateUI();}
+function selectAgent(id,center=false){follow=false;selected=id;tab='about';mode='observe';$('mode-hint').hidden=true;$('observe').classList.add('active');const a=findPerson(state,id);if(a&&(center||innerWidth<=700)){focus={x:a.x,y:a.y};pan={x:0,y:0};}updateUI();}
 function openDialog(title,kicker,body){$('dialog').dataset.kind='other';$('dialog-title').textContent=title;$('dialog-kicker').textContent=kicker;$('dialog-body').innerHTML=body;if(!dialog.open)dialog.showModal();updateUI();}
 function roster(){ux?.openRoster();}
 function history(){ux?.openHistory();}
 function cloneDialog(){ux?.openClone();}
-function startBuild(){
- if(dialog.open)dialog.close();selected=null;follow=false;mode='build';$('build').classList.add('active');$('observe').classList.remove('active');
- $('mode-hint').hidden=false;$('mode-hint').textContent='แตะพื้นหญ้าว่างเพื่อวางบ้าน · ไม้ 12 + หิน 6 · กด “โลก” เพื่อยกเลิก';updateUI();
-}
 function menu(){openDialog('โลกของคุณ','SIMCLONE · UI '+UI_VERSION,`<p class="menu-save-note"><strong>${esc(saveLabel(store.status()))}</strong><br>เซฟอยู่ในเบราว์เซอร์นี้เท่านั้น ไม่ได้ซิงก์ขึ้นคลาวด์</p><div class="menu-grid"><button data-action="survival">ภาพรวมการอยู่รอด</button>${store.status().protected&&store.originalText()!==null?'<button data-action="export-original">สำรองไฟล์เซฟเดิมที่มีปัญหา</button>':''}<button data-action="save">↧ บันทึกในเครื่อง</button><button data-action="export">↗ ส่งออกไฟล์โลก</button><button data-action="import">↥ นำเข้าไฟล์โลก</button><button data-action="reset">◇ เริ่มโลกใหม่</button><a href="./plan.html" target="_blank" rel="noopener">แผนพัฒนา ↗</a><button data-action="help">วิธีเล่น</button></div><div class="help-block"><b>เล่นได้โดยไม่ต้องต่อ AI API</b><br>ตัวละครใช้กฎและคะแนนบน CPU · บันทึกอัตโนมัติทุก 10 วินาทีในเบราว์เซอร์นี้<br>เมื่อสลับแท็บหรือปิดเว็บ โลกจะหยุด ไม่มีการจำลองย้อนหลังขณะออฟไลน์<br>Engine ปัจจุบันคือ V0.5.0 + Knowledge Continuity 1 · รุ่นใหม่เกิดเองและทุกคนมีอายุขัย deterministic 78–92 ปี · ยังไม่ใช่ Living World V1.0</div>`);}
 function download(){const blob=new Blob([serialize(state)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='simclone-day-'+day(state)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกไฟล์โลกแล้ว');}
 $('dialog-close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{accumulator=0;updateUI();});
@@ -213,7 +208,7 @@ $('dialog-body').addEventListener('click',e=>{
   const seed=Number($('seed-input').value);if(!Number.isInteger(seed)||seed<0||seed>4294967295){toast('กรอก seed เป็นจำนวนเต็ม 0–4294967295');return;}
   state=createWorld(seed);store.allowReplacement();paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
  }
- if(action==='help')openDialog('สังเกต เข้าใจ แล้วค่อยแทรกแซง','HOW TO PLAY',`<p><b>1. สังเกต</b><br>ลากแผนที่เพื่อเลื่อน ใช้ + / − หรือจีบนิ้วเพื่อซูม แตะคนเพื่อดูความอิ่ม พลังงาน และงานที่กำลังทำ</p><p><b>2. เข้าใจ</b><br>เปิดแท็บ “เหตุผล” ดูคะแนนจริงจาก CPU เปิด “ทักษะ” เพื่อดู XP และต้นแบบที่ถ่ายทอดความรู้</p><p><b>3. ช่วยให้โลกเติบโต</b><br>เลือกคนแล้วกดโคลน หรือวางแปลนบ้านบนหญ้าว่าง ตัวละครจะเลือกไปสร้างเองเมื่อทำได้</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น · Escape ยกเลิกวางบ้าน<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">รุ่นนี้มีการเกิด เติบโต และเสียชีวิตแล้ว แต่ยังไม่มีสังคม Faction และ Replay เต็มรูปแบบ · ภาพทั้งหมดวาดในเกม ไม่ใช้ภาพหน้าจอจำลอง</div>`);
+ if(action==='help')openDialog('สังเกต เข้าใจ แล้วค่อยแทรกแซง','HOW TO PLAY',`<p><b>1. สังเกต</b><br>ลากแผนที่เพื่อเลื่อน ใช้ + / − หรือจีบนิ้วเพื่อซูม แตะคนเพื่อดูความอิ่ม พลังงาน และงานที่กำลังทำ</p><p><b>2. เข้าใจ</b><br>เปิดแท็บ “เหตุผล” ดูคะแนนจริงจาก CPU เปิด “ทักษะ” เพื่อดู XP และต้นแบบที่ถ่ายทอดความรู้</p><p><b>3. ช่วยให้โลกเติบโต</b><br>เลือกคนแล้วกดโคลน หรือวางแปลนบ้านบนหญ้าว่าง ตัวละครจะเลือกไปสร้างเองเมื่อทำได้</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">รุ่นนี้มีการเกิด เติบโต และเสียชีวิตแล้ว แต่ยังไม่มีสังคม Faction และ Replay เต็มรูปแบบ · ภาพทั้งหมดวาดในเกม ไม่ใช้ภาพหน้าจอจำลอง</div>`);
 });
 $('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>HISTORY_LIMITS.maxSaveCharacters*3)throw new Error('ไฟล์ใหญ่เกินงบการนำเข้า');const candidate=restore(await file.text());
  openDialog('นำเข้าโลกที่บันทึกไว้','IMPORT WORLD',`<p>วันที่ ${day(candidate)} · ประชากร ${living(candidate).length} คน<br>การนำเข้าจะแทนที่โลกปัจจุบันในเบราว์เซอร์</p><div class="dialog-actions"><button id="confirm-import" class="primary">ยืนยันนำเข้า</button><button class="secondary" data-action="cancel">ยกเลิก</button></div>`);
@@ -222,11 +217,11 @@ $('import-file').addEventListener('change',async e=>{const file=e.target.files[0
 $('inspector').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.ui==='close'){selected=null;follow=false;}else if(b.dataset.tab){tab=b.dataset.tab;frameSelected();}else if(b.dataset.ui==='follow'){follow=!follow;const a=state.agents.find(a=>a.id===selected);if(a){focus={x:a.x,y:a.y};pan={x:0,y:0};}}updateUI();});
 $('pause').onclick=()=>{paused=!paused;accumulator=0;updateUI();};
 for(const b of document.querySelectorAll('[data-speed]'))b.onclick=()=>{speed=Number(b.dataset.speed);document.querySelectorAll('[data-speed]').forEach(x=>x.classList.toggle('active',x===b));};
-$('clone').onclick=cloneDialog;$('build').onclick=startBuild;$('roster').onclick=roster;$('history').onclick=history;$('open-chronicle').onclick=history;$('menu').onclick=menu;
-function observe(){mode='observe';$('mode-hint').hidden=true;$('build').classList.remove('active');$('observe').classList.add('active');updateUI();}
+$('clone').onclick=cloneDialog;$('roster').onclick=roster;$('history').onclick=history;$('open-chronicle').onclick=history;$('menu').onclick=menu;
+function observe(){mode='observe';$('mode-hint').hidden=true;$('observe').classList.add('active');updateUI();}
 $('observe').onclick=observe;
 $('recent-events').onclick=e=>{const id=e.target.closest('[data-event]')?.dataset.event;if(!id)return;const ev=state.events.find(e=>e.id===Number(id));if(ev?.agentId)selectAgent(ev.agentId,true);else history();};
-for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===b));const n=b.dataset.nav;if(n==='people')roster();else if(n==='clone')cloneDialog();else if(n==='build')startBuild();else if(n==='history')history();else{selected=null;follow=false;observe();}};
+for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===b));const n=b.dataset.nav;if(n==='people')roster();else if(n==='clone')cloneDialog();else if(n==='history')history();else{selected=null;follow=false;observe();}};
 $('recenter').onclick=()=>{focus={x:11,y:12};pan={x:0,y:0};follow=false;};
 const setZoom=z=>{zoom=Math.max(.5,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
 canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
@@ -236,7 +231,6 @@ canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);
  if(pointers.size===2){multiTouch=true;const [a,b]=[...pointers.values()];pinch=Math.hypot(a.x-b.x,a.y-b.y);}
 });
 canvas.addEventListener('pointermove',e=>{
- const rect=canvas.getBoundingClientRect();ghost=worldPoint(e.clientX-rect.left,e.clientY-rect.top);
  if(!pointers.has(e.pointerId))return;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
  if(pointers.size===2){const [a,b]=[...pointers.values()],d=Math.hypot(a.x-b.x,a.y-b.y);if(pinch)setZoom(zoom*d/pinch);pinch=d;return;}
  if(drag&&!multiTouch){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>6)drag.moved=true;pan.x=Math.max(-1800,Math.min(1800,drag.px+dx));pan.y=Math.max(-1200,Math.min(1200,drag.py+dy));}
@@ -244,8 +238,7 @@ canvas.addEventListener('pointermove',e=>{
 canvas.addEventListener('pointerup',e=>{
  pointers.delete(e.pointerId);if(!drag||drag.moved||multiTouch){if(!pointers.size){drag=null;multiTouch=false;}return;}
  const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
- if(mode==='build'){const p=worldPoint(sx,sy);if(ux)ux.choosePlacement(p);else{const result=command(state,'BUILD',p);toast(result.message);if(result.ok){observe();save();}}}
- else{let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{selected=null;follow=false;updateUI();}}
+ {let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{selected=null;follow=false;updateUI();}}
  drag=null;
 });
 canvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);drag=null;multiTouch=false;});
@@ -264,7 +257,7 @@ ux=installUX({
  read:()=>({state,selected,tab,mode,paused,follow,canAutosave:!store.status().protected}),
  portrait,actionText,toast,openDialog,closeDialog:()=>dialog.close(),
  select:selectAgent,setTab:value=>{tab=value;frameSelected();updateUI();},observe,
- setGhost:p=>{ghost=p;},center:centerCamera,
+ center:centerCamera,
  preview:(type,data)=>{const copy=JSON.parse(serialize(state)),result=command(copy,type,data);return {...result,agent:type==='CLONE'&&result.ok?copy.agents.at(-1):null};},
  execute:(type,data)=>{const result=command(state,type,data);updateUI();return result;},save
 });
