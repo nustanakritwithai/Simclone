@@ -22,6 +22,19 @@ IC2 required proof:
 
 Do not merge old settlement/building branches into this line. Reimplement useful ideas from verified current main.
 
+## IC3 preparation
+
+IC3 is prepared on `feature/independent-clone-world-ic3-prep` and is not active runtime.
+
+Order is locked as:
+1. **IC3A Personal survival home** — owned modular home becomes REST/EAT destination.
+2. **IC3B Default personal autonomy** — homeless productive adults start personal-home progression without global housing pressure.
+3. **IC3C Birth independence** — remove global housing-capacity authorization after guardian/household semantics are explicit.
+4. **Archive-host decision** — replace Camp-only Cultural Archive ownership.
+5. **IC3D No-Camp fresh start** — deterministic separated start with no mandatory Camp/Shelter authority.
+
+Do not remove Camp before the archive-host and survival-home dependencies are resolved.
+
 ## Closed release line
 
 The September 25 line has merged Knowledge Continuity 1, Rust RS1–RS4, Production Planning RP1, Mentorship KF1, WM4.5 food ecology authority and WM4.6 wood ecology authority. Old parallel Rust/formula/roadmap PRs were closed as superseded; their branches are reference-only and must not be merged stale.
