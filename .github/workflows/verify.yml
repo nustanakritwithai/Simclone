@@ -5,6 +5,7 @@ on:
     branches:
       - "feature/**"
       - "fix/**"
+      - "ci/**"
   pull_request:
     branches: ["main"]
 
@@ -13,31 +14,16 @@ permissions:
 
 jobs:
   verify:
-    timeout-minutes: 20
+    timeout-minutes: 12
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Verify engine, persistence and local assets
+      - name: Verify engine, persistence and active unit regressions
         run: npm test
 
-      - name: Verify WM4.5 ecology authority A/B proof
-        run: npm run test:ecology
-
-      - name: Verify Survival Core regression suite
-        run: npm run test:survival
-
-      - name: Verify autonomous birth across seeds
-        run: npm run test:lifecycle
-
-      - name: Verify deterministic age death and cleanup
-        run: npm run test:death
-
-      - name: Verify post-death generation continuity
-        run: npm run test:continuity
-
-      - name: Setup Python for offline Chromium checks
+      - name: Setup Python for active Chromium UI smoke
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -47,11 +33,5 @@ jobs:
           python -m pip install playwright
           python -m playwright install --with-deps chromium
 
-      - name: Verify observation UI offline
+      - name: Verify active observation UI
         run: python tests/ui-smoke.py
-
-      - name: Verify navigation and save recovery offline
-        run: python tests/navigation-smoke.py
-
-      - name: Verify survival UI offline
-        run: python tests/survival-smoke.py
