@@ -63,13 +63,21 @@ with sync_playwright() as p:
  wf=feedbackpage.evaluate('simclone.worldFeedback()')
  check('world feedback exposes selected clone marker without a second state source',any(x['agentId']==2 and x['reason']=='selected' for x in wf['agents']))
  check('selected clone uses a thought-cloud projection in the world',any(x['agentId']==2 and x['kind']=='thought' and x['source']=='selected' for x in wf['bubbles']))
+ selected_bubble=next(x for x in wf['bubbles'] if x['agentId']==2)
+ if selected_bubble.get('target') is not None:check('selected task target cue reuses authoritative task coordinates',selected_bubble['target']['x']==snap(feedbackpage)['agents'][1]['task']['x'] and selected_bubble['target']['y']==snap(feedbackpage)['agents'][1]['task']['y'])
  check('modular housing progress is derived from the canonical house evaluator',len(wf['houses'])==1 and wf['houses'][0]['status']=='building' and 0<wf['houses'][0]['progress']<100 and wf['houses'][0]['missing']==5)
  feedbackpage.screenshot(path=str(OUT/'desktop-world-feedback.png'))
  speech_saved=json.loads(saved);speech_event_id=speech_saved['nextEvent'];speech_saved['nextEvent']+=1
+ receiver=next(a for a in speech_saved['agents'] if a['id']==3);message_id='ui-v10-message'
+ receiver['knowledgeState']['evidence'].append({'evidenceId':message_id,'type':'message','ownerAgentId':3,'sourceAgentId':2,'tick':speech_saved['tick'],'key':'resource:test','originEvidenceId':'ui-v10-origin'})
  speech_saved['events'].append({'id':speech_event_id,'tick':speech_saved['tick'],'type':'knowledge','text':'Nira ถ่ายทอด resource:test ให้ Kira','agentId':2})
+ speech_saved['rustPossessions']['items'].append({'id':99002,'kind':'HAMMER','createdBy':2,'createdTick':speech_saved['tick'],'location':{'kind':'drop','sourceAgentId':2,'tick':speech_saved['tick'],'x':10,'y':10}})
+ speech_saved['rustPossessions']['nextItem']=max(speech_saved['rustPossessions']['nextItem'],99003)
  speechpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(speechpage,json.dumps(speech_saved,ensure_ascii=False));paused(speechpage)
- speech=next((x for x in speechpage.evaluate('simclone.worldFeedback().bubbles') if x['agentId']==2),None)
- check('real communication event becomes a speech bubble instead of invented dialogue',speech is not None and speech['kind']=='speech' and speech['source']=='event' and speech['eventId']==speech_event_id and speech['label']=='ความรู้')
+ world_story=speechpage.evaluate('simclone.worldFeedback()');speech=next((x for x in world_story['bubbles'] if x['agentId']==2),None)
+ check('real communication evidence becomes a speech bubble instead of event text alone',speech is not None and speech['kind']=='speech' and speech['source']=='event' and speech['eventId']==speech_event_id and speech['label']=='ความรู้' and speech['recipientId']==3)
+ check('communication link resolves sender and receiver from retained evidence',any(x['eventId']==speech_event_id and x['fromId']==2 and x['toId']==3 for x in world_story['communications']))
+ check('dropped physical item is exposed as a world cue from the item ledger',any(x['itemId']==99002 and x['kind']=='HAMMER' and x['x']==10 and x['y']==10 for x in world_story['drops']))
  speechpage.screenshot(path=str(OUT/'mobile-speech-bubble.png'))
 
  inventory_saved=json.loads(saved)
