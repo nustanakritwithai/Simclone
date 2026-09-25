@@ -9,7 +9,7 @@ import {createFoodRegenerationImpact} from './worldsim-food-regen-impact.mjs?v=0
 import {createFoodEcologyCalibration} from './worldsim-food-regen-calibration.mjs?v=0.5.0';
 import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
-import {evaluateModularHouses} from './housing.mjs?v=0.5.0';
+import {evaluateModularHouses,MODULAR_HOUSE_RULES} from './housing.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -518,10 +518,9 @@ export function installUX(api){
   const house=houses.find(h=>h.cells.some(cell=>cell.x===st.x&&cell.y===st.y));
   if(house){
    const builders=living(s).filter(a=>a.task?.kind==='BUILD'&&house.cells.some(cell=>Math.abs(a.task.x-cell.x)+Math.abs(a.task.y-cell.y)<=1));
-   const totalMissing=house.missing.length,progress=house.complete?100:Math.max(0,Math.min(99,Math.round((1/(1+totalMissing))*100)));
+   const totalMissing=house.missing.length;
    api.openDialog('บ้าน','MODULAR HOUSE · '+escape(house.houseId),'<section class="structure-hero">'+visualToken('home')+'<div><small>HOUSING</small><h3>'+(house.complete?'บ้านพร้อมอยู่':'กำลังก่อสร้าง')+'</h3><span>'+house.cells.length+' cell · '+(house.complete?house.capacity+' capacity':totalMissing+' ชิ้นยังขาด')+'</span></div></section>'+
-    '<div class="menu-metrics">'+menuMetric('home','Progress',progress+'%',house.complete?'live':'')+menuMetric('people','Capacity',house.capacity)+menuMetric('hammer','Builders',builders.length)+menuMetric('bag','Missing',totalMissing)+'</div>'+
-    '<div class="structure-progress"><i style="width:'+progress+'%"></i></div>'+
+    '<div class="menu-metrics">'+menuMetric('home','Status',house.complete?'READY':'BUILDING',house.complete?'live':'')+menuMetric('people','Capacity',house.capacity)+menuMetric('hammer','Builders',builders.length)+menuMetric('bag','Missing',totalMissing)+'</div>'+
     (builders.length?'<div class="structure-people">'+builders.map(a=>'<button class="structure-person" data-person="'+a.id+'">'+api.portrait(a)+'<b>'+escape(a.name)+'</b></button>').join('')+'</div>':'')+
     '<details class="menu-explain"><summary>โครงสร้าง</summary><p>House completion และ capacity derive จาก housing evaluator เดียวกับ engine/UI ไม่มี complete flag ซ้ำ</p></details>');
    $('dialog').dataset.kind='structure';$('dialog').dataset.structure='house:'+house.houseId;renderHUD();return;
