@@ -64,6 +64,17 @@ export function taskValid(s,a){
     return !!n&&n.type===RESOURCE_ACTIONS[t.kind]&&n.x===t.x&&n.y===t.y&&n.amount>0&&s.stock[n.type]<RULES.stockLimit;
   }
   if(t.kind==='BUILD')return canPerformProductiveWork(s,a)&&s.buildings.some(b=>b.id===t.targetId&&!b.complete&&b.x===t.x&&b.y===t.y);
+  if(t.kind==='CRAFT'){
+    if(!canPerformProductiveWork(s,a))return false;
+    const o=s.rustPossessions?.orders?.find(o=>o.id===t.targetId&&o.agentId===a.id);if(!o)return false;
+    if(o.stationId===null)return a.x===t.x&&a.y===t.y;
+    const st=s.rustStations?.stations?.find(st=>st.id===o.stationId&&st.complete);return !!st&&st.x===t.x&&st.y===t.y;
+  }
+  if(t.kind==='PROCESS'){
+    if(!canPerformProductiveWork(s,a))return false;
+    const o=s.rustMaterials?.orders?.find(o=>o.id===t.targetId&&o.agentId===a.id),st=o&&s.rustStations?.stations?.find(st=>st.id===o.stationId&&st.complete);
+    return !!st&&st.x===t.x&&st.y===t.y;
+  }
   if(t.kind==='EAT')return s.stock.food>0&&s.buildings.some(b=>b.id===t.targetId&&b.complete&&b.x===t.x&&b.y===t.y);
   if(t.kind==='REST')return t.fieldRest===true||s.buildings.some(b=>b.id===t.targetId&&b.complete&&b.x===t.x&&b.y===t.y);
   return ['IDLE','EXPLORE'].includes(t.kind);
