@@ -661,6 +661,32 @@ Avoid:
 - decorative imagery that invents gameplay state
 - replacing `UNKNOWN` with a confident visual guess
 
+## Menu Interior Contract
+
+Menus are secondary evidence/detail surfaces, not dashboards that replace the world.
+
+Default structure:
+- visual hero / identity
+- 3–6 primary metric tiles
+- icon-first actions
+- portrait/item cards for people and possessions
+- progress bars for active work
+- advanced/shadow/provenance content behind collapsed disclosure
+- long explanatory prose behind `details`
+
+Specific expectations:
+- **Main Menu** → visual action cards and compact save status.
+- **People** → portrait cards + mini Need bars; search/filter remains accessible.
+- **Survival** → six primary settlement metrics; Knowledge remains immediately actionable; Kingdom/WorldSim/Lifecycle detail is progressively disclosed.
+- **Rust** → visual recipe cards, item slots and active-work progress.
+- **Systems** → icon/status/value first; detailed descriptions collapsed.
+- **Chronicle/Event/Decision Feed** → event/agent imagery first, evidence and deep trace on demand.
+- **Inspector** → icon-first tabs on mobile with accessible labels.
+
+Menu redesign must not remove an existing command path or hide an action required for an accepted gameplay workflow.
+
+---
+
 ## Diegetic World UI — Bubble First
 
 The world itself is the primary information surface. Prefer in-world bubbles and markers before opening a menu.
