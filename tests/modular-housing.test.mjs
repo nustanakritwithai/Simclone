@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {readFileSync,readdirSync} from 'node:fs';
 import {createWorld,command,step,serialize,restore,validate,walkable,capacity,survivalSummary,birthPlan,previewPlacement} from '../src/engine.mjs';
 import {evaluateModularHouses,housingCapacity,houseSite,MODULAR_HOUSE_RULES} from '../src/housing.mjs';
-import {canonicalEdge,edgeCells,cellEdges,socketKey,canPlaceStation} from '../src/rust-stations.mjs';
+import {canonicalEdge,edgeCells,cellEdges,socketKey,canPlaceStation,PLACEMENT_LIMITS} from '../src/rust-stations.mjs';
 
 const sha=x=>createHash('sha256').update(x).digest('hex');
 // Same inputs as worldsim-resource-authority ecologySignature (seed, phase, tiles, nodes, buildings).
@@ -151,6 +151,24 @@ test('retrying a placementId is idempotent and an item can never be placed twice
   assert.equal(command(s,'PLACE_STATION',data).reason,'duplicate-item','permanent guard does not depend on the bounded log');
   const missing=give('WOOD_WALL');
   assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:missing,socket:canonicalEdge(site.x,site.y,'N')}).reason,'placement-id');
+});
+
+test('after its placementId is evicted from the 64-entry log, a retried placement is rejected as duplicate-item and places nothing',()=>{
+  const f=builderFixture(),{s,a,site,give}=f;
+  const id=give('WOOD_FOUNDATION'),data={agentId:a.id,itemInstanceId:id,socket:{type:'cell',...site},placementId:'pl:'+s.tick+':'+a.id+':'+id};
+  const first=command(s,'PLACE_STATION',data);assert.equal(first.ok,true);
+  assert.equal(PLACEMENT_LIMITS.log,64);
+  // Older rows fill the log; the next real placement trims it through the executor itself.
+  for(let i=0;i<PLACEMENT_LIMITS.log-1;i++)s.rustStations.placements.push({id:'fill:'+i,tick:s.tick,stationId:first.stationId,itemInstanceId:id});
+  assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:give('WOOD_WALL'),socket:canonicalEdge(site.x,site.y,'N'),placementId:'pl:'+s.tick+':'+a.id+':wall'}).ok,true);
+  assert.equal(s.rustStations.placements.length,PLACEMENT_LIMITS.log);
+  assert.ok(!s.rustStations.placements.some(p=>p.id===data.placementId),'original placementId was evicted');
+  const stations=s.rustStations.stations.length,snapshot=serialize(s);
+  const retry=command(s,'PLACE_STATION',data);
+  assert.equal(retry.ok,false);assert.equal(retry.reason,'duplicate-item');
+  assert.equal(s.rustStations.stations.length,stations);
+  assert.equal(s.rustStations.stations.filter(st=>st.sourceItemId===id).length,1);
+  assert.equal(serialize(s),snapshot);
 });
 
 test('preview is the same read-only validator and matches the executor',()=>{
