@@ -1,0 +1,55 @@
+name: Verify repaired public Rust release
+
+on:
+  push:
+    branches: ["verify/live-rust-repair-final-20260925"]
+
+permissions:
+  contents: read
+
+jobs:
+  public-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout isolated verification commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+      - name: Verify exact parent release and unchanged runtime
+        run: |
+          RELEASE_SHA=$(git rev-parse HEAD^)
+          git diff --exit-code "$RELEASE_SHA" -- src index.html
+          echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install public-browser verification tools
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Run unchanged public proof against the exact repaired release
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          path = Path('scripts/live-rust-release-proof.py')
+          source = path.read_text(encoding='utf-8')
+          previous = '3096da3b50864c74aa0870511ac09f3845aeeb08'
+          release = os.environ['RELEASE_SHA']
+          assert len(release) == 40 and all(c in '0123456789abcdef' for c in release)
+          assert source.count("RELEASE = '" + previous + "'") == 1
+          source = source.replace("RELEASE = '" + previous + "'", "RELEASE = '" + release + "'")
+          source = source.replace('match release 3096da3b', 'match release ' + release[:8])
+          path.write_text(source, encoding='utf-8')
+          PY
+          python -u scripts/live-rust-release-proof.py
+      - name: Keep screenshots and native HTTPS proof report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-rust-release-final
+          path: evidence-live-rust/
+          if-no-files-found: warn
+          retention-days: 14
