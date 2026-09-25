@@ -104,7 +104,7 @@ function rustStation(c,st,structureCtx=null){
  const info=structureDrawInfo(st,{hasFoundation:structureCtx?.hasFoundation});
  if(info){
   const p=proj(info.x,info.y),opts={role:info.role};
-  if(info.piece==='roof')opts.neighbours=structureCtx?.roofNeighboursFor(st)??new Set();
+  if(info.piece==='roof')Object.assign(opts,structureCtx?.roofOptionsFor(st)??{neighbours:new Set(),rejected:true});
   c.save();c.translate(p.x,p.y);drawPiece(c,info.piece,info.edge,opts);c.restore();return;
  }
 
@@ -175,15 +175,15 @@ function structureRenderContext(){
  for(const st of state.rustStations?.stations??[])if(st.kind==='WOOD_ROOF'&&st.socket?.type==='cell'&&st.socket.level===2)
   roofCells.add(structureCellKey(st.socket.x,st.socket.y));
  const hasFoundation=(x,y)=>foundations.has(structureCellKey(x,y));
- const roofNeighboursFor=st=>{
-  const s=st.socket;if(s?.type!=='cell'||s.level!==2)return new Set();
+ const roofOptionsFor=st=>{
+  const s=st.socket;if(s?.type!=='cell'||s.level!==2)return {neighbours:new Set(),rejected:true};
   const house=houseByCell.get(structureCellKey(s.x,s.y));
-  // Rejected/incomplete/too-large structures keep isolated roof pieces. Rendering never changes authority.
-  if(!house?.complete)return new Set();
+  // Incomplete/too-large roof records stay visible, use the rejected palette, and never join ridges.
+  if(!house?.complete)return {neighbours:new Set(),rejected:true};
   const cells=houseCells.get(house.houseId);
-  return roofNeighbours({x:s.x,y:s.y},(x,y)=>cells.has(structureCellKey(x,y))&&roofCells.has(structureCellKey(x,y)));
+  return {neighbours:roofNeighbours({x:s.x,y:s.y},(x,y)=>cells.has(structureCellKey(x,y))&&roofCells.has(structureCellKey(x,y))),rejected:false};
  };
- return {hasFoundation,roofNeighboursFor};
+ return {hasFoundation,roofOptionsFor};
 }
 function render(time){
  ctx.setTransform(dpr,0,0,dpr,0,0);

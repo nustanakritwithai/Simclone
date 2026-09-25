@@ -83,6 +83,7 @@ export const PALETTE = Object.freeze({
     opening: '#172a2355' /* station shadow colour reused to shade the door opening */},
   roof: {left: '#7f603f', right: '#6d4e2d' /* derived: -18 */, top: '#7f603f' /* flat top of 2x2 = lit tone */,
     stroke: '#b28b59', line: '#5e452f'},
+  roofRejected: {left: '#756b5b', right: '#62594d', top: '#756b5b', stroke: '#9b917f', line: '#514a41'},
   ghost: {
     valid: {fill: '#c4d5a970', stroke: '#c4d5a9', glyph: '✓'},   // #c4d5a9 = .clone-validity (ux.css)
     invalid: {fill: '#d47f7f70', stroke: '#efb6a6', glyph: '×'},  // existing BUILD ghost red (app.mjs L170)
@@ -318,8 +319,9 @@ function fillFace(c, pts, fill) {
   c.fillStyle = fill; c.fill();
 }
 
-function drawRoofSolid(c, g, alpha) {
-  const style = FACE_STYLE.roof;
+function drawRoofSolid(c, g, alpha, rejected = false) {
+  const palette = rejected ? PALETTE.roofRejected : PALETTE.roof;
+  const style = {left:[palette.left,palette.stroke],right:[palette.right,palette.stroke],top:[palette.top,palette.stroke]};
   c.save(); c.globalAlpha = alpha;
   // Opaque: back-facing faces first (hidden anyway), then front-facing. Each face is also stroked with
   // its OWN fill colour (0.7 px) so coplanar faces of neighbouring cells meet with no anti-alias seam.
@@ -330,15 +332,15 @@ function drawRoofSolid(c, g, alpha) {
     if (alpha === 1) { c.strokeStyle = fill; c.lineWidth = .7; c.lineJoin = 'round'; c.stroke(); }
   }
   c.lineCap = 'round';
-  for (const seg of g.outlines) line(c, seg, PALETTE.roof.stroke, .7);   // eaves, hips, ridges, valleys only
+  for (const seg of g.outlines) line(c, seg, palette.stroke, .7);   // eaves, hips, ridges, valleys only
   c.lineCap = 'butt';
-  for (const d of g.details) line(c, d.points, ...DETAIL_STYLE[d.role]);
+  for (const d of g.details) line(c, d.points, d.role === 'roofLine' ? palette.line : DETAIL_STYLE[d.role][0], d.role === 'roofLine' ? 2 : DETAIL_STYLE[d.role][1]);
   c.restore();
 }
 
 function drawSolid(c, piece, edge, opts = {}) {
   const g = pieceGeometry(piece, edge, opts);
-  if (g.roof) { drawRoofSolid(c, g, roofAlpha(opts)); return; }
+  if (g.roof) { drawRoofSolid(c, g, roofAlpha(opts), opts.rejected === true); return; }
   const alpha = piece === 'wall' || piece === 'doorway' ? edgeAlpha(opts) : 1;
   c.save(); c.globalAlpha = alpha;
   if (g.shadow) ellipse(c, 0, 4, 20, 7, PALETTE.shadow);  // same station shadow as rustStation()

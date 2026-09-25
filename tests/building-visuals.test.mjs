@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {pieceGeometry,structureDrawInfo,structureDepth,roofNeighbours,FOUNDATION_H,WALL_TOP_Z} from '../src/building-visuals.mjs';
+import {pieceGeometry,structureDrawInfo,structureDepth,roofNeighbours,drawPiece,PALETTE,FOUNDATION_H,WALL_TOP_Z} from '../src/building-visuals.mjs';
 
 test('canonical wall rendering uses the stored edge socket instead of the foundation anchor',()=>{
  const wall={kind:'WOOD_WALL',x:8,y:9,socket:{type:'edge',x:9,y:9,side:'W',level:1}};
@@ -38,4 +38,14 @@ test('roof neighbour set is controlled only by the supplied same-house predicate
  const allowed=new Set(['5:4','6:5']);
  const n=roofNeighbours({x:5,y:5},(x,y)=>allowed.has(x+':'+y));
  assert.deepEqual([...n].sort(),['E','N']);
+});
+
+test('rejected roof uses a distinct palette from complete roof',()=>{
+ const fills=[];
+ const c={save(){},restore(){},beginPath(){},moveTo(){},lineTo(){},closePath(){},stroke(){},fill(){fills.push(this.fillStyle);},
+  set fillStyle(v){this._fillStyle=v;},get fillStyle(){return this._fillStyle;},
+  set strokeStyle(v){this._strokeStyle=v;},set lineWidth(v){},set lineJoin(v){},set lineCap(v){},set globalAlpha(v){}};
+ drawPiece(c,'roof',null,{neighbours:new Set(),rejected:true});
+ assert.ok(fills.some(v=>Object.values(PALETTE.roofRejected).includes(v)));
+ assert.ok(!fills.some(v=>Object.values(PALETTE.roof).includes(v)));
 });
