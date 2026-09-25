@@ -3,6 +3,8 @@ import {createWorldStore,saveLabel} from './storage.mjs?v=0.5.0';
 import {installNavigation} from './navigation.mjs?v=0.5.0';
 import {createWorldMapView,WORLD_MAP_VERSION,MAP_AUTHORITY} from './worldsim-map.mjs?v=0.5.0';
 import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
+import {evaluateModularHouses} from './housing.mjs?v=0.5.0';
+import {drawPiece,structureDrawInfo,structureDepth,roofNeighbours} from './building-visuals.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,nav=null,worldMapView=null;
@@ -98,7 +100,14 @@ function building(c,b,time){
  }
  c.restore();
 }
-function rustStation(c,st){
+function rustStation(c,st,structureCtx=null){
+ const info=structureDrawInfo(st,{hasFoundation:structureCtx?.hasFoundation});
+ if(info){
+  const p=proj(info.x,info.y),opts={role:info.role};
+  if(info.piece==='roof')opts.neighbours=structureCtx?.roofNeighboursFor(st)??new Set();
+  c.save();c.translate(p.x,p.y);drawPiece(c,info.piece,info.edge,opts);c.restore();return;
+ }
+
  const p=proj(st.x,st.y);c.save();c.translate(p.x,p.y);
  ellipse(c,0,4,20,7,'#172a2355');
  if(st.kind==='CRAFTING_TABLE_LV1'){
@@ -156,6 +165,26 @@ function centerCamera(p){focus={...p};pan={x:0,y:0};follow=false;}
 function screenPoint(x,y){const p=proj(x,y),f=proj(focus.x,focus.y);return {x:cameraOrigin().x+pan.x+(p.x-f.x)*zoom,y:cameraOrigin().y+pan.y+(p.y-f.y)*zoom};}
 function worldPoint(x,y){const f=proj(focus.x,focus.y);const px=(x-cameraOrigin().x-pan.x)/zoom+f.x,py=(y-cameraOrigin().y-pan.y)/zoom+f.y;return {x:Math.round((px/hw+py/hh)/2),y:Math.round((py/hh-px/hw)/2)};}
 function resize(){const rect=canvas.getBoundingClientRect();cw=rect.width;ch=rect.height;dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(cw*dpr);canvas.height=Math.round(ch*dpr);}
+const structureCellKey=(x,y)=>x+':'+y;
+function structureRenderContext(){
+ const evaluated=evaluateModularHouses(state),houseByCell=new Map(),houseCells=new Map(),foundations=new Set(),roofCells=new Set();
+ for(const h of evaluated.houses){
+  const cells=new Set(h.cells.map(c=>structureCellKey(c.x,c.y)));houseCells.set(h.houseId,cells);
+  for(const c of h.cells){const k=structureCellKey(c.x,c.y);foundations.add(k);houseByCell.set(k,h);}
+ }
+ for(const st of state.rustStations?.stations??[])if(st.kind==='WOOD_ROOF'&&st.socket?.type==='cell'&&st.socket.level===2)
+  roofCells.add(structureCellKey(st.socket.x,st.socket.y));
+ const hasFoundation=(x,y)=>foundations.has(structureCellKey(x,y));
+ const roofNeighboursFor=st=>{
+  const s=st.socket;if(s?.type!=='cell'||s.level!==2)return new Set();
+  const house=houseByCell.get(structureCellKey(s.x,s.y));
+  // Rejected/incomplete/too-large structures keep isolated roof pieces. Rendering never changes authority.
+  if(!house?.complete)return new Set();
+  const cells=houseCells.get(house.houseId);
+  return roofNeighbours({x:s.x,y:s.y},(x,y)=>cells.has(structureCellKey(x,y))&&roofCells.has(structureCellKey(x,y)));
+ };
+ return {hasFoundation,roofNeighboursFor};
+}
 function render(time){
  ctx.setTransform(dpr,0,0,dpr,0,0);
  const bg=ctx.createLinearGradient(0,0,cw,ch);bg.addColorStop(0,'#4c654b');bg.addColorStop(1,'#314b3d');ctx.fillStyle=bg;ctx.fillRect(0,0,cw,ch);
@@ -164,8 +193,9 @@ function render(time){
  ctx.drawImage(ground,-SIZE.h*hw-60,-32);
  const a=state.agents.find(a=>a.id===selected&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
- const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:st.x+st.y+.15})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
- for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data);else person(ctx,o.data,time);}
+ const structureCtx=structureRenderContext();
+ const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
+ for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else person(ctx,o.data,time);}
  if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
  ctx.restore();
  const h=hour(state);if(h>=19||h<6){ctx.fillStyle='#10294460';ctx.fillRect(0,0,cw,ch);}
