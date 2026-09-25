@@ -1,5 +1,5 @@
 import {ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
-import {createRustPossessions,queueCraft,advanceCraft,equipTool,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
+import {createRustPossessions,queueCraft,advanceCraft,equipTool,unequipTool,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
 import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS} from './rust-stations.mjs?v=0.5.0';
 import {completedHouseIds} from './housing.mjs?v=0.5.0';
 import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
@@ -25,6 +25,7 @@ export function rustCommand(s,type,data={},isWalkable){
   ensureRustState(s);let r=null;
   if(type==='CRAFT_ITEM')r=queueCraft(s,data);
   else if(type==='EQUIP_ITEM')r=equipTool(s,data.agentId,data.itemId);
+  else if(type==='UNEQUIP_ITEM')r=unequipTool(s,data.agentId);
   else if(type==='PICKUP_ITEM')r=pickupDroppedItem(s,data.agentId,data.itemId);
   else if(type==='PLACE_STATION'){
     const before=completedHouseIds(s);r=placeStationFromItem(s,data,isWalkable);
@@ -35,7 +36,7 @@ export function rustCommand(s,type,data={},isWalkable){
   else return null;
   if(!r.ok)return {...r,message:msg(r)};
   const text=type==='CRAFT_ITEM'?'รับงานคราฟต์แล้ว · วัสดุถูกกันเข้า order และจะไม่หักซ้ำ':
-    type==='EQUIP_ITEM'?'สวมอุปกรณ์แล้ว':type==='PICKUP_ITEM'?'เก็บของขึ้นกระเป๋าแล้ว':
+    type==='EQUIP_ITEM'?'สวมอุปกรณ์ช่องมือแล้ว':type==='UNEQUIP_ITEM'?(r.changed?'ถอดอุปกรณ์ช่องมือแล้ว':'ช่องมือว่างอยู่แล้ว'):type==='PICKUP_ITEM'?'เก็บของขึ้นกระเป๋าแล้ว':
     type==='PLACE_STATION'?'วางสิ่งปลูกสร้างสำเร็จ': 'รับงานเผาถ่านแล้ว · ไม้ถูกกันเข้า order';
   return {...r,message:text};
 }
