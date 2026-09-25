@@ -20,6 +20,11 @@ def paused(page):
  if page.locator('#pause').get_attribute('aria-pressed')!='true':page.locator('#pause').click()
 def snap(page):return page.evaluate('simclone.snapshot()')
 def no_overflow(page):return page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+def tap_world(page,x,y):
+ p=page.evaluate('(q)=>simclone.screenPoint(q.x,q.y)',{'x':x,'y':y});box=page.locator('#world').bounding_box()
+ page.mouse.click(box['x']+p['x'],box['y']+p['y'])
+ page.wait_for_function("document.querySelector('#dialog')?.open")
+
 with sync_playwright() as p:
  exe='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None
  b=p.chromium.launch(executable_path=exe,headless=True,args=['--no-sandbox'])
@@ -79,6 +84,11 @@ with sync_playwright() as p:
  achievement_fx=achievementpage.evaluate('simclone.worldFeedback().achievementBursts')
  check('skill completion event becomes a bounded achievement burst',any(x['eventId']==achievement_event_id and x['type']=='skill' and x['agentId']==2 for x in achievement_fx))
  lifepage.screenshot(path=str(OUT/'desktop-birth-burst.png'))
+ htarget=feedbackpage.evaluate('(p)=>simclone.structureTargetAtScreen(p.x,p.y)',feedbackpage.evaluate('simclone.screenPoint(14,11)'))
+ check('foundation resolves to a tappable structure target',htarget is not None and htarget['type']=='station')
+ tap_world(feedbackpage,14,11)
+ check('tapping modular foundation opens House context instead of a build tab',feedbackpage.locator('#dialog-title').inner_text()=='บ้าน' and feedbackpage.locator('#dialog').get_attribute('data-kind')=='structure' and 'BUILDING' in feedbackpage.locator('#dialog-body').inner_text())
+ feedbackpage.locator('#dialog-close').click()
  feedbackpage.screenshot(path=str(OUT/'desktop-world-feedback.png'))
  speech_saved=json.loads(saved);speech_event_id=speech_saved['nextEvent'];speech_saved['nextEvent']+=1
  receiver=next(a for a in speech_saved['agents'] if a['id']==3);message_id='ui-v10-message'
@@ -98,6 +108,15 @@ with sync_playwright() as p:
  taskfx=taskpage.evaluate('simclone.worldFeedback()')
  check('resource pulse reuses authoritative task target and node coordinates',any(x['nodeId']==node['id'] and x['agentId']==2 and x['x']==node['x'] and x['y']==node['y'] for x in taskfx['resourcePulses']))
  speechpage.screenshot(path=str(OUT/'mobile-speech-bubble.png'))
+ structure_saved=json.loads(saved);rs2=structure_saved['rustStations'];table_id=rs2['nextStation'];rs2['nextStation']+=1;furnace_id=rs2['nextStation'];rs2['nextStation']+=1
+ rs2['stations'].append({'id':table_id,'kind':'CRAFTING_TABLE_LV1','buildingType':'crafting_table','x':14,'y':14,'complete':True,'placedBy':2,'placedTick':structure_saved['tick'],'structurePiece':False})
+ rs2['stations'].append({'id':furnace_id,'kind':'FURNACE','buildingType':'furnace','x':17,'y':14,'complete':True,'placedBy':2,'placedTick':structure_saved['tick'],'structurePiece':False})
+ structurepage=b.new_page(viewport={'width':1440,'height':1000});boot(structurepage,json.dumps(structure_saved,ensure_ascii=False));paused(structurepage)
+ tap_world(structurepage,14,14)
+ check('Crafting Table has its own structure menu and only station recipes',structurepage.locator('#dialog-title').inner_text()=='โต๊ะคราฟต์' and structurepage.locator('[data-ux="craft-item"]').count()==1 and 'ค้อน' in structurepage.locator('#dialog-body').inner_text())
+ structurepage.locator('#dialog-close').click();tap_world(structurepage,17,14)
+ check('Furnace has its own processing menu',structurepage.locator('#dialog-title').inner_text()=='เตาหลอม' and structurepage.locator('[data-ux="process-charcoal"][data-station]').count()==1)
+ structurepage.locator('#dialog-close').click()
 
  inventory_saved=json.loads(saved)
  inventory_saved['rustPossessions']['items']=[{'id':1,'kind':'STONE_AXE','createdBy':2,'createdTick':inventory_saved['tick'],'location':{'kind':'bag','agentId':2}}]
@@ -146,6 +165,11 @@ with sync_playwright() as p:
  check('survival menu shows six primary metrics before advanced sections',m.locator('.survival-metrics .menu-metric').count()==6 and m.locator('.menu-section').count()>=5)
  check('knowledge controls stay visible while shadow sections are collapsed',m.locator('.menu-section-static').count()==1 and m.locator('[data-ux="planning-policy"]').is_visible() and not m.locator('.menu-section').filter(has_text='Kingdom').evaluate('(e)=>e.open') and not m.locator('.menu-section').filter(has_text='WorldSim').evaluate('(e)=>e.open'))
  check('survival visual menu fits mobile width',no_overflow(m))
+ check('Survival no longer owns Camp Archive actions',m.locator('[data-ux="create-archive"]').count()==0 and m.locator('[data-ux="culture-automation"]').count()==0)
+ m.locator('#dialog-close').tap()
+ camp=next(x for x in snap(m)['buildings'] if x['type']=='camp');tap_world(m,camp['x'],camp['y'])
+ check('tapping Camp opens a dedicated structure menu',m.locator('#dialog').get_attribute('data-kind')=='structure' and m.locator('#dialog-title').inner_text()=='แคมป์' and m.locator('.structure-hero').count()==1)
+ check('Camp owns Cultural Archive action instead of Survival',m.locator('[data-ux="create-archive"]').count()+m.locator('[data-ux="culture-automation"]').count()==1)
  m.locator('#dialog-close').tap()
  check('recent event fallback is icon-only rather than paragraph-first',m.locator('#recent-events .diegetic-event-chip').count()>=1 and m.locator('#recent-events .diegetic-event-chip p').count()==0 and all(m.locator('#recent-events .diegetic-event-chip').nth(i).get_attribute('aria-label') for i in range(m.locator('#recent-events .diegetic-event-chip').count())))
  check('fresh world surfaces recent AI decisions transiently without selecting a clone',len(m.evaluate('simclone.worldFeedback().agents'))>=1)
@@ -188,7 +212,8 @@ with sync_playwright() as p:
  check('quick portrait selects Nira', 'Nira' in m.locator('#inspector .identity').inner_text())
  m.locator('[data-nav="rust"]').tap()
  check('Rust dock exposes the bounded item catalog and craft controls',m.locator('#dialog-title').inner_text()=='ไอเทมและการคราฟต์' and m.locator('[data-rust-catalog-item]').count()==9 and m.locator('[data-ux="craft-item"]').count()==9)
- check('Rust menu uses visual recipe cards progress-ready metrics and collapsed rules',m.locator('.visual-recipe-card[data-ux="craft-item"]').count()==9 and m.locator('.rust-menu-hero').count()==1 and m.locator('.menu-metric').count()>=4 and m.locator('.menu-explain').count()>=1)
+ check('Rust menu uses visual hand-recipe cards progress-ready metrics and collapsed rules',m.locator('.visual-recipe-card[data-ux="craft-item"]').count()==8 and m.locator('.rust-menu-hero').count()==1 and m.locator('.menu-metric').count()>=4 and m.locator('.menu-explain').count()>=1)
+ check('global Rust menu no longer owns Furnace processing',m.locator('[data-ux="process-charcoal"]').count()==0)
  m.locator('#dialog-close').tap()
  check('inspector shows derived adult age and lifespan', 'ผู้ใหญ่' in m.locator('#life-label').inner_text() and '18 ปี' in m.locator('#life-label').inner_text() and 'อายุขัย' in m.locator('#life-label').inner_text())
  check('mobile inspector initially compact',not m.locator('#inspector').evaluate('(e)=>e.classList.contains("is-expanded")'))
