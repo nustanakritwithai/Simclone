@@ -7,7 +7,7 @@ test('formula lab is read-only and preserves current writer metadata',()=>{
   const s=createWorld(230926),before=serialize(s);
   const x=evaluateFoodRegenerationFormula(s,()=>3);
   assert.equal(serialize(s),before);
-  assert.equal(x.authority.writer,'worldsim-wm4.5');
+  assert.equal(x.authority.writer,'worldsim-wm4.6');
   assert.equal(x.authority.cadenceTicks,120);
   assert.equal(x.authority.mutatesNodes,false);
 });

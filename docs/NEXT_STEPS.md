@@ -4,7 +4,7 @@ Read STATUS and the exact current main/Actions/open PRs before changing code. Pl
 
 ## Closed release line
 
-The September 25 closeout has merged Knowledge Continuity 1, Rust RS1–RS4, Production Planning RP1, WM4.4 reference evidence and Mentorship KF1. Old parallel Rust/formula/roadmap PRs were closed as superseded; their branches are reference-only and must not be merged stale.
+The September 25 line has merged Knowledge Continuity 1, Rust RS1–RS4, Production Planning RP1, Mentorship KF1, WM4.5 food ecology authority and WM4.6 wood ecology authority. Old parallel Rust/formula/roadmap PRs were closed as superseded; their branches are reference-only and must not be merged stale.
 
 Future work starts from the verified current `main`, not from the archived branches.
 
@@ -12,7 +12,7 @@ Future work starts from the verified current `main`, not from the archived branc
 
 | Gate | Remaining concrete work | Required proof |
 |---|---|---|
-| WM4 ecology authority | WM4.4 evidence is complete; select one absolute formula only in a new authority gate | Survival/crisis/population/replay comparisons on depleted worlds, no second writer, explicit policy/save compatibility |
+| WM4 ecology authority | **Released candidate:** WM4.5 food and WM4.6 wood ecology through the existing single writer | Next: harvest pressure (WM4.7), then shadow resource zones (WM4.8). Do not reselect the food formula |
 | Rust survival RS1–RS4 | **Released:** physical crafting/possessions/stations, atomic committed materials, scheduler work, tool speed and Wood 2 -> Charcoal 1 | Preserve conservation and single-authority tests while expanding content |
 | Knowledge follow-through | **KF1 released:** Mentor teaching exists; next add richer observation, cultural retrieval and explicit information goals | No hidden-world leak, no XP from merely being told, source preserved across deaths |
 | Production planning | **RP1 released:** opt-in deterministic tool → station → charcoal chain | Expand beyond the bounded chain without adding a second executor/material ledger |
