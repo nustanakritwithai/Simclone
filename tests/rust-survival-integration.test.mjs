@@ -91,6 +91,13 @@ test('personal bags stay isolated and hand equipment can be equipped, persisted 
   assert.deepEqual(validate(s),[]);
 });
 
+test('validation rejects duplicate hand equipment rows for one Clone',()=>{
+  const s=createWorld(7702);
+  s.rustPossessions.items.push({id:1,kind:'STONE_AXE',createdBy:1,createdTick:s.tick,location:{kind:'bag',agentId:1}});
+  s.rustPossessions.nextItem=2;s.rustPossessions.equipment=[{agentId:1,itemId:1},{agentId:1,itemId:1}];
+  assert.ok(validate(s).includes('Rust equipment'));
+});
+
 test('equipped Stone Axe reduces authoritative WOODCUT completion ticks',()=>{
   const make=equipped=>{
     const s=createWorld(555),a=s.agents[1],n=s.nodes.find(n=>n.type==='wood'&&n.amount>0);
