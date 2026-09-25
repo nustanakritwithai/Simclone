@@ -6,6 +6,7 @@ test('canonical wall rendering uses the stored edge socket instead of the founda
  const wall={kind:'WOOD_WALL',x:8,y:9,socket:{type:'edge',x:9,y:9,side:'W',level:1}};
  const info=structureDrawInfo(wall,{hasFoundation:(x,y)=>x===8&&y===9});
  assert.deepEqual({x:info.x,y:info.y,edge:info.edge},{x:9,y:9,edge:'W'});
+ assert.equal(info.role,'front');
  assert.equal(info.houseEdge,'E');
  const g=pieceGeometry('wall',info.edge);
  assert.ok(g.faces[0].points.every(p=>Array.isArray(p)&&p.length===2));

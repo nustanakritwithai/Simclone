@@ -433,7 +433,10 @@ export function localEdge(socket, cell) {
  *   unknown  = no foundation information matches (malformed record; drawn opaque)
  */
 export function edgeRole(socket, anchor, hasFoundation = null) {
-  const [own, across] = edgeCells(socket), same = (a, b) => a && b && a.x === b.x && a.y === b.y;
+  // rust-stations.edgeCells() owns topology; do not depend on its array ordering.
+  const cells = edgeCells(socket), own = {x: socket.x, y: socket.y},
+    across = cells.find(c => c.x !== own.x || c.y !== own.y) ?? own,
+    same = (a, b) => a && b && a.x === b.x && a.y === b.y;
   let role = null;
   if (typeof hasFoundation === 'function') {
     const fo = hasFoundation(own.x, own.y) === true, fa = hasFoundation(across.x, across.y) === true;
