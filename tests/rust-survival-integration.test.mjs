@@ -71,6 +71,19 @@ test('equipped tools expose action-specific multiplier only',()=>{
   assert.equal(toolMultiplier(s,1,'BUILD'),1);
 });
 
+test('equipped Stone Axe reduces authoritative WOODCUT completion ticks',()=>{
+  const make=equipped=>{
+    const s=createWorld(555),a=s.agents[1],n=s.nodes.find(n=>n.type==='wood'&&n.amount>0);
+    a.x=n.x;a.y=n.y;a.satiety=100;a.energy=100;
+    a.task={kind:'WOODCUT',targetId:n.id,x:n.x,y:n.y,path:[],work:0,score:1,started:s.tick,policy:'survival-0.2'};
+    if(equipped){s.rustPossessions.items.push({id:1,kind:'STONE_AXE',createdBy:a.id,createdTick:s.tick,location:{kind:'bag',agentId:a.id}});s.rustPossessions.nextItem=2;s.rustPossessions.equipment.push({agentId:a.id,itemId:1});}
+    let ticks=0,start=a.workDone;while(a.workDone===start&&ticks<30){step(s);ticks++;}
+    return ticks;
+  };
+  const bare=make(false),axe=make(true);
+  assert.ok(axe<bare,{bare,axe});
+});
+
 test('crafting table is a physical crafted item, placement consumes it, and unlocks Hammer',()=>{
   const s=createWorld(31415),a=s.agents[0];
   const q=command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'CRAFTING_TABLE_LV1'});assert.equal(q.ok,true);
