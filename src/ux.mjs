@@ -446,17 +446,17 @@ export function installUX(api){
   const s=api.read().state,e=s.events.find(x=>x.id===eventId);if(!e){api.toast('ไม่พบเหตุการณ์นี้แล้ว');return;}
   const d=eventEvidence(s,e),person=d.person,statusClass=d.status==='EVIDENCE'?'evidence':'unknown';
   const actions=[
-   person?'<button class="secondary" data-ux="event-agent" data-agent="'+person.id+'">ดู '+escape(person.name)+'</button>':'',
-   person?.alive?'<button class="secondary" data-ux="event-why-now" data-agent="'+person.id+'">Why ปัจจุบัน</button>':'',
-   d.place?'<button class="secondary" data-ux="event-place" data-x="'+d.place.x+'" data-y="'+d.place.y+'">ไปยัง '+escape(d.place.label)+'</button>':'',
-   '<button class="secondary" data-ux="event-back">← กลับ Chronicle</button>'
+   person?'<button class="event-icon-action secondary" data-ux="event-agent" data-agent="'+person.id+'" aria-label="ดู '+escape(person.name)+'">'+icon('people')+'<span>'+escape(person.name)+'</span></button>':'',
+   person?.alive?'<button class="event-icon-action secondary" data-ux="event-why-now" data-agent="'+person.id+'" aria-label="ดู Why ปัจจุบัน">'+icon('brain')+'<span>Why</span></button>':'',
+   d.place?'<button class="event-icon-action secondary" data-ux="event-place" data-x="'+d.place.x+'" data-y="'+d.place.y+'" aria-label="ไปยัง '+escape(d.place.label)+'">'+icon('focus')+'<span>ตำแหน่ง</span></button>':'',
+   '<button class="event-icon-action secondary" data-ux="event-back" aria-label="กลับ Chronicle">'+icon('history')+'<span>กลับ</span></button>'
   ].join('');
-  api.openDialog(escape(events[e.type]??e.type),'EVENT → EVIDENCE · tick '+e.tick,
-   '<article class="event-detail"><span class="event-evidence-status '+statusClass+'" data-event-evidence-status="'+d.status+'">'+d.status+'</span><small>วันที่ '+(1+Math.floor(e.tick/360))+' · '+escape(events[e.type]??e.type)+'</small><h3>'+escape(e.text)+'</h3>'+
-   '<div class="event-evidence-grid"><div><span>เหตุที่พิสูจน์ได้</span><b>'+d.cause+'</b></div><div><span>หลักฐาน</span><b>'+d.evidence+'</b></div><div><span>Source</span><b>'+d.source+'</b></div><div><span>ผู้เกี่ยวข้อง</span><b>'+(person?escape(person.name)+' #'+person.id:'เหตุการณ์ระดับโลก')+'</b></div></div>'+
-   (d.status==='UNKNOWN'?'<p class="event-warning">UNKNOWN ไม่ถูกนับเป็นเหตุผลย้อนหลัง · UI จะไม่เอา decision trace ปัจจุบันไปแทนอดีต</p>':'')+
-   '<div class="system-actions">'+actions+'</div>'+
-   (person?.alive?'<p class="source-note">“Why ปัจจุบัน” คือเหตุผลของ decision ล่าสุดของ Clone ตอนนี้ ไม่ใช่หลักฐานว่าคิดแบบเดียวกันตอนเหตุการณ์นี้</p>':'')+
+  api.openDialog(escape(events[e.type]??e.type),'EVENT · D'+(1+Math.floor(e.tick/360)),
+   '<article class="event-detail visual-event-detail"><div class="event-visual-hero"><span class="event-hero-icon">'+icon(eventIcons[e.type]??'history')+'</span>'+(person?api.portrait(person):'')+'<div><span class="event-evidence-status '+statusClass+'" data-event-evidence-status="'+d.status+'">'+d.status+'</span><h3>'+escape(e.text)+'</h3></div></div>'+
+   '<div class="event-evidence-grid visual-evidence-grid"><div>'+visualToken('brain')+'<b>'+d.cause+'</b></div><div>'+visualToken('book')+'<b>'+d.evidence+'</b></div><div>'+visualToken('link')+'<b>'+d.source+'</b></div><div>'+visualToken(person?'people':'map')+'<b>'+(person?escape(person.name)+' #'+person.id:'WORLD')+'</b></div></div>'+
+   (d.status==='UNKNOWN'?'<div class="event-warning visual-warning">'+icon('help')+'<span>UNKNOWN</span></div>':'')+
+   '<div class="event-visual-actions">'+actions+'</div>'+
+   '<details class="visual-more event-detail-more"><summary aria-label="ดูคำอธิบาย">'+icon('help')+'</summary><p>'+(d.status==='UNKNOWN'?'ไม่มีหลักฐานย้อนหลังพอ จึงไม่เดาเหตุการณ์นี้':'แสดงเฉพาะหลักฐานที่ผูกกับ tick นี้')+(person?.alive?' · Why คือสถานะปัจจุบัน ไม่ใช่เหตุผลย้อนหลัง':'')+'</p></details>'+
    '</article>');
   $('dialog').dataset.kind='event';renderHUD();
  }
