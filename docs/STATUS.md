@@ -1,6 +1,6 @@
 # Simclone — implementation status
 
-Current feature set: **Knowledge Continuity 1 + Rust Survival RS1–RS4 integrated candidate**, on the `0.5.0` engine/UI/base-save family. This file describes code and limits. The exact candidate verification run and the exact main Pages deployment are the release authority; neither a green older run nor this document proves a newer commit.
+Current feature set: **Knowledge Continuity 1 + Rust Survival RS1–RS4 + Production Planning RP1 + Mentorship KF1**, on the `0.5.0` engine/UI/base-save family. This file describes code and limits. The exact candidate verification run and the exact main Pages deployment are the release authority; neither a green older run nor this document proves a newer commit.
 
 ## Completed foundations retained
 
@@ -20,13 +20,21 @@ Main commit `171b05a210df22ff54a2fd91d0b9d9d02fbf19ee` merged the repaired WM4.3
 
 Contract and evidence rules: [KNOWLEDGE_CONTINUITY_1](KNOWLEDGE_CONTINUITY_1.md).
 
-## Rust Survival RS1–RS4 integrated candidate
+## Rust Survival RS1–RS4
 
-Physical crafting/possessions/stations and the first furnace process are now wired into the authoritative fixed-step scheduler. Materials are committed once at order acceptance, task interruptions retain the order, save/load preserves work, placed stations are visible in-world, and tools affect the matching productive work rate. See [RUST_SURVIVAL_RS1_RS4_INTEGRATED](RUST_SURVIVAL_RS1_RS4_INTEGRATED.md). This remains a candidate until exact-head CI and exact-main Pages are green.
+Merged at `769e684` after exact candidate `235200d` passed Verify #293; Pages #36 succeeded. Physical crafting/possessions/stations and the first furnace process are wired into the authoritative fixed-step scheduler. Materials commit once at order acceptance, task interruptions retain accepted work, save/load preserves it, placed stations are visible in-world, and tools affect matching productive work. See [RUST_SURVIVAL_RS1_RS4_INTEGRATED](RUST_SURVIVAL_RS1_RS4_INTEGRATED.md).
 
-## Production Planning RP1 candidate
+## Production Planning RP1
 
-RP1 is an explicit opt-in deterministic coordinator over the Rust command layer. It can autonomously request the bounded tool/station/charcoal chain, but all material commitment, movement, work completion, placement and interruption remain authoritative in the existing engine/Rust runtime. See [PRODUCTION_PLANNING_RP1](PRODUCTION_PLANNING_RP1.md). It is not released until exact-head CI and merged-main Pages are green.
+Merged at `48722b7` after exact candidate `5127931` passed Verify #296; Pages #37 succeeded. RP1 is an explicit opt-in deterministic coordinator over the Rust command layer. It requests the bounded tool → station → charcoal chain while material commitment, movement, work completion, placement and interruption remain owned by the existing authoritative systems. See [PRODUCTION_PLANNING_RP1](PRODUCTION_PLANNING_RP1.md).
+
+## WorldSim WM4.4 reference evidence
+
+Merged at `8bd13ec` after exact candidate `fca1ec3` passed Verify #302. WM4.4 now contains untouched absolute ecology references plus a separate controlled-depletion Formula Lab scenario. **No ecological food amount formula is active.** WM4.1 remains the only resource-regeneration writer.
+
+## Mentorship KF1
+
+Merged at runtime main `f51138d` after exact candidate `b7413d9` passed Verify #303. Mentor → Student links are bounded and persistent; confirmed Mentor claims enter the student as UNVERIFIED, teaching grants no Skill XP, the same Mentor-link + key is idempotent, and death closes active links while preserving history. The Social tab exposes the relationship without inventing trust/affection/motives. See [MENTORSHIP_KF1](MENTORSHIP_KF1.md).
 
 ## Authority map
 
@@ -34,12 +42,13 @@ RP1 is an explicit opt-in deterministic coordinator over the Rust command layer.
 |---|---|
 | Lifecycle, task execution, stock, births, building | Simclone engine, deterministic |
 | Resource regeneration | WorldSim WM4.1 writer, original food/wood amounts and cadence |
-| Ecology calibration / alternative formula evaluation | WM4.2 / WM4.3 read-only, no activated ecological amount formula |
+| Ecology calibration / alternative formula evaluation | WM4.2–WM4.4 evidence-only, controlled Formula Lab comparison; no activated ecological amount formula |
 | Occupation history | K1 actual winning-job profession/career state |
 | Labor-choice premium | K5 active within existing task eligibility and survival constraints |
 | Demand, production efficiency, labor offers, market price | K2/K3/K4/K6 observational projections, not money or trade |
 | Personal belief | Owned evidence; never equated with global world truth |
 | Cultural publication | Explicit camp archive, not an omniscient library |
+| Mentorship KF1 | Bounded Mentor→Student links; teaching sends UNVERIFIED evidence, no teaching XP |
 | Rust crafting / possessions / stations | RS1–RS4 integrated command + scheduler path; bounded physical items and stations |
 | Production chain RP1 | Opt-in deterministic coordinator; issues validated Rust commands only |
 | Charcoal | Furnace authority: committed Wood 2 -> timed work -> Charcoal 1 |
@@ -48,7 +57,7 @@ RP1 is an explicit opt-in deterministic coordinator over the Rust command layer.
 
 ## Remaining and unclaimed
 
-A proven ecological food formula; autonomous production-chain planning beyond accepted Rust orders; fuller multi-step production plans; mentor/student relations; event-driven social relationships and factions; actual currency/trade; conflict and mediation; researched technology; optional external novelty reasoning; private terrain memory and richer spatial risk; full replay and the complete Original-only autonomous V1.0 acceptance proof.
+A proven ecological food formula; production planning beyond the bounded RP1 chain; richer information goals; event-driven trust/affinity/respect/fear/debt, family links and factions; actual currency/trade; conflict and mediation; researched technology; optional external novelty reasoning; private terrain memory and richer spatial risk; full replay and the complete Original-only autonomous V1.0 acceptance proof.
 
 The current new long-run fixture starts with the existing six-person seed worlds and explicitly enables the local planner and buys the archive. It is not proof of a world starting with only Original, autonomous initial archive construction, autonomous settlement expansion, an unlimited civilization, or the whole master game plan.
 

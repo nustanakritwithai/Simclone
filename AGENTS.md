@@ -7,7 +7,7 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - `src/game.css`: responsive skin. Preserve mobile canvas, touch controls and inspector close button.
 - `index.html`: playable game. `plan.html`: preserved original development page.
 - Run `npm test` before changing a deployment branch. New requirements need success contracts and deterministic regression tests.
-- Current skill transfer copies 35% XP at manual cloning and autonomous birth, not mentor/archive/culture. The event list is not a replay system.
+- Current skill inheritance copies 35% XP at manual cloning and autonomous birth. Mentorship/archive teaching transfers knowledge only and never grants Skill XP. The event list is not a replay system.
 - Known verification limitations are in `docs/STATUS.md`; UNKNOWN is never PASS.
 - Preserve seed, parent identity, save compatibility and permanent appearance. Save version changes require a migration or explicit rejection.
 - Do not rewrite the engine just to change UI. Do not add LLM calls to every tick.
@@ -150,3 +150,14 @@ Read `GAME_PLAN.md` and `docs/STATUS.md` first. Plan entries are intentions, not
 - Disabled must remain baseline-equivalent. Enablement is explicit and persisted.
 - Keep plan history bounded; save/load must resume accepted orders without duplicate outputs.
 - Hunger/energy/lifecycle and task validation retain priority over production goals.
+
+
+## September 25, 2026 closeout
+
+- Runtime release line after this closeout: Knowledge Continuity 1 + Rust RS1–RS4 + Production Planning RP1 + Mentorship KF1.
+- Rust material commitment is exact-once at order acceptance; do not restore completion-time spending or a second reservation registry.
+- RP1 is a coordinator only. It issues validated Rust commands and never completes work outside the engine scheduler.
+- KF1 teaching is idempotent per Mentor-link + key, transfers CONFIRMED mentor knowledge as UNVERIFIED student knowledge, and grants no XP.
+- WM4.4 is evidence-only. Its controlled-depletion scenario exists to compare candidate formulas; do not treat any candidate as active gameplay. WM4.1 remains the single regeneration writer.
+- Old Rust/formula/roadmap/temporal PRs closed during closeout are stale reference branches. Re-port useful ideas from verified current main instead of merging those branches.
+- Read `docs/HANDOFF_2026-09-25_CLOSEOUT.md` before beginning the next large gate.

@@ -2,20 +2,22 @@
 
 Read STATUS and the exact current main/Actions/open PRs before changing code. Plan entries below are unfinished goals, not proof of implementation. Preserve existing tests, explicit migration, single writers and bounded history. UNKNOWN is not PASS.
 
-## First release gate
+## Closed release line
 
-Knowledge Continuity 1 is merged at `main@09260a3` and its exact main deployment job completed successfully. The active release gate is now the Rust RS1–RS4 integrated candidate; do not mark it released until its exact candidate and exact merged-main workflows pass.
+The September 25 closeout has merged Knowledge Continuity 1, Rust RS1–RS4, Production Planning RP1, WM4.4 reference evidence and Mentorship KF1. Old parallel Rust/formula/roadmap PRs were closed as superseded; their branches are reference-only and must not be merged stale.
+
+Future work starts from the verified current `main`, not from the archived branches.
 
 ## Gameplay and integration order
 
 | Gate | Remaining concrete work | Required proof |
 |---|---|---|
-| WM4 ecology | Select an ecological food amount formula using calibration/Formula Lab; activate only the existing WorldSim writer | Survival/crisis/population/replay comparisons, no second writer, explicit policy/save compatibility |
-| Rust survival RS1–RS4 | **Implemented in PR #52 candidate:** physical crafting/possessions/stations, atomic committed materials, scheduler work, tool speed and Wood 2 -> Charcoal 1 | Exact candidate CI + offline Chromium + exact merged-main Pages; then move to autonomous production-chain planning |
-| Knowledge follow-through | Intentional person-to-person teaching, richer observation, cultural retrieval and explicit information goals | No hidden-world leak, no XP from merely being told, source preserved across deaths |
-| Production planning | **RP1 candidate implemented:** opt-in deterministic tool → station → charcoal chain using existing Rust commands | Exact combined CI, save/load continuation, no duplicate output, then expand beyond the bounded chain |
+| WM4 ecology authority | WM4.4 evidence is complete; select one absolute formula only in a new authority gate | Survival/crisis/population/replay comparisons on depleted worlds, no second writer, explicit policy/save compatibility |
+| Rust survival RS1–RS4 | **Released:** physical crafting/possessions/stations, atomic committed materials, scheduler work, tool speed and Wood 2 -> Charcoal 1 | Preserve conservation and single-authority tests while expanding content |
+| Knowledge follow-through | **KF1 released:** Mentor teaching exists; next add richer observation, cultural retrieval and explicit information goals | No hidden-world leak, no XP from merely being told, source preserved across deaths |
+| Production planning | **RP1 released:** opt-in deterministic tool → station → charcoal chain | Expand beyond the bounded chain without adding a second executor/material ledger |
 | Kingdom authority | Move the remaining production/economy projections to gameplay individually; K5 labor scoring is already active | Baseline continuity before/after each switch; no blanket shadow-to-authority conversion |
-| Social | Event-based trust/affinity/respect/fear/debt and mentor/family links | Bounded provenance, actual behavioral effect, no fabricated motives from stale claims |
+| Social | Build event-based trust/affinity/respect/fear/debt and family links on top of released KF1 mentorship | Bounded provenance, actual behavioral effect, no fabricated motives from stale claims |
 | Faction and governance | Membership, leader/collective goals, rules and change/split conditions | Resource ownership, explainable membership/decisions, persistence and bounded history |
 | Economy | Real wallets/inventory, prices, wages/trade and production chains | Conservation, atomic transactions, no money/material duplication, survival reserves protected |
 | Cooperation/conflict | Joint work, disputes/mediation and later territorial conflict | Outcomes change behavior through real rules; no arbitrary narrative-only victories |
