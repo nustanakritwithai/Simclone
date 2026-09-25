@@ -166,6 +166,10 @@ export function installUX(api){
   if(b.dataset.ux==='pickup-rust'){const result=api.execute('PICKUP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='systems-rust')openRust();
   if(b.dataset.ux==='systems-survival')openSurvival();
+  if(b.dataset.ux==='event-agent'){api.closeDialog();api.select(Number(b.dataset.agent),true);return;}
+  if(b.dataset.ux==='event-why-now'){api.closeDialog();api.select(Number(b.dataset.agent),true);expanded=true;api.setTab('why');return;}
+  if(b.dataset.ux==='event-place'){api.closeDialog();api.observe();api.center({x:Number(b.dataset.x),y:Number(b.dataset.y)});return;}
+  if(b.dataset.ux==='event-back'){openHistory();return;}
   if(b.dataset.aiPerson){const id=Number(b.dataset.aiPerson);api.closeDialog();api.select(id,true);expanded=true;api.setTab('why');return;}
   if(b.dataset.rosterFilter){rosterFilter=b.dataset.rosterFilter;rosterLimit=80;renderRosterList();}
   if(b.dataset.ux==='more-people'){rosterLimit+=80;renderRosterList();}
@@ -386,11 +390,69 @@ export function installUX(api){
   $('roster-list').innerHTML=agents.length?agents.slice(0,rosterLimit).map(a=>`<button class="person-row" data-person="${a.id}">${api.portrait(a)}<div><b>${escape(a.name)}</b><small>รุ่น ${a.generation} · ${escape(api.actionText(a))}</small><span class="roster-skill">${roles[a.preference]} · Lv.${level(a.skills[a.preference])}</span></div><span class="roster-health">${a.alive?Math.round(a.satiety)+'%':'—'}<small>${a.alive?'อิ่ม':'เสียชีวิต'}</small></span></button>`).join(''):'<p class="empty-state">ไม่มีตัวละครตรงกับตัวกรองนี้</p>';
   if(agents.length>rosterLimit)$('roster-list').insertAdjacentHTML('beforeend','<button class="secondary" data-ux="more-people">แสดงเพิ่มอีก 80 คน</button>');
  }
- function openHistory(){historyFilter='all';api.openDialog('เรื่องเล่าที่เกิดขึ้นจริง','WORLD CHRONICLE',`<p class="history-limit">เหตุการณ์ล่าสุด ไม่ใช่ระบบย้อนเวลา · แตะชื่อเรื่องเพื่อไปหาตัวละคร</p><div class="search-control">${icon('search')}<label class="sr-only" for="story-search">ค้นหาเหตุการณ์</label><input id="story-search" type="search" placeholder="ค้นหาชื่อหรือเหตุการณ์"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['birth','ชีวิตใหม่'],['skill','ทักษะ'],['build','บ้าน']].map(([id,t])=>`<button data-history-filter="${id}">${t}</button>`).join('')}</div><p id="history-count" class="list-count"></p><div id="history-list"></div>`);$('dialog').dataset.kind='history';renderHistoryList();renderHUD();}
+ function eventEvidence(s,e){
+  const person=e.agentId!==null&&e.agentId!==undefined?findPerson(s,e.agentId):null;
+  const parent=person?.parentId!==null&&person?.parentId!==undefined?findPerson(s,person.parentId):null;
+  let status='UNKNOWN',cause='เหตุผลย้อนหลังไม่ได้ถูกเก็บใน event log รุ่นนี้',source='event log มีเพียง tick / type / text / agentId',place=null,evidence='ยังไม่มี provenance ที่ผูกกับ tick นี้';
+  if(e.type==='birth'&&person?.bornTick===e.tick){
+   status='EVIDENCE';cause=person.parentId===null?'Original เข้าสู่โลกเป็นจุดเริ่มต้นสายตระกูล':(person.source?.startsWith('สืบทอดเมื่อเกิดจาก')?'เกิดอัตโนมัติจาก '+(parent?.name??('#'+person.parentId)):'ถูกสร้างแบบ manual จาก '+(parent?.name??('#'+person.parentId)));
+   evidence='bornTick + parentId + generation · รุ่น '+person.generation;source='agent identity / lineage';
+  }else if(e.type==='death'&&person?.death?.tick===e.tick){
+   status='EVIDENCE';const causes={age:'อายุขัย deterministic สิ้นสุด',starvation:'ขาดอาหาร',unknown:'ไม่ทราบสาเหตุ'};
+   cause=causes[person.death.cause]??person.death.cause;evidence='death record · อายุ '+(person.death.ageYears??'ไม่ทราบ')+' ปี';source='immutable death history';
+   if(Number.isFinite(person.x)&&Number.isFinite(person.y))place={x:person.x,y:person.y,label:'ตำแหน่ง identity ที่เก็บไว้'};
+  }else if(e.type==='career'&&person){
+   const row=(person.career??[]).find(x=>x.tick===e.tick),work=Object.entries(person.skillProvenance?.bySkill??{}).flatMap(([skill,b])=>(b.evidence??[]).filter(x=>x.kind==='work'&&x.tick===e.tick).map(x=>({skill,...x})))[0];
+   if(row){status='EVIDENCE';cause=work?'งาน '+escape(LABELS[work.action]??work.action)+' ที่ให้ผลจริงทำให้อาชีพเปลี่ยน':'มี career record ตรงกับ tick นี้ แต่ work evidence ถูก bounded ออกแล้ว';evidence='อาชีพใหม่ '+escape(professionLabel(row.profession));source=work?'career + skill provenance':'career history';}
+  }else if(e.type==='skill'&&person){
+   const work=Object.entries(person.skillProvenance?.bySkill??{}).flatMap(([skill,b])=>(b.evidence??[]).filter(x=>x.kind==='work'&&x.tick===e.tick).map(x=>({skill,...x})))[0];
+   if(work){status='EVIDENCE';cause='ได้ XP จากงาน '+escape(LABELS[work.action]??work.action);evidence=escape(work.skill)+' +'+work.xp+' XP'+(work.targetId!==null?' · target #'+work.targetId:'');source='bounded skill provenance';}
+  }else if(e.type==='build'&&person){
+   const st=(s.rustStations?.stations??[]).filter(x=>x.placedBy===person.id&&x.placedTick===e.tick).sort((a,b)=>b.id-a.id)[0];
+   if(st){status='EVIDENCE';cause='การวางชิ้นส่วน '+escape(st.kind)+' ทำให้ระบบบันทึกผลก่อสร้าง';evidence='station #'+st.id+' · placement '+escape(st.placementId??'—');source='Rust placement record';place={x:st.x,y:st.y,label:'ตำแหน่งชิ้นส่วนที่วาง'};}
+  }else if(e.type==='craft'&&person){
+   const item=(s.rustPossessions?.items??[]).filter(x=>x.createdBy===person.id&&x.createdTick===e.tick).sort((a,b)=>b.id-a.id)[0];
+   if(item){status='EVIDENCE';cause='craft order ทำงานครบและสร้าง item instance';evidence=escape(ITEM_CATALOG[item.kind]?.name??item.kind)+' #'+item.id;source='Rust possession item';}
+  }else if(e.type==='mentor'&&person){
+   const created=(s.mentorship?.links??[]).find(l=>l.mentorId===person.id&&l.createdTick===e.tick);
+   const taught=allPeople(s).flatMap(a=>(a.knowledgeState?.evidence??[]).filter(x=>x.type==='message'&&x.tick===e.tick&&x.sourceAgentId===person.id).map(x=>({receiver:a,e:x})))[0];
+   if(created){status='EVIDENCE';const student=findPerson(s,created.studentId);cause='สร้าง Mentor link';evidence=escape(person.name)+' → '+escape(student?.name??('#'+created.studentId));source='mentorship link';}
+   else if(taught){status='EVIDENCE';cause='Mentor ส่ง claim ให้ผู้เรียน';evidence=escape(taught.e.key)+' → '+escape(taught.receiver.name);source='knowledge message evidence';}
+  }else if(e.type==='knowledge'&&person){
+   const sent=allPeople(s).flatMap(a=>(a.knowledgeState?.evidence??[]).filter(x=>x.tick===e.tick&&x.sourceAgentId===person.id).map(x=>({receiver:a,e:x})))[0];
+   const archiveRead=(person.knowledgeState?.evidence??[]).find(x=>x.tick===e.tick&&x.channel==='archive');
+   const published=s.culture?.entries?.find(x=>x.authorId===person.id&&x.publishedTick===e.tick);
+   if(sent){status='EVIDENCE';cause='ส่ง claim ที่ยืนยันแล้วให้ผู้รับ';evidence=escape(sent.e.key)+' → '+escape(sent.receiver.name);source='knowledge message evidence';}
+   else if(archiveRead){status='EVIDENCE';cause='อ่าน claim จาก Cultural Archive';evidence=escape(archiveRead.key)+' · revision '+(archiveRead.archiveRevision??'—');source='archive evidence';const camp=s.buildings.find(b=>b.id===s.culture?.buildingId);if(camp)place={x:camp.x,y:camp.y,label:'Cultural Archive'};}
+   else if(published){status='EVIDENCE';cause='บันทึก direct confirmed knowledge ลง Cultural Archive';evidence=escape(published.key)+' · revision '+published.revision;source='cultural archive entry';const camp=s.buildings.find(b=>b.id===s.culture?.buildingId);if(camp)place={x:camp.x,y:camp.y,label:'Cultural Archive'};}
+  }else if(e.type==='day'){
+   status='EVIDENCE';cause='simulation tick ข้ามขอบวัน';evidence='tick '+e.tick+' → วันที่ '+(1+Math.floor(e.tick/360));source='deterministic world clock';
+  }
+  return {event:e,person,status,cause,evidence,source,place};
+ }
+ function openEvent(eventId){
+  const s=api.read().state,e=s.events.find(x=>x.id===eventId);if(!e){api.toast('ไม่พบเหตุการณ์นี้แล้ว');return;}
+  const d=eventEvidence(s,e),person=d.person,statusClass=d.status==='EVIDENCE'?'evidence':'unknown';
+  const actions=[
+   person?'<button class="secondary" data-ux="event-agent" data-agent="'+person.id+'">ดู '+escape(person.name)+'</button>':'',
+   person?.alive?'<button class="secondary" data-ux="event-why-now" data-agent="'+person.id+'">Why ปัจจุบัน</button>':'',
+   d.place?'<button class="secondary" data-ux="event-place" data-x="'+d.place.x+'" data-y="'+d.place.y+'">ไปยัง '+escape(d.place.label)+'</button>':'',
+   '<button class="secondary" data-ux="event-back">← กลับ Chronicle</button>'
+  ].join('');
+  api.openDialog(escape(events[e.type]??e.type),'EVENT → EVIDENCE · tick '+e.tick,
+   '<article class="event-detail"><span class="event-evidence-status '+statusClass+'" data-event-evidence-status="'+d.status+'">'+d.status+'</span><small>วันที่ '+(1+Math.floor(e.tick/360))+' · '+escape(events[e.type]??e.type)+'</small><h3>'+escape(e.text)+'</h3>'+
+   '<div class="event-evidence-grid"><div><span>เหตุที่พิสูจน์ได้</span><b>'+d.cause+'</b></div><div><span>หลักฐาน</span><b>'+d.evidence+'</b></div><div><span>Source</span><b>'+d.source+'</b></div><div><span>ผู้เกี่ยวข้อง</span><b>'+(person?escape(person.name)+' #'+person.id:'เหตุการณ์ระดับโลก')+'</b></div></div>'+
+   (d.status==='UNKNOWN'?'<p class="event-warning">UNKNOWN ไม่ถูกนับเป็นเหตุผลย้อนหลัง · UI จะไม่เอา decision trace ปัจจุบันไปแทนอดีต</p>':'')+
+   '<div class="system-actions">'+actions+'</div>'+
+   (person?.alive?'<p class="source-note">“Why ปัจจุบัน” คือเหตุผลของ decision ล่าสุดของ Clone ตอนนี้ ไม่ใช่หลักฐานว่าคิดแบบเดียวกันตอนเหตุการณ์นี้</p>':'')+
+   '</article>');
+  $('dialog').dataset.kind='event';renderHUD();
+ }
+ function openHistory(){historyFilter='all';api.openDialog('เรื่องเล่าที่เกิดขึ้นจริง','WORLD CHRONICLE',`<p class="history-limit">เหตุการณ์ล่าสุด ไม่ใช่ระบบย้อนเวลา · แตะเหตุการณ์เพื่อดูหลักฐาน สาเหตุที่พิสูจน์ได้ และสิ่งที่ยัง UNKNOWN</p><div class="search-control">${icon('search')}<label class="sr-only" for="story-search">ค้นหาเหตุการณ์</label><input id="story-search" type="search" placeholder="ค้นหาชื่อหรือเหตุการณ์"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['birth','ชีวิตใหม่'],['skill','ทักษะ'],['build','บ้าน']].map(([id,t])=>`<button data-history-filter="${id}">${t}</button>`).join('')}</div><p id="history-count" class="list-count"></p><div id="history-list"></div>`);$('dialog').dataset.kind='history';renderHistoryList();renderHUD();}
  function renderHistoryList(){if(!$('history-list'))return;const s=api.read().state,q=$('story-search').value.toLocaleLowerCase(),list=s.events.filter(e=>(historyFilter==='all'||e.type===historyFilter)&&e.text.toLocaleLowerCase().includes(q));
   setText('history-count',`${list.length} เหตุการณ์ · เก็บล่าสุดไม่เกิน 120 รายการ`);
   document.querySelectorAll('[data-history-filter]').forEach(b=>{const on=b.dataset.historyFilter===historyFilter;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});
-  $('history-list').innerHTML=list.slice().reverse().map(e=>`<button class="history-event" data-story="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · ${events[e.type]||escape(e.type)}</small><p>${escape(e.text)}</p><span>${e.agentId?'ไปหาตัวละคร →':'เหตุการณ์ระดับโลก'}</span></button>`).join('')||'<p class="empty-state">ยังไม่มีเหตุการณ์ประเภทนี้</p>';
+  $('history-list').innerHTML=list.slice().reverse().map(e=>`<button class="history-event" data-story="${e.id}"><small>วันที่ ${1+Math.floor(e.tick/360)} · ${events[e.type]||escape(e.type)}</small><p>${escape(e.text)}</p><span>ดูเหตุ → หลักฐาน →</span></button>`).join('')||'<p class="empty-state">ยังไม่มีเหตุการณ์ประเภทนี้</p>';
  }
  function openClone(){
   const s=api.read().state,parent=s.agents.find(a=>a.id===api.read().selected&&a.alive)||living(s)[0];
@@ -454,5 +516,5 @@ export function installUX(api){
   $('dialog').dataset.kind='survival';
  }
  function openGuide(){api.openDialog('เริ่มจากการดูโลกที่กำลังคิดเอง','OBSERVE → UNDERSTAND → TRACE',`<div class="guide-step"><span>01</span><div><b>เปิด “ระบบโลก”</b><p>ดูว่า Housing, Production, Inventory, Knowledge, Ecology และระบบอื่นกำลัง LIVE, READY หรือ SHADOW</p></div></div><div class="guide-step"><span>02</span><div><b>แตะ Clone ที่สนใจ</b><p>ดูสิ่งที่กำลังทำ กระเป๋า อุปกรณ์ ทักษะ ความรู้ ความสัมพันธ์ และกด “ทำไม?” เพื่อดูเหตุผลจริง</p></div></div><div class="guide-step"><span>03</span><div><b>ปล่อยให้โลกสร้างเรื่องของมันเอง</b><p>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การโคลนแบบ manual ยังอยู่ใน Inspector แต่ไม่ใช่แกนหลักของเกม</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างข้อมูลหยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">กลับไปดูโลก</button></div>`);$('dialog').dataset.kind='guide';}
- return {renderInspector,renderHUD,openRoster,openHistory,openClone,openRust,openSurvival,openSystems,openDecisionFeed};
+ return {renderInspector,renderHUD,openRoster,openHistory,openEvent,openClone,openRust,openSurvival,openSystems,openDecisionFeed};
 }
