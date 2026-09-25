@@ -1,6 +1,6 @@
 # Simclone — implementation status
 
-Current feature set: **Knowledge Continuity 1**, on the `0.5.0` engine/UI/base-save family. This file describes code and limits. The exact candidate verification run and the exact main Pages deployment are the release authority; neither a green older run nor this document proves a newer commit.
+Current feature set: **Knowledge Continuity 1 + Rust Survival RS1–RS4 integrated candidate**, on the `0.5.0` engine/UI/base-save family. This file describes code and limits. The exact candidate verification run and the exact main Pages deployment are the release authority; neither a green older run nor this document proves a newer commit.
 
 ## Completed foundations retained
 
@@ -20,6 +20,10 @@ Main commit `171b05a210df22ff54a2fd91d0b9d9d02fbf19ee` merged the repaired WM4.3
 
 Contract and evidence rules: [KNOWLEDGE_CONTINUITY_1](KNOWLEDGE_CONTINUITY_1.md).
 
+## Rust Survival RS1–RS4 integrated candidate
+
+Physical crafting/possessions/stations and the first furnace process are now wired into the authoritative fixed-step scheduler. Materials are committed once at order acceptance, task interruptions retain the order, save/load preserves work, placed stations are visible in-world, and tools affect the matching productive work rate. See [RUST_SURVIVAL_RS1_RS4_INTEGRATED](RUST_SURVIVAL_RS1_RS4_INTEGRATED.md). This remains a candidate until exact-head CI and exact-main Pages are green.
+
 ## Authority map
 
 | Area | Actual owner / activation |
@@ -32,11 +36,14 @@ Contract and evidence rules: [KNOWLEDGE_CONTINUITY_1](KNOWLEDGE_CONTINUITY_1.md)
 | Demand, production efficiency, labor offers, market price | K2/K3/K4/K6 observational projections, not money or trade |
 | Personal belief | Owned evidence; never equated with global world truth |
 | Cultural publication | Explicit camp archive, not an omniscient library |
+| Rust crafting / possessions / stations | RS1–RS4 integrated command + scheduler path; bounded physical items and stations |
+| Charcoal | Furnace authority: committed Wood 2 -> timed work -> Charcoal 1 |
+| Tool speed | Stone Axe WOODCUT ×1.25; Stone Pickaxe MINE ×1.25; Hammer BUILD ×1 |
 | UI | Observation and validated command dispatch, not simulation rules |
 
 ## Remaining and unclaimed
 
-Rust possessions/crafting/stations/charcoal integration; a proven ecological food formula; fuller multi-step production plans; mentor/student relations; event-driven social relationships and factions; actual currency/trade; conflict and mediation; researched technology; optional external novelty reasoning; private terrain memory and richer spatial risk; full replay and the complete Original-only autonomous V1.0 acceptance proof.
+A proven ecological food formula; autonomous production-chain planning beyond accepted Rust orders; fuller multi-step production plans; mentor/student relations; event-driven social relationships and factions; actual currency/trade; conflict and mediation; researched technology; optional external novelty reasoning; private terrain memory and richer spatial risk; full replay and the complete Original-only autonomous V1.0 acceptance proof.
 
 The current new long-run fixture starts with the existing six-person seed worlds and explicitly enables the local planner and buys the archive. It is not proof of a world starting with only Original, autonomous initial archive construction, autonomous settlement expansion, an unlimited civilization, or the whole master game plan.
 
