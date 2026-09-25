@@ -198,3 +198,15 @@ test('capacity has one source: housing.mjs, used by engine, birth plan and survi
   assert.equal(birthPlan(s,999).capacity,capacity(s));
   assert.equal(survivalSummary(s).kingdomProduction.capacity,capacity(s));
 });
+
+test('old save with an extra completed shelter still counts +6 per shelter after RS3-0.2 migration',()=>{
+  const old=createWorld(230926);
+  old.buildings.push({id:old.nextBuilding++,type:'shelter',x:14,y:11,complete:true,progress:1});
+  old.rustStations={version:'RS3-0.2',nextStation:1,stations:[]};
+  const s=restore(JSON.stringify(old));
+  assert.equal(s.rustStations.version,'RS3-0.3');
+  assert.equal(capacity(s),18);assert.equal(housingCapacity(s),18);
+  assert.equal(signature(s),signature(old),'ecology inputs are unchanged by migration');
+  const again=restore(serialize(s));assert.equal(serialize(again),serialize(s));assert.equal(capacity(again),18);
+  assert.deepEqual(validate(s),[]);
+});
