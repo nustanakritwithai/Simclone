@@ -5,7 +5,7 @@ export const HISTORY_LIMITS=Object.freeze({
   maxImportedHotRecords:200,
   maxRetained:1024,
   maxArchiveCharacters:1800000,
-  maxSaveCharacters:2000000,
+  maxSaveCharacters:2500000,
 });
 export const retainedCount=s=>s.agents.length+(s.archive?.length??0);
 export const allPeople=s=>s.archive?.length?[...s.agents,...s.archive].sort((a,b)=>a.id-b.id):s.agents;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,command,step,serialize,restore,validate,walkable} from '../src/engine.mjs';
-import {houseSite,nextHousePiece} from '../src/housing.mjs';
+import {houseSite,nextHousePiece,evaluateModularHouses} from '../src/housing.mjs';
 import {PRODUCTION_POLICY,PRODUCTION_RULES} from '../src/production-planning.mjs';
 
 const itemKinds=s=>new Set(s.rustPossessions.items.map(i=>i.kind));
@@ -38,6 +38,29 @@ test('RP1 autonomously completes tools, physical stations and charcoal target',(
   assert.equal(s.rustPossessions.orders.length,0);
   assert.equal(s.rustMaterials.orders.length,0);
   assert.equal(s.productionPlan.goal.goal,'stable');
+  assert.deepEqual(validate(s),[]);
+});
+
+test('population pressure autonomously completes one modular house while full RP1 stays disabled',()=>{
+  const s=createWorld(230926);
+  assert.equal(s.productionPlan.enabled,false);
+  s.stock.food=999;s.stock.wood=999;
+  assert.equal(command(s,'CLONE',{parentId:1}).ok,true);
+  assert.equal(s.agents.filter(a=>a.alive).length,7);
+  for(let i=0;i<3200&&!evaluateModularHouses(s).houses.some(h=>h.complete);i++)step(s,1);
+  assert.ok(evaluateModularHouses(s).houses.some(h=>h.complete),'expected autonomous modular house under housing pressure');
+  assert.equal(s.rustStations.stations.some(st=>st.kind==='FURNACE'),false,'housing-only autonomy must not start furnace chain');
+  assert.equal(s.productionPlan.enabled,false,'bounded housing autonomy must not enable full RP1');
+  assert.deepEqual(validate(s),[]);
+});
+
+test('public seed visibly completes modular housing by the end of day 6 without enabling full RP1',()=>{
+  const s=createWorld(230926);
+  assert.equal(s.productionPlan.enabled,false);
+  step(s,6*360);
+  assert.ok(s.agents.filter(a=>a.alive).length>=7,'expected natural population pressure');
+  assert.ok(evaluateModularHouses(s).houses.some(h=>h.complete),'expected a visible complete modular house by day 6');
+  assert.equal(s.productionPlan.enabled,false);
   assert.deepEqual(validate(s),[]);
 });
 

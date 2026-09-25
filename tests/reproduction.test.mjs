@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,step,serialize,restore,SKILLS,lifeStage,LIFE_STAGES} from '../src/engine.mjs';
+import {createWorld,step,serialize,restore,SKILLS,lifeStage,LIFE_STAGES,capacity} from '../src/engine.mjs';
 import {BIRTH_RULES,birthPlan,isAutonomousChild,autonomousChildrenOf} from '../src/reproduction.mjs';
 import {RULES,stockTargets} from '../src/survival.mjs';
 
@@ -46,11 +46,13 @@ test('global birth gap spreads cohorts four years apart and parent cooldown rota
   assert.equal(autonomousChildrenOf(s,born[0].parentId).length,1);
 });
 
-test('housing cap prevents explosion even with abundant resources',()=>{
+test('housing remains a hard cap while autonomous modular homes allow bounded growth',()=>{
   const s=ready();step(s);
   for(let year=0;year<24;year++){s.stock.food=999;s.stock.wood=999;step(s,360);}
-  assert.equal(s.agents.filter(a=>a.alive).length,12);assert.equal(s.agents.filter(isAutonomousChild).length,6);
-  const ticks=s.agents.filter(isAutonomousChild).map(a=>a.bornTick);
+  const alive=s.agents.filter(a=>a.alive).length,children=s.agents.filter(isAutonomousChild);
+  assert.ok(capacity(s)>12,'autonomous housing should expand capacity beyond the legacy baseline');
+  assert.ok(alive<=capacity(s));assert.ok(alive<=BIRTH_RULES.maxPopulation);
+  const ticks=children.map(a=>a.bornTick);
   for(let i=1;i<ticks.length;i++)assert.ok(ticks[i]-ticks[i-1]>=4*360);
 });
 
