@@ -549,7 +549,7 @@ export function installUX(api){
     menuMetric('bolt','Tired',v.exhausted,v.exhausted?'warn':'')+
     menuMetric('home','Build',v.unfinished)+
    '</div>'+
-   menuSection('book','ความรู้ / วัฒนธรรม',knowledgeBody,{open:true,badge:s.culture?'LIVE':'READY'})+
+   '<section class="menu-section menu-section-static"><div class="menu-section-static-head">'+visualToken('book')+'<span>ความรู้ / วัฒนธรรม</span><b>'+(s.culture?'LIVE':'READY')+'</b></div><div class="menu-section-body">'+knowledgeBody+'</div></section>'+
    menuSection('hammer','ของ / การผลิต',rustPanel(s,api),{badge:s.productionPlan?.enabled?'LIVE':'READY'})+
    menuSection('people','Kingdom',kingdomBody,{badge:'SHADOW'})+
    menuSection('leaf','WorldSim',worldBody,{badge:'SHADOW'})+
