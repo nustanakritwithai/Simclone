@@ -1,6 +1,6 @@
 # Simclone — implementation status
 
-Current feature set: **Knowledge Continuity 1 + Rust Survival RS1–RS4 + Production Planning RP1 + Mentorship KF1**, on the `0.5.0` engine/UI/base-save family. This file describes code and limits. The exact candidate verification run and the exact main Pages deployment are the release authority; neither a green older run nor this document proves a newer commit.
+Current feature set: **Knowledge Continuity 1 + Rust Survival RS1–RS4 + Production Planning RP1 + Mentorship KF1 + WorldSim WM4.5 food ecology authority + visible Rust item/crafting UI**, on the `0.5.0` engine/UI/base-save family. This file describes code and limits. The exact candidate verification run and the exact main Pages deployment are the release authority; neither a green older run nor this document proves a newer commit.
 
 ## Completed foundations retained
 
@@ -28,9 +28,13 @@ Merged at `769e684` after exact candidate `235200d` passed Verify #293; Pages #3
 
 Merged at `48722b7` after exact candidate `5127931` passed Verify #296; Pages #37 succeeded. RP1 is an explicit opt-in deterministic coordinator over the Rust command layer. It requests the bounded tool → station → charcoal chain while material commitment, movement, work completion, placement and interruption remain owned by the existing authoritative systems. See [PRODUCTION_PLANNING_RP1](PRODUCTION_PLANNING_RP1.md).
 
-## WorldSim WM4.4 reference evidence
+## WorldSim WM4.5 food ecology authority
 
-Merged at `8bd13ec` after exact candidate `fca1ec3` passed Verify #302. WM4.4 now contains untouched absolute ecology references plus a separate controlled-depletion Formula Lab scenario. **No ecological food amount formula is active.** WM4.1 remains the only resource-regeneration writer.
+WM4.4 remains the reference/Formula Lab evidence layer, but it is no longer the production food behavior. WM4.5 was promoted on main at `9cc2f1d` after the exact-head authority proof passed. `src/worldsim-resource-authority.mjs` is still the single regeneration writer: food now uses the conservative ecology-sensitive absolute-threshold policy `wm4.5-conservative-v1`; wood retains K6 parity and stone remains finite. The proof covers five seeds, 120-year continuation, forced food crises, deterministic replay and save/load. The `legacy` food mode exists for A/B proof only; the engine default is ecology mode.
+
+## Rust item/crafting visibility
+
+Main `84b42ef` exposes the already-authoritative RS1–RS4 catalog through dedicated desktop **ของ/คราฟต์** and mobile **ของ** navigation. Exact candidate `61de822` passed Verify #337 and exact merged-main Pages #42 succeeded. The visible bounded catalog remains five physical items/stations: Stone Axe, Stone Pickaxe, Hammer, Crafting Table Lv1 and Furnace. This UI release does not expand the recipe authority.
 
 ## Mentorship KF1
 
@@ -41,8 +45,8 @@ Merged at runtime main `f51138d` after exact candidate `b7413d9` passed Verify #
 | Area | Actual owner / activation |
 |---|---|
 | Lifecycle, task execution, stock, births, building | Simclone engine, deterministic |
-| Resource regeneration | WorldSim WM4.1 writer, original food/wood amounts and cadence |
-| Ecology calibration / alternative formula evaluation | WM4.2–WM4.4 evidence-only, controlled Formula Lab comparison; no activated ecological amount formula |
+| Resource regeneration | WorldSim WM4.5 single writer; ecology-sensitive food policy active, wood retains K6 parity, stone finite |
+| Ecology calibration / alternative formula evaluation | WM4.2–WM4.4 remain evidence/Formula Lab; WM4.5 conservative food policy is the activated production behavior |
 | Occupation history | K1 actual winning-job profession/career state |
 | Labor-choice premium | K5 active within existing task eligibility and survival constraints |
 | Demand, production efficiency, labor offers, market price | K2/K3/K4/K6 observational projections, not money or trade |
@@ -57,7 +61,7 @@ Merged at runtime main `f51138d` after exact candidate `b7413d9` passed Verify #
 
 ## Remaining and unclaimed
 
-A proven ecological food formula; production planning beyond the bounded RP1 chain; richer information goals; event-driven trust/affinity/respect/fear/debt, family links and factions; actual currency/trade; conflict and mediation; researched technology; optional external novelty reasoning; private terrain memory and richer spatial risk; full replay and the complete Original-only autonomous V1.0 acceptance proof.
+Rust content beyond the current five-item RS1–RS4 slice (fiber/rope, food/water processing, durability/repair/storage); production planning beyond the bounded RP1 chain; richer information goals; event-driven trust/affinity/respect/fear/debt, family links and factions; actual currency/trade; conflict and mediation; researched technology; optional external novelty reasoning; private terrain memory and richer spatial risk; full replay and the complete Original-only autonomous V1.0 acceptance proof.
 
 The current new long-run fixture starts with the existing six-person seed worlds and explicitly enables the local planner and buys the archive. It is not proof of a world starting with only Original, autonomous initial archive construction, autonomous settlement expansion, an unlimited civilization, or the whole master game plan.
 
