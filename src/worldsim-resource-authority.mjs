@@ -87,11 +87,15 @@ export function applyWorldResourceRegeneration(state,options={}){
   let added=0;
   if(tick===0)return 0;
 
-  const needEcology=foodMode==='ecology'||woodMode==='ecology';
+  const foodDue=tick%RESOURCE_REGEN_AUTHORITY.food.periodTicks===0;
+  const woodDue=tick%RESOURCE_REGEN_AUTHORITY.wood.periodTicks===0;
+  if(!foodDue&&!woodDue)return 0;
+  // Ecology potentials are expensive; compute them only on a regeneration boundary.
+  const needEcology=(foodDue&&foodMode==='ecology')||(woodDue&&woodMode==='ecology');
   const potentials=needEcology?cachedEcologyPotentials(state):null;
 
   // Preserve the historical write order: food first, then wood.
-  if(tick%RESOURCE_REGEN_AUTHORITY.food.periodTicks===0){
+  if(foodDue){
     for(const node of state.nodes)if(node.type==='food'){
       const before=node.amount;
       const potential=potentials?.food[node.y*MAP_SIZE.w+node.x]??0;
@@ -102,7 +106,7 @@ export function applyWorldResourceRegeneration(state,options={}){
       added+=node.amount-before;
     }
   }
-  if(tick%RESOURCE_REGEN_AUTHORITY.wood.periodTicks===0){
+  if(woodDue){
     for(const node of state.nodes)if(node.type==='wood'){
       const before=node.amount;
       const potential=potentials?.wood[node.y*MAP_SIZE.w+node.x]??0;
