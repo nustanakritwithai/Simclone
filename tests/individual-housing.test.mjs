@@ -1,8 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,command,walkable,validate} from '../src/engine.mjs';
+import {createWorld,command,walkable,validate,SIZE} from '../src/engine.mjs';
 import {individualHouses,homeOf,isHomeless,personalHomeSite,nextPersonalHomePiece} from '../src/individual-housing.mjs';
 
+function farWalkablePair(s){
+  const cells=[];
+  for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++)if(walkable(s,x,y))cells.push({x,y});
+  let best=[cells[0],cells.at(-1)],distance=-1;
+  for(const a of cells)for(const b of cells){const d=Math.abs(a.x-b.x)+Math.abs(a.y-b.y);if(d>distance){distance=d;best=[a,b];}}
+  return best;
+}
 function equipHammer(s,a){
   const id=s.rustPossessions.nextItem++;
   s.rustPossessions.items.push({id,kind:'HAMMER',createdBy:a.id,createdTick:s.tick,location:{kind:'bag',agentId:a.id}});
@@ -27,8 +34,8 @@ test('IC1: fresh Clones are individually homeless before they own a complete mod
 });
 
 test('IC1: personal home-site selection originates from the Clone, not Camp',()=>{
-  const s=createWorld(230926),a=s.agents[0];
-  a.x=4;a.y=4;
+  const s=createWorld(230926),a=s.agents[0],[origin]=farWalkablePair(s);
+  a.x=origin.x;a.y=origin.y;
   const site=personalHomeSite(s,a,walkable);
   assert.ok(site);
   assert.ok(Math.abs(site.origin.x-a.x)<=8&&Math.abs(site.origin.y-a.y)<=8);
@@ -38,8 +45,8 @@ test('IC1: personal home-site selection originates from the Clone, not Camp',()=
 });
 
 test('IC1: two Clones can found distinct houses with distinct evidence-derived owners',()=>{
-  const s=createWorld(230926),a=s.agents[0],b=s.agents[1];
-  a.x=4;a.y=4;b.x=18;b.y=18;a.task=null;b.task=null;
+  const s=createWorld(230926),a=s.agents[0],b=s.agents[1],[pa,pb]=farWalkablePair(s);
+  a.x=pa.x;a.y=pa.y;b.x=pb.x;b.y=pb.y;a.task=null;b.task=null;
   equipHammer(s,a);equipHammer(s,b);
   const sa=personalHomeSite(s,a,walkable),sb=personalHomeSite(s,b,walkable);
   assert.ok(sa&&sb);
@@ -56,8 +63,8 @@ test('IC1: two Clones can found distinct houses with distinct evidence-derived o
 });
 
 test('IC1: ownership stays with founding foundation even when another Clone later assists',()=>{
-  const s=createWorld(230926),owner=s.agents[0],helper=s.agents[1];
-  owner.x=4;owner.y=4;helper.x=5;helper.y=4;owner.task=null;helper.task=null;
+  const s=createWorld(230926),owner=s.agents[0],helper=s.agents[1],[pa]=farWalkablePair(s);
+  owner.x=pa.x;owner.y=pa.y;helper.x=pa.x;helper.y=pa.y;owner.task=null;helper.task=null;
   equipHammer(s,owner);equipHammer(s,helper);
   const site=personalHomeSite(s,owner,walkable),foundation=placeFoundation(s,owner,site);
   assert.equal(foundation.ok,true);
