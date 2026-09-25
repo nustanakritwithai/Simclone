@@ -70,3 +70,60 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Verify public Pages release
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          page="${PAGE_URL%/}"
+          code=""
+          for attempt in $(seq 1 12); do
+            code="$(curl --location --silent --show-error --output /tmp/live-index.html --write-out '%{http_code}' "${page}/?verify=${GITHUB_SHA}" || true)"
+            if [ "$code" = "200" ]; then
+              break
+            fi
+            echo "Attempt $attempt: public index returned ${code:-curl-error}"
+            sleep 5
+          done
+          if [ "$code" != "200" ]; then
+            echo "::error::Public Pages did not return HTTP 200 for ${GITHUB_SHA}"
+            exit 1
+          fi
+
+          if ! cmp --silent index.html /tmp/live-index.html; then
+            echo "::error::Public index.html does not match deployed release ${GITHUB_SHA}"
+            diff -u index.html /tmp/live-index.html | head -200 || true
+            exit 1
+          fi
+
+          python - <<'PY' > /tmp/runtime-pins.tsv
+          import json
+          import re
+          from pathlib import Path
+
+          text = Path("index.html").read_text(encoding="utf-8")
+          match = re.search(r'<script type="importmap" id="runtime-import-map">(.*?)</script>', text, re.S)
+          if not match:
+              raise SystemExit("runtime import map not found")
+          imports = json.loads(match.group(1))["imports"]
+          for source, pinned in sorted(imports.items()):
+              local_path = source.split("?", 1)[0].removeprefix("./")
+              print(f"{local_path}\t{pinned}")
+          PY
+
+          while IFS=$'\t' read -r local_path pinned_path; do
+            live_path="${pinned_path#./}"
+            asset_url="${page}/${live_path}"
+            asset_code="$(curl --location --silent --show-error --output /tmp/live-asset --write-out '%{http_code}' "$asset_url" || true)"
+            if [ "$asset_code" != "200" ]; then
+              echo "::error::Pinned runtime asset returned HTTP ${asset_code:-curl-error}: $pinned_path"
+              exit 1
+            fi
+            if ! cmp --silent "$local_path" /tmp/live-asset; then
+              echo "::error::Pinned runtime asset differs from source: $local_path"
+              exit 1
+            fi
+          done < /tmp/runtime-pins.tsv
+
+          echo "Public Pages HTTP 200 and all pinned runtime modules match ${GITHUB_SHA}"
