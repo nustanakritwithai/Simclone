@@ -692,9 +692,16 @@ Do not:
 
 Additional world-story cues:
 - **Communication link** → a short-lived line may connect sender and receiver only when retained message/Mentor evidence identifies both agents.
+- **Relationship link** → selecting a Clone may show bounded living Parent/Child and active Mentor links from existing `parentId` / mentorship records.
 - **Task target marker** → selected/recent productive work may show a small pictogram at the authoritative `task.x/y` destination.
+- **Resource pulse** → a resource node may pulse only when an exposed current task actually targets that node.
 - **Dropped item marker** → physical dropped Rust items are rendered from the existing item ledger and its `location.x/y`.
+- **Life burst** → recent retained Birth/Death events may create short visual bursts at the retained agent position.
+- **Achievement burst** → recent Skill/Craft/Build events may create a bounded success burst.
+- **Construction pulse** → incomplete modular houses may animate their already-derived progress marker.
 - These cues are projections, not additional ownership or history.
+
+There is currently **no general Emotion Authority**. Do not label a Clone sad, angry, afraid, happy, etc. unless a future authoritative system owns those states. Visual reactions may show factual Needs such as hunger, low energy or low HP, but must not reinterpret those Needs as emotion.
 
 ---
 
