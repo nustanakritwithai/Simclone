@@ -2,6 +2,17 @@
 
 Read STATUS and the exact current main/Actions/open PRs before changing code. Plan entries below are unfinished goals, not proof of implementation. Preserve existing tests, explicit migration, single writers and bounded history. UNKNOWN is not PASS.
 
+## Independent Clone World branch
+
+Approved new architecture line: `feature/independent-clone-world-ic1`, based from current verified main and isolated from UX1 work.
+
+- **IC0:** canonical design and work-state artifacts.
+- **IC1 candidate:** evidence-derived personal home ownership + Camp-independent personal site selection; no save/birth/global-stock behavior change yet.
+- **IC2 next after IC1 SAT:** homeless adult personal home planning through existing Rust craft/equip/place authorities.
+- Do not merge old settlement/building branches into this line. Reuse concepts only after rebasing/reimplementation against current main.
+
+Required proof for IC1: unit suite including two distinct house owners, no duplicate ledger, existing regressions unchanged, exact candidate CI. UNKNOWN is not PASS.
+
 ## Closed release line
 
 The September 25 line has merged Knowledge Continuity 1, Rust RS1–RS4, Production Planning RP1, Mentorship KF1, WM4.5 food ecology authority and WM4.6 wood ecology authority. Old parallel Rust/formula/roadmap PRs were closed as superseded; their branches are reference-only and must not be merged stale.
