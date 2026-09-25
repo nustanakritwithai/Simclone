@@ -167,7 +167,9 @@ function agentBubbleSignal(s,a,selectedId=null,communications=recentCommunicatio
  if(a.id===selectedId)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:100,source:'selected',target:task?{x:task.x,y:task.y,kind}:null};
  const comm=communications.find(x=>x.fromId===a.id);
  if(comm)return {agentId:a.id,kind:'speech',glyph:comm.glyph,label:comm.label,priority:90,eventId:comm.eventId,source:'event',recipientId:comm.toId,target:null};
- if(a.satiety<24)return {agentId:a.id,kind:'thought',glyph:'!',label:'หิว',priority:80,source:'need',target:task?{x:task.x,y:task.y,kind}:null};
+ if(a.satiety<24)return {agentId:a.id,kind:'thought',glyph:'!',label:'หิว',priority:84,source:'need',need:'satiety',target:task?{x:task.x,y:task.y,kind}:null};
+ if(a.hp<35)return {agentId:a.id,kind:'thought',glyph:'♥',label:'HP',priority:83,source:'need',need:'hp',target:task?{x:task.x,y:task.y,kind}:null};
+ if(a.energy<12)return {agentId:a.id,kind:'thought',glyph:'z',label:'เพลีย',priority:82,source:'need',need:'energy',target:task?{x:task.x,y:task.y,kind}:null};
  if(['BUILD','CRAFT','PROCESS'].includes(kind))return {agentId:a.id,kind:'work',glyph:TASK_GLYPHS[kind],label:TASK_SHORT[kind],priority:70,source:'task',target:{x:task.x,y:task.y,kind}};
  if(recent)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:50,source:'task',target:{x:task.x,y:task.y,kind}};
  return null;
@@ -183,6 +185,7 @@ function selectedRelationshipLinks(s,selectedId){
  const a=s.agents.find(x=>x.id===selectedId&&x.alive);if(!a)return [];
  const rows=[];
  if(a.parentId!==null){const p=s.agents.find(x=>x.id===a.parentId&&x.alive);if(p)rows.push({kind:'parent',fromId:p.id,toId:a.id,glyph:'⌁'});}
+ for(const child of s.agents.filter(x=>x.alive&&x.parentId===a.id).sort((x,y)=>x.id-y.id))rows.push({kind:'child',fromId:a.id,toId:child.id,glyph:'⌁'});
  for(const l of (s.mentorship?.links??[]).filter(l=>l.endedTick===null&&(l.mentorId===a.id||l.studentId===a.id))){
   const from=s.agents.find(x=>x.id===l.mentorId&&x.alive),to=s.agents.find(x=>x.id===l.studentId&&x.alive);if(from&&to)rows.push({kind:'mentor',fromId:from.id,toId:to.id,glyph:'↔'});
  }
@@ -210,7 +213,7 @@ function drawCommunicationLink(c,link){
 }
 function drawRelationshipLink(c,link){
  const from=state.agents.find(a=>a.id===link.fromId&&a.alive),to=state.agents.find(a=>a.id===link.toId&&a.alive);if(!from||!to)return;
- const a=proj(from.x,from.y),b=proj(to.x,to.y),mentor=link.kind==='mentor';c.save();c.setLineDash(mentor?[2,3]:[6,4]);line(c,[[a.x,a.y-14],[b.x,b.y-14]],mentor?'#9fd0c49a':'#e2c79990',1.15);c.setLineDash([]);
+ const a=proj(from.x,from.y),b=proj(to.x,to.y),mentor=link.kind==='mentor',family=link.kind==='parent'||link.kind==='child';c.save();c.setLineDash(mentor?[2,3]:family?[6,4]:[4,4]);line(c,[[a.x,a.y-14],[b.x,b.y-14]],mentor?'#9fd0c49a':'#e2c79990',1.15);c.setLineDash([]);
  const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-17;c.fillStyle=mentor?'#173f37e8':'#453a28df';c.beginPath();c.arc(mx,my,6,0,Math.PI*2);c.fill();c.fillStyle='#f0dfb5';c.font='8px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(link.glyph,mx,my+.4);c.restore();
 }
 function drawResourcePulse(c,pulse,time){
