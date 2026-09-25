@@ -10,15 +10,21 @@ export const createMentorshipState=()=>({version:MENTORSHIP_VERSION,nextLink:1,l
 export function ensureMentorshipState(s){if(s.mentorship===undefined)s.mentorship=createMentorshipState();return s.mentorship;}
 
 const living=(s,id)=>s.agents.find(a=>a.id===id&&a.alive);
+const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const personIds=s=>new Set([...(s.agents??[]),...(s.archive??[])].map(a=>a.id));
 const activeLinks=s=>s.mentorship.links.filter(l=>l.endedTick===null);
 
 function fail(reason,message){return {ok:false,reason,message};}
 function pairExists(s,mentorId,studentId){return activeLinks(s).some(l=>l.mentorId===mentorId&&l.studentId===studentId);}
 
-export function createMentorLink(s,mentorId,studentId){
-  const m=ensureMentorshipState(s),mentor=living(s,mentorId),student=living(s,studentId);
+export function createMentorLink(s,mentorId,studentId=null){
+  const m=ensureMentorshipState(s),mentor=living(s,mentorId);
+  const student=studentId===null&&mentor
+    ?s.agents.filter(a=>a.alive&&a.id!==mentor.id&&withinKnowledgeRange(mentor,a)&&!activeLinks(s).some(l=>l.studentId===a.id))
+      .sort((a,b)=>distance(mentor,a)-distance(mentor,b)||a.id-b.id)[0]
+    :living(s,studentId);
   if(!mentor||!student||mentor.id===student.id)return fail('actor','เลือก Mentor และผู้เรียนที่ยังมีชีวิตคนละคน');
+  if(!withinKnowledgeRange(mentor,student))return fail('range','Mentor กับผู้เรียนอยู่ไกลเกินระยะสร้างความสัมพันธ์');
   if(pairExists(s,mentor.id,student.id))return {ok:true,changed:false,linkId:activeLinks(s).find(l=>l.mentorId===mentor.id&&l.studentId===student.id).id,message:'คู่นี้เป็น Mentor กันอยู่แล้ว'};
   if(activeLinks(s).some(l=>l.studentId===student.id))return fail('student-busy','ผู้เรียนมี Mentor ที่ยัง active อยู่แล้ว');
   if(m.links.length>=MENTORSHIP_RULES.links)return fail('capacity','จำนวนประวัติ Mentor ถึงขีดจำกัด');
