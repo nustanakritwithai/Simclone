@@ -285,7 +285,7 @@ export function step(s,count=1,options={}){
   if(!['ecology','legacy'].includes(resourceRegenerationMode))throw new Error('Invalid resource regeneration mode');
   for(let i=0;i<count;i++){
     s.tick++;
-    applyWorldResourceRegeneration(s,{foodMode:resourceRegenerationMode});
+    applyWorldResourceRegeneration(s,{foodMode:resourceRegenerationMode,woodMode:resourceRegenerationMode});
     for(const a of s.agents){
       if(!a.alive)continue;
       a.satiety=clamp(a.satiety-.11);a.energy=clamp(a.energy-.06);

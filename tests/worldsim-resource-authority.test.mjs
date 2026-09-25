@@ -107,6 +107,21 @@ test('engine defaults to ecology authority while legacy mode is test-only A/B re
   assert.notDeepEqual(ecoFood,legacyFood);
 });
 
+test('engine resourceRegenerationMode selects wood mode too (single writer A/B)',()=>{
+  const ecology=createWorld(2026),legacy=createWorld(2026);
+  ecology.tick=legacy.tick=719;
+  for(const s of [ecology,legacy]){
+    s.stock.food=s.stock.wood=s.stock.stone=999;
+    for(const n of s.nodes)n.amount=0;
+  }
+  step(ecology,1);step(legacy,1,{resourceRegenerationMode:'legacy'});
+  const eco=ecology.nodes.filter(n=>n.type==='wood').map(n=>n.amount);
+  const leg=legacy.nodes.filter(n=>n.type==='wood').map(n=>n.amount);
+  assert.ok(leg.length>0&&leg.every(n=>n===1));
+  assert.ok(eco.every(n=>n===0||n===1));
+  assert.notDeepEqual(eco,leg);
+});
+
 test('WM4.5 adds no save fields and save/load continuation remains deterministic',()=>{
   const a=createWorld(9),keys=Object.keys(JSON.parse(serialize(a))).sort();
   step(a,180);
