@@ -8,7 +8,7 @@ Approved new architecture line: `feature/independent-clone-world-ic1`, based fro
 
 - **IC0:** canonical design and work-state artifacts.
 - **IC1 candidate:** evidence-derived personal home ownership + Camp-independent personal site selection; no save/birth/global-stock behavior change yet.
-- **IC2 next after IC1 SAT:** homeless adult personal home planning through existing Rust craft/equip/place authorities.
+- **IC2 prepared (stacked branch):** pure homeless-adult personal home planner + deterministic intent tests are ready on `feature/independent-clone-world-ic2`; activation still waits for IC1 SAT and must route craft/equip/place only through existing Rust authorities.
 - Do not merge old settlement/building branches into this line. Reuse concepts only after rebasing/reimplementation against current main.
 
 Required proof for IC1: unit suite including two distinct house owners, no duplicate ledger, existing regressions unchanged, exact candidate CI. UNKNOWN is not PASS.
