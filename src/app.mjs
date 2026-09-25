@@ -146,13 +146,13 @@ function houseFeedback(s){
  });
 }
 function agentBubbleSignal(s,a,selectedId=null){
+ const task=a.task,kind=task?.kind??null,recent=Boolean(task&&Number.isInteger(task.started)&&s.tick>=task.started&&s.tick-task.started<=WORLD_FEEDBACK_TICKS);
+ if(a.id===selectedId)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:100,source:'selected'};
  const recentSpeech=s.events.slice().reverse().find(e=>e.agentId===a.id&&s.tick>=e.tick&&s.tick-e.tick<=COMMUNICATION_FEEDBACK_TICKS&&(e.type==='knowledge'||e.type==='mentor'));
  if(recentSpeech)return {agentId:a.id,kind:'speech',glyph:recentSpeech.type==='knowledge'?'↗':'↔',label:recentSpeech.type==='knowledge'?'ความรู้':'Mentor',priority:90,eventId:recentSpeech.id,source:'event'};
- const task=a.task,kind=task?.kind??null,recent=Boolean(task&&Number.isInteger(task.started)&&s.tick>=task.started&&s.tick-task.started<=WORLD_FEEDBACK_TICKS);
  if(a.satiety<24)return {agentId:a.id,kind:'thought',glyph:'!',label:'หิว',priority:80,source:'need'};
  if(['BUILD','CRAFT','PROCESS'].includes(kind))return {agentId:a.id,kind:'work',glyph:TASK_GLYPHS[kind],label:TASK_SHORT[kind],priority:70,source:'task'};
  if(recent)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:50,source:'task'};
- if(a.id===selectedId)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:100,source:'selected'};
  return null;
 }
 function worldBubbleSignals(s,selectedId=null,limit=5){
