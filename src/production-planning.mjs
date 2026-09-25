@@ -9,18 +9,11 @@ export const PRODUCTION_PLAN_VERSION='RP1-0.2';
 export const PRODUCTION_POLICY='rust-production-2';
 export const PRODUCTION_RULES=Object.freeze({attemptPeriod:12,charcoalTarget:4,history:12,housePopulationBuffer:6,houseWood:12,houseStone:6,maxBuildings:12});
 
-export const createProductionPlan=({enabled=false}={})=>({version:PRODUCTION_PLAN_VERSION,enabled,goal:null,lastAttemptTick:-1,history:[]});
-export function ensureProductionPlan(s,{newWorld=false}={}){
-  if(s.productionPlan===undefined){s.productionPlan=createProductionPlan({enabled:newWorld});return s.productionPlan;}
-  const p=s.productionPlan;
-  if(p?.version==='RP1-0.1'){
-    const untouched=p.enabled===false&&p.goal===null&&p.lastAttemptTick===-1&&Array.isArray(p.history)&&p.history.length===0;
-    p.version=PRODUCTION_PLAN_VERSION;
-    // Old worlds that never made a production-policy choice join the visible
-    // autonomous loop. An explicit prior disable remains disabled.
-    if(untouched)p.enabled=true;
-  }
-  return p;
+export const createProductionPlan=()=>({version:PRODUCTION_PLAN_VERSION,enabled:false,goal:null,lastAttemptTick:-1,history:[]});
+export function ensureProductionPlan(s){
+  if(s.productionPlan===undefined)s.productionPlan=createProductionPlan();
+  if(s.productionPlan?.version==='RP1-0.1')s.productionPlan.version=PRODUCTION_PLAN_VERSION;
+  return s.productionPlan;
 }
 
 const eligible=s=>s.agents.filter(a=>a.alive&&canPerformProductiveWork(s,a)).sort((a,b)=>a.id-b.id);
