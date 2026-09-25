@@ -46,6 +46,9 @@ const systemIcons={lifecycle:'heart',housing:'home',production:'hammer',inventor
 const tabIcons={about:'eye',inventory:'bag',skills:'bolt',why:'brain',knowledge:'book',social:'link',memory:'history'};
 const itemIconKind=kind=>kind==='STONE_AXE'?'wood':kind==='STONE_PICKAXE'?'stone':kind==='HAMMER'?'hammer':kind==='FURNACE'?'fire':kind==='CRAFTING_TABLE_LV1'?'hammer':['WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF'].includes(kind)?'home':'bag';
 const visualToken=(name,label='')=>'<span class="visual-token" aria-hidden="true">'+icon(name)+'</span>'+(label?'<span class="visual-label">'+escape(label)+'</span>':'');
+const menuMetric=(iconName,label,value,tone='')=>'<div class="menu-metric '+tone+'">'+visualToken(iconName)+'<div><small>'+escape(label)+'</small><b>'+escape(value)+'</b></div></div>';
+const menuSection=(iconName,title,body,{open=false,badge=''}={})=>'<details class="menu-section" '+(open?'open':'')+'><summary>'+visualToken(iconName)+'<span>'+escape(title)+'</span>'+(badge?'<b>'+escape(badge)+'</b>':'')+'</summary><div class="menu-section-body">'+body+'</div></details>';
+
 
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
 const rustStationLabels={HAND:'ทำด้วยมือ',CRAFTING_TABLE_LV1:'โต๊ะคราฟต์ Lv1',FURNACE:'เตาหลอม'};
@@ -394,12 +397,18 @@ export function installUX(api){
   '<p class="source-note">LIVE = เขียนผลเกมจริง · READY = ระบบพร้อมแต่ policy/สิ่งปลูกสร้างยังไม่เปิด · SHADOW = คำนวณเพื่อสังเกต · INFRA = ระบบพื้นฐานที่รองรับ gameplay แต่ไม่ใช่ decision authority</p>');
  $('dialog').dataset.kind='systems';renderHUD();
 }
- function openRoster(){rosterFilter='all';rosterLimit=80;api.openDialog('ทุกคนเริ่มเหมือนกัน แต่ไม่เหมือนเดิม','PEOPLE · '+living(api.read().state).length+' คน',`<div class="search-control">${icon('search')}<label class="sr-only" for="people-search">ค้นหาชื่อ</label><input id="people-search" type="search" placeholder="ค้นหาชื่อ เช่น Kira" autocomplete="off"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['hungry','ความอิ่มต่ำ'],['children','รุ่น 2 ขึ้นไป'],['archived','คลังประวัติ']].map(([id,t])=>`<button data-roster-filter="${id}">${t}</button>`).join('')}</div><p id="roster-count" class="list-count"></p><div id="roster-list"></div>`);$('dialog').dataset.kind='people';renderRosterList();renderHUD();}
+ function openRoster(){rosterFilter='all';rosterLimit=80;const s=api.read().state,alive=living(s),hungry=alive.filter(a=>a.satiety<25).length,children=alive.filter(a=>a.generation>=2).length;
+  api.openDialog('ผู้คน','PEOPLE · '+alive.length,
+   '<div class="menu-metrics people-menu-metrics">'+menuMetric('people','มีชีวิต',alive.length)+menuMetric('leaf','หิว',hungry,hungry?'warn':'')+menuMetric('clone','รุ่น 2+',children)+menuMetric('history','คลัง',s.archive.length)+'</div>'+
+   '<div class="search-control">'+icon('search')+'<label class="sr-only" for="people-search">ค้นหาชื่อ</label><input id="people-search" type="search" placeholder="ค้นหาชื่อ" autocomplete="off"></div>'+
+   '<div class="filter-tabs visual-filter-tabs">'+[['all','◎','ทั้งหมด'],['hungry','!','หิว'],['children','♧','รุ่นใหม่'],['archived','◷','คลัง']].map(([id,g,t])=>'<button data-roster-filter="'+id+'" aria-label="'+t+'"><b aria-hidden="true">'+g+'</b><span>'+t+'</span></button>').join('')+'</div>'+
+   '<p id="roster-count" class="list-count"></p><div id="roster-list" class="visual-roster"></div>');
+  $('dialog').dataset.kind='people';renderRosterList();renderHUD();}
  function renderRosterList(){if(!$('roster-list'))return;const q=$('people-search').value.toLocaleLowerCase(),s=api.read().state;
   const agents=allPeople(s).filter(a=>a.name.toLocaleLowerCase().includes(q)&&(rosterFilter!=='hungry'||a.alive&&a.satiety<25)&&(rosterFilter!=='children'||a.generation>=2)&&(rosterFilter!=='archived'||a.archived===true));
   setText('roster-count',`${agents.length} คน${agents.length>rosterLimit?' · แสดง '+rosterLimit+' คนแรก':''} · ข้อมูลขณะหยุดเวลา${rosterFilter==='hungry'?' · ความอิ่มต่ำกว่า 25':''}`);
   document.querySelectorAll('[data-roster-filter]').forEach(b=>{const on=b.dataset.rosterFilter===rosterFilter;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});
-  $('roster-list').innerHTML=agents.length?agents.slice(0,rosterLimit).map(a=>`<button class="person-row" data-person="${a.id}">${api.portrait(a)}<div><b>${escape(a.name)}</b><small>รุ่น ${a.generation} · ${escape(api.actionText(a))}</small><span class="roster-skill">${roles[a.preference]} · Lv.${level(a.skills[a.preference])}</span></div><span class="roster-health">${a.alive?Math.round(a.satiety)+'%':'—'}<small>${a.alive?'อิ่ม':'เสียชีวิต'}</small></span></button>`).join(''):'<p class="empty-state">ไม่มีตัวละครตรงกับตัวกรองนี้</p>';
+  $('roster-list').innerHTML=agents.length?agents.slice(0,rosterLimit).map(a=>`<button class="person-row visual-person-card" data-person="${a.id}">${api.portrait(a)}<div class="person-card-copy"><b>${escape(a.name)}</b><small>G${a.generation} · ${escape(roles[a.preference]??a.preference)} · Lv.${level(a.skills[a.preference])}</small><span>${escape(api.actionText(a))}</span><div class="person-mini-needs" aria-label="ความต้องการ"><i title="อิ่ม" style="--v:${Math.max(0,Math.min(100,a.satiety))}%"></i><i title="พลังงาน" style="--v:${Math.max(0,Math.min(100,a.energy))}%"></i><i title="HP" style="--v:${Math.max(0,Math.min(100,a.hp))}%"></i></div></div><span class="person-card-status ${a.alive&&a.satiety<25?'warn':''}" aria-label="${a.alive?'มีชีวิต':'เสียชีวิต'}">${a.alive?(a.satiety<25?'!':'●'):'†'}</span></button>`).join(''):'<p class="empty-state">ไม่มีตัวละครตรงกับตัวกรองนี้</p>';
   if(agents.length>rosterLimit)$('roster-list').insertAdjacentHTML('beforeend','<button class="secondary" data-ux="more-people">แสดงเพิ่มอีก 80 คน</button>');
  }
  function eventEvidence(s,e){
