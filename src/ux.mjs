@@ -342,7 +342,7 @@ export function installUX(api){
  const taskCounts={};for(const a of agents){const k=a.task?.kind??'IDLE';taskCounts[k]=(taskCounts[k]??0)+1;}
  const activityLabels={BUILD:'สร้าง',CRAFT:'คราฟต์',PROCESS:'แปรรูป',FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',EXPLORE:'สำรวจ',EAT:'กิน',REST:'พัก',IDLE:'ว่าง'};
  const activityOrder=['BUILD','CRAFT','PROCESS','FORAGE','WOODCUT','MINE','EXPLORE','EAT','REST','IDLE'];
- const activity=activityOrder.filter(k=>taskCounts[k]).map(k=>'<div><span>'+activityLabels[k]+'</span><b>'+taskCounts[k]+' คน</b></div>').join('')||'<div><span>สถานะ</span><b>ยังไม่มี task</b></div>';
+ const activity=taskCounts&&Object.keys(taskCounts).length?barChart(activityOrder.filter(k=>taskCounts[k]).map(k=>barRow(activityLabels[k],taskCounts[k],Math.max(1,agents.length),k==='FORAGE'?'leaf':k==='WOODCUT'?'wood':k==='MINE'?'stone':k==='BUILD'?'home':k==='CRAFT'||k==='PROCESS'?'hammer':'brain',taskCounts[k]+' คน')),'Task distribution'):'<p class="empty-state">ยังไม่มี task</p>';
  const badge=status=>'<span class="system-badge '+status.toLowerCase()+'">'+status+'</span>';
  const card=(id,title,status,value,detail)=>'<article class="system-card visual-system-card" data-system-card="'+id+'"><div class="system-visual">'+visualToken(systemIcons[id]??'brain')+badge(status)+'</div><div class="system-card-head"><b>'+title+'</b></div><strong>'+value+'</strong><details class="visual-more"><summary aria-label="รายละเอียด '+escape(title)+'">'+icon('help')+'</summary><p>'+detail+'</p></details></article>';
  const cards=[
@@ -419,7 +419,7 @@ export function installUX(api){
  api.openDialog('ระบบที่กำลังขับเคลื่อนโลก','WORLD SYSTEMS · AUTONOMOUS',
   '<section class="system-hero visual-system-hero">'+visualToken('brain')+'<div><span class="eyebrow">WORLD SYSTEMS</span><h3>โลกกำลังทำงาน</h3><div class="system-counts"><span>● '+(counts.LIVE??0)+'</span><span>◐ '+(counts.READY??0)+'</span><span>◇ '+(counts.SHADOW??0)+'</span><span>○ '+(counts.INFRA??0)+'</span></div></div></section>'+
   '<div class="system-grid">'+cards+'</div>'+
-  '<section class="ai-activity"><div class="system-section-head"><div><span class="eyebrow">LIVE ACTIVITY</span><h3>ตอนนี้ Clone กำลังทำอะไร</h3></div><b>'+agents.length+' คน</b></div><div class="activity-grid">'+activity+'</div></section>'+
+  '<section class="ai-activity"><div class="system-section-head"><div><span class="eyebrow">LIVE ACTIVITY</span><h3>ตอนนี้ Clone กำลังทำอะไร</h3></div><b>'+agents.length+' คน</b></div>'+activity+'</section>'+
   '<details class="system-advanced"><summary><div><span class="eyebrow">ADVANCED SYSTEMS</span><b>ดูระบบทั้งหมด '+allSystems.length+' ระบบ</b></div><span>LIVE / READY / SHADOW / INFRA</span></summary><section class="all-systems"><div class="system-section-head"><div><span class="eyebrow">FULL RUNTIME CATALOG</span><h3>ระบบทั้งหมดที่มีอยู่ในเกม</h3></div><b>'+allSystems.length+' ระบบ</b></div>'+catalog+'</section></details>'+
   '<div class="system-actions visual-system-actions"><button class="secondary visual-policy-action" data-ux="systems-survival">'+icon('heart')+'<span>Survival</span></button><button class="secondary visual-policy-action" data-ux="systems-rust">'+icon('hammer')+'<span>ของ / คราฟต์</span></button></div>'+
   '<details class="menu-explain system-legend"><summary>สถานะระบบ</summary><div class="system-counts"><span>● LIVE</span><span>◐ READY</span><span>◇ SHADOW</span><span>○ INFRA</span></div></details>');
@@ -497,7 +497,7 @@ export function installUX(api){
    '</article>');
   $('dialog').dataset.kind='event';renderHUD();
  }
- function openHistory(){historyFilter='all';api.openDialog('Chronicle','WORLD EVENTS',`<div class="visual-dialog-intro">${icon('history')}<span>แตะเหตุการณ์เพื่อดูหลักฐาน</span></div><div class="search-control">${icon('search')}<label class="sr-only" for="story-search">ค้นหาเหตุการณ์</label><input id="story-search" type="search" placeholder="ค้นหาชื่อหรือเหตุการณ์"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['birth','ชีวิตใหม่'],['skill','ทักษะ'],['build','บ้าน']].map(([id,t])=>`<button data-history-filter="${id}">${t}</button>`).join('')}</div><p id="history-count" class="list-count"></p><div id="history-list"></div>`);$('dialog').dataset.kind='history';renderHistoryList();renderHUD();}
+ function openHistory(){historyFilter='all';const s=api.read().state;api.openDialog('Chronicle','WORLD EVENTS',`<div class="visual-dialog-intro">${icon('history')}<span>แตะเหตุการณ์เพื่อดูหลักฐาน</span></div>${eventTrend(s.events,day(s))}<div class="search-control">${icon('search')}<label class="sr-only" for="story-search">ค้นหาเหตุการณ์</label><input id="story-search" type="search" placeholder="ค้นหาชื่อหรือเหตุการณ์"></div><div class="filter-tabs">${[['all','ทั้งหมด'],['birth','ชีวิตใหม่'],['skill','ทักษะ'],['build','บ้าน']].map(([id,t])=>`<button data-history-filter="${id}">${t}</button>`).join('')}</div><p id="history-count" class="list-count"></p><div id="history-list"></div>`);$('dialog').dataset.kind='history';renderHistoryList();renderHUD();}
  function renderHistoryList(){if(!$('history-list'))return;const s=api.read().state,q=$('story-search').value.toLocaleLowerCase(),list=s.events.filter(e=>(historyFilter==='all'||e.type===historyFilter)&&e.text.toLocaleLowerCase().includes(q));
   setText('history-count',`${list.length} เหตุการณ์ · เก็บล่าสุดไม่เกิน 120 รายการ`);
   document.querySelectorAll('[data-history-filter]').forEach(b=>{const on=b.dataset.historyFilter===historyFilter;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});
@@ -520,10 +520,10 @@ export function installUX(api){
     const archiveActions=culture
      ?'<div class="structure-actions"><button class="secondary visual-policy-action" data-ux="culture-automation" data-enabled="'+(!culture.automation)+'">'+icon(culture.automation?'close':'book')+'<span>'+(culture.automation?'หยุด Auto':'เปิด Auto')+'</span></button></div>'
      :'<div class="structure-actions"><button class="primary visual-policy-action" data-ux="create-archive">'+icon('book')+'<span>สร้าง Archive · 🪵'+CULTURE_RULES.woodCost+' ◆'+CULTURE_RULES.stoneCost+'</span></button></div>';
-    const entryGrid=entries.length?'<div class="visual-knowledge-grid">'+entries.map(e=>'<div class="knowledge-tile"><span>'+visualToken(e.value.type==='food'?'leaf':e.value.type==='wood'?'wood':'stone')+'</span><div><b>'+escape(e.key)+'</b><small>v'+e.revision+' · '+escape(findPerson(s,e.authorId)?.name??('#'+e.authorId))+'</small></div>'+(actor?'<button class="icon-action secondary" data-ux="read-archive" data-key="'+escape(e.key)+'" aria-label="อ่าน '+escape(e.key)+'">'+icon('eye')+'</button>':'')+'</div>').join('')+'</div>':'<p class="empty-state">ยังไม่มีความรู้ในคลัง</p>';
+    const entryGrid=entries.length?menuSection('book','รายการทั้งหมด','<div class="visual-knowledge-grid">'+entries.map(e=>'<div class="knowledge-tile"><span>'+visualToken(e.value.type==='food'?'leaf':e.value.type==='wood'?'wood':'stone')+'</span><div><b>'+escape(e.key)+'</b><small>v'+e.revision+' · '+escape(findPerson(s,e.authorId)?.name??('#'+e.authorId))+'</small></div>'+(actor?'<button class="icon-action secondary" data-ux="read-archive" data-key="'+escape(e.key)+'" aria-label="อ่าน '+escape(e.key)+'">'+icon('eye')+'</button>':'')+'</div>').join('')+'</div>',{badge:entries.length+' nodes'}):'<p class="empty-state">ยังไม่มีความรู้ในคลัง</p>';
     api.openDialog('แคมป์','CAMP · #'+b.id,'<section class="structure-hero">'+visualToken('home')+'<div><small>CULTURE HUB</small><h3>แคมป์</h3><span>ที่พัก '+MODULAR_HOUSE_RULES.campCapacity+' คน · '+(culture?'Archive LIVE':'Archive READY')+'</span></div></section>'+
       '<div class="menu-metrics">'+menuMetric('people','Capacity',MODULAR_HOUSE_RULES.campCapacity)+menuMetric('book','Archive',culture?entries.length+'/'+CULTURE_RULES.entries:'OFF',culture?'live':'')+menuMetric('brain','Auto',culture?(culture.automation?'ON':'OFF'):'—')+'</div>'+
-      archiveActions+entryGrid+'<details class="menu-explain"><summary>กฎ Archive</summary><p>อ่าน/เขียนได้ในระยะ '+CULTURE_RULES.range+' ช่อง · ข้อมูลจากคลังเป็น UNVERIFIED จนตรวจเอง</p></details>');
+      archiveActions+(culture?knowledgeGraph(s,actor):'<div class="kg-empty">'+visualToken('book')+'<span>สร้าง Archive เพื่อเริ่ม Knowledge Graph</span></div>')+entryGrid+'<details class="menu-explain"><summary>กฎ Archive</summary><p>อ่าน/เขียนได้ในระยะ '+CULTURE_RULES.range+' ช่อง · ข้อมูลจากคลังเป็น UNVERIFIED จนตรวจเอง</p></details>');
     $('dialog').dataset.kind='structure';$('dialog').dataset.structure='camp:'+b.id;renderHUD();return;
    }
   }
@@ -547,6 +547,7 @@ export function installUX(api){
    const totalMissing=house.missing.length;
    api.openDialog('บ้าน','MODULAR HOUSE · '+escape(house.houseId),'<section class="structure-hero">'+visualToken('home')+'<div><small>HOUSING</small><h3>'+(house.complete?'บ้านพร้อมอยู่':'กำลังก่อสร้าง')+'</h3><span>'+house.cells.length+' cell · '+(house.complete?house.capacity+' capacity':totalMissing+' ชิ้นยังขาด')+'</span></div></section>'+
     '<div class="menu-metrics">'+menuMetric('home','Status',house.complete?'READY':'BUILDING',house.complete?'live':'')+menuMetric('people','Capacity',house.capacity)+menuMetric('hammer','Builders',builders.length)+menuMetric('bag','Missing',totalMissing)+'</div>'+
+    (!house.complete&&totalMissing?barChart(Object.entries(house.missing.reduce((o,x)=>(o[x.pieceKind]=(o[x.pieceKind]??0)+1,o),{})).map(([kind,n])=>barRow(ITEM_CATALOG[kind]?.name??kind,n,totalMissing,itemIconKind(kind),String(n))), 'ชิ้นส่วนที่ยังขาด'):'')+
     (builders.length?'<div class="structure-people">'+builders.map(a=>'<button class="structure-person" data-person="'+a.id+'">'+api.portrait(a)+'<b>'+escape(a.name)+'</b></button>').join('')+'</div>':'')+
     '<details class="menu-explain"><summary>โครงสร้าง</summary><p>House completion และ capacity derive จาก housing evaluator เดียวกับ engine/UI ไม่มี complete flag ซ้ำ</p></details>');
    $('dialog').dataset.kind='structure';$('dialog').dataset.structure='house:'+house.houseId;renderHUD();return;
@@ -614,6 +615,11 @@ export function installUX(api){
     menuMetric('bolt','Tired',v.exhausted,v.exhausted?'warn':'')+
     menuMetric('home','Build',v.unfinished)+
    '</div>'+
+   barChart([
+    barRow('Food',v.freeFood,v.targets.food,'leaf',v.freeFood+' / '+v.targets.food),
+    barRow('Wood',v.stock.wood,v.targets.wood,'wood',v.stock.wood+' / '+v.targets.wood),
+    barRow('Stone',v.stock.stone,v.targets.stone,'stone',v.stock.stone+' / '+v.targets.stone)
+   ],'ทรัพยากรเทียบเป้าสำรอง')+
    '<section class="menu-section menu-section-static"><div class="menu-section-static-head">'+visualToken('book')+'<span>ความรู้ / วัฒนธรรม</span><b>'+(s.culture?'LIVE':'READY')+'</b></div><div class="menu-section-body">'+knowledgeBody+'</div></section>'+
    '<div class="structure-callout">'+visualToken('hammer')+'<div><b>การผลิตแยกตามจุดใช้งาน</b><small>ของติดตัว/คราฟต์มืออยู่เมนู “ของ” · โต๊ะคราฟต์และเตาหลอมแตะบนโลกโดยตรง</small></div></div>'+
    menuSection('people','Kingdom',kingdomBody,{badge:'SHADOW'})+
