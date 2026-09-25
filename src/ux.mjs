@@ -50,7 +50,7 @@ function rustPanel(s,api){
  const craft=s.rustPossessions?.orders?.find(o=>o.agentId===actor.id),process=s.rustMaterials?.orders?.find(o=>o.agentId===actor.id);
  const drops=items.filter(i=>i.location?.kind==='drop'&&Math.abs(actor.x-i.location.x)+Math.abs(actor.y-i.location.y)<=1);
  const recipes=Object.values(RECIPE_CATALOG).map(r=>'<button class="secondary" data-ux="craft-item" data-recipe="'+r.id+'" '+(craft||process?'disabled':'')+'>คราฟต์ '+escape(ITEM_CATALOG[r.output].name)+'</button>').join('');
- const bagHtml=bag.length?'<details class="score-details"><summary>ของในกระเป๋า</summary>'+bag.map(i=>'<div class="memory-item"><b>'+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+'</b><small>#'+i.id+' · สร้าง tick '+i.createdTick+'</small>'+(ITEM_CATALOG[i.kind]?.category==='tool'?'<button class="secondary" data-ux="equip-item" data-item="'+i.id+'">'+(equipped===i.id?'สวมอยู่':'สวมอุปกรณ์')+'</button>':'<button class="secondary" data-ux="place-station" data-item="'+i.id+'">'+(ITEM_CATALOG[i.kind]?.structurePiece?'วางชิ้นส่วนอาคาร':'วางสถานีติดตัว')+'</button>')+'</div>').join('')+'</details>':'';
+ const bagHtml=bag.length?'<details class="score-details"><summary>ของในกระเป๋า</summary>'+bag.map(i=>'<div class="memory-item"><b>'+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+'</b><small>#'+i.id+' · สร้าง tick '+i.createdTick+'</small>'+(ITEM_CATALOG[i.kind]?.category==='tool'?(equipped===i.id?'<button class="secondary" data-ux="unequip-item">ถอดจากช่องมือ</button>':'<button class="secondary" data-ux="equip-item" data-item="'+i.id+'">สวมช่องมือ</button>'):'<button class="secondary" data-ux="place-station" data-item="'+i.id+'">'+(ITEM_CATALOG[i.kind]?.structurePiece?'วางชิ้นส่วนอาคาร':'วางสถานีติดตัว')+'</button>')+'</div>').join('')+'</details>':'';
  const dropHtml=drops.length?'<details class="score-details"><summary>ของตกใกล้ตัว</summary>'+drops.map(i=>'<button class="secondary" data-ux="pickup-rust" data-item="'+i.id+'">เก็บ '+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+' #'+i.id+'</button>').join('')+'</details>':'';
  const equippedItem=bag.find(i=>i.id===equipped);
  const plan=s.productionPlan,goal=plan?.goal;
@@ -62,10 +62,22 @@ function rustPanel(s,api){
  '<p class="source-note">วัสดุถูก commit เข้า order แบบ atomic ตอนรับงาน · Clone เดิน/ทำงานตาม tick จริง · Stone Axe เร่ง WOODCUT ×1.25, Stone Pickaxe เร่ง MINE ×1.25 · ชิ้นส่วนอาคารไม้ต้องสวม Hammer ก่อนวาง และผนัง/ประตู/หลังคาต้องต่อกับโครงสร้างเดิม</p>';
 }
 
+function personalInventoryPanel(s,a){
+ const items=s.rustPossessions?.items??[],bag=items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===a.id).sort((x,y)=>x.id-y.id);
+ const equippedId=s.rustPossessions?.equipment?.find(e=>e.agentId===a.id)?.itemId??null,equipped=bag.find(i=>i.id===equippedId)??null;
+ const slots=Array.from({length:4},(_,slot)=>{const item=bag[slot];if(!item)return '<div class="memory-item" data-inventory-slot="'+slot+'"><small>ช่อง '+(slot+1)+'</small><b>ว่าง</b></div>';
+  const def=ITEM_CATALOG[item.kind],action=a.alive&&def?.category==='tool'?(equippedId===item.id?'<button class="secondary" data-ux="unequip-item">ถอดจากช่องมือ</button>':'<button class="secondary" data-ux="equip-item" data-item="'+item.id+'">สวมช่องมือ</button>'):'';
+  return '<div class="memory-item" data-inventory-slot="'+slot+'" data-item-id="'+item.id+'"><small>ช่อง '+(slot+1)+' · #'+item.id+'</small><b>'+escape(def?.name??item.kind)+'</b><p class="source-note">'+escape(def?.category==='tool'?'เครื่องมือ · ช่องมือ':def?.structurePiece?'ชิ้นส่วนอาคาร':'ของติดตัว')+'</p>'+action+'</div>';}).join('');
+ const hand=equipped?escape(ITEM_CATALOG[equipped.kind]?.name??equipped.kind)+' #'+equipped.id:'ว่าง';
+ return '<div class="life-summary"><div><small>กระเป๋าส่วนตัว</small><b>'+bag.length+' / 4 ช่อง</b></div><div><small>อุปกรณ์ · มือ</small><b>'+hand+'</b></div></div>'+
+  '<div data-personal-inventory="'+a.id+'">'+slots+'</div>'+
+  '<p class="source-note">ของเป็นของ Clone คนนี้ตาม item instance จริง · อุปกรณ์ที่สวมยังอยู่ในกระเป๋าและใช้ช่องเดิม · ตอนนี้มีช่องอุปกรณ์มือ 1 ช่องสำหรับ Stone Axe / Stone Pickaxe / Hammer</p>';
+}
+
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
 const stageLabels={CHILD:'เด็ก',ADULT:'ผู้ใหญ่',ELDER:'ผู้สูงวัย',DEAD:'เสียชีวิต'};
 const birthLabels={'history-capacity':'จำนวนประวัติถึงขีดจำกัด','history-storage':'พื้นที่คลังประวัติเต็ม','history-invalid':'ประวัติต้องตรวจสอบ','history-hot':'ชุดข้อมูลทำงานเต็ม',ready:'พร้อมเมื่อถึงรอบปี',housing:'ที่พักเต็ม',history:'ประวัติตัวละครเต็ม',pace:'รอครบระยะห่างการเกิด',parent:'ยังไม่มีผู้ใหญ่ที่พร้อม',food:'อาหารสำรองยังไม่พอ',wood:'ไม้สำรองยังไม่พอ'};
-const tabNames={about:'ตอนนี้',skills:'ทักษะ',why:'เหตุผล',knowledge:'ความรู้',social:'สัมพันธ์',memory:'ความทรงจำ'};
+const tabNames={about:'ตอนนี้',inventory:'กระเป๋า',skills:'ทักษะ',why:'เหตุผล',knowledge:'ความรู้',social:'สัมพันธ์',memory:'ความทรงจำ'};
 function setText(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=value;}
 function replaceIfChanged(el,html){if(el.dataset.content!==html){const y=el.scrollTop;el.innerHTML=html;el.dataset.content=html;el.scrollTop=y;}}
 export function installUX(api){
@@ -101,6 +113,8 @@ export function installUX(api){
   if(b.dataset.ux==='expand'){expanded=!expanded;renderInspector();}
   if(b.dataset.ux==='why'){expanded=true;api.setTab('why');}
   if(b.dataset.ux==='clone')openClone();
+  if(b.dataset.ux==='equip-item'){const result=api.execute('EQUIP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();renderInspector();}}
+  if(b.dataset.ux==='unequip-item'){const result=api.execute('UNEQUIP_ITEM',{agentId:api.read().selected});api.toast(result.message);if(result.ok){api.save();renderInspector();}}
   if(b.dataset.ux==='publish-knowledge'){
     const result=api.execute('PUBLISH_KNOWLEDGE',{agentId:api.read().selected,key:b.dataset.key});
     api.toast(result.message);if(result.ok)api.save();
@@ -131,6 +145,7 @@ export function installUX(api){
   if(b.dataset.ux==='production-policy'){const result=api.execute('SET_PRODUCTION_POLICY',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='craft-item'){const result=api.execute('CRAFT_ITEM',{agentId:api.read().selected,recipeId:b.dataset.recipe});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='equip-item'){const result=api.execute('EQUIP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='unequip-item'){const result=api.execute('UNEQUIP_ITEM',{agentId:api.read().selected});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='place-station'){
     const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive),itemId=Number(b.dataset.item),kind=s.rustPossessions?.items.find(i=>i.id===itemId)?.kind;let chosen=null;
     // Deterministic placement id (pl:<tick>:<agent>:<item>); the engine validator decides every candidate.
@@ -177,7 +192,8 @@ export function installUX(api){
   for(const k of ['satiety','energy','hp']){setText('need-number-'+k,Math.round(a[k]));const el=$('need-meter-'+k);el.setAttribute('aria-valuenow',String(Math.round(a[k])));el.querySelector('i').style.width=a[k]+'%';el.classList.toggle('low',a[k]<25);}
   for(const b of inspector.querySelectorAll('[role=tab]')){const active=b.dataset.tab===tab;b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active));b.tabIndex=active?0:-1;}
   const panel=$('ux-tab-content');panel.setAttribute('aria-labelledby','tab-'+tab);let html='';
-  if(tab==='skills')html=SKILLS.map(k=>{const p=a.skillProvenance?.bySkill?.[k],parts=[];
+  if(tab==='inventory')html=personalInventoryPanel(s,a);
+  else if(tab==='skills')html=SKILLS.map(k=>{const p=a.skillProvenance?.bySkill?.[k],parts=[];
    if(p?.initialXP)parts.push('ตั้งต้น '+p.initialXP);if(p?.inheritedXP)parts.push('สืบทอด '+p.inheritedXP);if(p?.earnedXP)parts.push('ทำงาน '+p.earnedXP);if(p?.legacyUnattributedXP)parts.push('เดิมไม่ทราบที่มา '+p.legacyUnattributedXP);
    const evidence=(p?.evidence??[]).slice(-2).reverse().map(e=>e.kind==='inheritance'?'สืบทอดจาก '+escape(findPerson(s,e.sourceAgentId)?.name??('#'+e.sourceAgentId))+' · tick '+e.tick:e.kind==='work'?'งาน '+escape(roles[e.action]??e.action)+' · +'+e.xp+' XP · tick '+e.tick:'ทักษะตั้งต้น · +'+e.xp+' XP · tick '+e.tick).join('<br>');
    return `<div class="skill-row"><b>${roles[k]}</b><span>Lv.${level(a.skills[k])} <small>${a.skills[k]} XP</small></span></div><p class="source-note">${parts.join(' · ')||'ไม่มี XP'}${evidence?'<br>'+evidence:''}</p>`;}).join('')+`<p class="source-note">XP สืบทอดคือ inheritance ไม่ใช่การสอน · XP จากงานเกิดหลังผลลัพธ์จริงเท่านั้น · ข้อมูลเซฟเก่าที่พิสูจน์ที่มาไม่ได้จะแสดงว่าเดิมไม่ทราบที่มา</p>`;
