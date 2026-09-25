@@ -90,6 +90,8 @@ What the scene shows:
 
 ## Integration notes (for a later PR, not done here)
 
+**Rechecked against `main` = `4b3585c` (after PR #67 merged, 2026-09-25).** Still true there: `src/app.mjs` imports are L1-5, `rustStation(c, st)` is L101-126 with the `WOOD_*` branches at L113-124, and the depth sort is L167. `paths` in `src/ux.mjs` is L15-35 and `icon()` is L35. `canonicalEdge` (L37), `edgeCells` (L43), `cellEdges` (L44) and `socketKey` (L45) are exported from `src/rust-stations.mjs`. `evaluateModularHouses` is exported from `src/housing.mjs` (L31) and re-exported by `src/engine.mjs` (L21). **Changed by #67:** the Shelter panel, `#build` button, mobile build tab, tap-to-BUILD and the gold ghost at old L170 are gone, and `app.mjs` has no ghost and no `api.preview` call at all. Item 5 below is therefore new code for Building Mode, not a replacement, and Building Mode also needs a new entry point (the icons here are ready for it). Always re-check line numbers against the base you branch from.
+
 1. **Move the module.** Copy `building-visuals.mjs` to `src/` and add `import {drawPiece,drawGhost,structureDrawInfo,structureDepth,roofNeighbours,sameHouseRoofPredicate} from './building-visuals.mjs?v=0.5.0';`. Replace this module's local `canonicalEdge`/`edgeCells` mirrors with imports of the real spec §1.2 helpers from `src/rust-stations.mjs`, so there is one implementation to the imports in `src/app.mjs` (L1-5). Put `building-icons.mjs` in `src/` too, or merge `BUILDING_ICON_PATHS` into `paths` in `src/ux.mjs` L15-35. Rotate and remove are UI-only or unbound (§10.5, §10.6).
 2. **`rustStation(c, st)`, `src/app.mjs` L101-126.** *Stage (a).*
    - Add an early branch at the top of the function, **before** it translates to `proj(st.x,st.y)`: `const info=structureDrawInfo(st,{hasFoundation}); if(info){const p=proj(info.x,info.y);c.save();c.translate(p.x,p.y);drawPiece(c,info.piece,info.edge,optsFor(info));c.restore();return;}`
@@ -106,11 +108,11 @@ What the scene shows:
    - `xray:true` when Building Mode is active or when the hovered cell belongs to `h` (§10.3, §10.8). Use the same flag for that house's walls/doorways; `edgeAlpha` makes only the front ones translucent.
    - `preview-scene.mjs` shows the same wiring with a local stand-in for `evaluateModularHouses`.
 4. **Depth sort, `src/app.mjs` L167.** Replace `depth:st.x+st.y+.15` with `depth:structureDepth(st)`. *Stage (a).*
-5. **Ghost, `src/app.mjs` L170.** *Stage (b), Building Mode.*
+5. **Ghost (new in Building Mode; the old L170 ghost was removed by #67).** *Stage (b).*
    - Canonicalise first (§10.7): the rotated house-relative side goes through `canonicalEdge(x,y,side)`. Then translate to `proj(socket.x, socket.y)` of that snapped canonical socket and call `drawGhost(ctx, pieceKind, socket.side, previewResult.ok, {neighbours})`. The picture is identical to drawing the house-relative side from the foundation cell.
    - `previewResult` = `api.preview('PLACE_STATION', {..., socket})` for that exact socket (L268, which becomes `previewPlacement`).
    - Rotate only changes which local edge the UI asks `snapSocket` for.
-   - Change the legacy shelter ghost to fail-closed (§10.4) for as long as it still exists.
+   - The legacy Shelter ghost no longer exists after #67, so the §10.4 fail-closed rule and its missing-`ok` test apply to the new ghost only.
 6. **Spec fields read (RS3-0.3, spec §1.3):**
    - `kind`
    - `socket.type` (`'cell'|'edge'|'legacy'`), `socket.x`, `socket.y`, `socket.side` (`'N'|'W'`), `socket.level` (`0` or `2`)
