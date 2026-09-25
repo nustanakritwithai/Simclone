@@ -413,6 +413,13 @@ for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.q
 $('recenter').onclick=()=>{focus={x:11,y:12};pan={x:0,y:0};follow=false;};
 const setZoom=z=>{zoom=Math.max(.5,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
 canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
+function structureTargetAtScreen(sx,sy){
+ const rows=[];
+ for(const b of state.buildings.filter(b=>b.type!=='shelter')){const p=screenPoint(b.x,b.y);rows.push({type:'building',id:b.id,d:Math.hypot(sx-p.x,sy-(p.y-16*zoom))});}
+ for(const st of (state.rustStations?.stations??[])){const p=screenPoint(st.x,st.y);rows.push({type:'station',id:st.id,d:Math.hypot(sx-p.x,sy-(p.y-14*zoom))});}
+ return rows.sort((a,b)=>a.d-b.d||a.type.localeCompare(b.type)||a.id-b.id).find(x=>x.d<Math.max(24,34*zoom))??null;
+}
+
 const pointers=new Map();let drag=null,pinch=0,multiTouch=false;
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});follow=false;
  if(pointers.size===1){multiTouch=false;drag={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y,moved:false};}
@@ -426,7 +433,7 @@ canvas.addEventListener('pointermove',e=>{
 canvas.addEventListener('pointerup',e=>{
  pointers.delete(e.pointerId);if(!drag||drag.moved||multiTouch){if(!pointers.size){drag=null;multiTouch=false;}return;}
  const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
- {let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{selected=null;follow=false;updateUI();}}
+ {let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{const structure=structureTargetAtScreen(sx,sy);if(structure)ux?.openStructure(structure);else{selected=null;follow=false;updateUI();}}}
  drag=null;
 });
 canvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);drag=null;multiTouch=false;});
@@ -455,4 +462,4 @@ setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y)});
