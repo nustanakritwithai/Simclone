@@ -692,6 +692,27 @@ Menu redesign must not remove an existing command path or hide an action require
 
 Structure menus are contextual surfaces opened from world-space hit targets. They must reuse existing command authorities and canonical evaluators; they do not create a separate Building Mode, station ledger, housing completion rule, or resource writer.
 
+## World Interaction Complete
+
+The playable world is an object browser. When a visible world object has meaningful authoritative state, tapping that object should open its own contextual surface instead of forcing the player through a global menu.
+
+Current interaction owners:
+- **Clone** → Inspector / Why.
+- **Camp / Crafting Table / Furnace / Modular House** → structure-local context.
+- **Resource Node** → current authoritative `amount / max / position` and Clones whose current task targets that node.
+- **Dropped Item** → item-instance kind, creator, creation tick, current drop location and authoritative `PICKUP_ITEM` action when the selected Clone is eligible.
+- **Recent Event Burst** → existing Chronicle Event → Evidence detail.
+
+Rules:
+- Hit targets are presentation-only projections of current world coordinates.
+- Event-marker taps may take priority over the underlying Clone only when the pointer is on the visible marker itself.
+- Context surfaces do not own simulation state. Mutations still route through existing commands.
+- Resource context must not invent a harvest history, future yield or ecology authority.
+- Dropped-item context must not duplicate the possession ledger.
+- Event context must not reconstruct historical intent beyond retained evidence.
+
+---
+
 ## Visual Analytics Contract
 
 Interactive visualizations are projections of existing evidence, never a new data source.
