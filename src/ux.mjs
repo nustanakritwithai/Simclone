@@ -281,9 +281,9 @@ export function installUX(api){
   }).filter(Boolean).sort((a,b)=>b.started-a.started||a.agent.id-b.agent.id).slice(0,limit);
  }
  function openDecisionFeed(){
-  const s=api.read().state,rows=currentDecisions(s);
-  const html=rows.length?rows.map(({agent,chosen,causes})=>'<button class="decision-feed-row" data-ai-person="'+agent.id+'" aria-label="ดูเหตุผลของ '+escape(agent.name)+'"><div class="decision-feed-title"><b>'+escape(agent.name)+'</b><span>'+escape(LABELS[chosen.kind]??chosen.kind)+' · '+chosen.score+' คะแนน</span></div><p>'+escape(causes.join(' · ')||'ดู trace การตัดสินใจล่าสุด')+'</p><small>เปิด Clone → เหตุผล →</small></button>').join(''):'<p class="empty-state">ยังไม่มี decision trace · ปล่อยโลกเดินอย่างน้อย 1 tick</p>';
-  api.openDialog('AI กำลังตัดสินใจอะไร','AI DECISION FEED · LIVE','<p class="decision-feed-intro">นี่คือการตัดสินใจจริงจาก planner ปัจจุบัน ไม่ใช่ข้อความแต่ง · แตะแถวเพื่อไปยัง Clone และเปิด “เหตุผล” โดยตรง</p><div class="decision-feed-list">'+html+'</div>');
+  const s=api.read().state,rows=currentDecisions(s),taskGlyph={BUILD:'⌂',CRAFT:'⚒',PROCESS:'♨',FORAGE:'✦',WOODCUT:'╱',MINE:'◆',EXPLORE:'…',EAT:'●',REST:'z',IDLE:'·'};
+  const html=rows.length?rows.map(({agent,chosen,causes})=>'<button class="decision-feed-row visual-decision-row" data-ai-person="'+agent.id+'" aria-label="ดูเหตุผลของ '+escape(agent.name)+'">'+api.portrait(agent)+'<span class="decision-task-icon" aria-hidden="true">'+escape(taskGlyph[chosen.kind]??'◇')+'</span><div class="decision-feed-title"><b>'+escape(agent.name)+'</b><span>'+escape(LABELS[chosen.kind]??chosen.kind)+'</span><small>'+(causes[0]?escape(causes[0]):'trace')+'</small></div><strong>'+chosen.score+'</strong><span class="history-arrow">›</span></button>').join(''):'<p class="empty-state">ยังไม่มี decision trace</p>';
+  api.openDialog('AI Decisions','LIVE · '+rows.length,'<div class="visual-dialog-intro">'+icon('brain')+'<span>แตะ Clone เพื่อเปิด Why</span></div><div class="decision-feed-list">'+html+'</div>');
   $('dialog').dataset.kind='decisions';renderHUD();
  }
  function renderHUD(){
@@ -395,8 +395,8 @@ export function installUX(api){
   '<div class="system-grid">'+cards+'</div>'+
   '<section class="ai-activity"><div class="system-section-head"><div><span class="eyebrow">LIVE ACTIVITY</span><h3>ตอนนี้ Clone กำลังทำอะไร</h3></div><b>'+agents.length+' คน</b></div><div class="activity-grid">'+activity+'</div></section>'+
   '<details class="system-advanced"><summary><div><span class="eyebrow">ADVANCED SYSTEMS</span><b>ดูระบบทั้งหมด '+allSystems.length+' ระบบ</b></div><span>LIVE / READY / SHADOW / INFRA</span></summary><section class="all-systems"><div class="system-section-head"><div><span class="eyebrow">FULL RUNTIME CATALOG</span><h3>ระบบทั้งหมดที่มีอยู่ในเกม</h3></div><b>'+allSystems.length+' ระบบ</b></div>'+catalog+'</section></details>'+
-  '<div class="system-actions"><button class="secondary" data-ux="systems-survival">รายละเอียด Survival / Ecology</button><button class="secondary" data-ux="systems-rust">รายละเอียดของ / คราฟต์</button></div>'+
-  '<p class="source-note">LIVE = เขียนผลเกมจริง · READY = ระบบพร้อมแต่ policy/สิ่งปลูกสร้างยังไม่เปิด · SHADOW = คำนวณเพื่อสังเกต · INFRA = ระบบพื้นฐานที่รองรับ gameplay แต่ไม่ใช่ decision authority</p>');
+  '<div class="system-actions visual-system-actions"><button class="secondary visual-policy-action" data-ux="systems-survival">'+icon('heart')+'<span>Survival</span></button><button class="secondary visual-policy-action" data-ux="systems-rust">'+icon('hammer')+'<span>ของ / คราฟต์</span></button></div>'+
+  '<details class="menu-explain system-legend"><summary>สถานะระบบ</summary><div class="system-counts"><span>● LIVE</span><span>◐ READY</span><span>◇ SHADOW</span><span>○ INFRA</span></div></details>');
  $('dialog').dataset.kind='systems';renderHUD();
 }
  function openRoster(){rosterFilter='all';rosterLimit=80;const s=api.read().state,alive=living(s),hungry=alive.filter(a=>a.satiety<25).length,children=alive.filter(a=>a.generation>=2).length;
