@@ -8,6 +8,7 @@ import {createResourceRegenerationShadow} from './worldsim-resource-regen-shadow
 import {createFoodRegenerationImpact} from './worldsim-food-regen-impact.mjs?v=0.5.0';
 import {createFoodEcologyCalibration} from './worldsim-food-regen-calibration.mjs?v=0.5.0';
 import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
+import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
 const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -31,8 +32,25 @@ const paths={
  brain:'<path d="M12 4c-5-4-9 1-7 4-4 2-3 7 0 7-1 5 5 7 7 3m0-14c5-4 9 1 7 4 4 2 3 7 0 7 1 5-5 7-7 3ZM12 4v14M5 8l3 2M19 8l-3 2M5 15l3-2M19 15l-3-2"/>'
 };
 export const icon=name=>`<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths[name]||paths.eye}</svg>`;
-const events={birth:'ชีวิตใหม่',skill:'พัฒนาทักษะ',knowledge:'ถ่ายทอดความรู้',build:'สิ่งปลูกสร้าง',career:'เปลี่ยนอาชีพ',death:'สูญเสีย',day:'วันใหม่'};
+const events={birth:'ชีวิตใหม่',skill:'พัฒนาทักษะ',knowledge:'ถ่ายทอดความรู้',build:'สิ่งปลูกสร้าง',craft:'คราฟต์/แปรรูป',career:'เปลี่ยนอาชีพ',death:'สูญเสีย',day:'วันใหม่'};
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
+function rustPanel(s,api){
+ const selected=api.read().selected,actor=s.agents.find(a=>a.id===selected&&a.alive);
+ if(!actor)return '<div class="life-summary"><div><small>Rust Survival · RS1–RS4</small><b>เลือก Clone ก่อน</b></div><div><small>ถ่านไม้ / สถานี</small><b>'+(s.rustMaterials?.charcoal??0)+' / '+(s.rustStations?.stations?.length??0)+'</b></div></div><p class="source-note">เลือก Clone ที่ยังมีชีวิตเพื่อจัดการ crafting และ possessions</p>';
+ const items=s.rustPossessions?.items??[],bag=items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===actor.id);
+ const equipped=s.rustPossessions?.equipment?.find(e=>e.agentId===actor.id)?.itemId??null;
+ const craft=s.rustPossessions?.orders?.find(o=>o.agentId===actor.id),process=s.rustMaterials?.orders?.find(o=>o.agentId===actor.id);
+ const drops=items.filter(i=>i.location?.kind==='drop'&&Math.abs(actor.x-i.location.x)+Math.abs(actor.y-i.location.y)<=1);
+ const recipes=Object.values(RECIPE_CATALOG).map(r=>'<button class="secondary" data-ux="craft-item" data-recipe="'+r.id+'" '+(craft||process?'disabled':'')+'>คราฟต์ '+escape(ITEM_CATALOG[r.output].name)+'</button>').join('');
+ const bagHtml=bag.length?'<details class="score-details"><summary>ของในกระเป๋า</summary>'+bag.map(i=>'<div class="memory-item"><b>'+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+'</b><small>#'+i.id+' · สร้าง tick '+i.createdTick+'</small>'+(ITEM_CATALOG[i.kind]?.category==='tool'?'<button class="secondary" data-ux="equip-item" data-item="'+i.id+'">'+(equipped===i.id?'สวมอยู่':'สวมอุปกรณ์')+'</button>':'<button class="secondary" data-ux="place-station" data-item="'+i.id+'">วางสถานีติดตัว</button>')+'</div>').join('')+'</details>':'';
+ const dropHtml=drops.length?'<details class="score-details"><summary>ของตกใกล้ตัว</summary>'+drops.map(i=>'<button class="secondary" data-ux="pickup-rust" data-item="'+i.id+'">เก็บ '+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+' #'+i.id+'</button>').join('')+'</details>':'';
+ const equippedItem=bag.find(i=>i.id===equipped);
+ return '<div class="life-summary"><div><small>Rust Survival · RS1–RS4</small><b>'+escape(actor.name)+'</b></div><div><small>ถ่านไม้ / สถานี</small><b>'+(s.rustMaterials?.charcoal??0)+' / '+(s.rustStations?.stations?.length??0)+'</b></div></div>'+
+ '<div class="clone-skills"><div><span>กระเป๋า</span><b>'+bag.length+' / 4 ชิ้น</b></div><div><span>งานคราฟต์</span><b>'+(craft?escape(ITEM_CATALOG[RECIPE_CATALOG[craft.recipe]?.output]?.name??craft.recipe)+' '+Math.floor(craft.work)+'/'+craft.required:'ไม่มี')+'</b></div><div><span>งานเตา</span><b>'+(process?'ถ่านไม้ '+Math.floor(process.work)+'/'+process.required:'ไม่มี')+'</b></div><div><span>ของสวมอยู่</span><b>'+(equippedItem?escape(ITEM_CATALOG[equippedItem.kind]?.name??equippedItem.kind):'ไม่มี')+'</b></div></div>'+
+ '<div class="dialog-actions">'+recipes+'<button class="secondary" data-ux="process-charcoal" '+(craft||process?'disabled':'')+'>เผาถ่าน Wood 2 → Charcoal 1</button></div>'+bagHtml+dropHtml+
+ '<p class="source-note">วัสดุถูก commit เข้า order แบบ atomic ตอนรับงาน · Clone เดิน/ทำงานตาม tick จริง · ความหิว/พลังงาน interrupt task ได้โดย order ยังอยู่ · Stone Axe เร่ง WOODCUT ×1.25, Stone Pickaxe เร่ง MINE ×1.25 · Hammer ยังไม่เพิ่ม BUILD bonus</p>';
+}
+
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
 const stageLabels={CHILD:'เด็ก',ADULT:'ผู้ใหญ่',ELDER:'ผู้สูงวัย',DEAD:'เสียชีวิต'};
 const birthLabels={'history-capacity':'จำนวนประวัติถึงขีดจำกัด','history-storage':'พื้นที่คลังประวัติเต็ม','history-invalid':'ประวัติต้องตรวจสอบ','history-hot':'ชุดข้อมูลทำงานเต็ม',ready:'พร้อมเมื่อถึงรอบปี',housing:'ที่พักเต็ม',history:'ประวัติตัวละครเต็ม',pace:'รอครบระยะห่างการเกิด',parent:'ยังไม่มีผู้ใหญ่ที่พร้อม',food:'อาหารสำรองยังไม่พอ',wood:'ไม้สำรองยังไม่พอ'};
@@ -104,6 +122,19 @@ export function installUX(api){
   if(b.dataset.ux==='culture-automation'){const result=api.execute('SET_CULTURE_AUTOMATION',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='read-archive'){const result=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.key});api.toast(result.message);if(result.ok)api.save();}
   if(b.dataset.ux==='planning-policy'){const result=api.execute('SET_PLANNING_POLICY',{policy:b.dataset.policy});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='craft-item'){const result=api.execute('CRAFT_ITEM',{agentId:api.read().selected,recipeId:b.dataset.recipe});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='equip-item'){const result=api.execute('EQUIP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='place-station'){
+    const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive);let chosen=null;
+    if(a)for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1]]){const data={agentId:a.id,itemInstanceId:Number(b.dataset.item),x:a.x+dx,y:a.y+dy};if(api.preview('PLACE_STATION',data).ok){chosen=data;break;}}
+    const result=chosen?api.execute('PLACE_STATION',chosen):{ok:false,message:'ไม่มีช่องว่างติดตัวสำหรับวางสถานี'};api.toast(result.message);if(result.ok){api.save();openSurvival();}
+  }
+  if(b.dataset.ux==='process-charcoal'){
+    const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive),dist=st=>a?Math.abs(a.x-st.x)+Math.abs(a.y-st.y):Infinity;
+    const st=a?(s.rustStations?.stations??[]).filter(x=>x.complete&&x.kind==='FURNACE').sort((x,y)=>dist(x)-dist(y)||x.id-y.id)[0]:null;
+    const result=st?api.execute('PROCESS_CHARCOAL',{agentId:a.id,stationId:st.id}):{ok:false,message:'ยังไม่มีเตาหลอม'};api.toast(result.message);if(result.ok){api.save();openSurvival();}
+  }
+  if(b.dataset.ux==='pickup-rust'){const result=api.execute('PICKUP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.rosterFilter){rosterFilter=b.dataset.rosterFilter;rosterLimit=80;renderRosterList();}
   if(b.dataset.ux==='more-people'){rosterLimit+=80;renderRosterList();}
   if(b.dataset.historyFilter){historyFilter=b.dataset.historyFilter;renderHistoryList();}
@@ -236,7 +267,7 @@ export function installUX(api){
     <p class="source-note">ผู้ค้นพบตายได้ แต่ข้อมูลที่เขียนไว้ยังอ่านได้ · อ่านแล้วเริ่มเป็น “ยังไม่ยืนยัน” และไม่เพิ่ม XP · บันทึก/อ่านในระยะ ${CULTURE_RULES.range} ช่องจากแคมป์ · เก็บประวัติแก้ไขล่าสุด ${CULTURE_RULES.history} ครั้งต่อรายการ</p>
     ${s.culture?.entries.length?`<details class="score-details"><summary>เปิดรายการความรู้ในคลัง</summary>${s.culture.entries.map(e=>`<div class="memory-item"><b>${escape(e.key)} · ฉบับ ${e.revision}</b><small>บันทึกโดย ${escape(findPerson(s,e.authorId)?.name??('#'+e.authorId))} · tick ${e.publishedTick}</small><p>ตำแหน่ง ${e.value.x}, ${e.value.y}</p><button class="secondary" data-ux="read-archive" data-key="${escape(e.key)}">ให้ตัวละครที่เลือกอ่าน</button></div>`).join('')}</details>`:''}
     <div class="life-summary"><div><small>Personal Knowledge Planner</small><b>${s.planningPolicy?'ความรู้ส่วนตัว':'Survival เดิม'}</b></div><div><small>เปลี่ยนกฎการหาแหล่งทรัพยากร</small><button class="secondary" data-ux="planning-policy" data-policy="${s.planningPolicy?'legacy':'local'}">${s.planningPolicy?'กลับนโยบายเดิม':'ใช้ความรู้ส่วนตัว'}</button></div></div>
-    <p class="source-note">โหมดความรู้ส่วนตัวเห็นแหล่งในระยะ 4 ช่อง · จุดที่จำได้ต้องเดินไปตรวจ ไม่อ่านจำนวนทรัพยากรที่อยู่นอกสายตา · แผนที่ทางเดินและคลังกลางยังเป็นข้อมูลส่วนรวม</p>
+    <p class="source-note">โหมดความรู้ส่วนตัวเห็นแหล่งในระยะ 4 ช่อง · จุดที่จำได้ต้องเดินไปตรวจ ไม่อ่านจำนวนทรัพยากรที่อยู่นอกสายตา · แผนที่ทางเดินและคลังกลางยังเป็นข้อมูลส่วนรวม</p>\n    ${rustPanel(s,api)}
     <div class="life-summary"><div><small>Kingdom K2 · แรงกดดันสูงสุด</small><b>${escape(v.kingdomEconomy.topPressure?.profession??'—')} ×${v.kingdomEconomy.topPressure?.premium??1}</b></div><div><small>ความหลากหลายอาชีพ</small><b>${v.kingdomEconomy.specialization.diversity} / 4</b></div></div>
     <div class="clone-skills"><div><span>Demand อาหาร</span><b>${v.kingdomEconomy.demand.food} · scarcity ×${v.kingdomEconomy.scarcity.food}</b></div><div><span>Demand ไม้</span><b>${v.kingdomEconomy.demand.wood} · scarcity ×${v.kingdomEconomy.scarcity.wood}</b></div><div><span>Demand หิน</span><b>${v.kingdomEconomy.demand.stone} · scarcity ×${v.kingdomEconomy.scarcity.stone}</b></div><div><span>แรงงาน หาอาหาร / ไม้ / หิน / สร้าง</span><b>${v.kingdomEconomy.specialization.counts.forager} / ${v.kingdomEconomy.specialization.counts.woodcutter} / ${v.kingdomEconomy.specialization.counts.miner} / ${v.kingdomEconomy.specialization.counts.builder}</b></div></div>
     <p class="source-note">Kingdom K2 ยังเป็น shadow economy: ใช้สูตร demand + scarcity + labor premium เพื่อสังเกตแรงกดดันของชุมชน แต่ยังไม่สร้างราคา เงิน ค่าแรง การค้า หรือบังคับเปลี่ยนงาน จึงไม่เปลี่ยน authority ของ Survival Core</p>

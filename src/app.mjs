@@ -98,6 +98,21 @@ function building(c,b,time){
  }
  c.restore();
 }
+function rustStation(c,st){
+ const p=proj(st.x,st.y);c.save();c.translate(p.x,p.y);
+ ellipse(c,0,4,20,7,'#172a2355');
+ if(st.kind==='CRAFTING_TABLE_LV1'){
+  polygon(c,[[-20,-3],[0,-13],[20,-3],[0,7]],'#9d7b4f','#5f5138');
+  line(c,[[-15,0],[-15,16]],'#604b34',4);line(c,[[15,0],[15,16]],'#604b34',4);
+  line(c,[[-9,-10],[7,4]],'#c4b174',3);polygon(c,[[5,2],[13,2],[10,8]],'#aeb4a6');
+ }else{
+  polygon(c,[[-17,5],[0,14],[17,5],[17,-18],[0,-27],[-17,-18]],'#756b5b','#403f37');
+  polygon(c,[[-10,-3],[0,2],[10,-3],[10,-13],[0,-18],[-10,-13]],'#342f2b');
+  polygon(c,[[-6,-4],[-2,-14],[2,-7],[6,-16],[8,-3],[1,2]],'#df934d');
+  c.fillStyle='#5d5549';c.fillRect(8,-31,6,14);ellipse(c,11,-31,3,1.5,'#a9a18e');
+ }
+ c.restore();
+}
 function person(c,a,time){
  let v=positions.get(a.id);if(!v){v={x:a.x,y:a.y};positions.set(a.id,v);}v.x+=(a.x-v.x)*.2;v.y+=(a.y-v.y)*.2;
  const p=proj(v.x,v.y),ap=a.appearance,moving=a.task?.path.length>0;
@@ -135,8 +150,8 @@ function render(time){
  ctx.drawImage(ground,-SIZE.h*hw-60,-32);
  const a=state.agents.find(a=>a.id===selected&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
- const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
- for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else person(ctx,o.data,time);}
+ const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:st.x+st.y+.15})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
+ for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data);else person(ctx,o.data,time);}
  if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
  if(mode==='build'&&ghost){const v=ux?.getPlacement()??ghost,p=proj(v.x,v.y);polygon(ctx,[[p.x,p.y-13],[p.x+27,p.y],[p.x,p.y+13],[p.x-27,p.y]],v.ok===false?'#d47f7f70':'#ecdb9b70',v.ok===false?'#efb6a6':'#f0d895');if(ux?.getPlacement()){ctx.textAlign='center';ctx.font='12px system-ui';ctx.fillStyle='#fff4d5';ctx.fillText(v.ok?'✓':'×',p.x,p.y+4);}}
  ctx.restore();
