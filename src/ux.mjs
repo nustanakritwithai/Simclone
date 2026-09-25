@@ -45,10 +45,13 @@ function rustPanel(s,api){
  const bagHtml=bag.length?'<details class="score-details"><summary>ของในกระเป๋า</summary>'+bag.map(i=>'<div class="memory-item"><b>'+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+'</b><small>#'+i.id+' · สร้าง tick '+i.createdTick+'</small>'+(ITEM_CATALOG[i.kind]?.category==='tool'?'<button class="secondary" data-ux="equip-item" data-item="'+i.id+'">'+(equipped===i.id?'สวมอยู่':'สวมอุปกรณ์')+'</button>':'<button class="secondary" data-ux="place-station" data-item="'+i.id+'">วางสถานีติดตัว</button>')+'</div>').join('')+'</details>':'';
  const dropHtml=drops.length?'<details class="score-details"><summary>ของตกใกล้ตัว</summary>'+drops.map(i=>'<button class="secondary" data-ux="pickup-rust" data-item="'+i.id+'">เก็บ '+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+' #'+i.id+'</button>').join('')+'</details>':'';
  const equippedItem=bag.find(i=>i.id===equipped);
+ const plan=s.productionPlan,goal=plan?.goal;
  return '<div class="life-summary"><div><small>Rust Survival · RS1–RS4</small><b>'+escape(actor.name)+'</b></div><div><small>ถ่านไม้ / สถานี</small><b>'+(s.rustMaterials?.charcoal??0)+' / '+(s.rustStations?.stations?.length??0)+'</b></div></div>'+
  '<div class="clone-skills"><div><span>กระเป๋า</span><b>'+bag.length+' / 4 ชิ้น</b></div><div><span>งานคราฟต์</span><b>'+(craft?escape(ITEM_CATALOG[RECIPE_CATALOG[craft.recipe]?.output]?.name??craft.recipe)+' '+Math.floor(craft.work)+'/'+craft.required:'ไม่มี')+'</b></div><div><span>งานเตา</span><b>'+(process?'ถ่านไม้ '+Math.floor(process.work)+'/'+process.required:'ไม่มี')+'</b></div><div><span>ของสวมอยู่</span><b>'+(equippedItem?escape(ITEM_CATALOG[equippedItem.kind]?.name??equippedItem.kind):'ไม่มี')+'</b></div></div>'+
- '<div class="dialog-actions">'+recipes+'<button class="secondary" data-ux="process-charcoal" '+(craft||process?'disabled':'')+'>เผาถ่าน Wood 2 → Charcoal 1</button></div>'+bagHtml+dropHtml+
- '<p class="source-note">วัสดุถูก commit เข้า order แบบ atomic ตอนรับงาน · Clone เดิน/ทำงานตาม tick จริง · ความหิว/พลังงาน interrupt task ได้โดย order ยังอยู่ · Stone Axe เร่ง WOODCUT ×1.25, Stone Pickaxe เร่ง MINE ×1.25 · Hammer ยังไม่เพิ่ม BUILD bonus</p>';
+ '<div class="life-summary"><div><small>RP1 · แผนผลิตอัตโนมัติ</small><b>'+(plan?.enabled?'เปิด':'ปิด')+'</b></div><div><small>สถานะล่าสุด</small><b>'+escape(goal?goal.goal+' · '+goal.outcome:'ยังไม่มีแผน')+'</b></div></div>'+
+ '<div class="dialog-actions"><button class="secondary" data-ux="production-policy" data-enabled="'+(!plan?.enabled)+'">'+(plan?.enabled?'หยุดแผนผลิตอัตโนมัติ':'เปิดแผนผลิตอัตโนมัติ')+'</button>'+recipes+'<button class="secondary" data-ux="process-charcoal" '+(craft||process?'disabled':'')+'>เผาถ่าน Wood 2 → Charcoal 1</button></div>'+bagHtml+dropHtml+
+ '<p class="source-note">RP1 เป็น deterministic coordinator: ใช้คำสั่ง Rust เดิมเพื่อสร้างขวาน/อีเต้อ → โต๊ะคราฟต์ → ค้อน → เตาหลอม → ถ่าน เป้าถ่าน 4 หน่วย · ไม่สร้างของเองนอก scheduler และ hunger/energy ยัง interrupt งานได้</p>'+
+ '<p class="source-note">วัสดุถูก commit เข้า order แบบ atomic ตอนรับงาน · Clone เดิน/ทำงานตาม tick จริง · Stone Axe เร่ง WOODCUT ×1.25, Stone Pickaxe เร่ง MINE ×1.25 · Hammer ยังไม่เพิ่ม BUILD bonus</p>';
 }
 
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
@@ -122,6 +125,7 @@ export function installUX(api){
   if(b.dataset.ux==='culture-automation'){const result=api.execute('SET_CULTURE_AUTOMATION',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='read-archive'){const result=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.key});api.toast(result.message);if(result.ok)api.save();}
   if(b.dataset.ux==='planning-policy'){const result=api.execute('SET_PLANNING_POLICY',{policy:b.dataset.policy});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='production-policy'){const result=api.execute('SET_PRODUCTION_POLICY',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='craft-item'){const result=api.execute('CRAFT_ITEM',{agentId:api.read().selected,recipeId:b.dataset.recipe});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='equip-item'){const result=api.execute('EQUIP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='place-station'){
