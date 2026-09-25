@@ -24,6 +24,10 @@ def tap_world(page,x,y):
  p=page.evaluate('(q)=>simclone.screenPoint(q.x,q.y)',{'x':x,'y':y});box=page.locator('#world').bounding_box()
  page.mouse.click(box['x']+p['x'],box['y']+p['y'])
  page.wait_for_function("document.querySelector('#dialog')?.open")
+def tap_visual(page,x,y,offset_y=0):
+ p=page.evaluate('(q)=>simclone.screenPoint(q.x,q.y)',{'x':x,'y':y});cam=page.evaluate('simclone.camera()');box=page.locator('#world').bounding_box()
+ page.mouse.click(box['x']+p['x'],box['y']+p['y']-offset_y*cam['zoom'])
+ page.wait_for_function("document.querySelector('#dialog')?.open")
 
 with sync_playwright() as p:
  exe='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None
@@ -78,6 +82,9 @@ with sync_playwright() as p:
  lifepage=b.new_page(viewport={'width':1440,'height':1000});boot(lifepage,json.dumps(life_saved,ensure_ascii=False));paused(lifepage)
  life_fx=lifepage.evaluate('simclone.worldFeedback().lifeBursts')
  check('recent birth event becomes a bounded world burst',any(x['eventId']==life_event_id and x['type']=='birth' and x['agentId']==3 for x in life_fx))
+ tap_visual(lifepage,life_person['x'],life_person['y'],30)
+ check('tapping a life-event burst opens evidence instead of selecting the Clone',lifepage.locator('#dialog').get_attribute('data-kind')=='event' and lifepage.locator('[data-event-evidence-status]').count()==1)
+ lifepage.locator('#dialog-close').click()
  achievement_saved=json.loads(saved);achievement_event_id=achievement_saved['nextEvent'];achievement_saved['nextEvent']+=1
  achievement_saved['events'].append({'id':achievement_event_id,'tick':achievement_saved['tick'],'type':'skill','text':'Nira พัฒนาทักษะ','agentId':2})
  achievementpage=b.new_page(viewport={'width':1440,'height':1000});boot(achievementpage,json.dumps(achievement_saved,ensure_ascii=False));paused(achievementpage)
@@ -102,12 +109,18 @@ with sync_playwright() as p:
  check('real communication evidence becomes a speech bubble instead of event text alone',speech is not None and speech['kind']=='speech' and speech['source']=='event' and speech['eventId']==speech_event_id and speech['label']=='ความรู้' and speech['recipientId']==3)
  check('communication link resolves sender and receiver from retained evidence',any(x['eventId']==speech_event_id and x['fromId']==2 and x['toId']==3 for x in world_story['communications']))
  check('dropped physical item is exposed as a world cue from the item ledger',any(x['itemId']==99002 and x['kind']=='HAMMER' and x['x']==10 and x['y']==10 for x in world_story['drops']))
+ tap_visual(speechpage,10,10,7)
+ check('tapping a dropped item opens item-instance provenance context',speechpage.locator('#dialog').get_attribute('data-kind')=='world-object' and '#99002' in speechpage.locator('#dialog-kicker').inner_text() and 'createdBy #2' in speechpage.locator('#dialog-body').inner_text())
+ speechpage.locator('#dialog-close').click()
  task_saved=json.loads(saved);actor=next(a for a in task_saved['agents'] if a['id']==2);node=next(n for n in task_saved['nodes'] if n['type']=='wood' and n['amount']>0)
  base_task=actor['task'] or {'policy':'survival-v3'}
  actor['task']={**base_task,'kind':'WOODCUT','targetId':node['id'],'x':node['x'],'y':node['y'],'path':[{'x':actor['x'],'y':actor['y']}] * 200,'work':0,'score':99,'started':task_saved['tick'],'policy':base_task.get('policy','survival-v3'),'fieldRest':False}
  taskpage=b.new_page(viewport={'width':1440,'height':1000});boot(taskpage,json.dumps(task_saved,ensure_ascii=False));paused(taskpage)
  taskfx=taskpage.evaluate('simclone.worldFeedback()');taskstate=snap(taskpage)
  check('resource pulse projection never invents node or task coordinates',all(any(n['id']==x['nodeId'] and n['x']==x['x'] and n['y']==x['y'] for n in taskstate['nodes']) and any(a['id']==x['agentId'] and a.get('task') and a['task'].get('targetId')==x['nodeId'] for a in taskstate['agents']) for x in taskfx['resourcePulses']))
+ tap_visual(taskpage,node['x'],node['y'],42)
+ check('tapping a resource node opens its own authoritative context',taskpage.locator('#dialog').get_attribute('data-kind')=='world-object' and 'RESOURCE' in taskpage.locator('#dialog-kicker').inner_text() and str(node['amount']) in taskpage.locator('#dialog-body').inner_text())
+ taskpage.locator('#dialog-close').click()
  speechpage.screenshot(path=str(OUT/'mobile-speech-bubble.png'))
  structure_saved=json.loads(saved);rs2=structure_saved['rustStations'];table_id=rs2['nextStation'];rs2['nextStation']+=1;furnace_id=rs2['nextStation'];rs2['nextStation']+=1
  rs2['stations'].append({'id':table_id,'kind':'CRAFTING_TABLE_LV1','buildingType':'crafting_table','x':14,'y':14,'complete':True,'placedBy':2,'placedTick':structure_saved['tick'],'structurePiece':False})
