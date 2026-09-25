@@ -133,7 +133,7 @@ function rustStation(c,st,structureCtx=null){
  }
  c.restore();
 }
-const WORLD_FEEDBACK_TICKS=12,COMMUNICATION_FEEDBACK_TICKS=18;
+const WORLD_FEEDBACK_TICKS=12,COMMUNICATION_FEEDBACK_TICKS=18,LIFE_EVENT_FEEDBACK_TICKS=24;
 const TASK_GLYPHS=Object.freeze({EAT:'●',REST:'z',BUILD:'⌂',CRAFT:'⚒',PROCESS:'♨',FORAGE:'✦',WOODCUT:'╱',MINE:'◆',EXPLORE:'…'});
 const TASK_SHORT=Object.freeze({EAT:'กิน',REST:'พัก',BUILD:'สร้าง',CRAFT:'คราฟต์',PROCESS:'เตา',FORAGE:'อาหาร',WOODCUT:'ไม้',MINE:'หิน',EXPLORE:'สำรวจ',IDLE:'พัก'});
 const EVENT_GLYPHS=Object.freeze({birth:'○',death:'†',knowledge:'↗',mentor:'↔',build:'⌂',craft:'⚒',skill:'★',career:'◇',day:'☼'});
@@ -179,15 +179,48 @@ function worldBubbleSignals(s,selectedId=null,limit=5){
 function droppedWorldItems(s){
  return (s.rustPossessions?.items??[]).filter(i=>i.location?.kind==='drop'&&Number.isFinite(i.location.x)&&Number.isFinite(i.location.y)).map(i=>({itemId:i.id,kind:i.kind,x:i.location.x,y:i.location.y,sourceAgentId:i.location.sourceAgentId??null}));
 }
+function selectedRelationshipLinks(s,selectedId){
+ const a=s.agents.find(x=>x.id===selectedId&&x.alive);if(!a)return [];
+ const rows=[];
+ if(a.parentId!==null){const p=s.agents.find(x=>x.id===a.parentId&&x.alive);if(p)rows.push({kind:'parent',fromId:p.id,toId:a.id,glyph:'⌁'});}
+ for(const l of (s.mentorship?.links??[]).filter(l=>l.endedTick===null&&(l.mentorId===a.id||l.studentId===a.id))){
+  const from=s.agents.find(x=>x.id===l.mentorId&&x.alive),to=s.agents.find(x=>x.id===l.studentId&&x.alive);if(from&&to)rows.push({kind:'mentor',fromId:from.id,toId:to.id,glyph:'↔'});
+ }
+ return rows.slice(0,3);
+}
+function recentLifeBursts(s){
+ return s.events.slice().reverse().filter(e=>s.tick>=e.tick&&s.tick-e.tick<=LIFE_EVENT_FEEDBACK_TICKS&&(e.type==='birth'||e.type==='death')).map(e=>{
+  const p=findPerson(s,e.agentId);return p&&Number.isFinite(p.x)&&Number.isFinite(p.y)?{eventId:e.id,type:e.type,agentId:p.id,x:p.x,y:p.y,glyph:e.type==='birth'?'○':'†'}:null;
+ }).filter(Boolean).slice(0,3);
+}
+function resourceTargetPulses(s,bubbles){
+ const seen=new Set(),rows=[];
+ for(const signal of bubbles){const task=s.agents.find(a=>a.id===signal.agentId)?.task,node=task&&s.nodes.find(n=>n.id===task.targetId);if(!node||seen.has(node.id))continue;seen.add(node.id);rows.push({nodeId:node.id,type:node.type,x:node.x,y:node.y,agentId:signal.agentId});}
+ return rows.slice(0,4);
+}
 function worldFeedbackSnapshot(s,selectedId=null){
  const bubbles=worldBubbleSignals(s,selectedId,innerWidth<=700?3:5),communications=recentCommunicationLinks(s);
- return {agents:bubbles.map(x=>({agentId:x.agentId,kind:s.agents.find(a=>a.id===x.agentId)?.task?.kind??null,glyph:x.glyph,reason:x.source,bubbleKind:x.kind,label:x.label,eventId:x.eventId??null,recipientId:x.recipientId??null,target:x.target??null})),bubbles,communications,drops:droppedWorldItems(s),houses:houseFeedback(s)};
+ return {agents:bubbles.map(x=>({agentId:x.agentId,kind:s.agents.find(a=>a.id===x.agentId)?.task?.kind??null,glyph:x.glyph,reason:x.source,bubbleKind:x.kind,label:x.label,eventId:x.eventId??null,recipientId:x.recipientId??null,target:x.target??null})),bubbles,communications,relationships:selectedRelationshipLinks(s,selectedId),resourcePulses:resourceTargetPulses(s,bubbles),lifeBursts:recentLifeBursts(s),drops:droppedWorldItems(s),houses:houseFeedback(s)};
 }
 function drawCommunicationLink(c,link){
  const from=state.agents.find(a=>a.id===link.fromId&&a.alive),to=state.agents.find(a=>a.id===link.toId&&a.alive);if(!from||!to)return;
  const a=proj(from.x,from.y),b=proj(to.x,to.y);c.save();c.setLineDash([3,4]);line(c,[[a.x,a.y-30],[b.x,b.y-30]],'#cfe3c596',1);c.setLineDash([]);
  const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-34;c.fillStyle='#dceadcf0';c.beginPath();c.arc(mx,my,7,0,Math.PI*2);c.fill();c.strokeStyle='#8eb69aaa';c.lineWidth=.8;c.stroke();
  c.fillStyle='#36503f';c.font='8px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(link.glyph,mx,my+.5);c.restore();
+}
+function drawRelationshipLink(c,link){
+ const from=state.agents.find(a=>a.id===link.fromId&&a.alive),to=state.agents.find(a=>a.id===link.toId&&a.alive);if(!from||!to)return;
+ const a=proj(from.x,from.y),b=proj(to.x,to.y),mentor=link.kind==='mentor';c.save();c.setLineDash(mentor?[2,3]:[6,4]);line(c,[[a.x,a.y-14],[b.x,b.y-14]],mentor?'#9fd0c49a':'#e2c79990',1.15);c.setLineDash([]);
+ const mx=(a.x+b.x)/2,my=(a.y+b.y)/2-17;c.fillStyle=mentor?'#173f37e8':'#453a28df';c.beginPath();c.arc(mx,my,6,0,Math.PI*2);c.fill();c.fillStyle='#f0dfb5';c.font='8px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(link.glyph,mx,my+.4);c.restore();
+}
+function drawResourcePulse(c,pulse,time){
+ const p=proj(pulse.x,pulse.y),phase=(Math.sin(time*.006+pulse.nodeId)+1)/2,r=9+phase*6;c.save();c.strokeStyle=pulse.type==='food'?'#d9d58f99':pulse.type==='wood'?'#c8a36f99':'#c4c8c6aa';c.lineWidth=1.1;c.beginPath();c.arc(p.x,p.y-6,r,0,Math.PI*2);c.stroke();c.restore();
+}
+function drawLifeBurst(c,burst,time){
+ const p=proj(burst.x,burst.y),age=Math.max(0,state.tick-(state.events.find(e=>e.id===burst.eventId)?.tick??state.tick)),fade=Math.max(.25,1-age/LIFE_EVENT_FEEDBACK_TICKS),phase=(Math.sin(time*.01+burst.eventId)+1)/2;c.save();c.globalAlpha=fade;
+ c.strokeStyle=burst.type==='birth'?'#e9d98c':'#b8c0c6';c.lineWidth=1;const r=12+phase*5;c.beginPath();c.arc(p.x,p.y-30,r,0,Math.PI*2);c.stroke();
+ for(let i=0;i<8;i++){const a=i*Math.PI/4;c.beginPath();c.moveTo(p.x+Math.cos(a)*(r+2),p.y-30+Math.sin(a)*(r+2));c.lineTo(p.x+Math.cos(a)*(r+7),p.y-30+Math.sin(a)*(r+7));c.stroke();}
+ c.fillStyle=burst.type==='birth'?'#f0dda4':'#d5d8d7';c.font='12px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText(burst.glyph,p.x,p.y-30);c.restore();
 }
 function drawTaskTarget(c,signal){
  const t=signal?.target;if(!t||!Number.isFinite(t.x)||!Number.isFinite(t.y))return;
@@ -217,9 +250,10 @@ function drawAgentBubble(c,signal){
  if(label){c.font='8px system-ui';c.fillText(label,x+9,y+.5);}
  c.restore();
 }
-function drawHouseFeedback(c,h){
- const p=proj(h.x,h.y),label=h.status==='blocked'?'⌂ ติดขัด':'⌂ '+h.progress+'%';c.save();c.font='9px system-ui';c.textAlign='center';
- const w=Math.max(42,c.measureText(label).width+14);c.fillStyle='#17352ae8';c.beginPath();c.roundRect(p.x-w/2,p.y-70,w,17,5);c.fill();
+function drawHouseFeedback(c,h,time){
+ const p=proj(h.x,h.y),label=h.status==='blocked'?'⌂ !':'⌂ '+h.progress+'%',phase=(Math.sin(time*.006+h.houseId)+1)/2;c.save();c.font='9px system-ui';c.textAlign='center';
+ c.strokeStyle=h.status==='blocked'?'#d69b7a88':'#e1c98b66';c.lineWidth=1;c.beginPath();c.arc(p.x,p.y-14,18+phase*7,0,Math.PI*2);c.stroke();
+ const w=Math.max(36,c.measureText(label).width+12);c.fillStyle='#17352ae8';c.beginPath();c.roundRect(p.x-w/2,p.y-70,w,17,5);c.fill();
  c.strokeStyle=h.status==='blocked'?'#d69b7a99':'#e1c98b99';c.lineWidth=.8;c.stroke();c.fillStyle='#efe0b8';c.fillText(label,p.x,p.y-58);c.restore();
 }
 function person(c,a,time,bubble=null){
@@ -278,11 +312,14 @@ function render(time){
  const a=state.agents.find(a=>a.id===selected&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
  const structureCtx=structureRenderContext(),bubbles=worldBubbleSignals(state,selected,innerWidth<=700?3:5),bubbleMap=new Map(bubbles.map(x=>[x.agentId,x]));
+ for(const link of selectedRelationshipLinks(state,selected))drawRelationshipLink(ctx,link);
  for(const link of recentCommunicationLinks(state))drawCommunicationLink(ctx,link);
  const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...droppedWorldItems(state).map(item=>({kind:'drop-item',data:item,depth:item.x+item.y+.15})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
  for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else if(o.kind==='drop-item')drawDroppedItem(ctx,o.data);else person(ctx,o.data,time,bubbleMap.get(o.data.id)??null);}
+ for(const pulse of resourceTargetPulses(state,bubbles))drawResourcePulse(ctx,pulse,time);
  for(const signal of bubbles)drawTaskTarget(ctx,signal);
- for(const h of houseFeedback(state))drawHouseFeedback(ctx,h);
+ for(const burst of recentLifeBursts(state))drawLifeBurst(ctx,burst,time);
+ for(const h of houseFeedback(state))drawHouseFeedback(ctx,h,time);
  if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
  ctx.restore();
  const h=hour(state);if(h>=19||h<6){ctx.fillStyle='#10294460';ctx.fillRect(0,0,cw,ch);}
