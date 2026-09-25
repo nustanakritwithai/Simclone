@@ -54,6 +54,16 @@ test('population pressure autonomously completes one modular house while full RP
   assert.deepEqual(validate(s),[]);
 });
 
+test('public seed visibly completes modular housing by the end of day 6 without enabling full RP1',()=>{
+  const s=createWorld(230926);
+  assert.equal(s.productionPlan.enabled,false);
+  step(s,6*360);
+  assert.ok(s.agents.filter(a=>a.alive).length>=7,'expected natural population pressure');
+  assert.ok(evaluateModularHouses(s).houses.some(h=>h.complete),'expected a visible complete modular house by day 6');
+  assert.equal(s.productionPlan.enabled,false);
+  assert.deepEqual(validate(s),[]);
+});
+
 test('RP1 save/load mid-chain resumes without duplicate station or recipe outputs',()=>{
   let s=createWorld(9191);
   command(s,'SET_PRODUCTION_POLICY',{enabled:true});
