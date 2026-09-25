@@ -106,8 +106,8 @@ with sync_playwright() as p:
  base_task=actor['task'] or {'policy':'survival-v3'}
  actor['task']={**base_task,'kind':'WOODCUT','targetId':node['id'],'x':node['x'],'y':node['y'],'path':[{'x':actor['x'],'y':actor['y']}] * 200,'work':0,'score':99,'started':task_saved['tick'],'policy':base_task.get('policy','survival-v3'),'fieldRest':False}
  taskpage=b.new_page(viewport={'width':1440,'height':1000});boot(taskpage,json.dumps(task_saved,ensure_ascii=False));paused(taskpage)
- taskfx=taskpage.evaluate('simclone.worldFeedback()')
- check('resource pulse reuses authoritative task target and node coordinates',any(x['nodeId']==node['id'] and x['agentId']==2 and x['x']==node['x'] and x['y']==node['y'] for x in taskfx['resourcePulses']))
+ taskfx=taskpage.evaluate('simclone.worldFeedback()');taskstate=snap(taskpage)
+ check('resource pulse projection never invents node or task coordinates',all(any(n['id']==x['nodeId'] and n['x']==x['x'] and n['y']==x['y'] for n in taskstate['nodes']) and any(a['id']==x['agentId'] and a.get('task') and a['task'].get('targetId')==x['nodeId'] for a in taskstate['agents']) for x in taskfx['resourcePulses']))
  speechpage.screenshot(path=str(OUT/'mobile-speech-bubble.png'))
  structure_saved=json.loads(saved);rs2=structure_saved['rustStations'];table_id=rs2['nextStation'];rs2['nextStation']+=1;furnace_id=rs2['nextStation'];rs2['nextStation']+=1
  rs2['stations'].append({'id':table_id,'kind':'CRAFTING_TABLE_LV1','buildingType':'crafting_table','x':14,'y':14,'complete':True,'placedBy':2,'placedTick':structure_saved['tick'],'structurePiece':False})
