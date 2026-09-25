@@ -29,7 +29,7 @@ Move Simclone toward individual-first simulation without merging colony-first as
 
 ## Current validation state
 
-Candidate only. Tests have been authored but exact CI evidence is not yet recorded. UNKNOWN is not PASS.
+Candidate only. Verify run #36195204872 found one IC1 test-fixture validation gap: the two-owner proof attempted PLACE_STATION before moving the second founder into interaction range. Runtime authority correctly rejected the out-of-range placement. The fixture now follows the real sequence: choose personal site → move founder to site → PLACE_STATION. Exact replacement CI evidence is still required. UNKNOWN is not PASS.
 
 ## Next step
 
