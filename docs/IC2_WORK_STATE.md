@@ -1,18 +1,23 @@
 # IC2 — Personal Autonomous Home Planning Work State
 
-Status: PREPARED / STACKED ON IC1  
-Branch: `feature/independent-clone-world-ic2`  
-Base dependency: `feature/independent-clone-world-ic1`  
+Status: IMPLEMENTATION CANDIDATE  
+Branch: `feature/independent-clone-world-ic2-main`  
+Base: `main@3139e979b4446fd3f9873bb8b6fbbfae5ee6248d` with IC1 merged  
 Success Contract: `docs/IC2_PERSONAL_HOME_SUCCESS_CONTRACT.md`
 
 ## Goal
 
-Prepare the next individual-first gameplay slice without activating it before IC1 is verified.
+Let an explicitly enabled full-RP1 world progress one productive homeless Clone at a time toward that person's own modular home while reusing existing Rust and engine authorities.
 
-## Completed preparation
+## Implemented candidate
 
-- Pure planner module: `src/individual-home-planning.mjs`
-- Deterministic intent matrix:
+- Pure planner: `src/individual-home-planning.mjs`
+- IC1 personal ownership/site projection reused from `src/individual-housing.mjs`
+- Personal placement projection: `pendingPersonalPlacements()`
+- Full RP1 bounded coordinator in `src/production-planning.mjs`
+- Engine BUILD candidates use personal placement only when full RP1 is enabled.
+- Default housing-only autonomy remains the legacy settlement-pressure path.
+- Planner/coordinator intents:
   - INELIGIBLE
   - HOME_COMPLETE
   - NO_SITE
@@ -21,39 +26,58 @@ Prepare the next individual-first gameplay slice without activating it before IC
   - NEED_MATERIALS
   - CRAFT_PIECE
   - PLACE_PIECE
-- Planner reads IC1 home/site projection and existing Rust catalog/possession/equipment state.
-- Planner performs no mutation and creates no ledger.
-- Unit test matrix authored in `tests/individual-home-planning.test.mjs`.
-- Game Studio runtime correlation contract added to `docs/INDEPENDENT_CLONE_GAME_STUDIO_SCENARIOS.md`.
-- Runtime import map pinned for the new planner module.
+- No direct placement by the coordinator; physical construction remains:
+  `BUILD task → command(PLACE_STATION) → Rust validator/executor`.
+- No new item/material/building/ownership ledger.
+- No save-version change.
+- No birth/Camp/global-stock/UI change.
 
-## Not activated
+## Authored proof
 
-IC2 currently does **not**:
-- call the planner from `engine.step`;
-- alter RP1;
-- issue `CRAFT_ITEM`, `EQUIP_ITEM` or `PLACE_STATION`;
-- alter birth, Camp, global stock, save schema or UI.
+- `tests/individual-home-planning.test.mjs`
+  - pure intent matrix
+  - another person's bag does not count
+  - planner read-only
+  - child stage-ineligible
+- `tests/individual-home-integration.test.mjs`
+  - personal Hammer order even when another Clone has a Hammer
+  - personal piece craft order
+  - personal placement projection
+  - engine BUILD places founding Foundation for the same owner
+- Game Studio correlation contract:
+  `docs/INDEPENDENT_CLONE_GAME_STUDIO_SCENARIOS.md`
 
-## Activation sequence after IC1 SAT
+## Authority boundary
 
-1. Verify pure planner tests.
-2. Add a bounded IC2 coordinator that consumes exactly one planner intent per eligible homeless adult.
-3. Route mutations only through existing engine/Rust commands.
-4. Reuse existing task execution for physical BUILD placement.
-5. Add deterministic two-person proof: each person completes their own house.
-6. Add save/load continuation proof mid-home-plan.
-7. Add Game Studio capture when `game-dev` is available.
+```text
+personalHomeIntent (read-only)
+→ bounded IC2 coordinator
+→ existing CRAFT_ITEM / EQUIP_ITEM
+→ existing scheduler / BUILD candidate
+→ existing PLACE_STATION
+→ IC1 evidence-derived owner
+```
+
+Planner intent is never execution authority. Rust validation is final.
+
+## Remaining candidate gates
+
+1. Regenerate runtime source pins for changed modules.
+2. Exact candidate CI.
+3. Existing regression suites remain green.
+4. Add save/load continuation proof mid-personal-home loop if the first candidate is otherwise SAT.
+5. Add deterministic two-owner full-completion proof before changing default autonomy in IC3.
+6. Game Studio sealed run remains UNKNOWN until `game-dev` is available.
 
 ## Risks to watch
 
-- A global crafting table/Hammer chain can accidentally reintroduce colony-first ownership.
-- Shared stock is still migration compatibility, not the target personal economy.
-- A helper must not steal ownership from the founding foundation owner.
-- Children must remain stage-ineligible.
-- RP1 and IC2 must never both order the same personal piece in one tick.
-- Planner intent must be revalidated at execution time; intent is not authority.
+- Full RP1 still uses shared stock and shared infrastructure as migration compatibility.
+- Default housing-only behavior is intentionally not individual-first yet.
+- One blocked person must not create a second executor workaround.
+- Helpers must not steal founding ownership.
+- Children remain stage-ineligible.
+- No RP1/global placement path may consume a personal carried piece while full RP1 is active.
 
 ## Validation state
 
-Prepared source only. CI/runtime evidence is not yet accepted. UNKNOWN is not PASS.
+Implementation candidate. Exact CI/runtime evidence is not yet recorded. UNKNOWN is not PASS.
