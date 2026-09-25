@@ -4,7 +4,7 @@ export const HISTORY_LIMITS=Object.freeze({
   hotRecords:64,
   maxImportedHotRecords:200,
   maxRetained:1024,
-  maxArchiveCharacters:2700000,
+  maxArchiveCharacters:2400000,
   maxSaveCharacters:2500000,
 });
 export const retainedCount=s=>s.agents.length+(s.archive?.length??0);
