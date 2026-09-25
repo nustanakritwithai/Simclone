@@ -1,0 +1,39 @@
+name: Verify public Rust release 3096da3b
+
+on:
+  push:
+    branches: ["verify/live-rust-release-20260925"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout verification-only branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 3
+      - name: Prove runtime is unchanged from deployed release
+        run: git diff --exit-code 3096da3b50864c74aa0870511ac09f3845aeeb08 -- src index.html
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install native browser verification tools
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Verify real public HTTPS, crafting, construction and native save reload
+        run: python -u scripts/live-rust-release-proof.py
+      - name: Retain screenshots and machine-readable release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-rust-release-3096da3b
+          path: evidence-live-rust/
+          if-no-files-found: warn
+          retention-days: 14
