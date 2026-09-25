@@ -50,6 +50,11 @@ with sync_playwright() as p:
  reloadpage=b.new_page(viewport={'width':1440,'height':1000});boot(reloadpage,saved)
  check('old save schema retained and reload works with storage double',len(snap(reloadpage)['agents'])==7)
  check('death history sub-schema persists through reload',snap(reloadpage)['historyVersion']=='0.1.0')
+ unknown_saved=json.loads(saved);unknown_event_id=unknown_saved['nextEvent'];unknown_saved['nextEvent']+=1
+ unknown_saved['events'].append({'id':unknown_event_id,'tick':0,'type':'build','text':'legacy build without retained placement evidence','agentId':2})
+ unknownpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(unknownpage,json.dumps(unknown_saved,ensure_ascii=False));paused(unknownpage)
+ unknownpage.locator('[data-nav="history"]').tap();unknownpage.locator('[data-history-filter="build"]').tap();unknownpage.locator(f'[data-story="{unknown_event_id}"]').tap()
+ check('missing historical cause stays explicit UNKNOWN',unknownpage.locator('[data-event-evidence-status="UNKNOWN"]').count()==1 and 'UNKNOWN ไม่ถูกนับเป็นเหตุผลย้อนหลัง' in unknownpage.locator('#dialog-body').inner_text())
  feedback_saved=json.loads(saved);rs=feedback_saved['rustStations'];fid=rs['nextStation'];rs['nextStation']+=1
  feedback_item_id=99001
  rs['stations'].append({'id':fid,'kind':'WOOD_FOUNDATION','buildingType':'wood_foundation','x':14,'y':11,'complete':True,'placedBy':2,'placedTick':feedback_saved['tick'],'structurePiece':True,'socket':{'type':'cell','x':14,'y':11,'level':0},'sourceItemId':feedback_item_id,'placementId':'ui-v07-foundation'})
@@ -113,6 +118,15 @@ with sync_playwright() as p:
  worldsim_catalog=m.locator('.system-catalog').filter(has_text='WorldSim / นิเวศ')
  worldsim_catalog.locator('summary').tap()
  check('nested WorldSim catalog reveals hidden systems on demand',worldsim_catalog.evaluate('(e)=>e.open') and 'Climate' in worldsim_catalog.inner_text() and 'Hydrology' in worldsim_catalog.inner_text())
+ m.locator('#dialog-close').tap()
+ m.locator('[data-nav="history"]').tap();m.locator('[data-history-filter="birth"]').tap()
+ birth_event=m.locator('.history-event').first
+ check('Chronicle exposes event evidence drill-down',birth_event.count()==1 and 'ดูเหตุ' in birth_event.inner_text())
+ birth_event.tap()
+ check('birth event resolves lineage as evidence',m.locator('[data-event-evidence-status="EVIDENCE"]').count()==1 and 'agent identity / lineage' in m.locator('#dialog-body').inner_text() and 'bornTick + parentId + generation' in m.locator('#dialog-body').inner_text())
+ check('event detail keeps Chronicle navigation active',m.locator('[data-nav="history"]').get_attribute('aria-current')=='page')
+ check('event detail can jump to related clone',m.locator('[data-ux="event-agent"]').count()==1)
+ m.locator('[data-ux="event-back"]').tap();check('event detail returns to Chronicle list',m.locator('#history-list').count()==1)
  m.locator('#dialog-close').tap()
  m.screenshot(path=str(OUT/'mobile-world.png'))
  m.locator('[data-quick-person="2"]').tap()
