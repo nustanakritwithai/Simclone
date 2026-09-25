@@ -279,11 +279,13 @@ function interrupt(s,a){
   if(a.satiety<RULES.hungry&&!['EAT','FORAGE'].includes(t.kind))return true;
   return a.energy<RULES.exhausted&&a.satiety>=RULES.hungry&&t.kind!=='REST';
 }
-export function step(s,count=1){
+export function step(s,count=1,options={}){
   if(!Number.isInteger(count)||count<0||count>100000)throw new Error('Invalid tick count');
+  const resourceRegenerationMode=options?.resourceRegenerationMode??'ecology';
+  if(!['ecology','legacy'].includes(resourceRegenerationMode))throw new Error('Invalid resource regeneration mode');
   for(let i=0;i<count;i++){
     s.tick++;
-    applyWorldResourceRegeneration(s);
+    applyWorldResourceRegeneration(s,{foodMode:resourceRegenerationMode});
     for(const a of s.agents){
       if(!a.alive)continue;
       a.satiety=clamp(a.satiety-.11);a.energy=clamp(a.energy-.06);

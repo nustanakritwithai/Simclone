@@ -7,7 +7,7 @@ test('food ecology calibration is deterministic and read-only',()=>{
   const s=createWorld(230926),before=serialize(s);
   const a=calibrateFoodEcology(s),b=calibrateFoodEcology(s);
   assert.deepEqual(a,b);assert.equal(serialize(s),before);
-  assert.equal(a.authority.writer,'worldsim-wm4.1');
+  assert.equal(a.authority.writer,'worldsim-wm4.5');
   assert.equal(a.authority.mutatesNodes,false);
   assert.equal(a.authority.unitFormula,'none');
 });
@@ -30,7 +30,7 @@ test('relative rank is monotonic with raw ecology potential',()=>{
 
 test('equal raw potentials receive the same deterministic midpoint rank',()=>{
   const fakeImpact={
-    authority:{writer:'worldsim-wm4.1'},
+    authority:{writer:'worldsim-wm4.5'},
     summary:{p10:.1,p50:.1,p90:.1},
     rows:[
       {id:1,x:0,y:0,ecologyRegenerationPotential:.1,missing:3,legacyIncrement:3},

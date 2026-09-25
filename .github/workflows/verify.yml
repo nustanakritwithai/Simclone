@@ -22,6 +22,9 @@ jobs:
       - name: Verify engine, persistence and local assets
         run: npm test
 
+      - name: Verify WM4.5 ecology authority A/B proof
+        run: npm run test:ecology
+
       - name: Verify Survival Core regression suite
         run: npm run test:survival
 

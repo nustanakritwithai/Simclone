@@ -10,6 +10,7 @@
     "test:death": "node scripts/death-proof.mjs",
     "test:continuity": "node scripts/continuity-proof.mjs && node scripts/history-proof.mjs",
     "test:history": "node scripts/history-proof.mjs",
-    "test:native": "python tests/history_storage.py"
+    "test:native": "python tests/history_storage.py",
+    "test:ecology": "node scripts/worldsim-food-ecology-authority-proof.mjs"
   }
 }

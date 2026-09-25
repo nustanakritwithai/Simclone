@@ -11,7 +11,7 @@ test('WM4.0 captures exact K6 regeneration contract',()=>{
 
 test('regeneration observer reports WorldSim writer and stays read-only',()=>{
   const s=createWorld(230926),before=serialize(s),x=createResourceRegenerationShadow(s);
-  assert.equal(x.authority.writer,'worldsim-wm4.1');assert.equal(x.authority.worldsimMutation,false);
+  assert.equal(x.authority.writer,'worldsim-wm4.5');assert.equal(x.authority.worldsimMutation,false);
   assert.equal(serialize(s),before);
 });
 
@@ -66,5 +66,5 @@ test('full nodes propose zero increment even on a regeneration boundary',()=>{
 test('every regeneration observer row names the WM4.1 WorldSim writer',()=>{
   const x=createResourceRegenerationShadow(createWorld(8080));
   assert.ok(x.rows.length>0);
-  assert.ok(x.rows.every(r=>r.authoritativeWriter==='worldsim-wm4.1'));
+  assert.ok(x.rows.every(r=>r.authoritativeWriter==='worldsim-wm4.5'));
 });
