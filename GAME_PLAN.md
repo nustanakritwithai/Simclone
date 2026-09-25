@@ -690,6 +690,12 @@ Do not:
 - persist a second thought/dialogue history just for UI
 - let bubbles write simulation state
 
+Additional world-story cues:
+- **Communication link** → a short-lived line may connect sender and receiver only when retained message/Mentor evidence identifies both agents.
+- **Task target marker** → selected/recent productive work may show a small pictogram at the authoritative `task.x/y` destination.
+- **Dropped item marker** → physical dropped Rust items are rendered from the existing item ledger and its `location.x/y`.
+- These cues are projections, not additional ownership or history.
+
 ---
 
 ## World Feedback
