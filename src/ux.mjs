@@ -31,17 +31,29 @@ const paths={
  help:'<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 5m0 3v.1"/>',
  map:'<path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2ZM9 3v16M15 5v16"/>',
  hammer:'<path d="M14 4 20 10M11 7l6 6M5 21l8-8M3 19l2 2M10 4l3-2 9 9-2 3-3-3-7 7-4-4 7-7Z"/>',
- brain:'<path d="M12 4c-5-4-9 1-7 4-4 2-3 7 0 7-1 5 5 7 7 3m0-14c5-4 9 1 7 4 4 2 3 7 0 7 1 5-5 7-7 3ZM12 4v14M5 8l3 2M19 8l-3 2M5 15l3-2M19 15l-3-2"/>'
+ brain:'<path d="M12 4c-5-4-9 1-7 4-4 2-3 7 0 7-1 5 5 7 7 3m0-14c5-4 9 1 7 4 4 2 3 7 0 7 1 5-5 7-7 3ZM12 4v14M5 8l3 2M19 8l-3 2M5 15l3-2M19 15l-3-2"/>',
+ bag:'<path d="M5 8h14l1 13H4L5 8Zm4 0V6a3 3 0 0 1 6 0v2"/>',
+ book:'<path d="M4 4h6a3 3 0 0 1 3 3v13a3 3 0 0 0-3-3H4V4Zm16 0h-6a3 3 0 0 0-3 3v13a3 3 0 0 1 3-3h6V4Z"/>',
+ link:'<path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/>',
+ skull:'<path d="M5 11a7 7 0 1 1 14 0c0 3-1 5-3 6v3H8v-3c-2-1-3-3-3-6Z"/><circle cx="9" cy="11" r="1"/><circle cx="15" cy="11" r="1"/><path d="M10 15h4M10 20v-2m4 2v-2"/>',
+ sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M19 5l-1.5 1.5m-11 11L5 19"/>',
+ fire:'<path d="M13 2c1 4-2 5-1 8 1 2 4 1 4-2 3 3 4 6 2 10-2 4-8 5-11 1-3-4-1-8 2-10 0 3 2 4 3 2-1-3 2-5 1-9Z"/>'
 };
 export const icon=name=>`<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths[name]||paths.eye}</svg>`;
 const events={birth:'ชีวิตใหม่',skill:'พัฒนาทักษะ',knowledge:'ถ่ายทอดความรู้',mentor:'Mentor',build:'สิ่งปลูกสร้าง',craft:'คราฟต์/แปรรูป',career:'เปลี่ยนอาชีพ',death:'สูญเสีย',day:'วันใหม่'};
+const eventIcons={birth:'clone',skill:'bolt',knowledge:'book',mentor:'link',build:'home',craft:'hammer',career:'people',death:'skull',day:'sun'};
+const systemIcons={lifecycle:'heart',housing:'home',production:'hammer',inventory:'bag',knowledge:'brain',ecology:'leaf',kingdom:'people'};
+const tabIcons={about:'eye',inventory:'bag',skills:'bolt',why:'brain',knowledge:'book',social:'link',memory:'history'};
+const itemIconKind=kind=>kind==='STONE_AXE'?'wood':kind==='STONE_PICKAXE'?'stone':kind==='HAMMER'?'hammer':kind==='FURNACE'?'fire':kind==='CRAFTING_TABLE_LV1'?'hammer':['WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF'].includes(kind)?'home':'bag';
+const visualToken=(name,label='')=>'<span class="visual-token" aria-hidden="true">'+icon(name)+'</span>'+(label?'<span class="visual-label">'+escape(label)+'</span>':'');
+
 const roles={FORAGE:'หาอาหาร',WOODCUT:'ตัดไม้',MINE:'ขุดหิน',BUILD:'ก่อสร้าง'};
 const rustStationLabels={HAND:'ทำด้วยมือ',CRAFTING_TABLE_LV1:'โต๊ะคราฟต์ Lv1',FURNACE:'เตาหลอม'};
 function rustCatalog(s){
  const items=s.rustPossessions?.items??[],stations=s.rustStations?.stations??[];
- return '<details class="score-details" open><summary>ไอเทม Rust ที่ใช้งานได้ตอนนี้ · '+Object.keys(ITEM_CATALOG).length+' ชนิด</summary>'+
- Object.values(RECIPE_CATALOG).map(r=>{const item=ITEM_CATALOG[r.output],placed=item.stationProvided?stations.filter(st=>st.kind===item.stationProvided).length:0,owned=items.filter(i=>i.kind===item.id).length+placed,cost=Object.entries(r.materials).map(([k,n])=>(k==='wood'?'ไม้':'หิน')+' '+n).join(' + ');return '<div class="memory-item" data-rust-catalog-item="'+escape(item.id)+'"><b>'+escape(item.name)+'</b><small>'+(item.category==='tool'?'เครื่องมือ':item.structurePiece?'ชิ้นส่วนอาคาร':'สถานี')+' · '+cost+' · '+escape(rustStationLabels[r.station]??r.station)+' · มีในโลก '+owned+'</small></div>';}).join('')+
- '</details>';
+ return '<details class="score-details" open><summary>'+icon('bag')+' <span>Rust · '+Object.keys(ITEM_CATALOG).length+'</span></summary><div class="visual-item-grid">'+
+ Object.values(RECIPE_CATALOG).map(r=>{const item=ITEM_CATALOG[r.output],placed=item.stationProvided?stations.filter(st=>st.kind===item.stationProvided).length:0,owned=items.filter(i=>i.kind===item.id).length+placed,cost=Object.entries(r.materials).map(([k,n])=>(k==='wood'?'🪵':'◆')+n).join(' ');return '<div class="visual-item" data-rust-catalog-item="'+escape(item.id)+'">'+visualToken(itemIconKind(item.id))+'<b>'+escape(item.name)+'</b><span class="visual-value">'+owned+'</span><small>'+cost+'</small></div>';}).join('')+
+ '</div></details>';
 }
 function rustPanel(s,api){
  const selected=api.read().selected,actor=s.agents.find(a=>a.id===selected&&a.alive);
@@ -67,12 +79,12 @@ function rustPanel(s,api){
 function personalInventoryPanel(s,a){
  const items=s.rustPossessions?.items??[],bag=items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===a.id).sort((x,y)=>x.id-y.id);
  const equippedId=s.rustPossessions?.equipment?.find(e=>e.agentId===a.id)?.itemId??null,equipped=bag.find(i=>i.id===equippedId)??null;
- const slots=Array.from({length:4},(_,slot)=>{const item=bag[slot];if(!item)return '<div class="memory-item" data-inventory-slot="'+slot+'"><small>ช่อง '+(slot+1)+'</small><b>ว่าง</b></div>';
-  const def=ITEM_CATALOG[item.kind],action=a.alive&&def?.category==='tool'?(equippedId===item.id?'<button class="secondary" data-ux="unequip-item">ถอดจากช่องมือ</button>':'<button class="secondary" data-ux="equip-item" data-item="'+item.id+'">สวมช่องมือ</button>'):'';
-  return '<div class="memory-item" data-inventory-slot="'+slot+'" data-item-id="'+item.id+'"><small>ช่อง '+(slot+1)+' · #'+item.id+'</small><b>'+escape(def?.name??item.kind)+'</b><p class="source-note">'+escape(def?.category==='tool'?'เครื่องมือ · ช่องมือ':def?.structurePiece?'ชิ้นส่วนอาคาร':'ของติดตัว')+'</p>'+action+'</div>';}).join('');
+ const slots=Array.from({length:4},(_,slot)=>{const item=bag[slot];if(!item)return '<div class="visual-inventory-slot is-empty" data-inventory-slot="'+slot+'" aria-label="ช่อง '+(slot+1)+' ว่าง">'+visualToken('bag')+'<small>'+(slot+1)+'</small></div>';
+  const def=ITEM_CATALOG[item.kind],action=a.alive&&def?.category==='tool'?(equippedId===item.id?'<button class="icon-action secondary" data-ux="unequip-item" aria-label="ถอด '+escape(def.name)+'">'+icon('close')+'</button>':'<button class="icon-action secondary" data-ux="equip-item" data-item="'+item.id+'" aria-label="สวม '+escape(def.name)+'">'+icon('bolt')+'</button>'):'';
+  return '<div class="visual-inventory-slot" data-inventory-slot="'+slot+'" data-item-id="'+item.id+'" aria-label="'+escape(def?.name??item.kind)+'">'+visualToken(itemIconKind(item.kind))+'<b>'+escape(def?.name??item.kind)+'</b><small>#'+item.id+'</small>'+action+'</div>';}).join('');
  const hand=equipped?escape(ITEM_CATALOG[equipped.kind]?.name??equipped.kind)+' #'+equipped.id:'ว่าง';
  return '<div class="life-summary"><div><small>กระเป๋าส่วนตัว</small><b>'+bag.length+' / 4 ช่อง</b></div><div><small>อุปกรณ์ · มือ</small><b>'+hand+'</b></div></div>'+
-  '<div data-personal-inventory="'+a.id+'">'+slots+'</div>'+
+  '<div class="visual-inventory-grid" data-personal-inventory="'+a.id+'">'+slots+'</div>'+
   '<p class="source-note">ของเป็นของ Clone คนนี้ตาม item instance จริง · อุปกรณ์ที่สวมยังอยู่ในกระเป๋าและใช้ช่องเดิม · ตอนนี้มีช่องอุปกรณ์มือ 1 ช่องสำหรับ Stone Axe / Stone Pickaxe / Hammer</p>';
 }
 
