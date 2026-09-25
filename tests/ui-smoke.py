@@ -62,8 +62,15 @@ with sync_playwright() as p:
  feedbackpage=b.new_page(viewport={'width':1440,'height':1000});boot(feedbackpage,json.dumps(feedback_saved,ensure_ascii=False));paused(feedbackpage)
  wf=feedbackpage.evaluate('simclone.worldFeedback()')
  check('world feedback exposes selected clone marker without a second state source',any(x['agentId']==2 and x['reason']=='selected' for x in wf['agents']))
+ check('selected clone uses a thought-cloud projection in the world',any(x['agentId']==2 and x['kind']=='thought' and x['source']=='selected' for x in wf['bubbles']))
  check('modular housing progress is derived from the canonical house evaluator',len(wf['houses'])==1 and wf['houses'][0]['status']=='building' and 0<wf['houses'][0]['progress']<100 and wf['houses'][0]['missing']==5)
  feedbackpage.screenshot(path=str(OUT/'desktop-world-feedback.png'))
+ speech_saved=json.loads(saved);speech_event_id=speech_saved['nextEvent'];speech_saved['nextEvent']+=1
+ speech_saved['events'].append({'id':speech_event_id,'tick':speech_saved['tick'],'type':'knowledge','text':'Nira ถ่ายทอด resource:test ให้ Kira','agentId':2})
+ speechpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(speechpage,json.dumps(speech_saved,ensure_ascii=False));paused(speechpage)
+ speech=next((x for x in speechpage.evaluate('simclone.worldFeedback().bubbles') if x['agentId']==2),None)
+ check('real communication event becomes a speech bubble instead of invented dialogue',speech is not None and speech['kind']=='speech' and speech['source']=='event' and speech['eventId']==speech_event_id and speech['label']=='ความรู้')
+ speechpage.screenshot(path=str(OUT/'mobile-speech-bubble.png'))
 
  inventory_saved=json.loads(saved)
  inventory_saved['rustPossessions']['items']=[{'id':1,'kind':'STONE_AXE','createdBy':2,'createdTick':inventory_saved['tick'],'location':{'kind':'bag','agentId':2}}]
@@ -102,6 +109,7 @@ with sync_playwright() as p:
  check('mobile quick character rail and SVG dock present (5 tabs, no build tab)',m.locator('#people-rail').is_visible() and m.locator('.mobile-nav .ui-icon').count()==5 and m.locator('[data-nav="build"]').count()==0)
  check('mobile page no horizontal overflow',no_overflow(m))
  check('fresh world surfaces recent AI decisions transiently without selecting a clone',len(m.evaluate('simclone.worldFeedback().agents'))>=1)
+ check('mobile diegetic UI caps simultaneous world bubbles',len(m.evaluate('simclone.worldFeedback().bubbles'))<=3)
  check('systems replaces manual clone in primary mobile navigation',m.locator('[data-nav="systems"]').count()==1 and m.locator('[data-nav="clone"]').count()==0)
  check('world keeps one compact AI autonomy decision surface',m.locator('#autonomy-status').is_visible() and 'AI AUTONOMY' in m.locator('#autonomy-status').inner_text())
  m.locator('#autonomy-status').tap()
