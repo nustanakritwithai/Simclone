@@ -24,6 +24,10 @@ Contract and evidence rules: [KNOWLEDGE_CONTINUITY_1](KNOWLEDGE_CONTINUITY_1.md)
 
 Physical crafting/possessions/stations and the first furnace process are now wired into the authoritative fixed-step scheduler. Materials are committed once at order acceptance, task interruptions retain the order, save/load preserves work, placed stations are visible in-world, and tools affect the matching productive work rate. See [RUST_SURVIVAL_RS1_RS4_INTEGRATED](RUST_SURVIVAL_RS1_RS4_INTEGRATED.md). This remains a candidate until exact-head CI and exact-main Pages are green.
 
+## Production Planning RP1 candidate
+
+RP1 is an explicit opt-in deterministic coordinator over the Rust command layer. It can autonomously request the bounded tool/station/charcoal chain, but all material commitment, movement, work completion, placement and interruption remain authoritative in the existing engine/Rust runtime. See [PRODUCTION_PLANNING_RP1](PRODUCTION_PLANNING_RP1.md). It is not released until exact-head CI and merged-main Pages are green.
+
 ## Authority map
 
 | Area | Actual owner / activation |
@@ -37,6 +41,7 @@ Physical crafting/possessions/stations and the first furnace process are now wir
 | Personal belief | Owned evidence; never equated with global world truth |
 | Cultural publication | Explicit camp archive, not an omniscient library |
 | Rust crafting / possessions / stations | RS1–RS4 integrated command + scheduler path; bounded physical items and stations |
+| Production chain RP1 | Opt-in deterministic coordinator; issues validated Rust commands only |
 | Charcoal | Furnace authority: committed Wood 2 -> timed work -> Charcoal 1 |
 | Tool speed | Stone Axe WOODCUT ×1.25; Stone Pickaxe MINE ×1.25; Hammer BUILD ×1 |
 | UI | Observation and validated command dispatch, not simulation rules |

@@ -13,6 +13,7 @@ import {professionForAction,professionLabel,ensureProfession,isKingdomProfession
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {ensureRustState,rustCommand,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
+import {ensureProductionPlan,productionCommand,stepProductionPlanning,validateProductionPlan} from './production-planning.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
@@ -76,7 +77,7 @@ function killAgent(s,a,cause){
 export function createWorld(seed=230926){
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
-  ensureRustState(s);
+  ensureRustState(s);ensureProductionPlan(s);
   let nid=1;
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
     const river=20+Math.round(Math.sin(y*.26)*2), wet=x>=river&&x<river+3;
@@ -99,6 +100,7 @@ export const capacity = s => s.buildings.filter(b=>b.complete).length*6;
 export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){
+  const production=productionCommand(s,type,data);if(production)return production;
   const rust=rustCommand(s,type,data,walkable);if(rust)return rust;
   const cultural=cultureCommand(s,type,data);if(cultural)return cultural;
   if(type==='SET_PLANNING_POLICY')return setPlanningPolicy(s,data.policy);
@@ -289,6 +291,7 @@ export function step(s,count=1){
       ageKnowledge(a,s.tick);
       if(a.task&&interrupt(s,a)){a.task=null;a.moveTick=0;}
     }
+    stepProductionPlanning(s,walkable);
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
     const agents=living(s),rotation=s.tick%Math.max(1,agents.length);
@@ -381,6 +384,7 @@ export function validate(s){
   for(const e of validatePersonalPlanning(s))bad(e);
   for(const e of validateCulture(s))bad(e);
   for(const e of validateRustState(s))bad(e);
+  for(const e of validateProductionPlan(s))bad(e);
   return errors;
 }
 function deathCauseFromText(text){
@@ -434,14 +438,14 @@ function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
-  if(sourceVersion===SAVE_VERSION){ensureRustState(s);return s;}
+  if(sourceVersion===SAVE_VERSION){ensureRustState(s);ensureProductionPlan(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
-    migrateKnowledge(s);ensureRustState(s);s.version=SAVE_VERSION;return s;
+    migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);s.version=SAVE_VERSION;return s;
   }
   if(sourceVersion===HISTORY_ARCHIVE_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
-    migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);s.version=SAVE_VERSION;return s;
+    migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);s.version=SAVE_VERSION;return s;
   }
   if(![LEGACY_SAVE_VERSION,DEATH_HISTORY_SAVE_VERSION].includes(sourceVersion))return s;
   if(s.archive!==undefined||s.archiveVersion!==undefined)throw new Error('Unexpected archive in legacy save');
@@ -454,7 +458,7 @@ function migrateSave(s){
   if(Array.isArray(s.agents))for(const a of s.agents)if(a?.alive===false&&a.hp===0){a.task=null;a.moveTick=0;}
   migrateHistory(s,sourceVersion);
   s.archiveVersion=ARCHIVE_VERSION;s.archive=[];
-  migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);s.version=SAVE_VERSION;
+  migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);s.version=SAVE_VERSION;
   return s;
 }
 export function restore(text){
