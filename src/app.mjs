@@ -133,6 +133,31 @@ function rustStation(c,st,structureCtx=null){
  }
  c.restore();
 }
+const WORLD_FEEDBACK_TICKS=12;
+const TASK_GLYPHS=Object.freeze({EAT:'●',REST:'z',BUILD:'⌂',CRAFT:'⚒',PROCESS:'♨',FORAGE:'✦',WOODCUT:'╱',MINE:'◆',EXPLORE:'…'});
+function houseFeedback(s){
+ return evaluateModularHouses(s).houses.filter(h=>!h.complete).map(h=>{
+  const cells=new Set(h.cells.map(c=>c.x+':'+c.y));let perimeter=0;
+  for(const cell of h.cells)for(const [dx,dy] of [[0,-1],[1,0],[0,1],[-1,0]])if(!cells.has((cell.x+dx)+':'+(cell.y+dy)))perimeter++;
+  const total=h.cells.length*2+perimeter,placed=Math.max(0,total-h.missing.length),blocked=Boolean(h.reason);
+  const x=h.cells.reduce((n,p)=>n+p.x,0)/h.cells.length,y=h.cells.reduce((n,p)=>n+p.y,0)/h.cells.length;
+  return {houseId:h.houseId,x,y,progress:blocked?null:Math.max(0,Math.min(99,Math.round(placed/Math.max(1,total)*100))),missing:h.missing.length,status:blocked?'blocked':'building'};
+ });
+}
+function worldFeedbackSnapshot(s,selectedId=null){
+ const agents=living(s).map(a=>{
+  const kind=a.task?.kind??null,recent=Boolean(a.task&&Number.isInteger(a.task.started)&&s.tick>=a.task.started&&s.tick-a.task.started<=WORLD_FEEDBACK_TICKS);
+  const persistent=['BUILD','CRAFT','PROCESS'].includes(kind),emergency=a.satiety<24,selectedAgent=a.id===selectedId;
+  if(!selectedAgent&&!emergency&&!persistent&&!recent)return null;
+  return {agentId:a.id,kind,glyph:emergency?'!':(TASK_GLYPHS[kind]??'…'),reason:emergency?'need':selectedAgent?'selected':persistent?'productive':'recent'};
+ }).filter(Boolean);
+ return {agents,houses:houseFeedback(s)};
+}
+function drawHouseFeedback(c,h){
+ const p=proj(h.x,h.y),label=h.status==='blocked'?'⌂ ติดขัด':'⌂ '+h.progress+'%';c.save();c.font='9px system-ui';c.textAlign='center';
+ const w=Math.max(42,c.measureText(label).width+14);c.fillStyle='#17352ae8';c.beginPath();c.roundRect(p.x-w/2,p.y-70,w,17,5);c.fill();
+ c.strokeStyle=h.status==='blocked'?'#d69b7a99':'#e1c98b99';c.lineWidth=.8;c.stroke();c.fillStyle='#efe0b8';c.fillText(label,p.x,p.y-58);c.restore();
+}
 function person(c,a,time){
  let v=positions.get(a.id);if(!v){v={x:a.x,y:a.y};positions.set(a.id,v);}v.x+=(a.x-v.x)*.2;v.y+=(a.y-v.y)*.2;
  const p=proj(v.x,v.y),ap=a.appearance,moving=a.task?.path.length>0;
@@ -151,9 +176,9 @@ function person(c,a,time){
  if(!moving&&tool==='STONE_AXE'){line(c,[[10,-12],[18,-23]],'#a69265',2);polygon(c,[[16,-24],[23,-21],[20,-16]],'#c4c9b4');}
  if(!moving&&tool==='STONE_PICKAXE')line(c,[[10,-12],[17,-26],[24,-24]],'#b5bba5',2);
  if(!moving&&tool==='HAMMER'){line(c,[[10,-12],[17,-23]],'#a69265',2.4);c.fillStyle='#b8bdad';c.fillRect(14,-27,9,5);}
- const visibleWork=['BUILD','CRAFT','PROCESS'].includes(a.task?.kind);
- if(a.id===selected||a.satiety<24||visibleWork){
-  const glyph=a.satiety<24?'!':({EAT:'●',REST:'z',BUILD:'⌂',CRAFT:'⚒',PROCESS:'♨',FORAGE:'✦',WOODCUT:'╱',MINE:'◆',EXPLORE:'…'}[a.task?.kind]||'…');
+ const visibleWork=['BUILD','CRAFT','PROCESS'].includes(a.task?.kind),recentDecision=Boolean(a.task&&Number.isInteger(a.task.started)&&state.tick>=a.task.started&&state.tick-a.task.started<=WORLD_FEEDBACK_TICKS);
+ if(a.id===selected||a.satiety<24||visibleWork||recentDecision){
+  const glyph=a.satiety<24?'!':(TASK_GLYPHS[a.task?.kind]||'…');
   c.fillStyle='#ece6cf';c.beginPath();c.roundRect(8,-53,24,17,5);c.fill();polygon(c,[[11,-37],[10,-32],[18,-37]],'#ece6cf');
   c.fillStyle='#3a5039';c.font='12px Georgia';c.textAlign='center';c.fillText(glyph,20,-41);
  }
@@ -196,6 +221,7 @@ function render(time){
  const structureCtx=structureRenderContext();
  const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
  for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else person(ctx,o.data,time);}
+ for(const h of houseFeedback(state))drawHouseFeedback(ctx,h);
  if(a){const p=proj(a.x,a.y);ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(a.name).width+17;ctx.fillStyle='#17352adc';ctx.beginPath();ctx.roundRect(p.x-width/2,p.y+12,width,18,5);ctx.fill();ctx.fillStyle='#eee0b6';ctx.fillText(a.name,p.x,p.y+25);}
  ctx.restore();
  const h=hour(state);if(h>=19||h<6){ctx.fillStyle='#10294460';ctx.fillRect(0,0,cw,ch);}
@@ -299,4 +325,4 @@ setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y)});
