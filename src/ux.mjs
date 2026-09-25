@@ -162,10 +162,10 @@ export function installUX(api){
   if(b.dataset.ux==='culture-automation'){const result=api.execute('SET_CULTURE_AUTOMATION',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();const id=Number(($('dialog').dataset.structure??'').split(':')[1]);openStructure({type:'building',id});}}
   if(b.dataset.ux==='read-archive'){const result=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.key});api.toast(result.message);if(result.ok)api.save();}
   if(b.dataset.ux==='planning-policy'){const result=api.execute('SET_PLANNING_POLICY',{policy:b.dataset.policy});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
-  if(b.dataset.ux==='production-policy'){const result=api.execute('SET_PRODUCTION_POLICY',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
-  if(b.dataset.ux==='craft-item'){const result=api.execute('CRAFT_ITEM',{agentId:api.read().selected,recipeId:b.dataset.recipe});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
-  if(b.dataset.ux==='equip-item'){const result=api.execute('EQUIP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
-  if(b.dataset.ux==='unequip-item'){const result=api.execute('UNEQUIP_ITEM',{agentId:api.read().selected});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='production-policy'){const result=api.execute('SET_PRODUCTION_POLICY',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openRust();}}
+  if(b.dataset.ux==='craft-item'){const result=api.execute('CRAFT_ITEM',{agentId:api.read().selected,recipeId:b.dataset.recipe});api.toast(result.message);if(result.ok){api.save();const ref=$('dialog').dataset.structure??'';if($('dialog').dataset.kind==='structure'&&ref.startsWith('station:'))openStructure({type:'station',id:Number(ref.split(':')[1])});else openRust();}}
+  if(b.dataset.ux==='equip-item'){const result=api.execute('EQUIP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openRust();}}
+  if(b.dataset.ux==='unequip-item'){const result=api.execute('UNEQUIP_ITEM',{agentId:api.read().selected});api.toast(result.message);if(result.ok){api.save();openRust();}}
   if(b.dataset.ux==='place-station'){
     const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive),itemId=Number(b.dataset.item),kind=s.rustPossessions?.items.find(i=>i.id===itemId)?.kind;let chosen=null;
     // Deterministic placement id (pl:<tick>:<agent>:<item>); the engine validator decides every candidate.
@@ -173,14 +173,14 @@ export function installUX(api){
     const options=!a?[]:['WOOD_WALL','WOOD_DOORWAY'].includes(kind)?near.flatMap(c=>[{type:'edge',x:c.x,y:c.y,side:'N'},{type:'edge',x:c.x,y:c.y,side:'W'},{type:'edge',x:c.x,y:c.y+1,side:'N'},{type:'edge',x:c.x+1,y:c.y,side:'W'}]).map(socket=>({...base,socket})):
       kind==='WOOD_ROOF'?near.map(c=>({...base,socket:{type:'cell',x:c.x,y:c.y}})):near.slice(1).map(c=>({...base,...c}));
     for(const data of options)if(api.preview('PLACE_STATION',data).ok){chosen=data;break;}
-    const result=chosen?api.execute('PLACE_STATION',chosen):{ok:false,message:'ไม่มีช่องว่างติดตัวที่ผ่านกฎการวาง'};api.toast(result.message);if(result.ok){api.save();openSurvival();}
+    const result=chosen?api.execute('PLACE_STATION',chosen):{ok:false,message:'ไม่มีช่องว่างติดตัวที่ผ่านกฎการวาง'};api.toast(result.message);if(result.ok){api.save();openRust();}
   }
   if(b.dataset.ux==='process-charcoal'){
     const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive),requested=Number(b.dataset.station),dist=st=>a?Math.abs(a.x-st.x)+Math.abs(a.y-st.y):Infinity;
     const st=Number.isSafeInteger(requested)?(s.rustStations?.stations??[]).find(x=>x.id===requested&&x.complete&&x.kind==='FURNACE'):a?(s.rustStations?.stations??[]).filter(x=>x.complete&&x.kind==='FURNACE').sort((x,y)=>dist(x)-dist(y)||x.id-y.id)[0]:null;
     const result=st&&a?api.execute('PROCESS_CHARCOAL',{agentId:a.id,stationId:st.id}):{ok:false,message:'เลือก Clone และเตาหลอมก่อน'};api.toast(result.message);if(result.ok){api.save();if(Number.isSafeInteger(requested))openStructure({type:'station',id:requested});else openRust();}
   }
-  if(b.dataset.ux==='pickup-rust'){const result=api.execute('PICKUP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
+  if(b.dataset.ux==='pickup-rust'){const result=api.execute('PICKUP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openRust();}}
   if(b.dataset.ux==='systems-rust')openRust();
   if(b.dataset.ux==='systems-survival')openSurvival();
   if(b.dataset.ux==='event-agent'){api.closeDialog();api.select(Number(b.dataset.agent),true);return;}
