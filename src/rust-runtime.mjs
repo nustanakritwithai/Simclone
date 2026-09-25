@@ -80,7 +80,7 @@ export function validateRustState(s){
     const bagCounts=new Map();for(const i of p.items.filter(i=>i.location?.kind==='bag'))bagCounts.set(i.location.agentId,(bagCounts.get(i.location.agentId)??0)+1);
     if([...bagCounts.values()].some(n=>n>RUST_POSSESSION_LIMITS.bag))e.push('Rust bag capacity');
     for(const o of p.orders)if(!o||!alive.has(o.agentId)||!RECIPE_CATALOG[o.recipe]||!Number.isFinite(o.work)||o.work<0||!Number.isFinite(o.required)||o.required<1||!o.reserved)e.push('Rust craft order');
-    for(const q of p.equipment)if(!alive.has(q.agentId)||!p.items.some(i=>i.id===q.itemId&&i.location?.kind==='bag'&&i.location.agentId===q.agentId&&ITEM_CATALOG[i.kind]?.category==='tool'))e.push('Rust equipment');
+    const equippedAgents=new Set();for(const q of p.equipment){if(!alive.has(q.agentId)||equippedAgents.has(q.agentId)||!p.items.some(i=>i.id===q.itemId&&i.location?.kind==='bag'&&i.location.agentId===q.agentId&&ITEM_CATALOG[i.kind]?.category==='tool'&&ITEM_CATALOG[i.kind]?.equipSlot==='hand'))e.push('Rust equipment');equippedAgents.add(q.agentId);}
   }
   if(!rs||rs.version!==RUST_STATIONS_VERSION||!Number.isSafeInteger(rs.nextStation)||!Array.isArray(rs.stations)||rs.stations.length>STATION_LIMITS.maxStations)e.push('Rust stations');
   else{
