@@ -200,6 +200,10 @@ export function installUX(api){
     return;
   }
   if(b.dataset.kgAgent){api.closeDialog();api.select(Number(b.dataset.kgAgent),true);return;}
+  if(b.dataset.ux==='pickup-world-item'){
+    const result=api.execute('PICKUP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);
+    if(result.ok){api.save();api.closeDialog();renderHUD();}return;
+  }
   if(b.dataset.ux==='create-archive'){const result=api.execute('CREATE_ARCHIVE');api.toast(result.message);if(result.ok){api.save();const id=Number(($('dialog').dataset.structure??'').split(':')[1]);openStructure({type:'building',id});}}
   if(b.dataset.ux==='culture-automation'){const result=api.execute('SET_CULTURE_AUTOMATION',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();const id=Number(($('dialog').dataset.structure??'').split(':')[1]);openStructure({type:'building',id});}}
   if(b.dataset.ux==='read-archive'){const result=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.key});api.toast(result.message);if(result.ok)api.save();}
@@ -526,6 +530,34 @@ export function installUX(api){
   api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">คำสั่งนี้สร้าง Clone วัยผู้ใหญ่อายุ 18 ปีทันที · การเกิดอัตโนมัติเป็นอีกระบบหนึ่ง เด็กเริ่มอายุ 0 ปีแล้วค่อยเติบโต</p>`);$('dialog').dataset.kind='clone';
  }
  function openRust(){const s=api.read().state;api.openDialog('ไอเทมและการคราฟต์','RUST SURVIVAL · RS1–RS4',rustPanel(s,api));$('dialog').dataset.kind='rust';}
+ function openWorldObject(target){
+  const s=api.read().state,selected=api.read().selected,actor=s.agents.find(a=>a.id===selected&&a.alive);
+  if(!target)return;
+  if(target.type==='resource'){
+   const n=s.nodes.find(x=>x.id===target.id);if(!n)return;
+   const labels={food:'อาหาร',wood:'ไม้',stone:'หิน'},iconName=n.type==='food'?'leaf':n.type==='wood'?'wood':'stone';
+   const workers=living(s).filter(a=>a.task?.targetId===n.id);
+   const pct=Math.round((n.amount/Math.max(1,n.max))*100);
+   api.openDialog(labels[n.type]??n.type,'RESOURCE · #'+n.id,
+    '<section class="structure-hero resource-context-hero">'+visualToken(iconName)+'<div><small>WORLD RESOURCE</small><h3>'+escape(labels[n.type]??n.type)+'</h3><span>'+n.x+', '+n.y+' · '+(n.amount>0?'มีทรัพยากร':'หมดชั่วคราว')+'</span></div></section>'+
+    '<div class="menu-metrics">'+menuMetric(iconName,'Amount',n.amount+'/'+n.max,n.amount===0?'warn':'live')+menuMetric('people','Workers',workers.length)+menuMetric('map','Position',n.x+','+n.y)+'</div>'+
+    '<section class="resource-amount-bar"><div><span>คงเหลือ</span><b>'+pct+'%</b></div><div class="viz-bar-track"><i style="width:'+pct+'%"></i></div></section>'+
+    (workers.length?'<div class="structure-people">'+workers.map(a=>'<button class="structure-person" data-person="'+a.id+'">'+api.portrait(a)+'<b>'+escape(a.name)+'</b></button>').join('')+'</div>':'<p class="empty-state">ยังไม่มี Clone กำลังใช้จุดนี้</p>')+
+    '<details class="menu-explain"><summary>Authority</summary><p>Amount / max / position / current workers อ่านจาก resource node และ task ปัจจุบันโดยตรง ไม่มี resource history ledger ใหม่</p></details>');
+   $('dialog').dataset.kind='world-object';$('dialog').dataset.worldObject='resource:'+n.id;renderHUD();return;
+  }
+  if(target.type==='drop'){
+   const item=(s.rustPossessions?.items??[]).find(i=>i.id===target.id&&i.location?.kind==='drop');if(!item)return;
+   const def=ITEM_CATALOG[item.kind],creator=findPerson(s,item.createdBy),distance=actor?Math.abs(actor.x-item.location.x)+Math.abs(actor.y-item.location.y):Infinity,canPickup=Boolean(actor&&distance<=1);
+   api.openDialog(def?.name??item.kind,'DROPPED ITEM · #'+item.id,
+    '<section class="structure-hero dropped-item-hero">'+visualToken(itemIconKind(item.kind))+'<div><small>PHYSICAL ITEM</small><h3>'+escape(def?.name??item.kind)+'</h3><span>'+item.location.x+', '+item.location.y+'</span></div></section>'+
+    '<div class="menu-metrics">'+menuMetric('people','Created by',creator?creator.name:'#'+item.createdBy)+menuMetric('history','Created',String(item.createdTick))+menuMetric('map','Distance',actor?String(distance):'—')+'</div>'+
+    '<div class="structure-actions"><button class="primary visual-policy-action" data-ux="pickup-world-item" data-item="'+item.id+'" '+(canPickup?'':'disabled')+'>'+icon('bag')+'<span>'+(actor?(canPickup?'เก็บขึ้นกระเป๋า':'ต้องอยู่ใกล้ 1 ช่อง'):'เลือก Clone ก่อน')+'</span></button></div>'+
+    '<details class="menu-explain" open><summary>Provenance</summary><p>Item instance #'+item.id+' · createdBy #'+item.createdBy+' · createdTick '+item.createdTick+' · location อ่านจาก Rust possession ledger เดิม</p></details>');
+   $('dialog').dataset.kind='world-object';$('dialog').dataset.worldObject='drop:'+item.id;renderHUD();return;
+  }
+  if(target.type==='event'){openEvent(target.id);return;}
+ }
  function openStructure(target){
   const s=api.read().state,selected=api.read().selected,actor=s.agents.find(a=>a.id===selected&&a.alive),houses=evaluateModularHouses(s).houses;
   if(!target)return;
@@ -645,5 +677,5 @@ export function installUX(api){
   $('dialog').dataset.kind='survival';
  }
  function openGuide(){api.openDialog('เริ่มจากการดูโลกที่กำลังคิดเอง','OBSERVE → UNDERSTAND → TRACE',`<div class="guide-step"><span>01</span><div><b>แตะสิ่งที่อยู่ในโลก</b><p>แตะ Clone เพื่อดูชีวิตและ Why · แตะแคมป์ โต๊ะคราฟต์ เตาหลอม หรือบ้านเพื่อเปิดเมนูของสิ่งปลูกสร้างนั้นโดยตรง</p></div></div><div class="guide-step"><span>02</span><div><b>ใช้เมนูรวมเฉพาะภาพรวม</b><p>Survival และ Systems ใช้ดูภาพรวม ส่วน action ของสิ่งปลูกสร้างอยู่ที่ตัวสิ่งปลูกสร้าง ไม่ซ่อนอยู่ในแท็บย่อย</p></div></div><div class="guide-step"><span>03</span><div><b>ปล่อยให้โลกสร้างเรื่องของมันเอง</b><p>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การโคลนแบบ manual ยังอยู่ใน Inspector แต่ไม่ใช่แกนหลักของเกม</p></div></div><div class="help-block">ลากแผนที่เพื่อเลื่อน · จีบนิ้วหรือกด + / − เพื่อซูม<br>หน้าต่างข้อมูลหยุดเวลา · ปิดเว็บแล้วโลกหยุด ไม่มีการเดินเวลาขณะออฟไลน์</div><div class="dialog-actions"><button class="primary" data-action="cancel">กลับไปดูโลก</button></div>`);$('dialog').dataset.kind='guide';}
- return {renderInspector,renderHUD,openRoster,openHistory,openEvent,openClone,openRust,openSurvival,openSystems,openDecisionFeed,openStructure};
+ return {renderInspector,renderHUD,openRoster,openHistory,openEvent,openClone,openRust,openSurvival,openSystems,openDecisionFeed,openStructure,openWorldObject};
 }
