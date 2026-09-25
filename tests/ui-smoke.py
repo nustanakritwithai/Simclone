@@ -63,9 +63,17 @@ with sync_playwright() as p:
  wf=feedbackpage.evaluate('simclone.worldFeedback()')
  check('world feedback exposes selected clone marker without a second state source',any(x['agentId']==2 and x['reason']=='selected' for x in wf['agents']))
  check('selected clone uses a thought-cloud projection in the world',any(x['agentId']==2 and x['kind']=='thought' and x['source']=='selected' for x in wf['bubbles']))
+ check('selected clone exposes factual living-parent relationship line',any(x['kind']=='parent' and x['fromId']==1 and x['toId']==2 for x in wf['relationships']))
  selected_bubble=next(x for x in wf['bubbles'] if x['agentId']==2)
  if selected_bubble.get('target') is not None:check('selected task target cue reuses authoritative task coordinates',selected_bubble['target']['x']==snap(feedbackpage)['agents'][1]['task']['x'] and selected_bubble['target']['y']==snap(feedbackpage)['agents'][1]['task']['y'])
  check('modular housing progress is derived from the canonical house evaluator',len(wf['houses'])==1 and wf['houses'][0]['status']=='building' and 0<wf['houses'][0]['progress']<100 and wf['houses'][0]['missing']==5)
+ life_saved=json.loads(saved);life_event_id=life_saved['nextEvent'];life_saved['nextEvent']+=1
+ life_person=next(a for a in life_saved['agents'] if a['id']==3);life_person['bornTick']=life_saved['tick']
+ life_saved['events'].append({'id':life_event_id,'tick':life_saved['tick'],'type':'birth','text':'Kira เกิด','agentId':3})
+ lifepage=b.new_page(viewport={'width':1440,'height':1000});boot(lifepage,json.dumps(life_saved,ensure_ascii=False));paused(lifepage)
+ life_fx=lifepage.evaluate('simclone.worldFeedback().lifeBursts')
+ check('recent birth event becomes a bounded world burst',any(x['eventId']==life_event_id and x['type']=='birth' and x['agentId']==3 for x in life_fx))
+ lifepage.screenshot(path=str(OUT/'desktop-birth-burst.png'))
  feedbackpage.screenshot(path=str(OUT/'desktop-world-feedback.png'))
  speech_saved=json.loads(saved);speech_event_id=speech_saved['nextEvent'];speech_saved['nextEvent']+=1
  receiver=next(a for a in speech_saved['agents'] if a['id']==3);message_id='ui-v10-message'
@@ -78,6 +86,12 @@ with sync_playwright() as p:
  check('real communication evidence becomes a speech bubble instead of event text alone',speech is not None and speech['kind']=='speech' and speech['source']=='event' and speech['eventId']==speech_event_id and speech['label']=='ความรู้' and speech['recipientId']==3)
  check('communication link resolves sender and receiver from retained evidence',any(x['eventId']==speech_event_id and x['fromId']==2 and x['toId']==3 for x in world_story['communications']))
  check('dropped physical item is exposed as a world cue from the item ledger',any(x['itemId']==99002 and x['kind']=='HAMMER' and x['x']==10 and x['y']==10 for x in world_story['drops']))
+ task_saved=json.loads(saved);actor=next(a for a in task_saved['agents'] if a['id']==2);node=next(n for n in task_saved['nodes'] if n['type']=='wood' and n['amount']>0)
+ base_task=actor['task'] or {'policy':'survival-v3'}
+ actor['task']={**base_task,'kind':'WOODCUT','targetId':node['id'],'x':node['x'],'y':node['y'],'path':[],'work':0,'score':99,'started':task_saved['tick'],'policy':base_task.get('policy','survival-v3'),'fieldRest':False}
+ taskpage=b.new_page(viewport={'width':1440,'height':1000});boot(taskpage,json.dumps(task_saved,ensure_ascii=False));paused(taskpage)
+ taskfx=taskpage.evaluate('simclone.worldFeedback()')
+ check('resource pulse reuses authoritative task target and node coordinates',any(x['nodeId']==node['id'] and x['agentId']==2 and x['x']==node['x'] and x['y']==node['y'] for x in taskfx['resourcePulses']))
  speechpage.screenshot(path=str(OUT/'mobile-speech-bubble.png'))
 
  inventory_saved=json.loads(saved)
