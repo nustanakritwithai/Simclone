@@ -576,7 +576,7 @@ export function installUX(api){
     menuMetric('skull','คลังตาย',s.archive.length)+
    '</div>'+
    '<div class="visual-status-line"><span>Birth gate</span><b>'+escape(birthLabels[v.birth.reason]??v.birth.reason)+'</b></div>'+
-   '<details class="menu-explain"><summary>Lifecycle rules</summary><p>เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัย 75% · อายุขัย deterministic 78–92 ปี · การเกิดต้องผ่าน housing/food/wood/cooldown gates</p></details>';
+   '<details class="menu-explain"><summary>Lifecycle rules</summary><p>เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัย 75% · อายุขัย deterministic 78–92 ปี · การเกิดต้องผ่าน housing/food/wood gates · global birth gap '+BIRTH_RULES.globalIntervalYears+' ปี · parent cooldown '+BIRTH_RULES.parentCooldownYears+' ปี</p></details>';
 
   api.openDialog('การอยู่รอด','SURVIVAL · '+VERSION,
    '<section class="menu-hero survival-menu-hero">'+visualToken('heart')+'<div><small>SETTLEMENT</small><h3>'+(v.hungry?'มีแรงกดดัน':'เสถียร')+'</h3><span>'+living(s).length+' คน · '+v.unfinished+' บ้านกำลังสร้าง</span></div></section>'+
