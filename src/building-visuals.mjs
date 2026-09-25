@@ -1,3 +1,5 @@
+import {edgeCells} from './rust-stations.mjs?v=0.5.0';
+
 /**
  * Simclone · modular building visuals (runtime renderer).
  *
@@ -402,24 +404,8 @@ export function drawGhost(c, piece, edge, ok, opts = {}) {
 }
 
 // ---- integration helpers (pure, read only the record passed in) ---------------------------
-/** Mirror of the spec §1.2 helper (the game should import the real one from src/rust-stations.mjs). */
-export function canonicalEdge(x, y, side) {
-  if (side === 'N' || side === 'W') return {type: 'edge', x, y, side};
-  if (side === 'S') return {type: 'edge', x, y: y + 1, side: 'N'};
-  if (side === 'E') return {type: 'edge', x: x + 1, y, side: 'W'};
-  throw new Error('side must be N|E|S|W, got ' + side);
-}
+// Socket topology comes from rust-stations.mjs; this module owns only visual interpretation.
 const isCanonicalEdge = s => s?.type === 'edge' && (s.side === 'N' || s.side === 'W') && Number.isInteger(s.x) && Number.isInteger(s.y);
-/**
- * Mirror of spec §1.2 edgeCells(): the two cells an edge separates, in a fixed order:
- * [0] = the socket cell (x,y)  -> this edge is that cell's N/W side (house BACK if the foundation is here)
- * [1] = (x,y-1) for N, (x-1,y) for W -> this edge is that cell's S/E side (house FRONT if the foundation is here)
- */
-export function edgeCells(socket) {
-  if (!isCanonicalEdge(socket)) throw new Error('edgeCells needs a canonical N/W edge socket');
-  return socket.side === 'N' ? [{x: socket.x, y: socket.y}, {x: socket.x, y: socket.y - 1}]
-    : [{x: socket.x, y: socket.y}, {x: socket.x - 1, y: socket.y}];
-}
 
 /**
  * Local edge of a canonical edge socket, seen from `cell`.
