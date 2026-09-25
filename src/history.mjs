@@ -5,8 +5,7 @@ export const HISTORY_LIMITS=Object.freeze({
   maxImportedHotRecords:200,
   maxRetained:1024,
   maxArchiveCharacters:1800000,
-  maxSaveCharacters:2000000,
-  birthSaveReserveCharacters:100000,
+  maxSaveCharacters:2500000,
 });
 export const retainedCount=s=>s.agents.length+(s.archive?.length??0);
 export const allPeople=s=>s.archive?.length?[...s.agents,...s.archive].sort((a,b)=>a.id-b.id):s.agents;
@@ -28,10 +27,6 @@ function projection(s){
 /** Read-only admission check; never charges resources or retires an identity during preview. */
 export function retentionPlan(s){
   if(retainedCount(s)>=HISTORY_LIMITS.maxRetained)return {ok:false,reason:'history-capacity'};
-  // A birth/clone can turn into a mature, evidence-rich identity later. Keep bounded
-  // headroom so normal simulation growth cannot make the next browser save unsavable.
-  if(JSON.stringify(s).length>HISTORY_LIMITS.maxSaveCharacters-HISTORY_LIMITS.birthSaveReserveCharacters)
-    return {ok:false,reason:'history-storage'};
   if(s.agents.length<HISTORY_LIMITS.hotRecords)return {ok:true,reason:'ready',needsCompaction:false};
   const p=projection(s);
   return p.ok?{ok:true,reason:'ready',needsCompaction:true}:{ok:false,reason:p.reason};

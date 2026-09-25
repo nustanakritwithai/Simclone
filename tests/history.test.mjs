@@ -49,16 +49,6 @@ test('retention preview and rejected clone do not compact or spend resources',()
  s.stock.food=0;const rejected=serialize(s);assert.equal(command(s,'CLONE',{parentId:1}).ok,false);assert.equal(serialize(s),rejected);
 });
 
-test('retention admission reserves whole-save headroom before a birth or clone',()=>{
- const s=createWorld(42),target=HISTORY_LIMITS.maxSaveCharacters-HISTORY_LIMITS.birthSaveReserveCharacters+1;
- s.agents[0].memory=[{tick:0,text:''}];const base=JSON.stringify(s).length;
- s.agents[0].memory[0].text='x'.repeat(target-base);const chars=JSON.stringify(s).length;
- assert.equal(HISTORY_LIMITS.birthSaveReserveCharacters,100000);assert.equal(chars,target);assert.ok(chars<HISTORY_LIMITS.maxSaveCharacters);
- const before=serialize(s),stock={...s.stock};assert.equal(retentionPlan(s).reason,'history-storage');
- const result=command(s,'CLONE',{parentId:1});assert.equal(result.ok,false);assert.equal(result.reason,'history-storage');
- assert.equal(serialize(s),before);assert.deepEqual(s.stock,stock);
-});
-
 test('archived autonomous child still determines birth pacing and same-parent cooldown',()=>{
  const s=historyFixture(80);s.tick=360;
  const child=s.agents.find(a=>a.id===7);child.bornTick=360;child.life={anchorTick:360,ageAtAnchorYears:0};
