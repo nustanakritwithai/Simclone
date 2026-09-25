@@ -419,6 +419,20 @@ function structureTargetAtScreen(sx,sy){
  for(const st of (state.rustStations?.stations??[])){const p=screenPoint(st.x,st.y);rows.push({type:'station',id:st.id,d:Math.hypot(sx-p.x,sy-(p.y-14*zoom))});}
  return rows.sort((a,b)=>a.d-b.d||a.type.localeCompare(b.type)||a.id-b.id).find(x=>x.d<Math.max(24,34*zoom))??null;
 }
+function worldObjectTargetAtScreen(sx,sy){
+ const rows=[];
+ for(const n of state.nodes){
+  const p=screenPoint(n.x,n.y),oy=n.type==='wood'?42:8;
+  rows.push({type:'resource',id:n.id,d:Math.hypot(sx-p.x,sy-(p.y-oy*zoom))});
+ }
+ for(const item of droppedWorldItems(state)){
+  const p=screenPoint(item.x,item.y);rows.push({type:'drop',id:item.itemId,d:Math.hypot(sx-p.x,sy-(p.y-7*zoom))});
+ }
+ for(const burst of [...recentLifeBursts(state),...recentAchievementBursts(state)]){
+  const p=screenPoint(burst.x,burst.y);rows.push({type:'event',id:burst.eventId,d:Math.hypot(sx-p.x,sy-(p.y-30*zoom))});
+ }
+ return rows.sort((a,b)=>a.d-b.d||a.type.localeCompare(b.type)||a.id-b.id).find(x=>x.d<Math.max(18,30*zoom))??null;
+}
 
 const pointers=new Map();let drag=null,pinch=0,multiTouch=false;
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});follow=false;
@@ -433,7 +447,7 @@ canvas.addEventListener('pointermove',e=>{
 canvas.addEventListener('pointerup',e=>{
  pointers.delete(e.pointerId);if(!drag||drag.moved||multiTouch){if(!pointers.size){drag=null;multiTouch=false;}return;}
  const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
- {let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{const structure=structureTargetAtScreen(sx,sy);if(structure)ux?.openStructure(structure);else{selected=null;follow=false;updateUI();}}}
+ {let hit=null,best=34;for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}if(hit)selectAgent(hit.id);else{const structure=structureTargetAtScreen(sx,sy),object=worldObjectTargetAtScreen(sx,sy),target=structure&&object?(structure.d<=object.d?structure:object):(structure??object);if(target){if(target.type==='building'||target.type==='station')ux?.openStructure(target);else ux?.openWorldObject(target);}else{selected=null;follow=false;updateUI();}}}
  drag=null;
 });
 canvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);drag=null;multiTouch=false;});
@@ -462,4 +476,4 @@ setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y)});
