@@ -69,3 +69,21 @@ export function nextPersonalHomePiece(s,a,isWalkable=()=>true){
   if(!site)return null;
   return nextHousePiece(s,site);
 }
+
+/**
+ * BUILD candidates for one person's own home. The helper is read-only:
+ * the engine still walks the carrier to the anchor and executes PLACE_STATION.
+ */
+export function pendingPersonalPlacements(s,a,isWalkable=()=>true){
+  if(!a?.alive)return [];
+  const bag=(s.rustPossessions?.items??[]).filter(i=>i.location?.kind==='bag'&&i.location.agentId===a.id&&
+    ['WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF'].includes(i.kind));
+  if(!bag.length)return [];
+  const piece=nextPersonalHomePiece(s,a,isWalkable);
+  if(!piece?.pieceKind)return [];
+  const item=bag.filter(i=>i.kind===piece.pieceKind).sort((x,y)=>x.id-y.id)[0];
+  if(!item)return [];
+  const check=canPlaceStation(s,{pieceKind:piece.pieceKind,socket:piece.socket},isWalkable,{actor:false});
+  if(!check.ok)return [];
+  return [{pieceKind:piece.pieceKind,itemInstanceId:item.id,socket:check.socket,anchor:check.anchor,ownerId:a.id}];
+}
