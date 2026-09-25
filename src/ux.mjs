@@ -122,6 +122,7 @@ function personalInventoryPanel(s,a){
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
 const stageLabels={CHILD:'เด็ก',ADULT:'ผู้ใหญ่',ELDER:'ผู้สูงวัย',DEAD:'เสียชีวิต'};
 const birthLabels={'history-capacity':'จำนวนประวัติถึงขีดจำกัด','history-storage':'พื้นที่คลังประวัติเต็ม','history-invalid':'ประวัติต้องตรวจสอบ','history-hot':'ชุดข้อมูลทำงานเต็ม',ready:'พร้อมเมื่อถึงรอบปี',housing:'ที่พักเต็ม',history:'ประวัติตัวละครเต็ม',pace:'รอครบระยะห่างการเกิด',parent:'ยังไม่มีผู้ใหญ่ที่พร้อม',food:'อาหารสำรองยังไม่พอ',wood:'ไม้สำรองยังไม่พอ'};
+const birthGapLabel=`${BIRTH_RULES.globalIntervalYears}`,parentCooldownLabel=`${BIRTH_RULES.parentCooldownYears}`;
 const tabNames={about:'ตอนนี้',inventory:'กระเป๋า',skills:'ทักษะ',why:'เหตุผล',knowledge:'ความรู้',social:'สัมพันธ์',memory:'ความทรงจำ'};
 function setText(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=value;}
 function replaceIfChanged(el,html){if(el.dataset.content!==html){const y=el.scrollTop;el.innerHTML=html;el.dataset.content=html;el.scrollTop=y;}}
@@ -618,7 +619,7 @@ export function installUX(api){
     menuMetric('skull','คลังตาย',s.archive.length)+
    '</div>'+
    '<div class="visual-status-line"><span>Birth gate</span><b>'+escape(birthLabels[v.birth.reason]??v.birth.reason)+'</b></div>'+
-   '<details class="menu-explain"><summary>Lifecycle rules</summary><p>เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัย 75% · อายุขัย deterministic 78–92 ปี · การเกิดต้องผ่าน housing/food/wood gates · global birth gap '+BIRTH_RULES.globalIntervalYears+' ปี · parent cooldown '+BIRTH_RULES.parentCooldownYears+' ปี</p></details>';
+   '<details class="menu-explain"><summary>Lifecycle rules</summary><p>เด็กไม่รับงานผลิต · ผู้ใหญ่เต็มกำลัง · ผู้สูงวัย 75% · อายุขัย deterministic 78–92 ปี · การเกิดต้องผ่าน housing/food/wood gates · global birth gap '+birthGapLabel+' ปี · parent cooldown '+parentCooldownLabel+' ปี</p></details>';
 
   api.openDialog('การอยู่รอด','SURVIVAL · '+VERSION,
    '<section class="menu-hero survival-menu-hero">'+visualToken('heart')+'<div><small>SETTLEMENT</small><h3>'+(v.hungry?'มีแรงกดดัน':'เสถียร')+'</h3><span>'+living(s).length+' คน · '+v.unfinished+' บ้านกำลังสร้าง</span></div></section>'+
