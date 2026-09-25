@@ -88,6 +88,18 @@ with sync_playwright() as p:
  m.screenshot(path=str(OUT/'mobile-reasons.png'))
  m.locator('[data-ux="expand"]').tap();check('sheet can collapse',not m.locator('#inspector').evaluate('(e)=>e.classList.contains("is-expanded")'))
  m.locator('[data-ux="why"]').tap();m.locator('[data-ui="close"]').tap();check('camera returns after closing expanded sheet',m.locator('.camera').is_visible())
+ # Visible-autonomy proof: one tap must create a real house plan through BUILD authority.
+ auto=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(auto);paused(auto)
+ check('visible autonomy CTA is present and initially off',auto.locator('#auto-start').is_visible() and auto.locator('#auto-start').get_attribute('aria-pressed')=='false')
+ auto.locator('#auto-start').tap()
+ check('one tap enables production autonomy',snap(auto)['productionPlan']['enabled'] is True and auto.locator('#auto-start').get_attribute('aria-pressed')=='true')
+ before_auto=snap(auto);auto.locator('#pause').tap();auto.locator('[data-speed="5"]').tap()
+ auto.wait_for_function('simclone.snapshot().buildings.length===3',timeout=8000)
+ planned=snap(auto)
+ check('autonomy places one real unfinished shelter',len(planned['buildings'])==3 and planned['buildings'][-1]['type']=='shelter' and planned['buildings'][-1]['complete'] is False)
+ check('autonomous shelter commits BUILD materials once',planned['stock']['wood']==before_auto['stock']['wood']-12 and planned['stock']['stone']==before_auto['stock']['stone']-6)
+ check('a Clone visibly takes BUILD work',any(a.get('task') and a['task']['kind']=='BUILD' for a in planned['agents'] if a['alive']))
+ auto.screenshot(path=str(OUT/'mobile-visible-autonomy.png'));auto.close()
  # Placement preview, dry run, cancel, invalid grid, successful commit.
  m.locator('[data-nav="build"]').tap();check('build shows confirmation controls',m.locator('#placement-panel').is_visible() and m.locator('#confirm-placement').is_disabled())
  s=snap(m);m.locator('#choose-position').tap();m.locator('#grid-x').fill('14');m.locator('#grid-y').fill('11');m.locator('#preview-grid').tap()
