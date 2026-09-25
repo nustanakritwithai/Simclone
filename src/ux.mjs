@@ -184,6 +184,21 @@ export function installUX(api){
  });
  body.addEventListener('input',e=>{if(e.target.id==='people-search'){rosterLimit=80;renderRosterList();}if(e.target.id==='story-search')renderHistoryList();});
  body.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.kgFilter){
+    const f=b.dataset.kgFilter;
+    body.querySelectorAll('[data-kg-type]').forEach(el=>{el.hidden=f!=='all'&&el.dataset.kgType!==f;});
+    body.querySelectorAll('[data-kg-filter]').forEach(x=>x.classList.toggle('active',x===b));
+    return;
+  }
+  if(b.dataset.kgKey){
+    const {state:s,selected}=api.read(),entry=s.culture?.entries.find(x=>x.key===b.dataset.kgKey),detail=$('kg-detail');if(!entry||!detail)return;
+    body.querySelectorAll('[data-kg-key]').forEach(x=>x.classList.toggle('is-selected',x===b));
+    const actor=s.agents.find(a=>a.id===selected&&a.alive);
+    detail.dataset.kgSelected=entry.key;
+    detail.innerHTML='<b>'+escape(entry.key)+'</b><small>v'+entry.revision+' · '+escape(findPerson(s,entry.authorId)?.name??('#'+entry.authorId))+'</small>'+(actor?'<button class="secondary" data-ux="read-archive" data-key="'+escape(entry.key)+'">'+icon('eye')+' อ่าน</button>':'');
+    return;
+  }
+  if(b.dataset.kgAgent){api.closeDialog();api.select(Number(b.dataset.kgAgent),true);return;}
   if(b.dataset.ux==='create-archive'){const result=api.execute('CREATE_ARCHIVE');api.toast(result.message);if(result.ok){api.save();const id=Number(($('dialog').dataset.structure??'').split(':')[1]);openStructure({type:'building',id});}}
   if(b.dataset.ux==='culture-automation'){const result=api.execute('SET_CULTURE_AUTOMATION',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();const id=Number(($('dialog').dataset.structure??'').split(':')[1]);openStructure({type:'building',id});}}
   if(b.dataset.ux==='read-archive'){const result=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.key});api.toast(result.message);if(result.ok)api.save();}
