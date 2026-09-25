@@ -44,9 +44,11 @@ UX V0.7 World Feedback is released at `main@32317ef226932747333d0b3f74cda1b314d9
 
 UX V0.8 Event → Cause is the current candidate. Chronicle event detail is evidence-first and read-only: it resolves historical cause only when the event tick can be matched to retained authoritative evidence such as lineage, immutable death history, career/skill provenance, Rust placement/item records, knowledge evidence, mentorship links or Cultural Archive records. Missing historical cause remains explicit `UNKNOWN`; the UI never substitutes a Clone's current decision trace for historical intent. No replay authority or new event-history ledger is introduced.
 
-## UX V0.9 Visual-First candidate
+## UX V0.9 Visual-First + Diegetic candidate
 
-The current candidate applies an icon/image-first disclosure layer on top of the existing observation UI without changing simulation authority. Primary Systems cards use a large system icon, status badge and one primary value while prose is collapsed; Chronicle rows use event pictograms plus related Clone portraits; Event Detail uses event imagery, portrait and evidence icons before text; personal inventory uses four visual item slots; and mobile Inspector tabs are icon-first with retained accessible labels. Long provenance/explanation remains available on demand. This candidate changes presentation only and requires exact browser/CI evidence before release.
+The current candidate applies an icon/image-first disclosure layer plus in-world diegetic bubbles without changing simulation authority. Primary Systems cards use a large system icon, status badge and one primary value while prose is collapsed; Chronicle rows use event pictograms plus related Clone portraits; Event Detail uses event imagery, portrait and evidence icons before text; personal inventory uses four visual item slots; and mobile Inspector tabs are icon-first with retained accessible labels.
+
+The world is also becoming the primary information surface. A selected/recent decision or real Need appears as a thought cloud; real Knowledge/Mentor communication may appear as a speech bubble; BUILD/CRAFT/PROCESS appears as a work bubble; incomplete housing keeps a spatial progress marker. Bubble selection is deterministic and presentation-only, capped at 3 simultaneous bubbles on mobile and 5 on larger viewports. No free-form dialogue, motive, thought history or second event ledger is created. Long provenance/explanation remains available on demand. This candidate requires exact browser/CI evidence before release.
 
 ## Authority map
 
