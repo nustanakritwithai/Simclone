@@ -50,6 +50,16 @@ with sync_playwright() as p:
  reloadpage=b.new_page(viewport={'width':1440,'height':1000});boot(reloadpage,saved)
  check('old save schema retained and reload works with storage double',len(snap(reloadpage)['agents'])==7)
  check('death history sub-schema persists through reload',snap(reloadpage)['historyVersion']=='0.1.0')
+ inventory_saved=json.loads(saved)
+ inventory_saved['rustPossessions']['items']=[{'id':1,'kind':'STONE_AXE','createdBy':2,'createdTick':inventory_saved['tick'],'location':{'kind':'bag','agentId':2}}]
+ inventory_saved['rustPossessions']['nextItem']=2;inventory_saved['rustPossessions']['equipment']=[]
+ invpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(invpage,json.dumps(inventory_saved,ensure_ascii=False));paused(invpage)
+ invpage.locator('[data-nav="people"]').tap();invpage.locator('[data-person="2"]').tap();invpage.locator('[data-tab="inventory"]').tap()
+ check('personal inventory shows four owned bag slots and hand equipment',invpage.locator('[data-inventory-slot]').count()==4 and '1 / 4 ช่อง' in invpage.locator('#ux-tab-content').inner_text() and 'อุปกรณ์ · มือ' in invpage.locator('#ux-tab-content').inner_text())
+ invpage.locator('[data-ux="equip-item"]').tap();equipped=snap(invpage)['rustPossessions']['equipment']
+ check('inventory equip action routes through engine and owns the selected item',equipped==[{'agentId':2,'itemId':1}] and invpage.locator('[data-ux="unequip-item"]').count()==1)
+ invpage.locator('[data-ux="unequip-item"]').tap()
+ check('inventory unequip keeps item in the same personal bag',snap(invpage)['rustPossessions']['equipment']==[] and snap(invpage)['rustPossessions']['items'][0]['location']=={'kind':'bag','agentId':2})
  knowledge_saved=json.loads(saved);ka=next(a for a in knowledge_saved['agents'] if a['id']==2)
  key='resource:777';eid='know:obs:2:777:10'
  ka['knowledgeState']={'version':'0.5.0','evidence':[{'evidenceId':eid,'type':'observation','ownerAgentId':2,'sourceAgentId':None,'tick':10,'key':key,'originEvidenceId':eid}],
