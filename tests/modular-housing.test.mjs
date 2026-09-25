@@ -210,3 +210,28 @@ test('old save with an extra completed shelter still counts +6 per shelter after
   const again=restore(serialize(s));assert.equal(serialize(again),serialize(s));assert.equal(capacity(again),18);
   assert.deepEqual(validate(s),[]);
 });
+
+test('house evaluation: zero doorways or a 5-foundation component is not a house',()=>{
+  const f=builderFixture();buildHouse(f);
+  const none=structuredClone(f.s);none.rustStations.stations.find(st=>st.kind==='WOOD_DOORWAY').kind='WOOD_WALL';
+  assert.equal(evaluateModularHouses(none).houses[0].complete,false);assert.equal(capacity(none),12);
+  const big=structuredClone(f.s),{x,y}=f.site;
+  for(let i=1;i<=4;i++)big.rustStations.stations.push({...structuredClone(big.rustStations.stations[0]),id:900+i,x:x+i,y,socket:{type:'cell',x:x+i,y,level:0},placementId:'fx:'+i,sourceItemId:null});
+  const h=evaluateModularHouses(big).houses.find(h=>h.cells.length===5);
+  assert.ok(h,'five connected foundations form one component');assert.equal(h.complete,false);assert.equal(capacity(big),12);
+});
+
+test('save/load in the middle of the RP1 house plan resumes without duplicate pieces or double charge',()=>{
+  const continuous=createWorld(230926);command(continuous,'SET_PRODUCTION_POLICY',{enabled:true});
+  let mid=null;
+  for(let i=0;i<3200;i++){step(continuous,1);const n=continuous.rustStations.stations.filter(st=>st.structurePiece).length;if(n>=2&&n<6){mid=continuous.tick;break;}}
+  assert.ok(mid,'reached a partially built house');
+  const resumed=restore(serialize(continuous));
+  step(continuous,800);step(resumed,800);
+  assert.equal(serialize(continuous),serialize(resumed));
+  const pieces=resumed.rustStations.stations.filter(st=>st.structurePiece);
+  assert.equal(new Set(pieces.map(p=>p.sourceItemId)).size,pieces.length,'each item placed once');
+  assert.equal(new Set(pieces.map(p=>socketKey(p.socket))).size,pieces.length,'no socket used twice');
+  assert.ok(evaluateModularHouses(resumed).houses.some(h=>h.complete));
+  assert.deepEqual(validate(resumed),[]);
+});

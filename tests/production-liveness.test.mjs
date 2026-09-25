@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,command,step,serialize,restore,validate,walkable} from '../src/engine.mjs';
+import {createWorld,command,step,serialize,restore,validate,walkable,capacity} from '../src/engine.mjs';
+import {evaluateModularHouses} from '../src/housing.mjs';
 import {stepProductionPlanning} from '../src/production-planning.mjs';
 
 /** Synthetic reachable colony matching the public failure's inventory conflict.
@@ -56,9 +57,12 @@ test('actual BUILD work selects Hammer once without monopolizing coordinator tic
 
 for(const delay of [0,1,2,5,12,30])test(`public default seed completes the chain after enabling at tick ${delay}`,()=>{
   const s=createWorld(230926);step(s,delay);
+  const capacityBefore=capacity(s);
   command(s,'SET_PRODUCTION_POLICY',{enabled:true});
   step(s,3200);
   assert.ok(completedChain(s),JSON.stringify({goal:s.productionPlan.goal,items:s.rustPossessions.items,stations:s.rustStations.stations}));
+  assert.ok(evaluateModularHouses(s).houses.some(h=>h.complete),'a modular house is complete within 3200 ticks');
+  assert.ok(capacity(s)>capacityBefore,'capacity rises from the modular house');
   assert.ok(s.stats.built>=1);
   assert.equal(s.rustStations.stations.filter(st=>st.kind==='FURNACE').length,1);
   assert.deepEqual(validate(s),[]);
