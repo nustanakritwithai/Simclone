@@ -22,8 +22,10 @@ import {pendingPersonalPlacements} from './individual-housing.mjs?v=0.5.0';
 import {placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {ensureProductionPlan,productionCommand,stepProductionPlanning,validateProductionPlan} from './production-planning.mjs?v=0.5.0';
 import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsForAgent,validateMentorship} from './mentor-teaching.mjs?v=0.5.0';
+import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,validateSocialState} from './relationships.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
+export {relationshipOf,householdOf,allHouseholds};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
 export const SAVE_VERSION = '0.5.0';
@@ -90,7 +92,7 @@ export function createWorld(seed=230926,options={}){
   if(!Number.isInteger(population)||population<1||population>6)throw new Error('Starting population must be 1..6');
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
-  ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);
+  ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);
   let nid=1;
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
     const river=20+Math.round(Math.sin(y*.26)*2), wet=x>=river&&x<river+3;
@@ -117,7 +119,16 @@ export const previewPlacement = (s,data) => placementPreview(s,data,walkable);
 export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){
-  const mentorship=mentorshipCommand(s,type,data);if(mentorship){if(mentorship.ok&&mentorship.changed)event(s,'mentor',mentorship.message,mentorship.mentorId??null);return mentorship;}
+  const mentorship=mentorshipCommand(s,type,data);if(mentorship){
+    if(mentorship.ok&&mentorship.changed){
+      event(s,'mentor',mentorship.message,mentorship.mentorId??null);
+      if(type==='CREATE_MENTOR_LINK'){
+        recordRelationshipEvidence(s,{fromId:mentorship.studentId,toId:mentorship.mentorId,kind:'mentor-link',key:'mentor:'+mentorship.linkId+':student',delta:{respect:8,trust:2},ref:'mentor-link:'+mentorship.linkId});
+        recordRelationshipEvidence(s,{fromId:mentorship.mentorId,toId:mentorship.studentId,kind:'mentor-link',key:'mentor:'+mentorship.linkId+':mentor',delta:{affinity:2},ref:'mentor-link:'+mentorship.linkId});
+      }
+    }
+    return mentorship;
+  }
   const production=productionCommand(s,type,data);if(production)return production;
   const rust=rustCommand(s,type,data,walkable);
   if(rust){
@@ -146,7 +157,12 @@ export function command(s,type,data={}){
     const a=createAgent(s,parent);if(spawn){a.x=spawn.x;a.y=spawn.y;}return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
   }
   if(type==='VERIFY_KNOWLEDGE'){
+    const verifier=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    const priorClaim=verifier?.knowledgeState?.beliefs?.find(b=>b.key===data.key);
+    const sourceAgentId=priorClaim?.sourceAgentId??null;
     const result=verifyResourceKnowledge(s,data.agentId,data.key);
+    if(result.ok&&result.changed&&result.reason==='locally-observed'&&Number.isSafeInteger(sourceAgentId)&&sourceAgentId!==data.agentId)
+      recordRelationshipEvidence(s,{fromId:data.agentId,toId:sourceAgentId,kind:'verified-knowledge',key:'verified:'+data.agentId+':'+sourceAgentId+':'+data.key,delta:{trust:4},ref:data.key});
     const messages={actor:'เลือกผู้ตรวจสอบที่ยังมีชีวิต',knowledge:'ตัวละครยังไม่เคยรับรู้ข้อมูลนี้',
       'out-of-range':'ต้องอยู่ห่างจากตำแหน่งที่รู้ไม่เกิน 4 ช่อง',
       'locally-observed':'ตรวจพบแหล่งทรัพยากรแล้ว · ยืนยันด้วยการสังเกตตรง',
@@ -167,6 +183,11 @@ export function command(s,type,data={}){
     const result=shareKnowledge(sender,receiver,data.key,s.tick);
     if(!result.ok)return {ok:false,message:'ผู้ส่งยังไม่มีความรู้นี้ยืนยันจากประสบการณ์ตรง'};
     event(s,'knowledge',sender.name+' ถ่ายทอด '+data.key+' ให้ '+receiver.name,sender.id);
+    if(result.changed!==false){
+      const shared='share:'+sender.id+':'+receiver.id+':'+data.key+':'+s.tick;
+      recordRelationshipEvidence(s,{fromId:sender.id,toId:receiver.id,kind:'knowledge-share',key:shared+':sender',delta:{affinity:1},ref:data.key});
+      recordRelationshipEvidence(s,{fromId:receiver.id,toId:sender.id,kind:'knowledge-share',key:shared+':receiver',delta:{affinity:1},ref:data.key});
+    }
     return {ok:true,message:'ถ่ายทอดความรู้ให้ '+receiver.name+' แล้ว',fromId:sender.id,toId:receiver.id,key:data.key};
   }
   // Shelter BUILD is removed: modular pieces (PLACE_STATION) are the only construction system.
@@ -276,7 +297,17 @@ function execute(s,a){
   }
   t.work+=workRate;
   if(t.kind==='EAT'){
-    if(t.work>=3){if(meal.food>0){meal.food--;a.satiety=clamp(a.satiety+RULES.mealSatiety);}a.task=null;}
+    if(t.work>=3){
+      if(meal.food>0){
+        const ownerId=mealOwnerId(s,a);
+        meal.food--;a.satiety=clamp(a.satiety+RULES.mealSatiety);
+        if(isIndependent(s)&&Number.isSafeInteger(ownerId)&&ownerId!==a.id){
+          const year=Math.floor(s.tick/LIFE.ticksPerYear);
+          recordRelationshipEvidence(s,{fromId:a.id,toId:ownerId,kind:'guardian-support',key:'guardian-meal:'+a.id+':'+ownerId+':'+year,delta:{trust:1,affinity:1},ref:'food'});
+        }
+      }
+      a.task=null;
+    }
   }else if(t.kind==='REST'){
     a.energy=clamp(a.energy+(t.fieldRest?.9:2));if(!t.fieldRest&&a.satiety>30)a.hp=clamp(a.hp+.3);
     if(t.work>=26||a.energy>=99)a.task=null;
@@ -434,6 +465,7 @@ export function validate(s){
   for(const e of validateRustState(s))bad(e);
   for(const e of validateProductionPlan(s))bad(e);
   for(const e of validateMentorship(s))bad(e);
+  for(const e of validateSocialState(s,{required:isIndependent(s)}))bad(e);
   return errors;
 }
 function deathCauseFromText(text){
@@ -486,16 +518,16 @@ function migrateKnowledge(s){
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
-  if(sourceVersion===INDEPENDENT_SAVE_VERSION)return s; // New schema must be complete; never guess missing personal stores.
+  if(sourceVersion===INDEPENDENT_SAVE_VERSION){ensureSocialState(s);return s;} // IC6 adds empty social state only; never guesses historical scores.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
-  if(sourceVersion===SAVE_VERSION){ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);return s;}
+  if(sourceVersion===SAVE_VERSION){ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
-    migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);s.version=SAVE_VERSION;return s;
+    migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);s.version=SAVE_VERSION;return s;
   }
   if(sourceVersion===HISTORY_ARCHIVE_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
-    migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);s.version=SAVE_VERSION;return s;
+    migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);s.version=SAVE_VERSION;return s;
   }
   if(![LEGACY_SAVE_VERSION,DEATH_HISTORY_SAVE_VERSION].includes(sourceVersion))return s;
   if(s.archive!==undefined||s.archiveVersion!==undefined)throw new Error('Unexpected archive in legacy save');
@@ -508,7 +540,7 @@ function migrateSave(s){
   if(Array.isArray(s.agents))for(const a of s.agents)if(a?.alive===false&&a.hp===0){a.task=null;a.moveTick=0;}
   migrateHistory(s,sourceVersion);
   s.archiveVersion=ARCHIVE_VERSION;s.archive=[];
-  migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);s.version=SAVE_VERSION;
+  migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);s.version=SAVE_VERSION;
   return s;
 }
 export function restore(text){
