@@ -13,6 +13,7 @@ import {edgeCells} from './rust-stations.mjs?v=0.5.0';
 import {allSettlementSnapshots} from './settlement-authority.mjs?v=0.5.0';
 import {autonomousLifeSnapshot} from './autonomous-life-view.mjs?v=0.5.0';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const signed=v=>{const n=Number(v)||0,s=Number.isInteger(n)?String(n):n.toFixed(2);return n>0?'+'+s:s;};
 export function installIndependentUI(api){
  const $=id=>document.getElementById(id);
  const card=document.createElement('div');card.id='personal-home-summary';card.className='personal-home-summary';
