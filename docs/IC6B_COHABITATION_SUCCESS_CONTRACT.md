@@ -101,3 +101,13 @@ Residency does **not**:
 15. Existing IC1–IC6A regressions remain SAT.
 
 UNKNOWN is never PASS.
+
+
+## IC6C supersession
+
+The earlier IC6B statement that adult cohabitants keep separate raw food/material balances is superseded by `docs/KINGDOM_HOUSEHOLD_SUCCESS_CONTRACT.md`.
+
+Current rule:
+- house ownership remains unchanged;
+- physical bag items/tools remain personal;
+- food/wood/stone/charcoal route through the active household resource pool.
