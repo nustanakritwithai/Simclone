@@ -1,6 +1,8 @@
+import {isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {CRAFT_STATIONS,ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS} from './crafting-catalog.mjs?v=0.5.0';
 export const RUST_STATIONS_VERSION='RS3-0.3';
-export const STATION_LIMITS=Object.freeze({maxStations:64,interactionRange:1});
+export const STATION_LIMITS=Object.freeze({maxStations:64,independentMaxStations:512,interactionRange:1});
+export const stationLimit=s=>isIndependent(s)?STATION_LIMITS.independentMaxStations:STATION_LIMITS.maxStations;
 const dist=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 export const createRustStations=()=>({version:RUST_STATIONS_VERSION,nextStation:1,stations:[],placements:[]});
 export const stationAt=(s,id)=>s.rustStations?.stations.find(x=>x.id===id)??null;
@@ -12,7 +14,7 @@ export function availableStationKinds(s){
 export function stationForRecipe(s,recipeId,agent,preferredId=null){
   const r=RECIPE_CATALOG[recipeId];if(!r)return null;
   if(r.station===CRAFT_STATIONS.HAND)return {id:null,kind:'HAND',x:agent.x,y:agent.y,complete:true};
-  const xs=(s.rustStations?.stations??[]).filter(st=>st.complete&&st.kind===r.station&&(preferredId===null||st.id===preferredId));
+  const xs=(s.rustStations?.stations??[]).filter(st=>st.complete&&st.kind===r.station&&(!isIndependent(s)||st.placedBy===agent.id)&&(preferredId===null||st.id===preferredId));
   return xs.sort((a,b)=>dist(agent,a)-dist(agent,b)||a.id-b.id)[0]??null;
 }
 const equippedHammer=(s,agentId)=>{
@@ -111,12 +113,13 @@ export function canPlaceStation(s,{agentId=null,itemInstanceId=null,pieceKind=nu
     if(pieceAt(s,socketKey(target)))return {ok:false,reason:'socket-occupied',stage:'structure'};
     anchor={x:target.x,y:target.y};
   }
-  if(stations.length>=STATION_LIMITS.maxStations)return {ok:false,reason:'capacity',stage:'structure'};
+  if(stations.length>=stationLimit(s))return {ok:false,reason:'capacity',stage:'structure'};
   // Stage 3: actor (only for real placement and actor-bound preview).
   if(actor){
     const a=s.agents?.find(a=>a.id===agentId&&a.alive);
     if(!a||item.location?.kind!=='bag'||item.location.agentId!==agentId)return {ok:false,reason:'actor-or-item',stage:'actor'};
     if(structure&&!equippedHammer(s,agentId))return {ok:false,reason:'hammer',stage:'actor'};
+    if(isIndependent(s)&&kind==='WOOD_FOUNDATION'&&[[0,-1],[1,0],[0,1],[-1,0]].some(([dx,dy])=>{const f=foundationAt(s,anchor.x+dx,anchor.y+dy);return f&&f.placedBy!==agentId;}))return {ok:false,reason:'ownership-boundary',stage:'actor'};
     if(actorRange(a,target,anchor)>STATION_LIMITS.interactionRange)return {ok:false,reason:'range',stage:'actor'};
     if(placementId!==null&&placementId!==undefined&&(typeof placementId!=='string'||!placementId.length||placementId.length>PLACEMENT_LIMITS.idLength))return {ok:false,reason:'placement-id',stage:'actor'};
     if(structure&&typeof placementId!=='string')return {ok:false,reason:'placement-id',stage:'actor'};

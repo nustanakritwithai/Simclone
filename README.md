@@ -1,3 +1,17 @@
+# Independent Clone World candidate
+
+New public worlds use the independent profile: separated lives, private resources, personal workbenches/tools and owner-built homes, without a central Camp. Existing saves keep the legacy profile; select **โลกใหม่ → ชีวิตอิสระ** to explicitly start the new mode without silently converting a saved world.
+
+- Runtime rules: [IC3 contract](docs/IC3_INDEPENDENT_START_SUCCESS_CONTRACT.md).
+- Work, evidence and release gate: [IC3 work state](docs/IC3_WORK_STATE.md).
+- Unit tests: `npm test`.
+- Untouched 120-year proof: `npm run test:independent`.
+- Independent UI: `python tests/independent-ui-smoke.py` (offline Storage double), or `--native` for local HTTP/native storage where allowed.
+
+This is a candidate until its exact CI and exact-main Pages/public checks succeed. Do not treat local evidence as a deployed release.
+
+---
+
 # Simclone — Autonomous Clone World
 
 A deterministic autonomous-society survival simulation where a lineage can survive, learn, reproduce, die, preserve knowledge, craft physical tools and build bounded production/social structures across generations.

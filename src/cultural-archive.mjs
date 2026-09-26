@@ -1,3 +1,5 @@
+import {isIndependent,materialStock} from './individual-resources.mjs?v=0.5.0';
+import {homeOf,individualHouses} from './individual-housing.mjs?v=0.5.0';
 /** Bounded cultural archive: persistent written claims, not global world truth.
  * An upgraded camp enables publication and autonomous reading. Reading never
  * creates XP or confirmed knowledge; the recipient still has to verify it.
@@ -11,7 +13,12 @@ const freeze=x=>Object.freeze(clone(x));
 const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const people=s=>[...s.agents,...s.archive];
 const actor=(s,id)=>s.agents.find(a=>a.id===id&&a.alive);
-const place=s=>s.culture&&s.buildings.find(b=>b.id===s.culture.buildingId&&b.complete);
+export function archivePlace(s){
+ if(!s.culture)return null;
+ if(isIndependent(s)){const h=individualHouses(s).find(h=>h.houseId===s.culture.houseId&&h.complete&&h.ownerId===s.culture.ownerId);return h?{type:'house',id:h.houseId,...h.origin}:null;}
+ return s.buildings.find(b=>b.id===s.culture.buildingId&&b.complete)??null;
+}
+const place=archivePlace;
 const near=(s,a)=>!!a&&!!place(s)&&distance(a,place(s))<=CULTURE_RULES.range;
 const entryAt=(s,key)=>s.culture?.entries.find(e=>e.key===key);
 const fail=(reason,message)=>({ok:false,reason,message});
@@ -20,7 +27,18 @@ const upsert=(list,match,item,max)=>{
   while(list.length>max)list.shift();
 };
 
-export function establishArchive(s){
+export function establishArchive(s,{agentId=null,houseId=null}={}){
+ if(isIndependent(s)){
+  if(s.culture)return {ok:true,changed:false,message:'โลกนี้มีคลังความรู้ที่บ้านอยู่แล้ว'};
+  const a=actor(s,agentId),h=a&&homeOf(s,a.id,{completeOnly:true});
+  if(!a||!h||h.houseId!==houseId)return fail('owner','เลือกเจ้าของบ้านที่สร้างเสร็จแล้ว');
+  if(distance(a,h.origin)>CULTURE_RULES.range)return fail('range','ต้องอยู่ใกล้บ้านไม่เกิน 4 ช่อง');
+  const stock=materialStock(s,a);
+  if(stock.wood<CULTURE_RULES.woodCost||stock.stone<CULTURE_RULES.stoneCost)return fail('materials','ใช้ไม้ส่วนตัว 6 และหิน 2');
+  stock.wood-=CULTURE_RULES.woodCost;stock.stone-=CULTURE_RULES.stoneCost;
+  s.culture={version:CULTURE_VERSION,hostKind:'house',houseId:h.houseId,ownerId:a.id,createdTick:s.tick,automation:true,lastProcessedTick:-1,entries:[]};
+  return {ok:true,changed:true,message:'เปิดคลังความรู้ที่บ้านแล้ว · ไม่สร้างหมู่บ้านหรือคลังวัสดุกลาง'};
+ }
   if(s.culture)return {ok:true,changed:false,message:'แคมป์มีคลังความรู้อยู่แล้ว'};
   const building=s.buildings.find(b=>b.type==='camp'&&b.complete);
   if(!building)return fail('camp','ต้องมีแคมป์ที่สร้างเสร็จก่อน');
@@ -32,9 +50,9 @@ export function establishArchive(s){
 }
 
 export function publishKnowledge(s,agentId,key){
-  if(!s.culture)return fail('archive','สร้างคลังความรู้ที่แคมป์ก่อน');
+  if(!s.culture)return fail('archive','สร้างคลังความรู้ที่แหล่งบันทึกก่อน');
   const a=actor(s,agentId);if(!a)return fail('actor','เลือกผู้บันทึกที่ยังมีชีวิต');
-  if(!near(s,a))return fail('range','ต้องอยู่ห่างจากแคมป์ไม่เกิน 4 ช่องเพื่อบันทึก');
+  if(!near(s,a))return fail('range','ต้องอยู่ห่างจากคลังความรู้ไม่เกิน 4 ช่องเพื่อบันทึก');
   const b=a.knowledgeState.beliefs.find(b=>b.key===key);
   if(!b||b.status!==BELIEF_STATUS.CONFIRMED||b.sourceKind!=='direct'||b.observedTick===null||
     s.tick-b.observedTick>=KNOWLEDGE_REVISION_RULES.staleAfterTicks)return fail('knowledge','ต้องยืนยันข้อมูลด้วยตนเองและยังไม่หมดอายุก่อนบันทึก');
@@ -59,7 +77,7 @@ export function publishKnowledge(s,agentId,key){
 export function learnFromArchive(s,agentId,key){
   const entry=entryAt(s,key);if(!entry)return fail('entry','ไม่มีความรู้นี้ในคลัง');
   const a=actor(s,agentId);if(!a)return fail('actor','เลือกผู้อ่านที่ยังมีชีวิต');
-  if(!near(s,a))return fail('range','ต้องอยู่ห่างจากแคมป์ไม่เกิน 4 ช่องเพื่ออ่าน');
+  if(!near(s,a))return fail('range','ต้องอยู่ห่างจากคลังความรู้ไม่เกิน 4 ช่องเพื่ออ่าน');
   const current=a.knowledgeState.beliefs.find(b=>b.key===key);
   if(current?.sourceKind==='direct'&&current.observedTick>=entry.observedTick)
     return {ok:true,changed:false,message:'เก็บผลที่ผู้อ่านตรวจด้วยตนเองไว้ ไม่แทนที่ด้วยข้อมูลจากคลัง'};
@@ -104,7 +122,7 @@ export function stepCulture(s){
 }
 
 export function cultureCommand(s,type,data){
-  if(type==='CREATE_ARCHIVE')return establishArchive(s);
+  if(type==='CREATE_ARCHIVE')return establishArchive(s,data);
   if(type==='PUBLISH_KNOWLEDGE')return publishKnowledge(s,data.agentId,data.key);
   if(type==='READ_ARCHIVE')return learnFromArchive(s,data.agentId,data.key);
   if(type==='SET_CULTURE_AUTOMATION'){
@@ -121,7 +139,7 @@ export function validateCulture(s){
   const ids=new Set(people(s).map(a=>a.id)),hasId=id=>Number.isSafeInteger(id)&&ids.has(id);
   const value=v=>v&&Number.isSafeInteger(v.resourceId)&&['food','wood','stone'].includes(v.type)&&
     Number.isInteger(v.x)&&Number.isInteger(v.y)&&v.x>=0&&v.y>=0&&v.x<30&&v.y<26;
-  if(!c||c.version!==CULTURE_VERSION||place(s)?.type!=='camp'||!tick(c.createdTick)||typeof c.automation!=='boolean'||
+  if(!c||c.version!==CULTURE_VERSION||(isIndependent(s)?c.hostKind!=='house'||!hasId(c.ownerId)||place(s)?.type!=='house':place(s)?.type!=='camp')||!tick(c.createdTick)||typeof c.automation!=='boolean'||
     !(c.lastProcessedTick===-1||tick(c.lastProcessedTick))||!Array.isArray(c.entries)||c.entries.length>CULTURE_RULES.entries)return ['Cultural archive'];
   if(JSON.stringify(c).length>CULTURE_RULES.maxCharacters)errors.push('Cultural archive size');
   const keys=new Set();

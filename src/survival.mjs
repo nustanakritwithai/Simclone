@@ -1,3 +1,5 @@
+import {isIndependent,materialStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
+import {survivalHome} from './individual-housing.mjs?v=0.5.0';
 /** Survival 0.2 + Lifecycle 0.3.1: routing/reservations also enforce stage work eligibility. */
 import {canPerformProductiveWork,productiveWorkRate} from './lifecycle.mjs?v=0.5.0';
 import {autonomousBirthFoodTarget,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.5.0';
@@ -46,7 +48,8 @@ export function routeTo(field,target){
   return out.reverse();
 }
 export const pathTo=(s,a,b)=>walkable(s,b.x,b.y)?routeTo(routeField(s,a),b):null;
-export function stockTargets(s){
+export function stockTargets(s,a=null){
+  if(isIndependent(s)){if(a)return personalTargets(s,a);const total={food:0,wood:0,stone:0};for(const p of s.agents.filter(a=>a.alive))for(const [k,v] of Object.entries(personalTargets(s,p)))total[k]+=v;return total;}
   const n=s.agents.filter(a=>a.alive).length;
   return {food:Math.max(24,n*4,autonomousBirthFoodTarget(s)),wood:Math.max(36,n*3),stone:Math.max(24,n*2)};
 }
@@ -63,7 +66,7 @@ export function taskValid(s,a){
   if(RESOURCE_ACTIONS[t.kind]){
     if(!canPerformProductiveWork(s,a))return false;
     const n=s.nodes.find(n=>n.id===t.targetId);
-    return !!n&&n.type===RESOURCE_ACTIONS[t.kind]&&n.x===t.x&&n.y===t.y&&n.amount>0&&s.stock[n.type]<RULES.stockLimit;
+    return !!n&&n.type===RESOURCE_ACTIONS[t.kind]&&n.x===t.x&&n.y===t.y&&n.amount>0&&materialStock(s,a)[n.type]<RULES.stockLimit;
   }
   if(t.kind==='BUILD'&&t.placement){
     // Modular piece: carrier still holds the item and the socket still passes the shared validator (planning mode).
@@ -84,6 +87,12 @@ export function taskValid(s,a){
     const o=s.rustMaterials?.orders?.find(o=>o.id===t.targetId&&o.agentId===a.id),st=o&&s.rustStations?.stations?.find(st=>st.id===o.stationId&&st.complete);
     return !!st&&st.x===t.x&&st.y===t.y;
   }
+  if(isIndependent(s)&&t.kind==='EAT'){
+    if(t.mealOwnerId!==mealOwnerId(s,a)||foodStock(s,a).food<=0)return false;
+    const guardian=guardianOf(s,a);if(guardian)return t.guardianId===guardian.id&&t.x===guardian.x&&t.y===guardian.y;
+    if(t.fieldEat===true)return true;const h=survivalHome(s,a);return (h&&h.houseId===t.homeId&&h.x===t.x&&h.y===t.y);
+  }
+  if(isIndependent(s)&&t.kind==='REST'){if(t.fieldRest===true)return true;const h=survivalHome(s,a);return !!h&&h.houseId===t.homeId&&h.x===t.x&&h.y===t.y;}
   if(t.kind==='EAT')return s.stock.food>0&&s.buildings.some(b=>b.id===t.targetId&&b.complete&&b.x===t.x&&b.y===t.y);
   if(t.kind==='REST')return t.fieldRest===true||s.buildings.some(b=>b.id===t.targetId&&b.complete&&b.x===t.x&&b.y===t.y);
   return ['IDLE','EXPLORE'].includes(t.kind);
@@ -101,7 +110,7 @@ export function claim(book,s,a){
     if(ids.size>=limit)return false;
     ids.add(a.id);book.buildings.set(key,ids);
   }else if(t.kind==='EAT'){
-    if(book.meals.size>=s.stock.food)return false;
+    if(reservedMealsFor(s,mealOwnerId(s,a),book.meals)>=foodStock(s,a).food)return false;
     book.meals.add(a.id);
   }
   return true;
@@ -119,11 +128,11 @@ export function reservations(s){
   return {book,rejected};
 }
 /** Include already-assigned production before allocating another gather job. */
-export function plannedStock(s,book){
-  const projected={...s.stock};
+export function plannedStock(s,book,subject=null){
+  const projected=isIndependent(s)?(subject?{...materialStock(s,subject)}:materialTotals(s,{livingOnly:true})):{...s.stock};
   for(const [nodeId,agentId] of book.nodes){
     const n=s.nodes.find(n=>n.id===nodeId),a=s.agents.find(a=>a.id===agentId);
-    if(!n||!a?.task)continue;
+    if(!n||!a?.task||isIndependent(s)&&subject&&a.id!==subject.id)continue;
     const amount=Math.min(n.amount,2+Math.floor(skillLevel(a.skills[a.task.kind])/2));
     const meal=n.type==='food'&&a.satiety<RULES.hungry&&amount>=1?1:0;
     projected[n.type]+=amount-meal;
@@ -132,17 +141,18 @@ export function plannedStock(s,book){
 }
 export function survivalSummary(s){
   const agents=s.agents.filter(a=>a.alive),{book}=reservations(s),target=stockTargets(s);
-  const freeFood=Math.max(0,s.stock.food-book.meals.size),birth=birthPlan(s,freeFood);
+  const totals=materialTotals(s,{livingOnly:true});
+  const freeFood=Math.max(0,totals.food-book.meals.size),birth=birthPlan(s,freeFood);
   const unfinished=unfinishedHousing(s);
-  const kingdomEconomy=kingdomEconomySnapshot({agents,stock:s.stock,unfinished});
+  const kingdomEconomy=kingdomEconomySnapshot({agents,stock:totals,unfinished});
   const kingdomProduction=kingdomProductionSnapshot({agents,capacity:housingCapacity(s),economy:kingdomEconomy,
     skillLevel:(a,action)=>skillLevel(a.skills[action]??0),ageRate:a=>productiveWorkRate(s,a)});
   const kingdomLabor=kingdomLaborMarketSnapshot({economy:kingdomEconomy,production:kingdomProduction});
   const kingdomMarket=kingdomMarketSnapshot({economy:kingdomEconomy});
   return {population:agents.length,hungry:agents.filter(a=>a.satiety<RULES.hungry).length,
     exhausted:agents.filter(a=>a.energy<RULES.exhausted).length,
-    food:s.stock.food,reservedMeals:book.meals.size,freeFood,
+    food:totals.food,reservedMeals:book.meals.size,freeFood,
     targets:target,projected:plannedStock(s,book),nodeJobs:book.nodes.size,builders:[...book.buildings.values()].reduce((sum,ids)=>sum+ids.size,0),
     unfinished,autonomousBirths:allPeople(s).filter(isAutonomousChild).length,birth:{...birth},
-    stock:{...s.stock},kingdomEconomy,kingdomProduction,kingdomLabor,kingdomMarket};
+    stock:{...totals},kingdomEconomy,kingdomProduction,kingdomLabor,kingdomMarket};
 }

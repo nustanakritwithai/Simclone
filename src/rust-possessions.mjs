@@ -1,3 +1,5 @@
+import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
+import {materialStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
 import {availableStationKinds,stationForRecipe} from './rust-stations.mjs?v=0.5.0';
 export const RUST_POSSESSIONS_VERSION='RS2-0.2';
@@ -7,15 +9,17 @@ const living=(s,id)=>s.agents?.find(a=>a.id===id&&a.alive);
 const bag=(p,id)=>p.items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===id);
 export function queueCraft(s,{agentId,recipeId,stationId=null}={}){
   const p=s.rustPossessions,a=living(s,agentId),r=RECIPE_CATALOG[recipeId];
+  if(isIndependent(s)&&a&&!canPerformProductiveWork(s,a))return {ok:false,reason:'stage'};
   if(!p||!a||!r)return {ok:false,reason:'actor-or-recipe'};
   if(p.orders.some(o=>o.agentId===agentId))return {ok:false,reason:'craft-busy'};
   if(p.orders.length>=RUST_POSSESSION_LIMITS.orders||p.items.length+p.orders.length>=RUST_POSSESSION_LIMITS.items)return {ok:false,reason:'capacity'};
   if(bag(p,agentId).length+p.orders.filter(o=>o.agentId===agentId).length>=RUST_POSSESSION_LIMITS.bag)return {ok:false,reason:'bag-full'};
   const station=stationForRecipe(s,recipeId,a,stationId);
   if(r.station!==CRAFT_STATIONS.HAND&&!station)return {ok:false,reason:'station',station:r.station};
-  const check=craftability(s,recipeId,{stationKinds:availableStationKinds(s)});if(!check.ok)return check;
+  const stock=materialStock(s,a);
+  const check=craftability({stock},recipeId,{stationKinds:availableStationKinds(s)});if(!check.ok)return check;
   // Atomic escrow: remove materials once at acceptance. Completion never spends again.
-  for(const [k,n] of Object.entries(r.materials))s.stock[k]-=n;
+  for(const [k,n] of Object.entries(r.materials))stock[k]-=n;
   const order={id:p.nextOrder++,agentId,recipe:recipeId,stationId:station?.id??null,work:0,required:r.work,startedTick:s.tick,lastWorkedTick:s.tick,reserved:{...r.materials}};
   p.orders.push(order);
   return {ok:true,orderId:order.id,recipeId,stationId:order.stationId,reserved:{...order.reserved},workRequired:r.work};

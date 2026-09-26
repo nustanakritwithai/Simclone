@@ -35,3 +35,12 @@ jobs:
 
       - name: Verify active observation UI
         run: python tests/ui-smoke.py
+
+      - name: Verify independent 120-year generation continuity
+        run: node scripts/independent-world-proof.mjs 230926
+
+      - name: Verify independent world offline UI
+        run: python tests/independent-ui-smoke.py
+
+      - name: Verify independent world native HTTP and storage
+        run: python tests/independent-ui-smoke.py --native

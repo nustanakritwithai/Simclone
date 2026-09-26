@@ -239,6 +239,8 @@ with sync_playwright() as p:
  sb=m.locator('#stage').bounding_box();m.mouse.click(sb['x']+sb['width']*.5,sb['y']+sb['height']*.35)
  check('tapping the world does not build or spend',len(snap(m)['buildings'])==len(s['buildings']) and snap(m)['stock']==s['stock'])
  m.screenshot(path=str(OUT/'mobile-no-build.png'))
+ # UX1 observation may open a modal; close it before the independent import flow.
+ if m.locator('#dialog').evaluate('(e)=>e.open'): m.locator('#dialog-close').tap()
  # An unfinished shelter from an old (RS3-0.2) save is still finished by Clones, without refund or second charge.
  legacy_build=json.loads(saved);legacy_build['rustStations']['version']='RS3-0.2';legacy_build['rustStations'].pop('placements',None)
  legacy_build['buildings'].append({'id':legacy_build['nextBuilding'],'type':'shelter','x':14,'y':11,'complete':False,'progress':0});legacy_build['nextBuilding']+=1

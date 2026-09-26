@@ -2,7 +2,7 @@
 from pathlib import Path
 import re,base64,json
 ROOT=Path(__file__).resolve().parents[1]
-def fixture(fail_start=False):
+def fixture(fail_start=False,default_mode='legacy'):
     # Use one module URL per source file. Recursively embedding dependency data
     # URLs duplicates the complete transitive graph and exhausts browser memory.
     # Import maps preserve native ESM linking and the existing offline boundary.
@@ -24,6 +24,8 @@ def fixture(fail_start=False):
         modules[name]='data:text/javascript;base64,'+base64.b64encode(text.encode()).decode()
         return name
     html=(ROOT/'index.html').read_text()
+    # Compatibility suites intentionally exercise the legacy bootstrap profile.
+    html=re.sub(r'data-default-world="[^"]+"', 'data-default-world="'+default_mode+'"', html)
     # Offline modules use the same sources but data URLs instead of HTTP cache keys.
     html=re.sub(r'<script type="importmap" id="runtime-import-map">[\s\S]*?</script>','',html)
     html=re.sub(r'<link rel="stylesheet" href="\./([^"?]+)(?:\?[^\"]+)?">',lambda m:'<style>'+(ROOT/m.group(1)).read_text()+'</style>',html)

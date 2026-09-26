@@ -1,17 +1,16 @@
-# Remaining build gates
+# Active gate — Independent Clone World delivery
 
-Read STATUS and the exact current main/Actions/open PRs before changing code. Plan entries below are unfinished goals, not proof of implementation. Preserve existing tests, explicit migration, single writers and bounded history. UNKNOWN is not PASS.
+1. Complete exact candidate CI for PR #88. The new candidate includes IC2 repair and IC3 no-Camp/private-resources/personal-home/guardian/archive-host behavior.
+2. Retain both the legacy compatibility suite and explicit independent-profile browser suite. Native HTTP/public Pages and physical Android are separate scopes.
+3. After exact candidate success, merge and verify exact-main Pages/public bytes. A local pass or a merge alone is not release proof.
+4. After publishing any candidate, obtain its run URL once, send it to the user, and stop polling. Do not sit waiting for CI or create a watcher.
 
-## Independent Clone World branch
+Current source of truth: [IC3 contract](IC3_INDEPENDENT_START_SUCCESS_CONTRACT.md) and [IC3 work state](IC3_WORK_STATE.md).
+Future gameplay: explicit inheritance/property transfer; relationship-based cohabitation/cooperation/trade; emergent neighborhoods. These are deferred, not completed by the current independent start.
 
-Approved new architecture line: `feature/independent-clone-world-ic1`, based from current verified main and isolated from UX1 work.
+## Historical release/backlog context
 
-- **IC0:** canonical design and work-state artifacts.
-- **IC1 candidate:** evidence-derived personal home ownership + Camp-independent personal site selection; no save/birth/global-stock behavior change yet.
-- **IC2 next after IC1 SAT:** homeless adult personal home planning through existing Rust craft/equip/place authorities.
-- Do not merge old settlement/building branches into this line. Reuse concepts only after rebasing/reimplementation against current main.
-
-Required proof for IC1: unit suite including two distinct house owners, no duplicate ledger, existing regressions unchanged, exact candidate CI. UNKNOWN is not PASS.
+The remaining legacy backlog below is retained for context. Current independent-mode rules supersede its central-stock/Camp/housing assumptions, not the unchanged legacy save behavior.
 
 ## Closed release line
 

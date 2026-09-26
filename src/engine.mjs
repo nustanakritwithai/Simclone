@@ -1,3 +1,7 @@
+import {isIndependent,materialStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
+import {INDEPENDENT_SAVE_VERSION,addPersonalStore,validateIndependentWorld} from './individual-resources.mjs?v=0.5.0';
+import {initializeIndependentStart,independentSpawn} from './independent-start.mjs?v=0.5.0';
+import {survivalHome} from './individual-housing.mjs?v=0.5.0';
 import {cultureCommand,stepCulture,validateCulture} from './cultural-archive.mjs?v=0.5.0';
 import {setPlanningPolicy,personalResourceCandidates,personalExplorationTarget,rememberPlanSelection,finishPersonalExploration,recordPlanProduction,validatePersonalPlanning} from './personal-planning.mjs?v=0.5.0';
 import {verifyResourceKnowledge,ageKnowledge} from './knowledge-revision.mjs?v=0.5.0';
@@ -14,6 +18,7 @@ import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
 import {housingCapacity,unfinishedHousing,evaluateModularHouses,pendingPlacements} from './housing.mjs?v=0.5.0';
+import {pendingPersonalPlacements} from './individual-housing.mjs?v=0.5.0';
 import {placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {ensureProductionPlan,productionCommand,stepProductionPlanning,validateProductionPlan} from './production-planning.mjs?v=0.5.0';
 import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsForAgent,validateMentorship} from './mentor-teaching.mjs?v=0.5.0';
@@ -57,6 +62,7 @@ function createAgent(s,parent,initial=false,mode='manual'){
   if(parent){a.x=parent.x;a.y=parent.y;}
   if(initial&&parent){a.x=9+k%4;a.y=10+Math.floor(k/4)*2;a.satiety=65+k*3;a.energy=72+k*3;}
   s.agents.push(a);
+  if(isIndependent(s))addPersonalStore(s,a);
   event(s,'birth',parent?(autonomous?a.name+' เกิดจาก '+parent.name+' · รุ่น '+a.generation:a.name+' ถูกสร้างจาก '+parent.name+' · รุ่น '+a.generation):'Original เข้าสู่โลกใหม่',id);
   return a;
 }
@@ -65,7 +71,7 @@ function attemptAutonomousBirth(s){
   if(!plan.ok)return null;
   const parent=s.agents.find(a=>a.id===plan.parentId&&a.alive);
   if(!parent||!compactRetired(s).ok)return null;
-  s.stock.food-=BIRTH_RULES.foodCost;s.stock.wood-=BIRTH_RULES.woodCost;
+  const funds=materialStock(s,parent);funds.food-=BIRTH_RULES.foodCost;funds.wood-=BIRTH_RULES.woodCost;
   return createAgent(s,parent,false,'birth');
 }
 function killAgent(s,a,cause){
@@ -78,7 +84,10 @@ function killAgent(s,a,cause){
     :a.name+' เสียชีวิตจากการขาดอาหารเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี';
   event(s,'death',text,a.id);return true;
 }
-export function createWorld(seed=230926){
+export function createWorld(seed=230926,options={}){
+  const independent=options.mode==='independent',population=independent?(options.population??6):6;
+  if(options.mode!==undefined&&!['legacy','independent'].includes(options.mode))throw new Error('Unsupported world mode');
+  if(!Number.isInteger(population)||population<1||population>6)throw new Error('Starting population must be 1..6');
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
   ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);
@@ -86,17 +95,18 @@ export function createWorld(seed=230926){
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
     const river=20+Math.round(Math.sin(y*.26)*2), wet=x>=river&&x<river+3;
     const bridge=wet&&(y===13||y===14);
-    const road=(Math.abs(y-13)<1&&x>6&&x<27)||(Math.abs(x-11)<1&&y>7&&y<18);
+    const road=!independent&&((Math.abs(y-13)<1&&x>6&&x<27)||(Math.abs(x-11)<1&&y>7&&y<18));
     s.tiles.push(bridge?'bridge':wet?'water':road?'path':'grass');
-    const r=rng(s),inCamp=x>=7&&x<=15&&y>=8&&y<=17;
+    const r=rng(s),inCamp=!independent&&x>=7&&x<=15&&y>=8&&y<=17;
     if(!wet&&!road&&!inCamp&&r<.23){
       const type=r<.14?'wood':r<.19?'food':'stone';
       s.nodes.push({id:nid++,type,x,y,amount:type==='stone'?70:35,max:type==='stone'?70:35});
     }
   }
-  for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]])
+  if(!independent)for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]])
     s.nodes.push({id:nid++,type,x,y,amount:45,max:45});
-  const original=createAgent(s,null);for(let i=0;i<5;i++)createAgent(s,original,true);
+  const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
+  if(independent){initializeIndependentStart(s,walkable);setPlanningPolicy(s,'local');}
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
@@ -114,7 +124,7 @@ export function command(s,type,data={}){
     // stats.built counts houses that a Clone actually finishes: once, on the completing placement.
     if(type==='PLACE_STATION'&&rust.ok&&rust.completedHouse){
       const a=s.agents.find(a=>a.id===data.agentId);s.stats.built++;
-      event(s,'build',(a?a.name+' ':'')+'สร้างบ้านสำเร็จ · ที่พักเพิ่ม 6 คน',a?.id??null);
+      event(s,'build',(a?a.name+' ':'')+(isIndependent(s)?'สร้างบ้านส่วนตัวสำเร็จ':'สร้างบ้านสำเร็จ · ที่พักเพิ่ม 6 คน'),a?.id??null);
     }
     return rust;
   }
@@ -123,14 +133,17 @@ export function command(s,type,data={}){
   if(type==='CLONE'){
     const parent=s.agents.find(a=>a.id===data.parentId&&a.alive);
     if(!parent)return {ok:false,message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
-    if(living(s).length>=Math.min(36,capacity(s)))return {ok:false,message:'ที่พักเต็มแล้ว สร้างบ้านให้เสร็จก่อน'};
+    if(living(s).length>=(isIndependent(s)?36:Math.min(36,capacity(s))))return {ok:false,message:'ที่พักเต็มแล้ว สร้างบ้านให้เสร็จก่อน'};
     const retention=retentionPlan(s);
     if(!retention.ok)return {ok:false,reason:retention.reason,message:'พื้นที่ประวัติตัวละครเต็ม · หยุดเพิ่มคนโดยไม่ลบบรรพบุรุษ'};
-    const freeFood=survivalSummary(s).freeFood;
-    if(freeFood<8||s.stock.wood<4)return {ok:false,message:'ต้องมีอาหารว่าง 8 และไม้ 4 · อาหารที่จองไว้ให้คนกินไม่นับเป็นอาหารว่าง'};
+    const funds=materialStock(s,parent),book=reservations(s).book;
+    const freeFood=isIndependent(s)?Math.max(0,funds.food-reservedMealsFor(s,parent.id,book.meals)):survivalSummary(s).freeFood;
+    if(freeFood<8||funds.wood<4)return {ok:false,message:'ต้องมีอาหารว่าง 8 และไม้ 4 · อาหารที่จองไว้ให้คนกินไม่นับเป็นอาหารว่าง'};
+    const spawn=isIndependent(s)?independentSpawn(s,walkable,living(s)):null;
+    if(isIndependent(s)&&!spawn)return {ok:false,reason:'no-spawn',message:'ไม่มีจุดเริ่มชีวิตแยกที่ปลอดภัย'};
     if(!compactRetired(s).ok)return {ok:false,reason:'history-storage',message:'เก็บประวัติเพิ่มไม่ได้ · ไม่หักทรัพยากรและไม่ลบประวัติเดิม'};
-    s.stock.food-=8;s.stock.wood-=4;s.stats.cloned++;
-    const a=createAgent(s,parent);return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
+    funds.food-=8;funds.wood-=4;s.stats.cloned++;
+    const a=createAgent(s,parent);if(spawn){a.x=spawn.x;a.y=spawn.y;}return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
   }
   if(type==='VERIFY_KNOWLEDGE'){
     const result=verifyResourceKnowledge(s,data.agentId,data.key);
@@ -165,11 +178,12 @@ export function command(s,type,data={}){
 /** One reachable destination per job family; busy nodes never hide a free alternative. */
 function candidates(s,a,book,field){
   ensureProfession(a,s.tick);
-  const out=[],targets=stockTargets(s),projected=plannedStock(s,book),freeFood=s.stock.food-book.meals.size;
+  const independent=isIndependent(s),stock=materialStock(s,a),meal=foodStock(s,a),guardian=independent?guardianOf(s,a):null;
+  const out=[],targets=stockTargets(s,a),projected=plannedStock(s,book,a),freeFood=meal.food-reservedMealsFor(s,mealOwnerId(s,a),book.meals);
   const productive=canPerformProductiveWork(s,a);
   const compare=(x,y)=>routeDistance(field,x)-routeDistance(field,y)||x.id-y.id;
   const homes=s.buildings.filter(b=>b.complete&&routeDistance(field,b)>=0).sort(compare),unfinished=unfinishedHousing(s);
-  const home=homes[0];
+  const home=independent?survivalHome(s,a):homes[0];
   function add(kind,target,base,need=0,goal=0,status='candidate',extra={}){
     const travel=routeDistance(field,target),skillKind=extra.purposeKind??kind,skill=SKILLS.includes(skillKind)?level(a.skills[skillKind])*3:0;
     const laborMarket=Number(extra.laborAuthority?.bonus??0);
@@ -184,11 +198,14 @@ function candidates(s,a,book,field){
   }
   const rustWork=pendingRustWork(s,a);
   if(rustWork)add(rustWork.kind,{...rustWork,id:rustWork.orderId},90,0,0,productive?'candidate':'stage',{rustOrderId:rustWork.orderId,rustLabel:rustWork.label});
-  if(home&&a.satiety<82&&s.stock.food>0)
-    add('EAT',home,0,(100-a.satiety)*1.25+(a.satiety<RULES.hungry?180:0),0,freeFood>0?'candidate':'reserved');
+  if(a.satiety<82&&meal.food>0&&(independent||home)){
+    const fieldEat=independent&&!guardian&&(!home||a.satiety<RULES.hungry&&routeDistance(field,home)>8);
+    const target=independent?(guardian??(fieldEat?a:home)):home;
+    add('EAT',target,0,(100-a.satiety)*1.25+(a.satiety<RULES.hungry?180:0),0,freeFood>0?'candidate':'reserved',independent?{mealOwnerId:mealOwnerId(s,a),guardianId:guardian?.id??null,homeId:home?.houseId??null,fieldEat}:{});
+  }
   if(a.energy<85){
     const fieldRest=!home||(a.energy<RULES.exhausted&&routeDistance(field,home)>8);
-    add('REST',fieldRest?a:home,0,(100-a.energy)*1.2+(a.energy<RULES.exhausted?80:0),0,'candidate',{fieldRest});
+    add('REST',fieldRest?a:home,0,(100-a.energy)*1.2+(a.energy<RULES.exhausted?80:0),0,'candidate',{fieldRest,...(independent?{homeId:home?.houseId??null}:{})});
   }
   for(const [kind,type] of Object.entries(RESOURCE_ACTIONS)){
     const all=personalResourceCandidates(s,a,type);
@@ -198,20 +215,20 @@ function candidates(s,a,book,field){
     const hungerBonus=kind==='FORAGE'&&a.satiety<RULES.hungry&&freeFood<=0?210:0;
     const shortage=projected[type]<targets[type]/2?40:18;
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind,resourceType:type,projected,targets});
-    const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock:s.stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
+    const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
     const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
     add(target.perception==='memory'?'EXPLORE':kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority,
       ...(target.perception?{purposeKind:kind,perception:target.perception,...(target.knowledgeKey?{knowledgeKey:target.knowledgeKey}:{})}: {})});
   }
   for(const b of s.buildings.filter(b=>!b.complete)){
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind:'BUILD',scarcityOverride:18});
-    const laborAuthority=laborAuthoritySignal({kind:'BUILD',agent:a,agents:s.agents,stock:s.stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
+    const laborAuthority=laborAuthoritySignal({kind:'BUILD',agent:a,agents:s.agents,stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
     add('BUILD',b,56,0,a.preference==='BUILD'?18:0,!productive?'stage':(book.buildings.get(b.id)?.size??0)<RULES.builders?'candidate':'reserved',{kingdomUtility:kingdom,laborAuthority});
   }
   // Modular house pieces: the carrier walks to the socket's anchor cell; placement itself goes through PLACE_STATION.
-  for(const p of pendingPlacements(s,a,walkable)){
+  for(const p of ((independent||s.productionPlan?.enabled===true)?pendingPersonalPlacements(s,a,walkable):pendingPlacements(s,a,walkable))){
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind:'BUILD',scarcityOverride:18});
-    const laborAuthority=laborAuthoritySignal({kind:'BUILD',agent:a,agents:s.agents,stock:s.stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
+    const laborAuthority=laborAuthoritySignal({kind:'BUILD',agent:a,agents:s.agents,stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
     add('BUILD',{id:p.itemInstanceId,x:p.anchor.x,y:p.anchor.y},56,0,a.preference==='BUILD'?18:0,!productive?'stage':book.buildings.has('piece:'+p.itemInstanceId)?'reserved':'candidate',
       {kingdomUtility:kingdom,laborAuthority,placement:{itemInstanceId:p.itemInstanceId,pieceKind:p.pieceKind,socket:p.socket}});
   }
@@ -228,6 +245,7 @@ function decide(s,a,book){
     if(c.status!=='candidate')continue;
     a.task={kind:c.kind,targetId:c.targetId,x:c.x,y:c.y,path:routeTo(field,c),work:0,
       score:c.score,started:s.tick,policy:RULES.jobPolicy,fieldRest:c.fieldRest===true,
+      ...(isIndependent(s)?{homeId:c.homeId??null,mealOwnerId:c.mealOwnerId??null,guardianId:c.guardianId??null,fieldEat:c.fieldEat===true}:{}),
       ...(c.purposeKind?{purposeKind:c.purposeKind}:{}),...(c.knowledgeKey?{knowledgeKey:c.knowledgeKey}:{}),
       ...(Number.isInteger(c.exploreCursor)?{exploreCursor:c.exploreCursor}:{}),...(c.placement?{placement:{...c.placement,socket:{...c.placement.socket}}}:{})};
     if(!claim(book,s,a)){c.status='reserved';a.task=null;continue;}
@@ -244,9 +262,9 @@ function gain(s,a,key,targetId=null){
   if(level(a.skills[key])>old)event(s,'skill',a.name+' พัฒนา '+LABELS[key]+' เป็นระดับ '+level(a.skills[key]),a.id);
 }
 function execute(s,a){
-  const t=a.task;
+  const t=a.task,stock=materialStock(s,a),meal=foodStock(s,a);
   if(t.kind==='IDLE'){a.energy=clamp(a.energy+.3);if(++t.work>=12)a.task=null;return;}
-  if(t.kind==='EAT'&&s.stock.food<=0){a.task=null;return;}
+  if(t.kind==='EAT'&&meal.food<=0){a.task=null;return;}
   if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const p=t.path.shift();a.x=p.x;a.y=p.y;a.moveTick=0;}return;}
   const workRate=SKILLS.includes(t.kind)?productiveWorkRate(s,a)*rustToolMultiplier(s,a,t.kind):(['CRAFT','PROCESS'].includes(t.kind)?productiveWorkRate(s,a):1);
   if(t.kind==='CRAFT'||t.kind==='PROCESS'){
@@ -258,7 +276,7 @@ function execute(s,a){
   }
   t.work+=workRate;
   if(t.kind==='EAT'){
-    if(t.work>=3){if(s.stock.food>0){s.stock.food--;a.satiety=clamp(a.satiety+RULES.mealSatiety);}a.task=null;}
+    if(t.work>=3){if(meal.food>0){meal.food--;a.satiety=clamp(a.satiety+RULES.mealSatiety);}a.task=null;}
   }else if(t.kind==='REST'){
     a.energy=clamp(a.energy+(t.fieldRest?.9:2));if(!t.fieldRest&&a.satiety>30)a.hp=clamp(a.hp+.3);
     if(t.work>=26||a.energy>=99)a.task=null;
@@ -281,12 +299,12 @@ function execute(s,a){
     const n=s.nodes.find(n=>n.id===t.targetId);
     if(!n||n.amount<=0){a.task=null;return;}
     if(t.work>=Math.max(4,14-level(a.skills[t.kind]))){
-      const amount=Math.min(n.amount,2+Math.floor(level(a.skills[t.kind])/2),999-s.stock[n.type]);
+      const amount=Math.min(n.amount,2+Math.floor(level(a.skills[t.kind])/2),999-stock[n.type]);
       if(amount>0){
         n.amount-=amount;s.stats.gathered+=amount;
         // A hungry forager eats ONE freshly harvested unit. No free meal is created.
         const meal=t.kind==='FORAGE'&&a.satiety<RULES.hungry&&amount>=1?1:0;
-        s.stock[n.type]+=amount-meal;
+        stock[n.type]+=amount-meal;
         if(meal)a.satiety=clamp(a.satiety+RULES.mealSatiety);
         gain(s,a,t.kind,n.id);
         if(!recordResourceDiscovery(a,n,s.tick,{action:t.kind,amount}))throw new Error('Knowledge evidence write failed');
@@ -349,7 +367,8 @@ export function serialize(s){
 }
 export function validate(s){
   const errors=[];const bad=x=>errors.push(x),finite=n=>typeof n==='number'&&Number.isFinite(n);
-  if(!s||s.version!==SAVE_VERSION)return ['Unsupported save version'];
+  if(!s||![SAVE_VERSION,INDEPENDENT_SAVE_VERSION].includes(s.version))return ['Unsupported save version'];
+  errors.push(...validateIndependentWorld(s));
   if(s.historyVersion!==HISTORY_VERSION)bad('History version');
   if(s.archiveVersion!==ARCHIVE_VERSION)bad('Archive version');
   if(!Array.isArray(s.archive)||s.archive.length>HISTORY_LIMITS.maxRetained)return ['Archive'];
@@ -406,7 +425,7 @@ export function validate(s){
     else if(a.parentId===a.id||a.generation!==parent.generation+1||parent.bornTick>a.bornTick)bad('Parent lineage');
   }
   if(!Array.isArray(s.nodes)||s.nodes.length>SIZE.w*SIZE.h||s.nodes.some(n=>!walkable(s,n.x,n.y)||!['food','wood','stone'].includes(n.type)||!finite(n.amount)||!finite(n.max)||n.amount<0||n.amount>n.max))bad('Resources');
-  if(!Array.isArray(s.buildings)||s.buildings.length<1||s.buildings.length>12||s.buildings.some(b=>!walkable(s,b.x,b.y)||!['camp','shelter'].includes(b.type)||typeof b.complete!=='boolean'||!finite(b.progress)||b.progress<0||b.progress>30))bad('Buildings');
+  if(!Array.isArray(s.buildings)||(!isIndependent(s)&&s.buildings.length<1)||s.buildings.length>12||s.buildings.some(b=>!walkable(s,b.x,b.y)||!['camp','shelter'].includes(b.type)||typeof b.complete!=='boolean'||!finite(b.progress)||b.progress<0||b.progress>30))bad('Buildings');
   if(!Array.isArray(s.events)||s.events.length>120||s.events.some(e=>typeof e.text!=='string'||!finite(e.tick)||!finite(e.id)))bad('Events');
   if(!s.stats||['gathered','built','cloned'].some(k=>!finite(s.stats[k])||s.stats[k]<0))bad('Stats');
   if(!Number.isInteger(s.nextAgent)||s.nextAgent<=Math.max(...ids)||!Number.isInteger(s.nextEvent)||!Number.isInteger(s.nextBuilding))bad('Counters');
@@ -467,6 +486,7 @@ function migrateKnowledge(s){
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
+  if(sourceVersion===INDEPENDENT_SAVE_VERSION)return s; // New schema must be complete; never guess missing personal stores.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
   if(sourceVersion===SAVE_VERSION){ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
