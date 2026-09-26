@@ -1,4 +1,4 @@
-import {isIndependent,materialStock} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,resourceStock} from './individual-resources.mjs?v=0.5.0';
 import {homeOf,individualHouses} from './individual-housing.mjs?v=0.5.0';
 /** Bounded cultural archive: persistent written claims, not global world truth.
  * An upgraded camp enables publication and autonomous reading. Reading never
