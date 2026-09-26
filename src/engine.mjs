@@ -26,6 +26,7 @@ import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsFor
 import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,activeResidenceOf,validateSocialState} from './relationships.mjs?v=0.5.0';
 import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './household-residence.mjs?v=0.5.0';
 import {stepHouseholdRecruitment} from './household-recruitment-authority.mjs?v=0.5.0';
+import {householdCooperationSignal} from './household-cooperation.mjs?v=0.5.0';
 import {ensureSettlementState,stepSettlementAuthority,validateSettlementState,allSettlementSnapshots} from './settlement-authority.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
@@ -237,11 +238,13 @@ function candidates(s,a,book,field){
   function add(kind,target,base,need=0,goal=0,status='candidate',extra={}){
     const travel=routeDistance(field,target),skillKind=extra.purposeKind??kind,skill=SKILLS.includes(skillKind)?level(a.skills[skillKind])*3:0;
     const laborMarket=Number(extra.laborAuthority?.bonus??0);
+    const householdCooperation=Number(extra.householdCooperation?.bonus??0);
     // Information-seeking must outrank doing nothing even when its waypoint is far.
     // Only the optional personal planner bounds this soft cost; execution still
     // pays the full route and hunger/energy interruptions remain authoritative.
     const distanceCost=extra.informationSeeking?Math.min(travel,8):travel;
-    const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(distanceCost*.7),...(laborMarket?{laborMarket}: {})};
+    const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(distanceCost*.7),
+      ...(laborMarket?{laborMarket}: {}),...(householdCooperation?{householdCooperation}: {})};
     out.push({kind,targetId:target.id??null,x:target.x,y:target.y,
       score:Object.values(factors).reduce((sum,v)=>sum+v,0),factors,travelSteps:Math.max(0,travel),
       status:travel<0?'no-path':status,...extra});
@@ -265,9 +268,11 @@ function candidates(s,a,book,field){
     const hungerBonus=kind==='FORAGE'&&a.satiety<RULES.hungry&&freeFood<=0?210:0;
     const shortage=projected[type]<targets[type]/2?40:18;
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind,resourceType:type,projected,targets});
-    const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock,unfinished,emergency:a.satiety<RULES.hungry||a.energy<RULES.exhausted});
+    const emergency=a.satiety<RULES.hungry||a.energy<RULES.exhausted;
+    const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock,unfinished,emergency});
+    const householdCooperation=householdCooperationSignal(s,a,kind,{emergency});
     const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
-    add(target.perception==='memory'?'EXPLORE':kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority,
+    add(target.perception==='memory'?'EXPLORE':kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority,householdCooperation,
       ...(target.perception?{purposeKind:kind,perception:target.perception,...(target.knowledgeKey?{knowledgeKey:target.knowledgeKey}:{})}: {})});
   }
   for(const b of s.buildings.filter(b=>!b.complete)){

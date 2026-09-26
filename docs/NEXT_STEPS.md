@@ -1,3 +1,14 @@
+# Active closeout — IC7B Household Cooperation
+
+- Current integration base: `main@c78861edf59da751dfe728e85094bd29fc82f43a` (MX5–MX7 Community → Settlement Authority).
+- IC7A recruitment/cooperation is already on main; IC7B adds only shortage-driven work-priority scoring for existing household members.
+- Food shortage raises FORAGE, wood shortage raises WOODCUT, stone shortage raises MINE through the existing K2 → K3 → K4 household economy stack.
+- Existing `candidates() → decide() → claim() → execute()` remains the only scheduler/executor; survival emergency suppresses IC7B.
+- No duplicate stock, membership, profession, relationship or task writer.
+- Success Contract: `docs/IC7B_HOUSEHOLD_COOPERATION_SUCCESS_CONTRACT.md`.
+- Release gate: exact candidate Verify → merge → exact-main Pages/public proof.
+- After IC7B SAT: **pause**. Do not begin physical Household Trade / IC7C in this work session.
+
 # Prepared next gate — IC7A Recruitment + Cooperation Authority
 
 - Dependency: IC6C central-stock closeout / PR #100.
