@@ -393,8 +393,8 @@ export function step(s,count=1,options={}){
     if(cultural)event(s,'knowledge',cultural.message,cultural.agentId);
     if(s.tick%DAY_TICKS===0){
       attemptAutonomousBirth(s);
-      const food=isIndependent(s)?materialTotals(s,{livingOnly:true}).food:s.stock.food;
-      event(s,'day','เริ่มวันที่ '+day(s)+' · ประชากร '+living(s).length+' คน · อาหารรวม '+food);
+      const independent=isIndependent(s),food=independent?materialTotals(s,{livingOnly:true}).food:s.stock.food;
+      event(s,'day','เริ่มวันที่ '+day(s)+' · ประชากร '+living(s).length+' คน · '+(independent?'อาหารรวม ':'อาหาร ')+food);
     }
   }
   return s;
