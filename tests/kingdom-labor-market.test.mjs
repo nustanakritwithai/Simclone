@@ -26,10 +26,15 @@ test('K4 prioritizes zero-worker high-scarcity roles',()=>{
   assert.ok(s.topOffer.priority>s.offers[1].priority);
 });
 
-test('K4 ignores forager recruitment because donor labor market slice covers specialist roles',()=>{
+test('K4 includes forager recruitment when household food scarcity is real',()=>{
   const economy={scarcity:{food:6},premium:{forager:1.8}};
   const production={roles:{forager:{workers:0,ideal:8,laborGap:8}}};
-  assert.equal(laborOfferCandidate('forager',{economy,production}),null);
+  const offer=laborOfferCandidate('forager',{economy,production});
+  assert.ok(offer);
+  assert.equal(offer.role,'forager');
+  assert.equal(offer.good,'food');
+  assert.equal(offer.quantityNeeded,3);
+  assert.equal(offer.authoritative,false);
 });
 
 test('survival summary exposes K4 proposals without mutating the world',()=>{
