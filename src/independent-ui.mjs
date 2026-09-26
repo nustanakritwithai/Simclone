@@ -12,6 +12,9 @@ import {walkable} from './survival.mjs?v=0.5.0';
 import {edgeCells} from './rust-stations.mjs?v=0.5.0';
 import {allSettlementSnapshots} from './settlement-authority.mjs?v=0.5.0';
 import {autonomousLifeSnapshot} from './autonomous-life-view.mjs?v=0.5.0';
+import {createGovernorCandidates} from './governor-candidate.mjs?v=0.5.0';
+import {governanceOfficeForAgent} from './governance-authority.mjs?v=0.5.0';
+import {governanceSupportSnapshot} from './governance-policy.mjs?v=0.5.0';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const signed=v=>{const n=Number(v)||0,s=Number.isInteger(n)?String(n):n.toFixed(2);return n>0?'+'+s:s;};
 export function installIndependentUI(api){
@@ -55,6 +58,9 @@ export function installIndependentUI(api){
   const relation=householdOwner&&householdOwner.id!==a.id?relationshipOf(s,a.id,householdOwner.id):null;
   const leadership=householdOwner?leadershipProfile(s,householdOwner.id):null;
   const account=resourceAccount(s,a),life=autonomousLifeSnapshot(s,a.id);
+  const governorOffice=governanceOfficeForAgent(s,a.id);
+  const governorSupport=governorOffice?governanceSupportSnapshot(s,governorOffice.settlementId):null;
+  const governorCandidate=governorOffice?null:createGovernorCandidates(s).candidates.find(x=>x.agentId===a.id)??null;
   const lifePressure=life?.household?.topOffer?'<span>แรงกดดัน Household <b>'+esc(life.household.topOffer.label||life.household.topOffer.role)+'</b> · '+esc(life.household.topOffer.urgency)+'</span>':'';
   const lifeWhy=life?.decision?.reason==='selected-trace'
     ?'<details data-autonomous-why><summary>ทำไมเลือกงานนี้? · Score '+life.decision.score+'</summary><div class="autonomous-factor-list">'+life.decision.factors.map(f=>'<span>'+esc(f.label)+' <b>'+esc(signed(f.value))+'</b></span>').join('')+'</div><small>'+(life.decision.scoreMatches?'✓ ตรงกับ engine trace':'UNKNOWN · score ไม่ตรงกับ factors')+'</small></details>'
@@ -64,7 +70,12 @@ export function installIndependentUI(api){
   const homeAction=residence?'<button class="secondary" data-leave-household="'+a.id+'">ออกจาก household</button>':h?'<button class="secondary" data-own-home="'+a.id+'">ดูบ้าน</button>':candidate?'<button class="secondary" data-join-household="'+candidate.ownerId+'">ขออยู่ร่วมบ้าน</button>':'';
   const members=household?household.residentIds.map(id=>[...s.agents,...s.archive].find(p=>p.id===id)?.name??('#'+id)).join(', '):'';
   const social=household?'<div class="household-summary" data-household-owner="'+household.ownerId+'"><small>Household · '+esc(householdOwner?.name??'#'+household.ownerId)+'</small><span>'+esc(members)+'</span>'+(leadership?'<span>Leadership <b>Lv.'+leadership.level+'</b> · Followers <b>'+leadership.activeFollowers+'/'+leadership.followerCapacity+'</b></span>':'')+(relation?'<span>Trust <b>'+relation.trust+'</b> · Affinity <b>'+relation.affinity+'</b> · Respect <b>'+relation.respect+'</b></span>':'')+'</div>':'';
-  const html='<div><b>⌂ '+homeLabel+'</b>'+homeAction+'</div><small>'+esc(labels[intent.kind]??intent.kind)+'</small>'+lifeHtml+social+'<small>'+(account.kind==='household'?'ทรัพยากรร่วมของบ้าน '+esc(account.houseId):'ทรัพยากรชั่วคราวส่วนตัว')+'</small><div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
+  const policy=governorSupport?.activePolicy;
+  const policyLabel=policy?({food:'Food Security',wood:'Wood Mobilization',stone:'Stone Mobilization'}[policy.good]??policy.good):'ไม่มีนโยบายเร่งด่วน';
+  const governance=governorOffice
+    ?'<div class="household-summary governance-summary" data-governor="'+a.id+'" data-settlement="'+esc(governorOffice.settlementId)+'"><small>Governance · GOV6</small><span>อาชีพ <b>'+esc(a.profession??'unknown')+'</b> · ตำแหน่ง <b>ผู้ปกครอง '+esc(governorOffice.settlementId)+'</b></span><span>Leadership <b>Lv.'+(governorSupport?.leadershipLevel??0)+'</b> · Household สนับสนุน <b>'+(governorSupport?.supportHouseholds??0)+'/'+(governorSupport?.requiredSupport??0)+'</b> · '+esc(governorSupport?.qualification??'UNKNOWN')+'</span><span>นโยบาย <b>'+esc(policyLabel)+'</b>'+(policy?' · +'+policy.bonus+' '+esc(policy.action):'')+' · สำเร็จ '+(governorSupport?.resolvedPolicies??0)+'</span></div>'
+    :governorCandidate?'<div class="household-summary governance-summary" data-governor-candidate="'+a.id+'" data-settlement="'+esc(governorCandidate.settlementId)+'"><small>Governance · GOV1 Candidate</small><span>อาชีพ <b>'+esc(a.profession??'unknown')+'</b> · ผู้สมัครผู้ปกครอง <b>'+esc(governorCandidate.settlementId)+'</b></span><span>Leadership <b>Lv.'+governorCandidate.leadershipLevel+'</b> · Household สนับสนุน <b>'+governorCandidate.supportHouseholds+'/'+governorCandidate.requiredSupport+'</b></span><span>Trust '+governorCandidate.supportTrust+' · Respect '+governorCandidate.supportRespect+' · Evidence '+governorCandidate.supportEvidenceCount+'</span></div>':'';
+  const html='<div><b>⌂ '+homeLabel+'</b>'+homeAction+'</div><small>'+esc(labels[intent.kind]??intent.kind)+'</small>'+lifeHtml+governance+social+'<small>'+(account.kind==='household'?'ทรัพยากรร่วมของบ้าน '+esc(account.houseId):'ทรัพยากรชั่วคราวส่วนตัว')+'</small><div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
   if(card.innerHTML!==html)card.innerHTML=html;
  }
  function openHome(h){
