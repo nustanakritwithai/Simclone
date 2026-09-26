@@ -38,6 +38,9 @@ jobs:
           python -m pip install playwright
           python -m playwright install --with-deps chromium
 
+      - name: Verify active observation UI
+        run: python tests/ui-smoke.py
+
       - name: Verify exact-main Independent native HTTP/storage
         run: python tests/independent-ui-smoke.py --native --width 1440
 
