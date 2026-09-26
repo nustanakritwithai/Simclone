@@ -1,3 +1,17 @@
+# Active gate — VAL2 Goal + Executable Plan
+
+- Base: `main@a81610c6b6a64dd157d5462420254ab734c0fca3` with VAL1 exact-main Pages SAT.
+- Adds one bounded retained plan above the existing `candidates() → decide() → claim() → execute()` pipeline.
+- Goal is derived from existing personal planning; no invented LLM motive and no second task executor.
+- Matching productive step contributes exactly `planContinuation +18` through the existing factor sum.
+- Survival EAT/REST interrupts but preserves the productive plan; invalid/unavailable steps consume bounded replan budget.
+- Modular house step progression does not consume failure replan budget.
+- Max replans = 3; max retained steps = 4; timeout = 180 ticks; abort cooldown = 60 ticks.
+- VAL1 Inspector now exposes retained Goal / Step / plan status / replan count.
+- Success Contract: `docs/VAL2_EXECUTABLE_PLAN_SUCCESS_CONTRACT.md`.
+- GOV1 PR #117 remains separate; VAL2 does not touch governance files.
+- Release gate: exact candidate Verify → merge → exact-main Pages/public proof.
+
 # Active gate — VAL1 Visible Autonomous Life
 
 - Base: `main@9283a9c88bf4b8f540498e8539e5551865b18e2c` after IC7B + MX7 exact-main Pages SAT.
