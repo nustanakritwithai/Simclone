@@ -140,7 +140,7 @@ export function reconcileExecutablePlanChoices(state,agent,choices=[]){
   if(!isIndependent(state)||!agent?.alive)return null;
   const plan=syncExecutablePlan(state,agent),step=currentStep(plan);
   if(!plan||TERMINAL_PLAN.has(plan.status)||!step)return plan??null;
-  if(plan.status==='REPLAN_REQUESTED')return plan;
+  if(plan.status==='REPLAN_REQUESTED'||step.status==='COMPLETED')return plan;
   const match=choices.find(c=>stepMatches(step,c)&&['candidate','reserved'].includes(c.status));
   if(match){
     step.lastValidatedTick=state.tick;
@@ -162,6 +162,10 @@ export function acceptExecutablePlanChoice(state,agent,choice){
     agent.executablePlan=makePlan(state,agent,choice);return agent.executablePlan;
   }
   const step=currentStep(prior);
+  if(step?.status==='COMPLETED'){
+    const next=makeStep(state,agent,choice,prior.steps.length+1);
+    boundedPush(prior,next);prior.currentStepId=next.stepId;prior.status='ACTIVE';prior.updatedTick=state.tick;return prior;
+  }
   if(stepMatches(step,choice)){
     step.status='ACTIVE';step.lastValidatedTick=state.tick;step.attemptCount++;
     prior.status='ACTIVE';prior.updatedTick=state.tick;return prior;
@@ -171,6 +175,15 @@ export function acceptExecutablePlanChoice(state,agent,choice){
   const next=makeStep(state,agent,choice,prior.steps.length+1);
   boundedPush(prior,next);prior.currentStepId=next.stepId;prior.status='ACTIVE';prior.updatedTick=state.tick;
   return prior;
+}
+
+export function completeExecutablePlanStep(state,agent,task,{goalComplete=false}={}){
+  if(!isIndependent(state)||!agent?.executablePlan||!task)return null;
+  const plan=agent.executablePlan,step=currentStep(plan);
+  if(!step||TERMINAL_PLAN.has(plan.status)||!stepMatches(step,task))return plan;
+  step.status='COMPLETED';step.lastValidatedTick=state.tick;step.lastFailureReason=null;plan.updatedTick=state.tick;
+  if(goalComplete||agent.planning?.goal?.status==='completed')plan.status='COMPLETED';
+  return plan;
 }
 
 export function noteExecutablePlanInterruption(state,agent,task,reason='survival-interruption'){
