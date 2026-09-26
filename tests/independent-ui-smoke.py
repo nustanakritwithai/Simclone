@@ -29,6 +29,7 @@ script="import{createWorld,step,serialize}from './src/engine.mjs';const s=create
 earned=subprocess.check_output(['node','--input-type=module','-e',script],cwd=ROOT,text=True).strip()
 social_fixture=subprocess.check_output(['node','scripts/ic6b-browser-fixture.mjs'],cwd=ROOT,text=True).strip()
 recruitment_fixture=subprocess.check_output(['node','scripts/ic7a-recruitment-browser-fixture.mjs'],cwd=ROOT,text=True).strip()
+governor_fixture=subprocess.check_output(['node','scripts/governor-browser-fixture.mjs'],cwd=ROOT,text=True).strip()
 checks=[];errors=[]
 def check(name,condition=True):
     assert condition,name
@@ -157,6 +158,19 @@ try:
             check('IC7A: household home UI exposes food recruitment pressure · '+repr(recruit_text),'คนหาอาหาร' in recruit_text and 'ผู้สมัคร 1' in recruit_text)
             page.locator('#dialog-close').click()
             page.screenshot(path=str(OUT/'ic7a-recruitment-1440.png'))
+            # GOV6: engine-earned Settlement + Governor + Food Security policy are visibly distinct from profession.
+            boot(page,governor_fixture);pause(page);select_person(page,2);page.wait_for_timeout(150)
+            page.wait_for_selector('[data-governor="2"][data-settlement="S1"]')
+            gov_before=snap(page);gov_text=page.locator('[data-governor="2"]').inner_text()
+            governor=next(a for a in gov_before['agents'] if a['id']==2)
+            office=next(o for o in gov_before['governanceState']['offices'] if o['settlementId']=='S1')
+            policy=next(p for p in gov_before['governanceState']['policies'] if p['settlementId']=='S1' and p['status']=='active')
+            check('GOV6: inspector separates productive profession from Governor office',
+                  ('อาชีพ '+governor['profession']) in gov_text and 'ตำแหน่ง' in gov_text and 'ผู้ปกครอง S1' in gov_text and office['governorId']==2)
+            check('GOV6: inspector explains support and active Food Security policy',
+                  'Household สนับสนุน' in gov_text and 'Food Security' in gov_text and policy['action']=='FORAGE' and policy['bonus']<=12)
+            check('GOV6: governance inspector is read-only',snap(page)==gov_before)
+            page.screenshot(path=str(OUT/'governor-v1-1440.png'))
         context.close()
     check('no browser JavaScript errors',not errors)
     browser.close()
