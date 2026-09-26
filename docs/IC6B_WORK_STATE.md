@@ -56,6 +56,17 @@ Allow a homeless productive adult to explicitly join another adult's complete ho
   - save/load
   - IC6-social-1 → v2 migration
 
+## Game Studio browser proof
+
+- `scripts/ic6b-browser-fixture.mjs` earns a two-person cohabitation world through real engine commands.
+- `tests/independent-ui-smoke.py` verifies:
+  - Inspector shows household owner and relationship evidence;
+  - cohabiting status is visible;
+  - LEAVE routes through engine command;
+  - relationship evidence survives leaving;
+  - screenshot evidence is captured.
+- UI is projection only. JOIN/LEAVE still revalidate in engine authority.
+
 ## Explicitly deferred
 
 - automatic adult cohabitation execution;
