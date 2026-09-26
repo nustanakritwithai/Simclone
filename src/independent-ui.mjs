@@ -4,6 +4,7 @@ import {individualHouses,homeOf,survivalHome} from './individual-housing.mjs?v=0
 import {personalHomeIntent} from './individual-home-planning.mjs?v=0.5.0';
 import {householdOf,householdForOwner,activeResidenceOf,relationshipOf} from './relationships.mjs?v=0.5.0';
 import {cohabitationCandidate} from './cohabitation.mjs?v=0.5.0';
+import {leadershipProfile} from './leadership.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {walkable} from './survival.mjs?v=0.5.0';
 import {edgeCells} from './rust-stations.mjs?v=0.5.0';
@@ -24,7 +25,7 @@ export function installIndependentUI(api){
   const recenter=$('recenter');if(recenter){recenter.setAttribute('aria-label',on?'ดูภาพรวมโลก':'กลับหมู่บ้าน');recenter.title=on?'ดูภาพรวมโลก':'กลับหมู่บ้าน';}
   const auto=$('autonomy-status');if(on&&auto){auto.querySelector('b').textContent='PERSONAL AUTONOMY · ACTIVE';if(!s.agents.some(a=>a.alive&&a.trace?.some(t=>t.status==='selected')))auto.querySelector('span').textContent='แต่ละคนหากินและสร้างบ้านของตัวเอง';}
   let resourceScope=$('resource-scope');if(!resourceScope){resourceScope=document.createElement('small');resourceScope.id='resource-scope';document.querySelector('.resources').after(resourceScope);}
-  resourceScope.hidden=!on;resourceScope.textContent=on?(a?'ทรัพย์สินส่วนตัวของ '+a.name:'ผลรวมของแต่ละคน · ไม่ใช่คลังกลาง'):'';
+  resourceScope.hidden=!on;resourceScope.textContent=on?(a?(resourceAccount(s,a).kind==='household'?'ทรัพยากร Household · บ้าน '+resourceAccount(s,a).houseId:'ทรัพยากรชั่วคราวของ '+a.name):'ผลรวมทุก Household/คนไร้บ้าน · อ่านอย่างเดียว'):'';
 
   if(!card.isConnected)$('inspector').insertBefore(card,$('inspector-detail'));
   const marker=$('seed-label');if(on)marker.textContent='ชีวิตอิสระ · SEED '+s.seed;
@@ -46,11 +47,13 @@ export function installIndependentUI(api){
   const residence=activeResidenceOf(s,a.id),household=householdOf(s,a.id),candidate=residence?null:cohabitationCandidate(s,a);
   const householdOwner=household?[...s.agents,...s.archive].find(p=>p.id===household.ownerId):null;
   const relation=householdOwner&&householdOwner.id!==a.id?relationshipOf(s,a.id,householdOwner.id):null;
+  const leadership=householdOwner?leadershipProfile(s,householdOwner.id):null;
+  const account=resourceAccount(s,a);
   const homeLabel=residence&&householdOwner?'อยู่ร่วมบ้านของ '+esc(householdOwner.name):h?(h.complete?'บ้านของ '+esc(a.name):'กำลังสร้าง '+esc(h.houseId)):(guardian?'พักกับ '+esc(guardian.name):'ยังไม่มีบ้านส่วนตัว');
   const homeAction=residence?'<button class="secondary" data-leave-household="'+a.id+'">ออกจาก household</button>':h?'<button class="secondary" data-own-home="'+a.id+'">ดูบ้าน</button>':candidate?'<button class="secondary" data-join-household="'+candidate.ownerId+'">ขออยู่ร่วมบ้าน</button>':'';
   const members=household?household.residentIds.map(id=>[...s.agents,...s.archive].find(p=>p.id===id)?.name??('#'+id)).join(', '):'';
-  const social=household?'<div class="household-summary" data-household-owner="'+household.ownerId+'"><small>Household · '+esc(householdOwner?.name??'#'+household.ownerId)+'</small><span>'+esc(members)+'</span>'+(relation?'<span>Trust <b>'+relation.trust+'</b> · Affinity <b>'+relation.affinity+'</b> · Respect <b>'+relation.respect+'</b></span>':'')+'</div>':'';
-  const html='<div><b>⌂ '+homeLabel+'</b>'+homeAction+'</div><small>'+esc(labels[intent.kind]??intent.kind)+'</small>'+social+'<div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
+  const social=household?'<div class="household-summary" data-household-owner="'+household.ownerId+'"><small>Household · '+esc(householdOwner?.name??'#'+household.ownerId)+'</small><span>'+esc(members)+'</span>'+(leadership?'<span>Leadership <b>Lv.'+leadership.level+'</b> · Followers <b>'+leadership.activeFollowers+'/'+leadership.followerCapacity+'</b></span>':'')+(relation?'<span>Trust <b>'+relation.trust+'</b> · Affinity <b>'+relation.affinity+'</b> · Respect <b>'+relation.respect+'</b></span>':'')+'</div>':'';
+  const html='<div><b>⌂ '+homeLabel+'</b>'+homeAction+'</div><small>'+esc(labels[intent.kind]??intent.kind)+'</small>'+social+'<small>'+(account.kind==='household'?'ทรัพยากรร่วมของบ้าน '+esc(account.houseId):'ทรัพยากรชั่วคราวส่วนตัว')+'</small><div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
   if(card.innerHTML!==html)card.innerHTML=html;
  }
  function openHome(h){
@@ -62,7 +65,7 @@ export function installIndependentUI(api){
   const ownArchive=s.culture?.houseId===h.houseId;
   api.openDialog('บ้านของ '+(owner?.name??'ไม่ทราบเจ้าของ'),'PERSONAL HOME · '+h.houseId,
    '<section class="personal-house-detail" data-house="'+esc(h.houseId)+'" data-owner="'+(h.ownerId??'unknown')+'"><div class="personal-house-hero">⌂</div><h3>'+esc(h.complete?'สร้างเสร็จแล้ว':'กำลังก่อสร้าง · ขาด '+h.missing.length+' ชิ้น')+'</h3><p>เจ้าของ: '+esc(owner?.name??'UNKNOWN')+' · '+h.origin.x+', '+h.origin.y+'</p>'+
-   (owner?button(owner.id,'เลือก '+owner.name):'')+'<p data-household-residents>Household: '+esc(residents)+'</p>'+residenceAction+'<p>ของเจ้าของบ้าน — อาหาร '+stock.food+' · ไม้ '+stock.wood+' · หิน '+stock.stone+'</p><p class="source-note">เจ้าของมาจากผู้วางฐาน #'+h.originStationId+' · การอยู่ร่วมบ้านไม่โอน ownership หรือทรัพยากร</p>'+
+   (owner?button(owner.id,'เลือก '+owner.name):'')+'<p data-household-residents>Household: '+esc(residents)+'</p>'+residenceAction+'<p>ทรัพยากรของ Household — อาหาร '+stock.food+' · ไม้ '+stock.wood+' · หิน '+stock.stone+'</p><p class="source-note">เจ้าของมาจากผู้วางฐาน #'+h.originStationId+' · การอยู่ร่วมบ้านไม่โอน ownership หรือทรัพยากร</p>'+
    (ownArchive?'<p>คลังความรู้สาธารณะอยู่ที่บ้านนี้ · '+s.culture.entries.length+' เรื่อง</p><button class="secondary" data-home-archive="'+esc(h.houseId)+'">อ่านคลังความรู้</button>':h.complete&&!s.culture?'<button class="primary" data-create-home-archive="'+esc(h.houseId)+'" '+(preview.ok?'':'disabled')+'>เปิดคลังความรู้ที่บ้าน</button><p class="source-note">'+esc(preview.ok?'ใช้ไม้ส่วนตัว 6 และหิน 2':preview.message)+'</p>':'')+'</section>');
   $('dialog').dataset.kind='personal-home';
  }
@@ -73,7 +76,7 @@ export function installIndependentUI(api){
   if(!st.structurePiece){
    const actor=s.agents.find(a=>a.id===api.read().selected&&a.alive),owner=[...s.agents,...s.archive].find(a=>a.id===st.placedBy),stock=resourceStock(s,actor);
    const actions=st.kind==='FURNACE'?[{type:'PROCESS_CHARCOAL',data:{agentId:actor?.id,stationId:st.id},label:'ไม้ 2 → ถ่าน 1'}]:Object.values(RECIPE_CATALOG).filter(r=>r.station===st.kind).map(r=>({type:'CRAFT_ITEM',data:{agentId:actor?.id,recipeId:r.id,stationId:st.id},label:ITEM_CATALOG[r.output].name}));
-   api.openDialog(ITEM_CATALOG[st.kind]?.name??st.kind,'PERSONAL STATION · #'+st.id,'<p>เจ้าของ: '+esc(owner?.name??'UNKNOWN')+'</p>'+button(st.placedBy,'เลือกเจ้าของสถานี')+'<p>วัสดุของคนที่เลือก: ไม้ '+stock.wood+' · หิน '+stock.stone+'</p>'+actions.map(x=>{const check=api.preview(x.type,x.data);return '<button class="primary" data-personal-command="'+x.type+'" data-station="'+st.id+'" data-recipe="'+(x.data.recipeId??'')+'" '+(check.ok?'':'disabled')+'>'+esc(x.label)+'</button><p class="source-note">'+esc(check.ok?'พร้อมทำงาน':check.message)+'</p>';}).join(''));
+   api.openDialog(ITEM_CATALOG[st.kind]?.name??st.kind,'PERSONAL STATION · #'+st.id,'<p>เจ้าของ: '+esc(owner?.name??'UNKNOWN')+'</p>'+button(st.placedBy,'เลือกเจ้าของสถานี')+'<p>ทรัพยากรที่คนนี้มีสิทธิ์ใช้: ไม้ '+stock.wood+' · หิน '+stock.stone+'</p>'+actions.map(x=>{const check=api.preview(x.type,x.data);return '<button class="primary" data-personal-command="'+x.type+'" data-station="'+st.id+'" data-recipe="'+(x.data.recipeId??'')+'" '+(check.ok?'':'disabled')+'>'+esc(x.label)+'</button><p class="source-note">'+esc(check.ok?'พร้อมทำงาน':check.message)+'</p>';}).join(''));
    $('dialog').dataset.kind='personal-station';return true;
   }
   const anchors=st.socket?.type==='edge'?edgeCells(st.socket):[{x:st.x,y:st.y}];
