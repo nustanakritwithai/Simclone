@@ -66,6 +66,15 @@ export function resourceStock(s,aOrId){
  return account.kind==='household'?householdStore(s,account.houseId):materialStock(s,account.ownerId);
 }
 
+export function sameResourceAccount(s,aOrId,bOrId){
+ if(!isIndependent(s))return true;
+ const a=typeof aOrId==='object'?aOrId:s.agents?.find(x=>x.id===aOrId&&x.alive);
+ const b=typeof bOrId==='object'?bOrId:s.agents?.find(x=>x.id===bOrId&&x.alive);
+ if(!a||!b)return false;
+ const x=resourceAccount(s,a),y=resourceAccount(s,b);
+ return x.kind===y.kind&&x.ownerId===y.ownerId&&x.houseId===y.houseId;
+}
+
 export function joinHouseholdResources(s,agentId,houseId){
  if(!isIndependent(s))return {ok:true,changed:false};
  const personal=materialStock(s,agentId),store=householdStore(s,houseId);
