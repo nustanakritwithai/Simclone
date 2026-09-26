@@ -1,5 +1,5 @@
 /** Read-only map and layout-aware camera. No simulation mutations. */
-import {SIZE} from './engine.mjs?v=0.5.0';
+import {LEGACY_WORLD_BOUNDS,worldBounds} from './world-bounds.mjs?v=0.5.0';
 import {saveLabel} from './storage.mjs?v=0.5.0';
 export function safeFrame(width,height,edges={}){
   const left=Math.max(8,Math.min(edges.left??12,width*.4));
@@ -8,8 +8,8 @@ export function safeFrame(width,height,edges={}){
   const bottom=Math.max(top+56,Math.min(edges.bottom??height-12,height-8));
   return {left,right,top,bottom,width:right-left,height:bottom-top};
 }
-export function mapCell(x,y,width,height){
-  return {x:Math.max(0,Math.min(SIZE.w-1,Math.floor(x/width*SIZE.w))),y:Math.max(0,Math.min(SIZE.h-1,Math.floor(y/height*SIZE.h)))};
+export function mapCell(x,y,width,height,bounds=LEGACY_WORLD_BOUNDS){
+  return {x:Math.max(0,Math.min(bounds.w-1,Math.floor(x/width*bounds.w))),y:Math.max(0,Math.min(bounds.h-1,Math.floor(y/height*bounds.h)))};
 }
 export function installNavigation(api){
   const $=id=>document.getElementById(id),stage=$('stage'),camera=document.querySelector('.camera');
@@ -42,17 +42,17 @@ export function installNavigation(api){
   addEventListener('resize',requestMeasure);
   function setOpen(open){panel.hidden=!open;button.setAttribute('aria-expanded',String(open));button.setAttribute('aria-label',open?'ปิดแผนที่ย่อ':'เปิดแผนที่ย่อ');document.body.classList.toggle('map-is-open',open);measure();if(open){draw();canvas.focus({preventScroll:true});}}
   button.onclick=()=>setOpen(panel.hidden);$('map-close').onclick=()=>{setOpen(false);button.focus();};
-  canvas.addEventListener('pointerdown',e=>{const r=canvas.getBoundingClientRect();api.center(mapCell(e.clientX-r.left,e.clientY-r.top,r.width,r.height));draw();});
+  canvas.addEventListener('pointerdown',e=>{const r=canvas.getBoundingClientRect(),b=worldBounds(api.read().state);api.center(mapCell(e.clientX-r.left,e.clientY-r.top,r.width,r.height,b));draw();});
   canvas.addEventListener('keydown',e=>{
     if(e.key==='Escape'){e.preventDefault();e.stopPropagation();setOpen(false);button.focus();return;}
     const delta={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];if(!delta)return;
-    e.preventDefault();const f=api.focus(),n=e.shiftKey?5:1;api.center({x:Math.max(0,Math.min(SIZE.w-1,f.x+delta[0]*n)),y:Math.max(0,Math.min(SIZE.h-1,f.y+delta[1]*n))});draw();
+    e.preventDefault();const f=api.focus(),n=e.shiftKey?5:1,b=worldBounds(api.read().state);api.center({x:Math.max(0,Math.min(b.w-1,f.x+delta[0]*n)),y:Math.max(0,Math.min(b.h-1,f.y+delta[1]*n))});draw();
   });
   function draw(){
-    if(panel.hidden)return;const s=api.read().state,sx=canvas.width/SIZE.w,sy=canvas.height/SIZE.h;
+    if(panel.hidden)return;const s=api.read().state,b=worldBounds(s),sx=canvas.width/b.w,sy=canvas.height/b.h;
     c.clearRect(0,0,canvas.width,canvas.height);
     const view=api.mapView?.();
-    for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){c.fillStyle=view?.cells[y*SIZE.w+x]?.color??({grass:'#66834e',water:'#4b888a',path:'#bcab7e',bridge:'#dac192'})[s.tiles[y*SIZE.w+x]];c.fillRect(x*sx,y*sy,sx,sy);}
+    for(let y=0;y<b.h;y++)for(let x=0;x<b.w;x++){c.fillStyle=view?.cells[y*b.w+x]?.color??({grass:'#66834e',water:'#4b888a',path:'#bcab7e',bridge:'#dac192'})[s.tiles[y*b.w+x]];c.fillRect(x*sx,y*sy,sx,sy);}
     for(const n of s.nodes)if(n.amount>0){c.fillStyle=n.type==='food'?'#e2af67':n.type==='wood'?'#284d35':'#aab5a3';c.fillRect((n.x+.25)*sx,(n.y+.25)*sy,sx*.5,sy*.5);}
     for(const b of s.buildings){c.fillStyle=b.complete?'#f4e4b3':'#dd9d69';c.fillRect(b.x*sx,b.y*sy,sx,sy);}
     for(const a of s.agents)if(a.alive){c.fillStyle=a.id===api.read().selected?'#ffffff':a.appearance.coat;c.beginPath();c.arc((a.x+.5)*sx,(a.y+.5)*sy,a.id===api.read().selected?3:2,0,Math.PI*2);c.fill();}
