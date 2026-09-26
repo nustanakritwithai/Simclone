@@ -1,6 +1,6 @@
 # KHET.0 — World-link success contract
 
-Status: PREPARED. NOT APPROVED FOR WIRING.  
+Status: SHADOW IMPLEMENTED. NOT APPROVED FOR WIRING.  
 Base: draft [PR #123](https://github.com/nustanakritwithai/Simclone/pull/123) head `f05274bb8beb91640c1eb04ef86fae2fb99d1281` on `feature/khet-sila-rules`.  
 `main` has since merged VAL3 (`ddd266de`). This preparation does not rebase, force-push, or edit VAL3 files.
 
@@ -33,11 +33,9 @@ Freeze the only future seam between เขตศิลา and Simclone before an
 
 `saveCharacter`, `loadCharacter`, and `clearCharacter` already touch browser `localStorage` key `khet-sila-v1`. That is sandbox persistence, not world state. The sim must not call those functions.
 
-## Future seam, specified now and not built
+## Seam, implemented and not wired
 
-A later implementation gate may add exactly one read-only function in `src/khet/`, not imported by the engine:
-
-`encounterShadow(input) -> projection | null`
+`encounterShadow(input)` in `src/khet/combat.mjs` returns a projection or null. It is not imported by `index.html` or `src/engine.mjs`.
 
 The caller must pass an explicit plain object:
 
@@ -47,13 +45,13 @@ The caller must pass an explicit plain object:
 
 The projection may contain only zone, monster id, enemy level, rank, and whether `canEnter` allows the zone. It must not mutate the input or any world object.
 
-Rules for that future function:
+Rules:
 
-- It must not import `src/engine.mjs`, `src/skill-provenance.mjs`, or any world writer.
-- `index.html` must not import it in the same gate. UI wiring needs its own contract.
+- It does not import `src/engine.mjs`, `src/skill-provenance.mjs`, or any world writer.
+- `index.html` does not import it. UI wiring needs its own contract.
 - `agent.skills` is neither an argument nor an output.
-- A missing zone or a monster outside the zone uses the existing `unknown_zone` / `monster_outside_zone` failure. Do not invent a monster.
-- UNKNOWN is not PASS. Until the function exists, any claim that a Clone met a khet monster is UNKNOWN.
+- A missing or unknown zone throws `unknown_zone`. A monster outside the zone throws `monster_outside_zone`. No monster is invented when the id is omitted.
+- A null input returns null. UNKNOWN is not PASS. A Clone meeting a khet monster is still UNKNOWN until a later contract names the caller.
 
 ## Acceptance of this prepared gate
 
@@ -65,10 +63,9 @@ Rules for that future function:
 
 ## Not yet SAT
 
-- `encounterShadow` is not implemented. Calling it is UNKNOWN, not PASS.
 - Browser, Pages, and public release are out of scope.
 - Merge stays forbidden until a later contract names the caller and the proof.
 
-## After this preparation
+## After this shadow
 
-Stop. Do not implement `encounterShadow` until asked. Do not merge #123.
+Do not import it from `index.html` or the engine until asked. Do not merge #123.
