@@ -122,6 +122,11 @@ export function materialTotals(s,{livingOnly=false}={}){
   if(livingOnly&&!s.agents.some(a=>a.id===b.ownerId&&a.alive)&&!(s.social?.residences??[]).some(r=>r.houseId===b.houseId&&r.leftTick===null&&s.agents.some(a=>a.id===r.agentId&&a.alive)))continue;
   for(const k of RESOURCE_KEYS)out[k]+=b[k];
  }
+ // Trade cargo is real material temporarily outside a household store.
+ for(const c of s.householdTrade?.contracts??[]){
+  if((c.status==='in-transit'||c.status==='stranded')&&RESOURCE_KEYS.includes(c.good)&&Number.isFinite(c.cargoQuantity))
+   out[c.good]+=c.cargoQuantity;
+ }
  return out;
 }
 export function personalTargets(s,a){
