@@ -46,7 +46,7 @@ test('IC6B nearby stranger never qualifies without relationship evidence',()=>{
 });
 
 test('IC6B evidence thresholds produce one read-only share-home candidate',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   completeHome(s,owner);qualify(s,subject,owner);
   const before=serialize(s),row=cohabitationCandidate(s,subject);
   assert.ok(row);assert.equal(row.subjectId,subject.id);assert.equal(row.ownerId,owner.id);
@@ -55,7 +55,7 @@ test('IC6B evidence thresholds produce one read-only share-home candidate',()=>{
 });
 
 test('IC6B subject with a complete own home never seeks cohabitation',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   completeHome(s,owner);qualify(s,subject,owner);completeHome(s,subject);
   assert.equal(cohabitationCandidate(s,subject),null);
 });
