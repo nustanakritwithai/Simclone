@@ -35,6 +35,19 @@ export function createLegacySkillProvenance(skills){
   }
   return {version:SKILL_PROVENANCE_VERSION,bySkill};
 }
+export function ensureSkillProvenanceSkill(agent,skill,{xp=0,kind='initial',sourceAgentId=null,tick=0}={}){
+  if(!agent?.skills||typeof skill!=='string'||!skill)return false;
+  if(!Number.isFinite(agent.skills[skill]))agent.skills[skill]=xp;
+  if(!agent.skillProvenance)agent.skillProvenance=createSkillProvenance(agent.id,agent.skills,{kind:'initial',tick});
+  if(agent.skillProvenance.bySkill?.[skill])return false;
+  const bucket=makeBucket();
+  if(agent.skills[skill]>0){
+    if(kind==='inheritance'){bucket.inheritedXP=agent.skills[skill];addEvidence(agent.id,skill,bucket,{kind:'inheritance',xp:agent.skills[skill],tick,sourceAgentId});}
+    else {bucket.initialXP=agent.skills[skill];addEvidence(agent.id,skill,bucket,{kind:'initial',xp:agent.skills[skill],tick});}
+  }
+  agent.skillProvenance.bySkill[skill]=bucket;
+  return true;
+}
 export function recordEarnedSkill(agent,skill,xp,tick,{action=skill,targetId=null}={}){
   if(!agent?.skillProvenance?.bySkill?.[skill]||!finiteNonNegative(xp)||xp<=0||!Number.isInteger(tick)||tick<0)return false;
   const bucket=agent.skillProvenance.bySkill[skill];
