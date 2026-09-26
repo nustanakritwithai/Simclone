@@ -114,7 +114,7 @@ export function createWorld(seed=230926,options={}){
   if(!independent)for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]])
     s.nodes.push({id:nid++,type,x,y,amount:45,max:45});
   const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
-  if(independent){initializeIndependentStart(s,walkable);setPlanningPolicy(s,'local');}
+  if(independent){initializeIndependentStart(s,walkable);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
