@@ -8,7 +8,7 @@ import {canonicalEdge} from '../src/rust-stations.mjs';
 function completedHouse(state,id,ownerId,x,y){
   const houseId='H'+id;
   state.rustStations.stations.push(
-    {id,kind:'WOOD_FOUNDATION',x,y,socket:{type:'cell',x,y,level:0}},
+    {id,kind:'WOOD_FOUNDATION',x,y,placedBy:ownerId,socket:{type:'cell',x,y,level:0}},
     {id:id+1,kind:'WOOD_WALL',x,y,socket:canonicalEdge(x,y,'N')},
     {id:id+2,kind:'WOOD_WALL',x,y,socket:canonicalEdge(x,y,'E')},
     {id:id+3,kind:'WOOD_WALL',x,y,socket:canonicalEdge(x,y,'S')},
