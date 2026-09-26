@@ -1,5 +1,5 @@
 /** Deterministic no-Camp start. Spawn placement is world generation, not agent omniscience. */
-import {INDEPENDENT_MODE,INDEPENDENT_SAVE_VERSION,PERSONAL_MATERIAL_VERSION,addPersonalStore} from './individual-resources.mjs?v=0.5.0';
+import {INDEPENDENT_MODE,INDEPENDENT_SAVE_VERSION,PERSONAL_MATERIAL_VERSION,HOUSEHOLD_MATERIAL_VERSION,addPersonalStore} from './individual-resources.mjs?v=0.5.0';
 const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const rank=(seed,x,y)=>{let n=(seed^Math.imul(x+1,374761393)^Math.imul(y+1,668265263))>>>0;n^=n>>>13;return Math.imul(n,1274126177)>>>0;};
 /** World generation ranks walkable cells with nearby food, wood and stone; agent knowledge is not populated by this lookup. */
@@ -21,6 +21,7 @@ export function independentSpawn(s,isWalkable,occupied=[]){
 export function initializeIndependentStart(s,isWalkable){
  const budget={...s.stock};s.version=INDEPENDENT_SAVE_VERSION;s.worldMode={...INDEPENDENT_MODE};s.buildings=[];s.nextBuilding=1;
  s.rustMaterials.personalVersion=PERSONAL_MATERIAL_VERSION;s.rustMaterials.personalStores=[];
+ s.rustMaterials.householdVersion=HOUSEHOLD_MATERIAL_VERSION;s.rustMaterials.householdStores=[];
  const placed=[];
  for(const [i,a] of s.agents.entries()){
   const spawn=independentSpawn(s,isWalkable,placed);if(!spawn)throw new Error('No separated viable spawn for seed '+s.seed);
