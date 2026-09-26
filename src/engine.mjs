@@ -26,6 +26,7 @@ import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsFor
 import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,activeResidenceOf,validateSocialState} from './relationships.mjs?v=0.5.0';
 import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './household-residence.mjs?v=0.5.0';
 import {stepHouseholdRecruitment} from './household-recruitment-authority.mjs?v=0.5.0';
+import {ensureHouseholdTradeState,householdTradeCommand,pendingHouseholdTrade,completeHouseholdTrade,releaseHouseholdTradeOnDeath,stepHouseholdTradePlanning,validateHouseholdTradeState} from './household-trade-authority.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -45,7 +46,7 @@ export const DAY_TICKS = LIFE.ticksPerYear;
 export const SKILLS = ['FORAGE', 'WOODCUT', 'MINE', 'BUILD'];
 export const SOCIAL_SKILLS = [LEADERSHIP_SKILL];
 export const ALL_SKILLS = [...SKILLS,...SOCIAL_SKILLS];
-export const LABELS = { FORAGE:'หาอาหาร', WOODCUT:'ตัดไม้', MINE:'ขุดหิน', BUILD:'สร้างบ้าน', CRAFT:'คราฟต์', PROCESS:'แปรรูป', EAT:'กินอาหาร', REST:'พักผ่อน', EXPLORE:'สำรวจ', IDLE:'พักรอ' };
+export const LABELS = { FORAGE:'หาอาหาร', WOODCUT:'ตัดไม้', MINE:'ขุดหิน', BUILD:'สร้างบ้าน', CRAFT:'คราฟต์', PROCESS:'แปรรูป', TRADE_DELIVERY:'ส่งสินค้า', EAT:'กินอาหาร', REST:'พักผ่อน', EXPLORE:'สำรวจ', IDLE:'พักรอ' };
 export const clamp = (n, lo=0, hi=100) => Math.max(lo, Math.min(hi, n));
 export const level = skillLevel;
 const distance = (a,b) => Math.abs(a.x-b.x) + Math.abs(a.y-b.y);
@@ -87,7 +88,7 @@ function killAgent(s,a,cause){
   if(!a.alive)return false;
   const deathAge=ageYearsAtTick(s,a,s.tick);
   a.death={status:'recorded',tick:s.tick,cause,ageYears:deathAge};
-  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
+  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;releaseRustOnDeath(s,a);releaseHouseholdTradeOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
   const text=cause==='age'
     ?a.name+' เสียชีวิตตามวัยเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี'
     :a.name+' เสียชีวิตจากการขาดอาหารเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี';
@@ -115,7 +116,7 @@ export function createWorld(seed=230926,options={}){
   if(!independent)for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]])
     s.nodes.push({id:nid++,type,x,y,amount:45,max:45});
   const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
-  if(independent){initializeIndependentStart(s,walkable);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
+  if(independent){initializeIndependentStart(s,walkable);ensureHouseholdTradeState(s);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
@@ -127,6 +128,7 @@ export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){
   const residence=householdResidenceCommand(s,type,data);if(residence){if(residence.ok&&residence.changed)event(s,'household',residence.message,residence.agentId??null);return residence;}
+  const trade=householdTradeCommand(s,type,data);if(trade){if(trade.ok&&trade.changed)event(s,'trade',trade.message,trade.contract?.carrierId??null);return trade;}
   const mentorship=mentorshipCommand(s,type,data);if(mentorship){
     if(mentorship.ok&&mentorship.changed){
       event(s,'mentor',mentorship.message,mentorship.mentorId??null);
@@ -227,6 +229,8 @@ function candidates(s,a,book,field){
   }
   const rustWork=pendingRustWork(s,a);
   if(rustWork)add(rustWork.kind,{...rustWork,id:rustWork.orderId},90,0,0,productive?'candidate':'stage',{rustOrderId:rustWork.orderId,rustLabel:rustWork.label});
+  const tradeWork=independent?pendingHouseholdTrade(s,a):null;
+  if(tradeWork)add('TRADE_DELIVERY',{...tradeWork,id:tradeWork.contractId},96,0,0,productive?'candidate':'stage',{tradeContractId:tradeWork.contractId});
   if(a.satiety<82&&meal.food>0&&(independent||home)){
     const fieldEat=independent&&!guardian&&(!home||a.satiety<RULES.hungry&&routeDistance(field,home)>8);
     const target=independent?(guardian??(fieldEat?a:home)):home;
@@ -304,7 +308,13 @@ function execute(s,a){
     return;
   }
   t.work+=workRate;
-  if(t.kind==='EAT'){
+  if(t.kind==='TRADE_DELIVERY'){
+    if(t.work>=2){
+      const result=completeHouseholdTrade(s,a.id);
+      if(result.ok&&result.changed)event(s,'trade',result.message,a.id);
+      if(result.ok||result.reason!=='capacity')a.task=null;
+    }
+  }else if(t.kind==='EAT'){
     if(t.work>=3){
       if(meal.food>0){
         const ownerId=mealOwnerId(s,a);
@@ -405,6 +415,8 @@ export function step(s,count=1,options={}){
     if(cultural)event(s,'knowledge',cultural.message,cultural.agentId);
     const recruitment=stepHouseholdRecruitment(s);
     if(recruitment?.ok&&recruitment.changed)event(s,'household',recruitment.message,recruitment.agentId??null);
+    const tradePlan=stepHouseholdTradePlanning(s);
+    if(tradePlan?.ok&&tradePlan.changed)event(s,'trade',tradePlan.message,tradePlan.contract?.carrierId??null);
     if(s.tick%DAY_TICKS===0){
       attemptAutonomousBirth(s);
       const independent=isIndependent(s),food=independent?materialTotals(s,{livingOnly:true}).food:s.stock.food;
@@ -491,6 +503,7 @@ export function validate(s){
   for(const e of validateProductionPlan(s))bad(e);
   for(const e of validateMentorship(s))bad(e);
   for(const e of validateSocialState(s,{required:isIndependent(s)}))bad(e);
+  for(const e of validateHouseholdTradeState(s,{required:isIndependent(s)}))bad(e);
   return errors;
 }
 function deathCauseFromText(text){
@@ -560,7 +573,7 @@ function migrateKnowledge(s){
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
-  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);return s;} // additive social skill defaults to zero; household balances migrate deterministically.
+  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);ensureHouseholdTradeState(s);return s;} // additive independent extensions initialize empty; never invent historical trade.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
   if(sourceVersion===SAVE_VERSION){migrateSkillProvenance(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
