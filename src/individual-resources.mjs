@@ -3,6 +3,7 @@
  * material ledger, never in both places. This module owns the versioned extension.
  */
 import {canPerformProductiveWork,lifeStage,LIFE_STAGES} from './lifecycle.mjs?v=0.5.0';
+import {worldBounds} from './world-bounds.mjs?v=0.5.0';
 export const INDEPENDENT_SAVE_VERSION='0.6.0';
 export const INDEPENDENT_MODE=Object.freeze({kind:'independent',version:'IC3-1'});
 export const PERSONAL_MATERIAL_VERSION='IC3-materials-1';
@@ -138,7 +139,7 @@ export function personalTargets(s,a){
  return {food:canPerformProductiveWork(s,a)?Math.max(40,16+children*8):0,wood:24,stone:12};
 }
 export function validateIndependentWorld(s){
- const e=[],bad=x=>e.push(x);
+ const e=[],bad=x=>e.push(x),bounds=worldBounds(s);
  if(!isIndependent(s)){
   if(s.worldMode!==undefined||s.version===INDEPENDENT_SAVE_VERSION||s.rustMaterials?.personalStores!==undefined)bad('Independent mode/version');
   return e;
@@ -166,7 +167,7 @@ export function validateIndependentWorld(s){
  }
  for(const a of people){
   if(a.homePlan!==undefined){const p=a.homePlan;
-   if(!p||p.version!=='home-plan-1'||!Number.isInteger(p.createdTick)||p.createdTick<0||p.createdTick>s.tick||!Number.isInteger(p.x)||!Number.isInteger(p.y)||p.x<0||p.x>=30||p.y<0||p.y>=26)bad('Personal home intention');
+   if(!p||p.version!=='home-plan-1'||!Number.isInteger(p.createdTick)||p.createdTick<0||p.createdTick>s.tick||!Number.isInteger(p.x)||!Number.isInteger(p.y)||p.x<0||p.x>=bounds.w||p.y<0||p.y>=bounds.h)bad('Personal home intention');
   }
  }
  return [...new Set(e)];
