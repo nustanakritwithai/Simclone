@@ -206,7 +206,7 @@ test('GOV1 projection is read-only and survives save/load byte-deterministically
   assert.equal(projection.authority.relationshipWriter,false);
   assert.equal(projection.authority.resourceWriter,false);
   assert.equal(projection.authority.taskWriter,false);
-  assert.equal(validate(s).length,0);
+  assert.deepEqual(validate(s),[]);
 
   const loaded=restore(before);
   assert.deepEqual(createGovernorCandidates(loaded),projection);
