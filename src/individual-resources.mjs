@@ -154,6 +154,10 @@ export function validateIndependentWorld(s){
   seen.add(b?.ownerId);
  }
  if(seen.size!==ids.size||[...ids].some(id=>!seen.has(id)))bad('Missing personal material owner');
+ for(const a of s.agents.filter(a=>a.alive)){
+  const account=resourceAccount(s,a),personal=materialStock(s,a.id);
+  if(account.kind==='household'&&MATERIAL_KEYS.some(k=>(personal[k]??0)!==0))bad('Duplicate personal/household material balance');
+ }
  const houses=new Set();
  for(const b of s.rustMaterials.householdStores){
   if(!b||typeof b.houseId!=='string'||!/^H\d+$/.test(b.houseId)||houses.has(b.houseId)||!ids.has(b.ownerId)||
