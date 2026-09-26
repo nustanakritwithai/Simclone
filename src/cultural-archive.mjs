@@ -33,7 +33,7 @@ export function establishArchive(s,{agentId=null,houseId=null}={}){
   const a=actor(s,agentId),h=a&&homeOf(s,a.id,{completeOnly:true});
   if(!a||!h||h.houseId!==houseId)return fail('owner','เลือกเจ้าของบ้านที่สร้างเสร็จแล้ว');
   if(distance(a,h.origin)>CULTURE_RULES.range)return fail('range','ต้องอยู่ใกล้บ้านไม่เกิน 4 ช่อง');
-  const stock=materialStock(s,a);
+  const stock=resourceStock(s,a);
   if(stock.wood<CULTURE_RULES.woodCost||stock.stone<CULTURE_RULES.stoneCost)return fail('materials','ใช้ไม้ส่วนตัว 6 และหิน 2');
   stock.wood-=CULTURE_RULES.woodCost;stock.stone-=CULTURE_RULES.stoneCost;
   s.culture={version:CULTURE_VERSION,hostKind:'house',houseId:h.houseId,ownerId:a.id,createdTick:s.tick,automation:true,lastProcessedTick:-1,entries:[]};
