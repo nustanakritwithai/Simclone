@@ -1,5 +1,5 @@
-import { createCharacter, loadCharacter, rest, saveCharacter, statsOf } from "./khet/character.mjs";
-import { encounterShadow, playerStrike, startFight } from "./khet/combat.mjs";
+import { createCharacter, loadCharacter, rest, saveCharacter, statsOf } from "./khet/character.mjs?v=0.5.0";
+import { encounterShadow, playerStrike, startFight } from "./khet/combat.mjs?v=0.5.0";
 
 const EDGE_ZONE = "z1";
 const SLIME_ID = "MON_002";
