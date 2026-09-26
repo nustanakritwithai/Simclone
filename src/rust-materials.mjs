@@ -1,5 +1,5 @@
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
-import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
+import {resourceStock,isIndependent,resourceAccount} from './individual-resources.mjs?v=0.5.0';
 import {RUST_PROCESSING_CATALOG,stationAt} from './rust-stations.mjs?v=0.5.0';
 export const RUST_MATERIALS_VERSION='RS4-0.2';
 export const RUST_MATERIAL_LIMITS=Object.freeze({charcoal:128,orders:12});
@@ -11,7 +11,10 @@ export function queueProcessing(s,{agentId,processId='CHARCOAL',stationId}={}){
   if(!m||!a||!p)return {ok:false,reason:'actor-or-process'};
   if(p.live!==true)return {ok:false,reason:'not-authoritative'};
   if(m.orders.some(o=>o.agentId===agentId)||m.orders.length>=RUST_MATERIAL_LIMITS.orders)return {ok:false,reason:'busy-or-capacity'};
-  if(!st||!st.complete||st.kind!==p.station||isIndependent(s)&&st.placedBy!==a.id)return {ok:false,reason:'station'};
+  const account=isIndependent(s)?resourceAccount(s,a):null;
+  if(!st||!st.complete||st.kind!==p.station||
+    isIndependent(s)&&st.placedBy!==a.id&&!(account?.kind==='household'&&st.placedBy===account.ownerId))
+    return {ok:false,reason:'station'};
   const stock=resourceStock(s,a);
   const missing={};for(const [k,n] of Object.entries(p.input)){if(!Number.isFinite(stock?.[k])||stock[k]<n)missing[k]=n-(stock?.[k]??0);}
   if(Object.keys(missing).length)return {ok:false,reason:'materials',missing};
