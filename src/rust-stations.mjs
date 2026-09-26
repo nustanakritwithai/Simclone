@@ -1,5 +1,6 @@
 import {isIndependent,resourceAccount} from './individual-resources.mjs?v=0.5.0';
 import {CRAFT_STATIONS,ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS} from './crafting-catalog.mjs?v=0.5.0';
+import {LEGACY_WORLD_BOUNDS,worldBounds} from './world-bounds.mjs?v=0.5.0';
 export const RUST_STATIONS_VERSION='RS3-0.3';
 export const STATION_LIMITS=Object.freeze({maxStations:64,independentMaxStations:512,interactionRange:1});
 export const stationLimit=s=>isIndependent(s)?STATION_LIMITS.independentMaxStations:STATION_LIMITS.maxStations;
@@ -25,7 +26,7 @@ const equippedHammer=(s,agentId)=>{
   return item?.kind==='HAMMER';
 };
 const STRUCTURE_KINDS=new Set(['WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF']);
-const GRID=Object.freeze({w:30,h:26});
+const GRID=LEGACY_WORLD_BOUNDS;
 /** Building Sockets v1: every structure piece occupies exactly one socket. The
  * level is always derived from the piece kind; clients never choose it.
  * Edge sockets are stored canonically as N or W only (S of (x,y) is N of
@@ -48,13 +49,13 @@ export function canonicalEdge(x,y,side){
 export const edgeCells=e=>e.side==='N'?[{x:e.x,y:e.y-1},{x:e.x,y:e.y}]:[{x:e.x-1,y:e.y},{x:e.x,y:e.y}];
 export const cellEdges=(x,y)=>SIDES.map(side=>canonicalEdge(x,y,side));
 export const socketKey=k=>k.type==='edge'?`e1:${k.x}:${k.y}:${k.side}`:k.type==='cell'?`c${k.level}:${k.x}:${k.y}`:`legacy:${k.x}:${k.y}`;
-const inGrid=(x,y)=>Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<GRID.w&&y<GRID.h;
+const inGrid=(bounds,x,y)=>Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<bounds.w&&y<bounds.h;
 const isStructureKind=kind=>STRUCTURE_KINDS.has(kind);
 const socketStations=s=>(s.rustStations?.stations??[]).filter(st=>st?.socket&&(st.socket.type==='cell'||st.socket.type==='edge'));
 const pieceAt=(s,key)=>socketStations(s).find(st=>socketKey(st.socket)===key)??null;
 export const foundationAt=(s,x,y)=>{const st=pieceAt(s,`c0:${x}:${y}`);return st?.kind==='WOOD_FOUNDATION'?st:null;};
 /** Shape-only check of a socket for a piece kind. Returns the canonical socket or a reason. */
-export function socketShape(kind,socket){
+export function socketShape(kind,socket,bounds=GRID){
   const rule=SOCKET_RULES[kind];if(!rule)return {ok:false,reason:'socket-shape'};
   if(!socket||typeof socket!=='object')return {ok:false,reason:'socket-required'};
   if(socket.type!==rule.type)return {ok:false,reason:'socket-shape'};
@@ -62,7 +63,7 @@ export function socketShape(kind,socket){
   const {x,y}=socket;if(!Number.isInteger(x)||!Number.isInteger(y))return {ok:false,reason:'position'};
   if(rule.type==='cell'){
     if(socket.side!==undefined)return {ok:false,reason:'socket-shape'};
-    if(!inGrid(x,y))return {ok:false,reason:'position'};
+    if(!inGrid(bounds,x,y))return {ok:false,reason:'position'};
     return {ok:true,socket:{type:'cell',x,y,level:rule.level}};
   }
   // Non-canonical edges are rejected, never silently rewritten, so preview and placement cannot diverge.
@@ -70,14 +71,15 @@ export function socketShape(kind,socket){
   if(socket.side==='N'?(x<0||x>=GRID.w||y<0||y>GRID.h):(x<0||x>GRID.w||y<0||y>=GRID.h))return {ok:false,reason:'position'};
   return {ok:true,socket:{type:'edge',x,y,side:socket.side,level:1}};
 }
-const actorRange=(a,socket,anchor)=>{
+const actorRange=(a,socket,anchor,bounds=GRID)=>{
   if(socket?.type!=='edge')return dist(a,anchor);
-  return Math.min(...edgeCells(socket).filter(c=>inGrid(c.x,c.y)).map(c=>dist(a,c)));
+  return Math.min(...edgeCells(socket).filter(c=>inGrid(bounds,c.x,c.y)).map(c=>dist(a,c)));
 };
 /** The single read-only placement validator used by preview, planning and the executor.
  * Never writes state. `actor:false` is planning-only and must never be used to place.
  */
 export function canPlaceStation(s,{agentId=null,itemInstanceId=null,pieceKind=null,socket=null,x,y,placementId=null}={},isWalkable=()=>true,{actor=true}={}){
+  const bounds=worldBounds(s);
   // Stage 1: shape.
   const item=itemInstanceId===null||itemInstanceId===undefined?null:(s.rustPossessions?.items??[]).find(i=>i.id===itemInstanceId)??null;
   if(actor&&!item)return {ok:false,reason:'actor-or-item',stage:'actor'};
@@ -90,11 +92,11 @@ export function canPlaceStation(s,{agentId=null,itemInstanceId=null,pieceKind=nu
   if(structure){
     // Legacy callers may still send a bare foundation cell; every other structure piece needs a socket.
     const raw=socket??(def.stationProvided==='WOOD_FOUNDATION'&&x!==undefined&&y!==undefined?{type:'cell',x,y}:null);
-    const shape=socketShape(def.stationProvided,raw);if(!shape.ok)return {...shape,stage:'shape'};
+    const shape=socketShape(def.stationProvided,raw,bounds);if(!shape.ok)return {...shape,stage:'shape'};
     target=shape.socket;
   }else{
     const cx=socket?.x??x,cy=socket?.y??y;
-    if(!inGrid(cx,cy))return {ok:false,reason:'position',stage:'shape'};
+    if(!inGrid(bounds,cx,cy))return {ok:false,reason:'position',stage:'shape'};
     anchor={x:cx,y:cy};
   }
   // Stage 2: structure.
@@ -103,10 +105,10 @@ export function canPlaceStation(s,{agentId=null,itemInstanceId=null,pieceKind=nu
   if(!structure||def.stationProvided==='WOOD_FOUNDATION'){
     const c=anchor??{x:target.x,y:target.y};anchor=c;
     if(!isWalkable(s,c.x,c.y))return {ok:false,reason:'terrain',stage:'structure'};
-    if(def.placementRule==='ground'&&s.tiles?.[c.y*GRID.w+c.x]!=='grass')return {ok:false,reason:'foundation-ground',stage:'structure'};
+    if(def.placementRule==='ground'&&s.tiles?.[c.y*bounds.w+c.x]!=='grass')return {ok:false,reason:'foundation-ground',stage:'structure'};
     if(anchoredAt(c.x,c.y))return {ok:false,reason:'occupied',stage:'structure'};
   }else if(target.type==='edge'){
-    const supports=edgeCells(target).map(c=>inGrid(c.x,c.y)?foundationAt(s,c.x,c.y):null).filter(Boolean).sort((p,q)=>p.id-q.id);
+    const supports=edgeCells(target).map(c=>inGrid(bounds,c.x,c.y)?foundationAt(s,c.x,c.y):null).filter(Boolean).sort((p,q)=>p.id-q.id);
     if(!supports.length)return {ok:false,reason:'support-foundation',stage:'structure'};
     if(pieceAt(s,socketKey(target)))return {ok:false,reason:'socket-occupied',stage:'structure'};
     anchor={x:supports[0].x,y:supports[0].y};
@@ -123,7 +125,7 @@ export function canPlaceStation(s,{agentId=null,itemInstanceId=null,pieceKind=nu
     if(!a||item.location?.kind!=='bag'||item.location.agentId!==agentId)return {ok:false,reason:'actor-or-item',stage:'actor'};
     if(structure&&!equippedHammer(s,agentId))return {ok:false,reason:'hammer',stage:'actor'};
     if(isIndependent(s)&&kind==='WOOD_FOUNDATION'&&[[0,-1],[1,0],[0,1],[-1,0]].some(([dx,dy])=>{const f=foundationAt(s,anchor.x+dx,anchor.y+dy);return f&&f.placedBy!==agentId;}))return {ok:false,reason:'ownership-boundary',stage:'actor'};
-    if(actorRange(a,target,anchor)>STATION_LIMITS.interactionRange)return {ok:false,reason:'range',stage:'actor'};
+    if(actorRange(a,target,anchor,bounds)>STATION_LIMITS.interactionRange)return {ok:false,reason:'range',stage:'actor'};
     if(placementId!==null&&placementId!==undefined&&(typeof placementId!=='string'||!placementId.length||placementId.length>PLACEMENT_LIMITS.idLength))return {ok:false,reason:'placement-id',stage:'actor'};
     if(structure&&typeof placementId!=='string')return {ok:false,reason:'placement-id',stage:'actor'};
     if(placementId&&(s.rustStations?.placements??[]).some(p=>p.id===placementId))return {ok:false,reason:'placement-id-conflict',stage:'actor'};
@@ -183,7 +185,7 @@ export function migrateRustStations(rs){
 }
 /** Save validation for socket records: malformed new metadata is corruption, never repaired. */
 export function validateRustStations(s){
-  const rs=s.rustStations,e=[];
+  const rs=s.rustStations,e=[],bounds=worldBounds(s);
   if(!Array.isArray(rs.placements)||rs.placements.length>PLACEMENT_LIMITS.log||rs.placements.some(p=>!p||typeof p.id!=='string'||!Number.isInteger(p.tick)||p.tick<0||p.tick>s.tick||!Number.isSafeInteger(p.stationId)||!Number.isSafeInteger(p.itemInstanceId)))e.push('Rust placements');
   else if(new Set(rs.placements.map(p=>p.id)).size!==rs.placements.length)e.push('Rust placements');
   const keys=new Set(),items=new Set(),ids=new Set();
@@ -201,7 +203,7 @@ export function validateRustStations(s){
       if(st.kind==='WOOD_FOUNDATION'||k.level!==null||k.x!==st.x||k.y!==st.y||st.sourceItemId!==null)e.push('Rust station socket');
       continue;
     }
-    const shape=socketShape(st.kind,k);
+    const shape=socketShape(st.kind,k,bounds);
     if(!shape.ok||JSON.stringify(shape.socket)!==JSON.stringify(k)){e.push('Rust station socket');continue;}
     if(keys.has(socketKey(k)))e.push('Rust station socket');keys.add(socketKey(k));
     if(k.type==='cell'&&(st.x!==k.x||st.y!==k.y))e.push('Rust station anchor');
