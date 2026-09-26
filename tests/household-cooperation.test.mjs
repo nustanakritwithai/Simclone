@@ -42,7 +42,7 @@ function qualify(s,subject,owner,key='ic7b'){
 }
 function joinedHouse(){
   const s=createWorld(230926,{mode:'independent'});
-  const owner=s.agents[0],worker=s.agents[1];
+  const owner=s.agents[2],worker=s.agents[4]; // siblings; direct parent↔child cohabitation is intentionally forbidden.
   const home=completeHome(s,owner);qualify(s,worker,owner);
   const joined=command(s,'JOIN_HOUSEHOLD',{agentId:worker.id,ownerId:owner.id});
   assert.equal(joined.ok,true,JSON.stringify(joined));
