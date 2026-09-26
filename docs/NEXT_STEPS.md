@@ -1,3 +1,14 @@
+# Active gate — Kingdom Full Integration
+
+- Integration base: `main@dc13e8f` with WM4.8 ecological resource zones preserved.
+- Includes IC6C Household Resource Pool, IC6D Kingdom-style Leadership/Followers, K2–K6 household economy shadow, household Organization/Recruitment shadow, and household Trade shadow.
+- Donor source: `nustanakritwithai/Kingdom-sandbox`.
+- Independent raw resources are house-keyed once a home exists; homeless Clones retain temporary personal raw stores. Physical bag items/tools remain personal.
+- Leadership is a provenance-backed social skill; relationship evidence remains mandatory; Leadership bounds adult follower slots.
+- Recruitment and trade layers remain deterministic read-only shadows until their explicit mutation gates are approved.
+- WM4.8 remains authoritative/current and is not replaced by this integration.
+- Required proof before release: full regression CI, browser asset pins, exact-main Pages, then public live smoke.
+
 # Active gate — IC6B Adult Cohabitation
 
 - IC1–IC5 Independent Clone World core + IC6A relationship authority are on main `2c186fea`.
