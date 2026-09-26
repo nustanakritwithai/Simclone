@@ -6,4 +6,4 @@
 
 สัญญาเชื่อมโลกถูกเตรียมไว้ที่ `docs/KHET_WORLD_LINK_SUCCESS_CONTRACT.md` สถานะ PREPARED ยังไม่อนุมัติให้ต่อเข้าเกม และยังไม่ merge
 
-ทดสอบรวมอยู่ใน `npm test` ผ่าน `tests/khet-sila.test.mjs` และ `tests/khet-world-link.test.mjs`
+ทดสอบรวมอยู่ใน `npm test` ผ่าน `tests/khet-sila.test.mjs`
