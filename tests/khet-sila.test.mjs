@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { assertVectors } from "../src/khet/vectors.mjs";
 import { damageOf } from "../src/khet/formula.mjs";
 import { typeMultiplier } from "../src/khet/content.mjs";
-import { createCharacter, buySkill, addExp, forgeGear, statsOf, rest, pointsLeft } from "../src/khet/character.mjs";
+import { createCharacter, buySkill, addExp, forgeGear, statsOf, rest, pointsLeft, loadCharacter, saveCharacter } from "../src/khet/character.mjs";
 import { startFight, playerStrike, canEnter, bossReadyAfter, encounterShadow } from "../src/khet/combat.mjs";
+import { EDGE_ZONE, SLIME_ID, restAtEdge, strikeOnce } from "../src/khet-panel.mjs";
 
 test("เวกเตอร์สูตรตรงแผน", () => {
   assert.doesNotThrow(() => assertVectors());
@@ -173,4 +175,47 @@ test("เงาการเจอศัตรูอ่านอย่างเ�
   assert.equal(mouth.allowed, true);
   assert.equal(mouth.rank, "elite");
   assert.equal(mouth.enemyLevel >= 46, true);
+});
+
+test("แผงขอบค่ายสู้หนึ่งยก เลือดค้าง และพักแล้วเต็ม", () => {
+  const hero = createCharacter("ขอบ", "ranger");
+  const before = hero.hp;
+  const bout = strikeOnce(hero);
+  assert.equal(bout.fight.zone, EDGE_ZONE);
+  assert.equal(bout.fight.monsterId, SLIME_ID);
+  assert.equal(hero.hp, before);
+  assert.equal(bout.character.hp, bout.fight.player.hp);
+  assert.throws(() => strikeOnce({ ...hero, hp: 0 }), /exhausted/);
+  const rested = restAtEdge({ ...bout.character, hp: 1 });
+  assert.equal(rested.hp, statsOf(rested).hp);
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => store.set(key, value),
+    removeItem: (key) => store.delete(key)
+  };
+  const wounded = { ...bout.character, hp: 1 };
+  saveCharacter(wounded);
+  assert.equal(loadCharacter().hp, 1);
+  saveCharacter(restAtEdge(loadCharacter()));
+  assert.equal(loadCharacter().hp, statsOf(wounded).hp);
+});
+
+test("แผงไม่เข้าเอนจิน และเอนจินไม่เข้าเขตศิลา", () => {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const panel = read("../src/khet-panel.mjs");
+  const engine = read("../src/engine.mjs");
+  const app = read("../src/app.mjs");
+  const boot = read("../src/boot.mjs");
+  const page = read("../index.html");
+  assert.equal(panel.includes("engine.mjs"), false);
+  assert.equal(panel.includes("skill-provenance.mjs"), false);
+  assert.equal(panel.includes("recordEarnedSkill"), false);
+  assert.equal(engine.includes("khet-panel"), false);
+  assert.equal(engine.includes("src/khet"), false);
+  assert.equal(app.includes("khet-panel"), false);
+  assert.equal(app.includes("src/khet"), false);
+  assert.equal(boot.includes("khet-panel"), false);
+  assert.equal(page.includes("data-khet-open"), true);
+  assert.equal(page.includes("./src/khet-panel.mjs"), true);
 });
