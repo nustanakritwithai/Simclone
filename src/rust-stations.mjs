@@ -1,4 +1,4 @@
-import {isIndependent} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,resourceAccount} from './individual-resources.mjs?v=0.5.0';
 import {CRAFT_STATIONS,ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS} from './crafting-catalog.mjs?v=0.5.0';
 export const RUST_STATIONS_VERSION='RS3-0.3';
 export const STATION_LIMITS=Object.freeze({maxStations:64,independentMaxStations:512,interactionRange:1});
@@ -14,7 +14,10 @@ export function availableStationKinds(s){
 export function stationForRecipe(s,recipeId,agent,preferredId=null){
   const r=RECIPE_CATALOG[recipeId];if(!r)return null;
   if(r.station===CRAFT_STATIONS.HAND)return {id:null,kind:'HAND',x:agent.x,y:agent.y,complete:true};
-  const xs=(s.rustStations?.stations??[]).filter(st=>st.complete&&st.kind===r.station&&(!isIndependent(s)||st.placedBy===agent.id)&&(preferredId===null||st.id===preferredId));
+  const account=isIndependent(s)?resourceAccount(s,agent):null;
+  const xs=(s.rustStations?.stations??[]).filter(st=>st.complete&&st.kind===r.station&&
+    (!isIndependent(s)||st.placedBy===agent.id||account?.kind==='household'&&st.placedBy===account.ownerId)&&
+    (preferredId===null||st.id===preferredId));
   return xs.sort((a,b)=>dist(agent,a)-dist(agent,b)||a.id-b.id)[0]??null;
 }
 const equippedHammer=(s,agentId)=>{
