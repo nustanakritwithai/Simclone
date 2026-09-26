@@ -1,3 +1,13 @@
+# Active gate — Kingdom Household Adaptation
+
+- Base: `main@9f0a254f` with IC6B merged SAT.
+- Donor: `nustanakritwithai/Kingdom-sandbox`.
+- **IC6C:** raw Food/Wood/Stone/Charcoal route to household stores keyed by completed house; homeless people keep temporary personal stores.
+- **IC6D:** Kingdom-style `LEADERSHIP` is a real social skill with provenance; relationship evidence is still required; Leadership controls adult follower slots.
+- **K2–K6 household shadow:** demand/scarcity/production/labor offers/market prices run per household, not from a central settlement stock.
+- Existing estate/inheritance prep must be rebuilt after this gate because raw-resource ownership changed from person → household.
+- Required proof: conservation, migration, JOIN/LEAVE behavior, shared station spending, Leadership XP/idempotency/capacity, browser household UI, prior regressions.
+
 # Active gate — IC6B Adult Cohabitation
 
 - IC1–IC5 Independent Clone World core + IC6A relationship authority are on main `2c186fea`.
