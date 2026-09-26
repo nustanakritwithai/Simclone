@@ -213,7 +213,8 @@ export function stepGovernanceAuthority(state,{force=false}={}){
       if(top){
         const termId=appoint(state,office,top);
         appointed.push({settlementId:office.settlementId,governorId:top.agentId,termId});
-      }else if(office.vacancyReason!=='settlement-dormant'){
+      }else{
+        if(office.vacancyReason!=='no-candidate')office.lastTransitionTick=state.tick;
         office.vacancyReason='no-candidate';
       }
     }
