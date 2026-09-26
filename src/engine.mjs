@@ -26,12 +26,14 @@ import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsFor
 import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,activeResidenceOf,validateSocialState} from './relationships.mjs?v=0.5.0';
 import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './household-residence.mjs?v=0.5.0';
 import {stepHouseholdRecruitment} from './household-recruitment-authority.mjs?v=0.5.0';
+import {ensureSettlementState,stepSettlementAuthority,validateSettlementState,allSettlementSnapshots} from './settlement-authority.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
 export {leadershipProfile};
+export {allSettlementSnapshots};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
 export const SAVE_VERSION = '0.5.0';
@@ -134,7 +136,7 @@ export function createWorld(seed=230926,options={}){
     const p=scaleLegacyPoint(bounds,lx,ly);s.nodes.push({id:nid++,type,x:p.x,y:p.y,amount:45,max:45});
   }
   const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
-  if(independent){initializeIndependentStart(s,walkable);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
+  if(independent){initializeIndependentStart(s,walkable);ensureSettlementState(s);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
@@ -424,6 +426,8 @@ export function step(s,count=1,options={}){
     if(cultural)event(s,'knowledge',cultural.message,cultural.agentId);
     const recruitment=stepHouseholdRecruitment(s);
     if(recruitment?.ok&&recruitment.changed)event(s,'household',recruitment.message,recruitment.agentId??null);
+    const settlement=stepSettlementAuthority(s);
+    if(settlement?.changed&&settlement.createdIds.length)event(s,'settlement','เกิด Settlement ใหม่ '+settlement.createdIds.join(', '));
     if(s.tick%DAY_TICKS===0){
       attemptAutonomousBirth(s);
       const independent=isIndependent(s),food=independent?materialTotals(s,{livingOnly:true}).food:s.stock.food;
@@ -443,6 +447,7 @@ export function validate(s){
   const boundsErrors=validateWorldBoundsState(s);if(boundsErrors.length)return boundsErrors;
   const bounds=worldBounds(s),cellCount=worldCellCount(s);
   errors.push(...validateIndependentWorld(s));
+  errors.push(...validateSettlementState(s,{required:isIndependent(s)}));
   if(s.historyVersion!==HISTORY_VERSION)bad('History version');
   if(s.archiveVersion!==ARCHIVE_VERSION)bad('Archive version');
   if(!Array.isArray(s.archive)||s.archive.length>HISTORY_LIMITS.maxRetained)return ['Archive'];
@@ -581,7 +586,7 @@ function migrateKnowledge(s){
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
-  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);return s;} // additive social skill defaults to zero; household balances migrate deterministically.
+  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);ensureSettlementState(s);return s;} // additive social/settlement state migrates deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
   if(sourceVersion===SAVE_VERSION){migrateSkillProvenance(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
