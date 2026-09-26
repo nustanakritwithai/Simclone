@@ -81,6 +81,18 @@ function statsForPolicy(state,p){
   });
 }
 
+function makePolicyRoom(state){
+  const policies=state.governanceState.policies;
+  while(policies.length>=GOVERNANCE_RULES.maxPolicies){
+    const removable=policies.map((p,index)=>({p,index}))
+      .filter(x=>x.p.status!=='active')
+      .sort((a,b)=>(a.p.resolvedTick??a.p.createdTick)-(b.p.resolvedTick??b.p.createdTick)||a.p.id.localeCompare(b.p.id,undefined,{numeric:true}))[0];
+    if(!removable)return false;
+    policies.splice(removable.index,1);
+  }
+  return true;
+}
+
 function finishPolicy(state,p,status,reason,stats){
   if(p.status!=='active')return false;
   p.status=status;
@@ -139,6 +151,7 @@ export function stepGovernancePolicy(state,{force=false}={}){
     if(state.governanceState.policies.some(p=>p.settlementId===office.settlementId&&p.status==='active'))continue;
     const need=governanceNeeds(state,office.settlementId).find(n=>n.qualified)??null;
     if(!need)continue;
+    if(!makePolicyRoom(state))continue;
     const id='GP'+state.governanceState.nextPolicy++;
     const p={
       id,settlementId:office.settlementId,governorId:office.governorId,
