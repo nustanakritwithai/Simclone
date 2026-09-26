@@ -275,7 +275,7 @@ function candidates(s,a,book,field){
     const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock,unfinished,emergency});
     const householdCooperation=householdCooperationSignal(s,a,kind,{emergency});
     const governorPolicy=governorPolicySignal(s,a,kind,{emergency});
-    const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
+    const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus&&!householdCooperation.active&&!governorPolicy.active?'satisfied':'candidate';
     add(target.perception==='memory'?'EXPLORE':kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority,householdCooperation,governorPolicy,
       ...(target.perception?{purposeKind:kind,perception:target.perception,...(target.knowledgeKey?{knowledgeKey:target.knowledgeKey}:{})}: {})});
   }
