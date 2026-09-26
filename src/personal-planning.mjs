@@ -55,7 +55,7 @@ export function personalExplorationTarget(state,agent,reachable){
 export function rememberPlanSelection(state,agent,choice){
   if(!active(state))return;
   const p=init(agent),kind=choice.purposeKind??choice.kind;
-  if(['EAT','REST','IDLE','CRAFT','PROCESS'].includes(kind)){
+  if(['EAT','REST','IDLE','CRAFT','PROCESS','TRADE_DELIVERY'].includes(kind)){
     if(p.goal?.status==='active')p.goal={...p.goal,status:'interrupted',updatedTick:state.tick,outcome:kind.toLowerCase()};
     return;
   }
