@@ -1,4 +1,4 @@
-name: Closed Regression Proofs
+name: Full Regression Proofs
 
 on:
   workflow_dispatch:
@@ -7,12 +7,18 @@ permissions:
   contents: read
 
 jobs:
-  closed-regression:
-    timeout-minutes: 30
+  full-regression:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Verify all active unit and persistence regressions
+        run: npm test
+
+      - name: Verify independent 120-year generation continuity
+        run: node scripts/independent-world-proof.mjs 230926
 
       - name: Verify released ecology authorities
         run: npm run test:ecology
@@ -29,7 +35,7 @@ jobs:
       - name: Verify released continuity and history proof
         run: npm run test:continuity
 
-      - name: Setup Python for archived browser regressions
+      - name: Setup Python for full browser regressions
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -38,6 +44,15 @@ jobs:
         run: |
           python -m pip install playwright
           python -m playwright install --with-deps chromium
+
+      - name: Verify active observation UI matrix
+        run: python tests/ui-smoke.py
+
+      - name: Verify Independent offline UI matrix
+        run: python tests/independent-ui-smoke.py
+
+      - name: Verify Independent native HTTP/storage matrix
+        run: python tests/independent-ui-smoke.py --native
 
       - name: Verify released navigation and save recovery
         run: python tests/navigation-smoke.py
