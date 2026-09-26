@@ -1,8 +1,9 @@
 import {LEGACY_WORLD_BOUNDS,worldBounds} from './world-bounds.mjs?v=0.5.0';
+import {WORLD_REGION_TYPES,worldRegionAt} from './world-regions.mjs?v=0.5.0';
 /** WM1 presentation only. Reads K6 tiles/resources; never writes simulation state.
  * This is a WorldSim-inspired terrain skin, not the 20.9.4 physics runtime.
  */
-export const WORLD_MAP_VERSION='wm1-visual-1';
+export const WORLD_MAP_VERSION='wm1-visual-2';
 /** Legacy alias for old fixtures. Runtime uses worldBounds(state). */
 export const MAP_SIZE=Object.freeze({w:LEGACY_WORLD_BOUNDS.w,h:LEGACY_WORLD_BOUNDS.h});
 export const WORLD_TERRAIN=Object.freeze(['deepWater','shallowWater','sand','grass','forest','rock','path','bridge']);
@@ -32,7 +33,7 @@ export const isVisualWater=terrain=>WATER.has(terrain);
 
 /** Detached immutable render snapshot. Caller owns caching; nothing is saved. */
 export function createWorldMapView(state){
-  const {w:width,h:height}=worldBounds(state),n=width*height;
+  const bounds=worldBounds(state),{w:width,h:height}=bounds,n=width*height;
   if(!state||!Number.isSafeInteger(state.seed)||state.seed<0||state.seed>4294967295||
     !Array.isArray(state.tiles)||state.tiles.length!==n)throw new Error('Invalid map view input');
   for(let i=0;i<n;i++)if(!TILES.has(state.tiles[i]))throw new Error('Invalid gameplay terrain');
@@ -45,10 +46,14 @@ export function createWorldMapView(state){
       if(d<=2&&x>=0&&y>=0&&x<width&&y<height)influences[node.type][y*width+x]+=1/(1+d);
     }
   }
-  const counts=Object.fromEntries(WORLD_TERRAIN.map(t=>[t,0])),cells=[];
+  const counts=Object.fromEntries(WORLD_TERRAIN.map(t=>[t,0])),
+    regionCounts=Object.fromEntries(WORLD_REGION_TYPES.map(t=>[t,0])),cells=[];
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
     const i=y*width+x,gameplayTile=tile(x,y),nearWater=[[0,-1],[1,0],[0,1],[-1,0]].filter(([dx,dy])=>tile(x+dx,y+dy)==='water').length;
-    const elevation=field(state.seed,x/6,y/6,29),moisture=field(state.seed,x/5,y/5,71);
+    const regionEvidence=worldRegionAt(state.seed,bounds,x,y);regionCounts[regionEvidence.region]++;
+    const rawElevation=field(state.seed,x/6,y/6,29),rawMoisture=field(state.seed,x/5,y/5,71);
+    const elevation=bounds.profile==='large'?clamp(rawElevation*.68+regionEvidence.relief*.32):rawElevation;
+    const moisture=bounds.profile==='large'?clamp(rawMoisture*.68+regionEvidence.moisture*.32):rawMoisture;
     let terrainType=gameplayTile;
     if(gameplayTile==='water')terrainType=nearWater>=3?'deepWater':'shallowWater';
     else if(gameplayTile==='grass'){
@@ -58,17 +63,23 @@ export function createWorldMapView(state){
       else if(wood>=.5&&wood>=food||moisture>.64&&food<.8)terrainType='forest';
       else if(elevation>.72&&wood<.5&&food<.5)terrainType='rock';
       else terrainType='grass';
+      if(bounds.profile==='large'&&terrainType==='grass'){
+        if(regionEvidence.region==='stone-ridge')terrainType='rock';
+        else if(regionEvidence.region==='woodland')terrainType='forest';
+        else if(regionEvidence.region==='uplands'&&elevation>.53)terrainType='rock';
+        else if(regionEvidence.region==='wetland'&&moisture>.56)terrainType='forest';
+      }
       // Clear-looking ground underneath existing homes; this does NOT alter BUILD.
       if((state.buildings??[]).some(b=>Math.abs(b.x-x)+Math.abs(b.y-y)<=1))terrainType='grass';
     }
     const detail=visualNoise(state.seed,x,y,113),shade=Math.round((detail-.5)*12+(elevation-.5)*8);
     counts[terrainType]++;
-    cells.push(Object.freeze({index:i,x,y,terrainType,gameplayTile,
+    cells.push(Object.freeze({index:i,x,y,terrainType,gameplayTile,region:regionEvidence.region,
       walkable:gameplayTile!=='water',color:tint(TERRAIN_COLORS[terrainType],shade),
       elevation:clamp(elevation),moisture:clamp(moisture),detail}));
   }
   return Object.freeze({version:WORLD_MAP_VERSION,seed:state.seed,width,height,
-    authority:MAP_AUTHORITY,cells:Object.freeze(cells),terrainCounts:Object.freeze(counts)});
+    authority:MAP_AUTHORITY,cells:Object.freeze(cells),terrainCounts:Object.freeze(counts),regionCounts:Object.freeze(regionCounts)});
 }
 export function visualCellAt(view,x,y){
   if(!view||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=view.width||y>=view.height)return null;
