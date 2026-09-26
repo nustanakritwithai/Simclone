@@ -1,4 +1,4 @@
-import {isIndependent,materialStock,resourceStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf,ensureHouseholdResourceState,activateHouseholdStore,joinHouseholdResources} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,materialStock,resourceStock,resourceAccount,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf,ensureHouseholdResourceState,activateHouseholdStore,joinHouseholdResources} from './individual-resources.mjs?v=0.5.0';
 import {INDEPENDENT_SAVE_VERSION,addPersonalStore,validateIndependentWorld} from './individual-resources.mjs?v=0.5.0';
 import {initializeIndependentStart,independentSpawn} from './independent-start.mjs?v=0.5.0';
 import {survivalHome,homeOf,individualHouses} from './individual-housing.mjs?v=0.5.0';
