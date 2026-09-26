@@ -5,6 +5,7 @@ import {personalHomeIntent} from './individual-home-planning.mjs?v=0.5.0';
 import {householdOf,householdForOwner,activeResidenceOf,relationshipOf} from './relationships.mjs?v=0.5.0';
 import {cohabitationCandidate} from './cohabitation.mjs?v=0.5.0';
 import {leadershipProfile} from './leadership.mjs?v=0.5.0';
+import {householdEconomySnapshot} from './kingdom-household-economy.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {walkable} from './survival.mjs?v=0.5.0';
 import {edgeCells} from './rust-stations.mjs?v=0.5.0';
@@ -62,10 +63,11 @@ export function installIndependentUI(api){
   const currentResidence=actor?activeResidenceOf(s,actor.id):null,joinPreview=actor&&actor.id!==h.ownerId?api.preview('JOIN_HOUSEHOLD',{agentId:actor.id,ownerId:h.ownerId}):null;
   const residents=(household?.residentIds??[h.ownerId]).map(id=>[...s.agents,...s.archive].find(p=>p.id===id)?.name??('#'+id)).join(', ');
   const residenceAction=currentResidence?.ownerId===h.ownerId?'<button class="secondary" data-leave-household="'+actor.id+'">ออกจาก household</button>':joinPreview?.ok?'<button class="primary" data-join-household="'+h.ownerId+'">อยู่ร่วมบ้านนี้</button>':'';
-  const ownArchive=s.culture?.houseId===h.houseId;
+  const ownArchive=s.culture?.houseId===h.houseId,economy=owner?householdEconomySnapshot(s,owner.id):null;
+  const econ=economy?'<div class="household-economy" data-household-economy="'+esc(h.houseId)+'"><p><b>Household Economy</b> · Food '+economy.stock.food+' · Wood '+economy.stock.wood+' · Stone '+economy.stock.stone+' · Charcoal '+economy.stock.charcoal+'</p><p>Scarcity — Food '+economy.economy.scarcity.food+' · Wood '+economy.economy.scarcity.wood+' · Stone '+economy.economy.scarcity.stone+'</p><p>แรงงานที่ควรเสริม: '+esc(economy.labor.topOffer?.label??'สมดุล')+'</p></div>':'';
   api.openDialog('บ้านของ '+(owner?.name??'ไม่ทราบเจ้าของ'),'PERSONAL HOME · '+h.houseId,
    '<section class="personal-house-detail" data-house="'+esc(h.houseId)+'" data-owner="'+(h.ownerId??'unknown')+'"><div class="personal-house-hero">⌂</div><h3>'+esc(h.complete?'สร้างเสร็จแล้ว':'กำลังก่อสร้าง · ขาด '+h.missing.length+' ชิ้น')+'</h3><p>เจ้าของ: '+esc(owner?.name??'UNKNOWN')+' · '+h.origin.x+', '+h.origin.y+'</p>'+
-   (owner?button(owner.id,'เลือก '+owner.name):'')+'<p data-household-residents>Household: '+esc(residents)+'</p>'+residenceAction+'<p>ทรัพยากรของ Household — อาหาร '+stock.food+' · ไม้ '+stock.wood+' · หิน '+stock.stone+'</p><p class="source-note">เจ้าของมาจากผู้วางฐาน #'+h.originStationId+' · ownership บ้านไม่เปลี่ยน · ทรัพยากรดิบแชร์ใน Household</p>'+
+   (owner?button(owner.id,'เลือก '+owner.name):'')+'<p data-household-residents>Household: '+esc(residents)+'</p>'+residenceAction+econ+'<p>ทรัพยากรของ Household — อาหาร '+stock.food+' · ไม้ '+stock.wood+' · หิน '+stock.stone+'</p><p class="source-note">เจ้าของมาจากผู้วางฐาน #'+h.originStationId+' · ownership บ้านไม่เปลี่ยน · ทรัพยากรดิบแชร์ใน Household</p>'+
    (ownArchive?'<p>คลังความรู้สาธารณะอยู่ที่บ้านนี้ · '+s.culture.entries.length+' เรื่อง</p><button class="secondary" data-home-archive="'+esc(h.houseId)+'">อ่านคลังความรู้</button>':h.complete&&!s.culture?'<button class="primary" data-create-home-archive="'+esc(h.houseId)+'" '+(preview.ok?'':'disabled')+'>เปิดคลังความรู้ที่บ้าน</button><p class="source-note">'+esc(preview.ok?'ใช้ไม้ 6 และหิน 2 จาก resource account ปัจจุบัน':preview.message)+'</p>':'')+'</section>');
   $('dialog').dataset.kind='personal-home';
  }
