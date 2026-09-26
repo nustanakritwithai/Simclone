@@ -41,6 +41,8 @@ for(const row of [
   if(!r.ok)throw new Error('relationship failed '+JSON.stringify(r));
 }
 const pool=resourceStock(s,owner);pool.food=0;pool.wood=30;pool.stone=20;
-s.tick=59;
+// Keep the browser fixture safely before the tick-60 recruitment authority cycle.
+// Boot/render can advance a tick before the smoke harness pauses the world.
+s.tick=1;
 const errors=validate(s);if(errors.length)throw new Error('invalid fixture '+errors.join(','));
 console.log(serialize(s));
