@@ -78,7 +78,7 @@ function createAgent(s,parent,initial=false,mode='manual'){
   return a;
 }
 function attemptAutonomousBirth(s){
-  const {book}=reservations(s),freeFood=Math.max(0,s.stock.food-book.meals.size),plan=birthPlan(s,freeFood);
+  const {book}=reservations(s),freeFood=isIndependent(s)?0:Math.max(0,s.stock.food-book.meals.size),plan=birthPlan(s,freeFood);
   if(!plan.ok)return null;
   const parent=s.agents.find(a=>a.id===plan.parentId&&a.alive);
   if(!parent||!compactRetired(s).ok)return null;
@@ -407,7 +407,8 @@ export function step(s,count=1,options={}){
     if(cultural)event(s,'knowledge',cultural.message,cultural.agentId);
     if(s.tick%DAY_TICKS===0){
       attemptAutonomousBirth(s);
-      event(s,'day','เริ่มวันที่ '+day(s)+' · ประชากร '+living(s).length+' คน · อาหาร '+s.stock.food);
+      const independent=isIndependent(s),food=independent?materialTotals(s,{livingOnly:true}).food:s.stock.food;
+      event(s,'day','เริ่มวันที่ '+day(s)+' · ประชากร '+living(s).length+' คน · '+(independent?'อาหารรวม ':'อาหาร ')+food);
     }
   }
   return s;
@@ -429,7 +430,9 @@ export function validate(s){
   if(JSON.stringify(s.archive).length>HISTORY_LIMITS.maxArchiveCharacters)bad('Archive size');
   if(!Number.isInteger(s.tick)||s.tick<0||!Number.isInteger(s.rng)||!Number.isInteger(s.seed))bad('Clock/seed');
   if(!Array.isArray(s.tiles)||s.tiles.length!==cellCount||s.tiles.some(t=>!['grass','water','path','bridge'].includes(t)))return ['Terrain'];
-  if(!s.stock||['food','wood','stone'].some(k=>!finite(s.stock[k])||s.stock[k]<0||s.stock[k]>999))bad('Inventory');
+  // Independent s.stock is a zero-only compatibility placeholder. validateIndependentWorld owns that contract.
+  // Only legacy mode treats s.stock as a spendable inventory authority.
+  if(!isIndependent(s)&&(!s.stock||['food','wood','stone'].some(k=>!finite(s.stock[k])||s.stock[k]<0||s.stock[k]>999)))bad('Inventory');
   if(!Array.isArray(s.agents)||s.agents.length>HISTORY_LIMITS.maxImportedHotRecords||retainedCount(s)<1||retainedCount(s)>HISTORY_LIMITS.maxRetained)return ['Agent count'];
   const people=[...s.agents,...s.archive];
   if(people.some(a=>!a||typeof a!=='object'||Array.isArray(a)))return ['Agent record'];
