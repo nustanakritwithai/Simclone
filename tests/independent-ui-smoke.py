@@ -28,6 +28,7 @@ print('EVIDENCE SCOPE:',scope,flush=True)
 script="import{createWorld,step,serialize}from './src/engine.mjs';const s=createWorld(230926,{mode:'independent'});step(s,1400);console.log(serialize(s));"
 earned=subprocess.check_output(['node','--input-type=module','-e',script],cwd=ROOT,text=True).strip()
 social_fixture=subprocess.check_output(['node','scripts/ic6b-browser-fixture.mjs'],cwd=ROOT,text=True).strip()
+recruitment_fixture=subprocess.check_output(['node','scripts/ic7a-recruitment-browser-fixture.mjs'],cwd=ROOT,text=True).strip()
 checks=[];errors=[]
 def check(name,condition=True):
     assert condition,name
@@ -144,6 +145,14 @@ try:
             check('IC6B: LEAVE_HOUSEHOLD uses engine command and removes active residency',page.locator('.household-summary').count()==0)
             check('IC6B: relationship evidence remains after leaving',page.evaluate('simclone.snapshot().social.relations.some(r=>r.fromId===2&&r.toId===3&&r.trust===4&&r.affinity===2)'))
             page.screenshot(path=str(OUT/'ic6b-household-1440.png'))
+            # IC7A: food-poor household exposes the live recruitment need before the authority cycle.
+            boot(page,recruitment_fixture);pause(page);select_person(page,3);page.wait_for_timeout(150)
+            page.locator('[data-own-home="3"]').click()
+            page.wait_for_selector('[data-household-recruitment]')
+            recruit_text=page.locator('[data-household-recruitment]').inner_text()
+            check('IC7A: household home UI exposes food recruitment pressure · '+repr(recruit_text),'คนหาอาหาร' in recruit_text and 'ผู้สมัคร 1' in recruit_text)
+            page.locator('#dialog-close').click()
+            page.screenshot(path=str(OUT/'ic7a-recruitment-1440.png'))
         context.close()
     check('no browser JavaScript errors',not errors)
     browser.close()
