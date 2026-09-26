@@ -419,6 +419,9 @@ export function step(s,count=1,options={}){
       if(a.hp===0){killAgent(s,a,'starvation');continue;}
       if(shouldDieOfAge(s,a)){killAgent(s,a,'age');continue;}
       ageKnowledge(a,s.tick);
+      const executablePlan=syncExecutablePlan(s,a);
+      const executableStep=executablePlan?.steps?.find(step=>step.stepId===executablePlan.currentStepId)??null;
+      if(a.task&&executablePlan?.status==='REPLAN_REQUESTED'&&executableStep?.status==='TIMEOUT'){a.task=null;a.moveTick=0;}
       if(a.task&&interrupt(s,a)){
         if(taskValid(s,a))noteExecutablePlanInterruption(s,a,a.task,'survival-interruption');
         else invalidateExecutablePlanTask(s,a,a.task,'task-invalid');
