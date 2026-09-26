@@ -96,9 +96,16 @@ function governanceWorld(seed=9100){
 
 function loseSupportTo(state,candidateId,ownerIds){
   for(const row of state.social.relations){
-    if(ownerIds.includes(row.fromId)&&row.toId===candidateId){
-      row.trust=0;row.respect=0;row.affinity=0;row.evidence=[];
+    if(!ownerIds.includes(row.fromId)||row.toId!==candidateId)continue;
+    const removed=row.evidence.filter(e=>e.kind==='governance-support');
+    for(const e of removed){
+      row.trust-=e.delta.trust??0;
+      row.affinity-=e.delta.affinity??0;
+      row.respect-=e.delta.respect??0;
+      row.fear-=e.delta.fear??0;
+      row.debt-=e.delta.debt??0;
     }
+    row.evidence=row.evidence.filter(e=>e.kind!=='governance-support');
   }
 }
 
