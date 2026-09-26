@@ -60,7 +60,7 @@ export function createResourceEcologyShadow(state){
       .map(c=>Object.freeze({x:c.x,y:c.y,terrainType:c.terrainType,suitability:c.suitability[type]}));
   }
   return Object.freeze({
-    version:RESOURCE_ECOLOGY_SHADOW_VERSION,
+    version:RESOURCE_ECOLOGY_SHADOW_VERSION,width:view.width,height:view.height,
     authority:Object.freeze({mode:'shadow-only',resources:'simclone-k6'}),
     totals:Object.freeze(Object.fromEntries(Object.entries(totals).map(([k,v])=>[k,+v.toFixed(4)]))),
     soilSummary:soil.summary,soilCounts:soil.counts,climateSummary:climate.summary,
