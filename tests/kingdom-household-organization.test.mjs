@@ -67,13 +67,20 @@ test('Kingdom recruitment requires relationship-backed cohabitation candidate, n
 
 test('Kingdom recruitment suppresses all offers when Leadership follower capacity is full',()=>{
   const s=createWorld(230926,{mode:'independent'}),follower=s.agents[1],owner=s.agents[2],candidate=s.agents[3];
-  completeHome(s,owner);qualify(s,follower,owner,'first');qualify(s,candidate,owner,'second');
-  assert.equal(command(s,'JOIN_HOUSEHOLD',{agentId:follower.id,ownerId:owner.id}).ok,true);
-  // First unique follower awards 10 Leadership XP => capacity 2, so fill the second slot explicitly.
-  assert.equal(command(s,'JOIN_HOUSEHOLD',{agentId:candidate.id,ownerId:owner.id}).ok,true);
-  const third=s.agents[4];qualify(s,third,owner,'third');
+  const home=completeHome(s,owner);qualify(s,candidate,owner,'candidate-full');
+  // Lv0 capacity is exactly one adult follower. Seed that already-active relationship directly
+  // so this proof tests the capacity gate without JOIN awarding Leadership XP and expanding it.
+  s.social.residences.push({
+    agentId:follower.id,ownerId:owner.id,houseId:home.houseId,
+    joinedTick:s.tick,leftTick:null,joinReason:'relationship-evidence',leaveReason:null,
+    evidence:{subjectToOwner:[],ownerToSubject:[]}
+  });
   const stock=resourceStock(s,owner);stock.food=1;stock.wood=0;stock.stone=0;
-  const row=householdOrganizationShadow(s,owner.id);assert.equal(row.leadership.availableFollowerSlots,0);
+  const row=householdOrganizationShadow(s,owner.id);
+  assert.equal(row.leadership.level,0);
+  assert.equal(row.leadership.followerCapacity,1);
+  assert.equal(row.leadership.activeFollowers,1);
+  assert.equal(row.leadership.availableFollowerSlots,0);
   assert.deepEqual(householdRecruitmentOffers(s,owner.id),[]);
 });
 
