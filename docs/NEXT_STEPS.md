@@ -1,3 +1,13 @@
+# Active gate — VAL1 Visible Autonomous Life
+
+- Base: `main@9283a9c88bf4b8f540498e8539e5551865b18e2c` after IC7B + MX7 exact-main Pages SAT.
+- Read-only Inspector projection: current authoritative task, exact selected trace factors, personal-home planning intent and Household labor pressure.
+- No new scheduler, scorer, planner, resource writer, relationship writer or settlement writer.
+- UNKNOWN remains explicit when a matching selected trace is unavailable.
+- Success Contract: `docs/VAL1_VISIBLE_AUTONOMOUS_LIFE_SUCCESS_CONTRACT.md`.
+- Release gate: unit projection proof + Independent browser smoke + full regression + exact candidate CI.
+- After VAL1 SAT: begin the separate Goal / Executable Plan authority design using AstraLife P4 concepts; do not smuggle plan mutation into VAL1.
+
 # Active closeout — IC7B Household Cooperation
 
 - Current integration base: `main@c78861edf59da751dfe728e85094bd29fc82f43a` (MX5–MX7 Community → Settlement Authority).
