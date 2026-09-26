@@ -1,5 +1,5 @@
 /** Independent-world presentation only. All writes use the engine bridge/preview. */
-import {isIndependent,materialStock,materialTotals,guardianOf} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,resourceStock,materialTotals,guardianOf,resourceAccount} from './individual-resources.mjs?v=0.5.0';
 import {individualHouses,homeOf,survivalHome} from './individual-housing.mjs?v=0.5.0';
 import {personalHomeIntent} from './individual-home-planning.mjs?v=0.5.0';
 import {householdOf,householdForOwner,activeResidenceOf,relationshipOf} from './relationships.mjs?v=0.5.0';
@@ -35,14 +35,14 @@ export function installIndependentUI(api){
    if(housing){housing.querySelector('strong').textContent=homes.length+' บ้านส่วนตัว';housing.querySelector('details p').textContent='เจ้าของแต่ละคนสร้างและใช้บ้านของตัวเอง ไม่มีโควตาบ้านกลาง';}
    if(kind==='survival')for(const tile of $('dialog').querySelectorAll('.menu-metric'))if(['ที่พัก','บ้านส่วนตัว'].includes(tile.querySelector('small')?.textContent)){tile.querySelector('small').textContent='บ้านส่วนตัว';tile.querySelector('b').textContent=homes.length;}
    if(kind==='rust'){
-    const stock=materialStock(s,a);for(const tile of $('dialog').querySelectorAll('.menu-metric')){const label=tile.querySelector('small')?.textContent;if(label==='ถ่าน'&&a)tile.querySelector('b').textContent=stock.charcoal??0;if(label==='สถานี'&&a)tile.querySelector('b').textContent=s.rustStations.stations.filter(st=>st.placedBy===a.id).length;if(label==='RP1'){tile.querySelector('small').textContent='Personal AI';tile.querySelector('b').textContent='ON';}}
+    const stock=resourceStock(s,a);for(const tile of $('dialog').querySelectorAll('.menu-metric')){const label=tile.querySelector('small')?.textContent;if(label==='ถ่าน'&&a)tile.querySelector('b').textContent=stock.charcoal??0;if(label==='สถานี'&&a)tile.querySelector('b').textContent=s.rustStations.stations.filter(st=>st.placedBy===a.id).length;if(label==='RP1'){tile.querySelector('small').textContent='Personal AI';tile.querySelector('b').textContent='ON';}}
     const toggle=$('dialog').querySelector('[data-ux="production-policy"]');if(toggle)toggle.hidden=true;
    }
    if(kind==='clone'){const p=$('dialog-body').querySelector('p');if(p)p.textContent='ใช้ทรัพย์สินของต้นแบบ: อาหาร 8 + ไม้ 4 · ไม่ใช้โควตาบ้านกลาง · Clone ผู้ใหญ่เริ่มชีวิตแยกและสืบทอด Skill XP 35%';}
    if(['systems','survival','rust'].includes(kind)&&!$('independent-mode-note')){const note=document.createElement('p');note.id='independent-mode-note';note.className='source-note';note.textContent='ชีวิตอิสระ · ตัวเลขรวมใช้ดูภาพรวมเท่านั้น ไม่มีคลังวัสดุกลาง';$('dialog-body').prepend(note);}
   }
   if(!on||!a)return;
-  const stock=materialStock(s,a),h=homeOf(s,a.id),guardian=guardianOf(s,a),intent=personalHomeIntent(s,a,walkable);
+  const stock=resourceStock(s,a),h=homeOf(s,a.id),guardian=guardianOf(s,a),intent=personalHomeIntent(s,a,walkable);
   const residence=activeResidenceOf(s,a.id),household=householdOf(s,a.id),candidate=residence?null:cohabitationCandidate(s,a);
   const householdOwner=household?[...s.agents,...s.archive].find(p=>p.id===household.ownerId):null;
   const relation=householdOwner&&householdOwner.id!==a.id?relationshipOf(s,a.id,householdOwner.id):null;
@@ -54,7 +54,7 @@ export function installIndependentUI(api){
   if(card.innerHTML!==html)card.innerHTML=html;
  }
  function openHome(h){
-  const s=api.read().state,owner=[...s.agents,...s.archive].find(a=>a.id===h.ownerId),actor=s.agents.find(a=>a.id===api.read().selected&&a.alive),stock=materialStock(s,h.ownerId);
+  const s=api.read().state,owner=[...s.agents,...s.archive].find(a=>a.id===h.ownerId),actor=s.agents.find(a=>a.id===api.read().selected&&a.alive),stock=resourceStock(s,h.ownerId);
   const data={agentId:actor?.id??null,houseId:h.houseId},preview=api.preview('CREATE_ARCHIVE',data),household=householdForOwner(s,h.ownerId);
   const currentResidence=actor?activeResidenceOf(s,actor.id):null,joinPreview=actor&&actor.id!==h.ownerId?api.preview('JOIN_HOUSEHOLD',{agentId:actor.id,ownerId:h.ownerId}):null;
   const residents=(household?.residentIds??[h.ownerId]).map(id=>[...s.agents,...s.archive].find(p=>p.id===id)?.name??('#'+id)).join(', ');
@@ -71,7 +71,7 @@ export function installIndependentUI(api){
   const st=s.rustStations.stations.find(st=>st.id===target.id);
   if(target.type!=='station'||!st)return false;
   if(!st.structurePiece){
-   const actor=s.agents.find(a=>a.id===api.read().selected&&a.alive),owner=[...s.agents,...s.archive].find(a=>a.id===st.placedBy),stock=materialStock(s,actor);
+   const actor=s.agents.find(a=>a.id===api.read().selected&&a.alive),owner=[...s.agents,...s.archive].find(a=>a.id===st.placedBy),stock=resourceStock(s,actor);
    const actions=st.kind==='FURNACE'?[{type:'PROCESS_CHARCOAL',data:{agentId:actor?.id,stationId:st.id},label:'ไม้ 2 → ถ่าน 1'}]:Object.values(RECIPE_CATALOG).filter(r=>r.station===st.kind).map(r=>({type:'CRAFT_ITEM',data:{agentId:actor?.id,recipeId:r.id,stationId:st.id},label:ITEM_CATALOG[r.output].name}));
    api.openDialog(ITEM_CATALOG[st.kind]?.name??st.kind,'PERSONAL STATION · #'+st.id,'<p>เจ้าของ: '+esc(owner?.name??'UNKNOWN')+'</p>'+button(st.placedBy,'เลือกเจ้าของสถานี')+'<p>วัสดุของคนที่เลือก: ไม้ '+stock.wood+' · หิน '+stock.stone+'</p>'+actions.map(x=>{const check=api.preview(x.type,x.data);return '<button class="primary" data-personal-command="'+x.type+'" data-station="'+st.id+'" data-recipe="'+(x.data.recipeId??'')+'" '+(check.ok?'':'disabled')+'>'+esc(x.label)+'</button><p class="source-note">'+esc(check.ok?'พร้อมทำงาน':check.message)+'</p>';}).join(''));
    $('dialog').dataset.kind='personal-station';return true;
