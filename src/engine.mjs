@@ -25,6 +25,7 @@ import {ensureProductionPlan,productionCommand,stepProductionPlanning,validatePr
 import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsForAgent,validateMentorship} from './mentor-teaching.mjs?v=0.5.0';
 import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,activeResidenceOf,validateSocialState} from './relationships.mjs?v=0.5.0';
 import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './household-residence.mjs?v=0.5.0';
+import {stepHouseholdRecruitment} from './household-recruitment-authority.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -365,6 +366,17 @@ function execute(s,a){
         if(meal)a.satiety=clamp(a.satiety+RULES.mealSatiety);
         gain(s,a,t.kind,n.id);
         if(!recordResourceDiscovery(a,n,s.tick,{action:t.kind,amount}))throw new Error('Knowledge evidence write failed');
+        if(isIndependent(s)&&['FORAGE','WOODCUT','MINE'].includes(t.kind)){
+          const account=resourceAccount(s,a);
+          if(account.kind==='household'&&Number.isSafeInteger(account.ownerId)&&account.ownerId!==a.id){
+            const year=Math.floor(s.tick/DAY_TICKS);
+            recordRelationshipEvidence(s,{
+              fromId:account.ownerId,toId:a.id,kind:'household-contribution',
+              key:'household-contribution:'+account.ownerId+':'+a.id+':'+t.kind+':'+year,
+              delta:{trust:1,respect:1},ref:account.houseId+':'+n.type
+            });
+          }
+        }
         recordPlanProduction(s,a,t,amount);
       }
       a.task=null;
@@ -410,6 +422,8 @@ export function step(s,count=1,options={}){
     const teaching=stepMentorship(s);if(teaching)event(s,'mentor',teaching.message,teaching.mentorId);
     const cultural=stepCulture(s);
     if(cultural)event(s,'knowledge',cultural.message,cultural.agentId);
+    const recruitment=stepHouseholdRecruitment(s);
+    if(recruitment?.ok&&recruitment.changed)event(s,'household',recruitment.message,recruitment.agentId??null);
     if(s.tick%DAY_TICKS===0){
       attemptAutonomousBirth(s);
       const independent=isIndependent(s),food=independent?materialTotals(s,{livingOnly:true}).food:s.stock.food;
