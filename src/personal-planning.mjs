@@ -5,10 +5,14 @@
 import {KNOWLEDGE_REVISION_RULES,verifyResourceKnowledge} from './knowledge-revision.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,worldBounds,worldCellCount} from './world-bounds.mjs?v=0.5.0';
 export const PERSONAL_PLANNING_VERSION='personal-knowledge-1';
+export const EXECUTABLE_PLAN_VERSION='VAL2-0.1';
+export const EXECUTABLE_PLAN_RULES=Object.freeze({maxReplans:3});
 export const PLANNING_LIMITS=Object.freeze({lessons:4,cells:LEGACY_WORLD_BOUNDS.w*LEGACY_WORLD_BOUNDS.h,width:LEGACY_WORLD_BOUNDS.w,height:LEGACY_WORLD_BOUNDS.h});
 const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const active=s=>s.planningPolicy===PERSONAL_PLANNING_VERSION;
 const goalFor=kind=>({FORAGE:'secure-food',WOODCUT:'collect-wood',MINE:'collect-stone',BUILD:'finish-shelter'})[kind]??'explore';
+const planId=(agent,goal,targetId,startedTick)=>'val2:'+agent.id+':'+goal+':'+(targetId??'none')+':'+startedTick;
+const stepFor=(kind,phase)=>({kind,phase});
 const init=(state,a)=>{const cells=worldCellCount(state);return a.planning??={version:PERSONAL_PLANNING_VERSION,cursor:(a.id*37)%cells,goal:null,lessons:[]};};
 
 export function setPlanningPolicy(state,policy){
@@ -60,11 +64,14 @@ export function rememberPlanSelection(state,agent,choice){
     if(p.goal?.status==='active')p.goal={...p.goal,status:'interrupted',updatedTick:state.tick,outcome:kind.toLowerCase()};
     return;
   }
-  const same=p.goal&&p.goal.targetId===(choice.targetId??null)&&p.goal.goal===goalFor(kind)&&
-    !['completed','failed'].includes(p.goal.status);
-  p.goal={goal:goalFor(kind),targetId:choice.targetId??null,x:choice.x,y:choice.y,
-    kind,phase:choice.perception==='memory'?'visit-and-verify':choice.kind==='EXPLORE'?'explore':'work',
-    status:'active',startedTick:same?p.goal.startedTick:state.tick,updatedTick:state.tick,outcome:'UNKNOWN'};
+  const goal=goalFor(kind),targetId=choice.targetId??null;
+  const same=p.goal&&p.goal.targetId===targetId&&p.goal.goal===goal&&!['completed','failed'].includes(p.goal.status);
+  const phase=choice.perception==='memory'?'visit-and-verify':choice.kind==='EXPLORE'?'explore':'work';
+  const startedTick=same?p.goal.startedTick:state.tick;
+  const attempt=same?Math.min(Number(p.goal.attempt??0),EXECUTABLE_PLAN_RULES.maxReplans):0;
+  p.goal={goal,targetId,x:choice.x,y:choice.y,kind,phase,status:'active',startedTick,updatedTick:state.tick,outcome:'UNKNOWN',
+    planVersion:EXECUTABLE_PLAN_VERSION,planId:same?(p.goal.planId??planId(agent,goal,targetId,startedTick)):planId(agent,goal,targetId,startedTick),
+    step:stepFor(kind,phase),attempt,maxReplans:EXECUTABLE_PLAN_RULES.maxReplans};
 }
 
 function lesson(state,agent,kind,targetId,outcome,amount=0){
@@ -86,8 +93,15 @@ export function finishPersonalExploration(state,agent,task){
 export function recordPlanProduction(state,agent,task,amount){
   if(!active(state))return;
   const p=init(state,agent);
-  if(p.goal)p.goal={...p.goal,status:amount>0?'completed':'failed',updatedTick:state.tick,
-    outcome:amount>0?'SAT:productive-outcome':'VIOL:no-output'};
+  if(p.goal){
+    if(amount>0)p.goal={...p.goal,status:'completed',updatedTick:state.tick,outcome:'SAT:productive-outcome'};
+    else{
+      const attempt=Math.min(Number(p.goal.attempt??0)+1,EXECUTABLE_PLAN_RULES.maxReplans);
+      p.goal={...p.goal,attempt,updatedTick:state.tick,
+        status:attempt>=EXECUTABLE_PLAN_RULES.maxReplans?'failed':'interrupted',
+        outcome:attempt>=EXECUTABLE_PLAN_RULES.maxReplans?'VIOL:replan-budget-exhausted':'VIOL:no-output'};
+    }
+  }
   lesson(state,agent,task.kind,task.targetId,amount>0?'SAT':'VIOL',amount);
 }
 
@@ -106,7 +120,10 @@ export function validatePersonalPlanning(state){
       !['secure-food','collect-wood','collect-stone','finish-shelter','explore'].includes(g.goal)||
       !['FORAGE','WOODCUT','MINE','BUILD','EXPLORE'].includes(g.kind)||!['visit-and-verify','verify','explore','work'].includes(g.phase)||!tick(g.startedTick)||!tick(g.updatedTick)||
       g.startedTick>g.updatedTick||!Number.isInteger(g.x)||!Number.isInteger(g.y)||g.x<0||g.y<0||g.x>=bounds.w||g.y>=bounds.h||
-      typeof g.outcome!=='string'||g.outcome.length>80||(g.targetId!==null&&!Number.isSafeInteger(g.targetId))))errors.push('Goal plan');
+      typeof g.outcome!=='string'||g.outcome.length>80||(g.targetId!==null&&!Number.isSafeInteger(g.targetId))||
+      (g.planVersion!==undefined&&(g.planVersion!==EXECUTABLE_PLAN_VERSION||typeof g.planId!=='string'||g.planId.length>120||
+       !g.step||g.step.kind!==g.kind||g.step.phase!==g.phase||!Number.isInteger(g.attempt)||g.attempt<0||g.attempt>EXECUTABLE_PLAN_RULES.maxReplans||
+       g.maxReplans!==EXECUTABLE_PLAN_RULES.maxReplans))))errors.push('Goal plan');
   }
   return [...new Set(errors)];
 }
