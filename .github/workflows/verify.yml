@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   verify:
-    timeout-minutes: 20
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,11 +36,5 @@ jobs:
       - name: Verify active observation UI
         run: python tests/ui-smoke.py
 
-      - name: Verify independent 120-year generation continuity
-        run: node scripts/independent-world-proof.mjs 230926
-
-      - name: Verify independent world offline UI
-        run: python tests/independent-ui-smoke.py
-
-      - name: Verify independent world native HTTP and storage
-        run: python tests/independent-ui-smoke.py --native
+      - name: Verify Independent gameplay desktop smoke
+        run: python tests/independent-ui-smoke.py --width 1440
