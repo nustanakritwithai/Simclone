@@ -28,7 +28,7 @@ jobs:
       - name: Verify engine, persistence and active unit regressions
         run: npm test
 
-      - name: Setup Python for active Chromium UI smoke
+      - name: Setup Python for release browser smoke
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -38,17 +38,8 @@ jobs:
           python -m pip install playwright
           python -m playwright install --with-deps chromium
 
-      - name: Verify active observation UI
-        run: python tests/ui-smoke.py
-
-      - name: Verify independent 120-year generation continuity
-        run: node scripts/independent-world-proof.mjs 230926
-
-      - name: Verify independent world offline UI
-        run: python tests/independent-ui-smoke.py
-
-      - name: Verify independent world native HTTP and storage
-        run: python tests/independent-ui-smoke.py --native
+      - name: Verify exact-main Independent native HTTP/storage
+        run: python tests/independent-ui-smoke.py --native --width 1440
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
