@@ -2,15 +2,18 @@ import {MAP_SIZE} from './worldsim-map.mjs?v=0.5.0';
 import {createResourceEcologyShadow} from './worldsim-resource-shadow.mjs?v=0.5.0';
 import {K6_RESOURCE_REGEN} from './worldsim-resource-policy.mjs?v=0.5.0';
 
-/** WM4.6 — single WorldSim resource-regeneration authority.
- * Food keeps the WM4.5 conservative absolute-threshold ecology formula.
- * Wood now uses woodYieldPotential. Stone remains finite.
+/** WM4.7 — single WorldSim resource-regeneration authority.
+ * Food and wood retain the WM4.5/WM4.6 ecology formulas, then apply a
+ * depletion-derived harvest-pressure gate. Stone remains finite.
+ *
+ * Harvest pressure is derived from the existing node amount/max only. It adds
+ * no second resource ledger, no wall-clock state and no extra writer.
  *
  * foodMode/woodMode='legacy' exist only for deterministic A/B verification.
  * If woodMode is omitted it follows foodMode, so engine resourceRegenerationMode
  * selects both policies without a second writer.
  */
-export const RESOURCE_REGEN_AUTHORITY_VERSION='wm4.6-wood-ecology-1';
+export const RESOURCE_REGEN_AUTHORITY_VERSION='wm4.7-harvest-pressure-1';
 export const FOOD_ECOLOGY_POLICY=Object.freeze({
   id:'wm4.5-conservative-v1',
   periodTicks:K6_RESOURCE_REGEN.food.periodTicks,
@@ -23,13 +26,20 @@ export const WOOD_ECOLOGY_POLICY=Object.freeze({
   maxIncrement:K6_RESOURCE_REGEN.wood.amount,
   thresholds:Object.freeze({zeroBelow:.08})
 });
+export const HARVEST_PRESSURE_POLICY=Object.freeze({
+  id:'wm4.7-depletion-pressure-v1',
+  mediumAt:.50,
+  highAt:.85,
+  highPressureModulo:2
+});
 export const RESOURCE_REGEN_AUTHORITY=Object.freeze({
-  writer:'worldsim-wm4.6',
-  behavior:'ecology-food-wood-v1',
+  writer:'worldsim-wm4.7',
+  behavior:'ecology-food-wood-harvest-pressure-v1',
   food:K6_RESOURCE_REGEN.food,
   foodPolicy:FOOD_ECOLOGY_POLICY,
   wood:K6_RESOURCE_REGEN.wood,
   woodPolicy:WOOD_ECOLOGY_POLICY,
+  harvestPressurePolicy:HARVEST_PRESSURE_POLICY,
   stone:K6_RESOURCE_REGEN.stone
 });
 
@@ -59,6 +69,24 @@ function cachedEcologyPotentials(state){
   if(ecologyCache.size>=ECOLOGY_CACHE_LIMIT)ecologyCache.delete(ecologyCache.keys().next().value);
   ecologyCache.set(key,potentials);
   return potentials;
+}
+
+export function harvestPressure(node){
+  if(!node||typeof node.amount!=='number'||!Number.isFinite(node.amount)||
+    typeof node.max!=='number'||!Number.isFinite(node.max)||node.max<=0||
+    node.amount<0||node.amount>node.max)throw new Error('Invalid resource node pressure input');
+  return +Math.max(0,Math.min(1,1-node.amount/node.max)).toFixed(4);
+}
+
+export function harvestPressureAdjustedIncrement(baseIncrement,pressure,{nodeId=0,epoch=0}={}){
+  if(!Number.isSafeInteger(baseIncrement)||baseIncrement<0)throw new Error('Invalid base regeneration increment');
+  if(typeof pressure!=='number'||!Number.isFinite(pressure)||pressure<0||pressure>1)
+    throw new Error('Invalid harvest pressure');
+  if(!Number.isSafeInteger(nodeId)||!Number.isSafeInteger(epoch))throw new Error('Invalid harvest pressure gate key');
+  if(baseIncrement===0||pressure<HARVEST_PRESSURE_POLICY.mediumAt)return baseIncrement;
+  if(pressure<HARVEST_PRESSURE_POLICY.highAt)return Math.max(1,baseIncrement-1);
+  if(baseIncrement>1)return baseIncrement-1;
+  return ((epoch+nodeId)%HARVEST_PRESSURE_POLICY.highPressureModulo)===0?1:0;
 }
 
 export function foodEcologyIncrement(potential){
@@ -99,9 +127,14 @@ export function applyWorldResourceRegeneration(state,options={}){
     for(const node of state.nodes)if(node.type==='food'){
       const before=node.amount;
       const potential=potentials?.food[node.y*MAP_SIZE.w+node.x]??0;
-      const increment=foodMode==='legacy'
+      const baseIncrement=foodMode==='legacy'
         ? RESOURCE_REGEN_AUTHORITY.food.amount
         : foodEcologyIncrement(potential);
+      const increment=foodMode==='legacy'
+        ? baseIncrement
+        : harvestPressureAdjustedIncrement(baseIncrement,harvestPressure(node),{
+            nodeId:node.id,epoch:Math.floor(tick/RESOURCE_REGEN_AUTHORITY.food.periodTicks)
+          });
       node.amount=Math.min(node.max,node.amount+increment);
       added+=node.amount-before;
     }
@@ -110,9 +143,14 @@ export function applyWorldResourceRegeneration(state,options={}){
     for(const node of state.nodes)if(node.type==='wood'){
       const before=node.amount;
       const potential=potentials?.wood[node.y*MAP_SIZE.w+node.x]??0;
-      const increment=woodMode==='legacy'
+      const baseIncrement=woodMode==='legacy'
         ? RESOURCE_REGEN_AUTHORITY.wood.amount
         : woodEcologyIncrement(potential);
+      const increment=woodMode==='legacy'
+        ? baseIncrement
+        : harvestPressureAdjustedIncrement(baseIncrement,harvestPressure(node),{
+            nodeId:node.id,epoch:Math.floor(tick/RESOURCE_REGEN_AUTHORITY.wood.periodTicks)
+          });
       node.amount=Math.min(node.max,node.amount+increment);
       added+=node.amount-before;
     }

@@ -7,6 +7,9 @@ import {
   RESOURCE_REGEN_AUTHORITY,
   FOOD_ECOLOGY_POLICY,
   WOOD_ECOLOGY_POLICY,
+  HARVEST_PRESSURE_POLICY,
+  harvestPressure,
+  harvestPressureAdjustedIncrement,
   foodEcologyIncrement,
   woodEcologyIncrement,
   applyWorldResourceRegeneration
@@ -22,17 +25,32 @@ function fixture(tick){
   return s;
 }
 
-test('WM4.6 keeps one WorldSim writer and changes wood policy only after food',()=>{
-  assert.equal(RESOURCE_REGEN_AUTHORITY.writer,'worldsim-wm4.6');
-  assert.equal(RESOURCE_REGEN_AUTHORITY.behavior,'ecology-food-wood-v1');
+test('WM4.7 keeps one WorldSim writer and layers harvest pressure after ecology',()=>{
+  assert.equal(RESOURCE_REGEN_AUTHORITY.writer,'worldsim-wm4.7');
+  assert.equal(RESOURCE_REGEN_AUTHORITY.behavior,'ecology-food-wood-harvest-pressure-v1');
   assert.equal(RESOURCE_REGEN_AUTHORITY.food,K6_RESOURCE_REGEN.food);
   assert.equal(RESOURCE_REGEN_AUTHORITY.wood,K6_RESOURCE_REGEN.wood);
   assert.equal(RESOURCE_REGEN_AUTHORITY.stone,K6_RESOURCE_REGEN.stone);
   assert.equal(RESOURCE_REGEN_AUTHORITY.foodPolicy,FOOD_ECOLOGY_POLICY);
   assert.equal(RESOURCE_REGEN_AUTHORITY.woodPolicy,WOOD_ECOLOGY_POLICY);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.harvestPressurePolicy,HARVEST_PRESSURE_POLICY);
   assert.equal(RESOURCE_REGEN_AUTHORITY.wood.amount,1);
   assert.equal(RESOURCE_REGEN_AUTHORITY.wood.periodTicks,720);
   assert.equal(RESOURCE_REGEN_AUTHORITY.stone.amount,0);
+  assert.equal(HARVEST_PRESSURE_POLICY.highPressureModulo,2);
+});
+
+test('WM4.7 harvest pressure is depletion-derived, bounded and adds no ledger',()=>{
+  assert.equal(harvestPressure({amount:10,max:10}),0);
+  assert.equal(harvestPressure({amount:5,max:10}),.5);
+  assert.equal(harvestPressure({amount:0,max:10}),1);
+  for(const bad of [null,{amount:-1,max:10},{amount:11,max:10},{amount:0,max:0}])
+    assert.throws(()=>harvestPressure(bad));
+  assert.equal(harvestPressureAdjustedIncrement(3,.49,{nodeId:1,epoch:1}),3);
+  assert.equal(harvestPressureAdjustedIncrement(3,.50,{nodeId:1,epoch:1}),2);
+  assert.equal(harvestPressureAdjustedIncrement(2,.85,{nodeId:1,epoch:1}),1);
+  assert.equal(harvestPressureAdjustedIncrement(1,.85,{nodeId:1,epoch:1}),1);
+  assert.equal(harvestPressureAdjustedIncrement(1,.85,{nodeId:1,epoch:2}),0);
 });
 
 test('selected conservative formulas have locked absolute thresholds',()=>{
@@ -57,8 +75,12 @@ test('legacy reference mode still matches historical K6 oracle',()=>{
 test('ecology mode maps each depleted food node from authoritative vegetation evidence',()=>{
   const s=createWorld(42);s.tick=120;for(const n of s.nodes)n.amount=0;
   const ecology=createResourceEcologyShadow(s);
+  const epoch=Math.floor(s.tick/RESOURCE_REGEN_AUTHORITY.food.periodTicks);
   const expected=new Map(s.nodes.filter(n=>n.type==='food').map(n=>[
-    n.id,foodEcologyIncrement(ecology.cells[n.y*30+n.x].vegetationRegenerationPotential)
+    n.id,harvestPressureAdjustedIncrement(
+      foodEcologyIncrement(ecology.cells[n.y*30+n.x].vegetationRegenerationPotential),
+      harvestPressure(n),{nodeId:n.id,epoch}
+    )
   ]));
   applyWorldResourceRegeneration(s);
   const food=s.nodes.filter(n=>n.type==='food');
@@ -71,8 +93,12 @@ test('ecology mode maps each depleted food node from authoritative vegetation ev
 test('wood maps each depleted node from woodYieldPotential and stone stays finite',()=>{
   const s=createWorld(77);s.tick=720;for(const n of s.nodes)n.amount=0;
   const ecology=createResourceEcologyShadow(s);
+  const epoch=Math.floor(s.tick/RESOURCE_REGEN_AUTHORITY.wood.periodTicks);
   const expected=new Map(s.nodes.filter(n=>n.type==='wood').map(n=>[
-    n.id,woodEcologyIncrement(ecology.cells[n.y*30+n.x].woodYieldPotential)
+    n.id,harvestPressureAdjustedIncrement(
+      woodEcologyIncrement(ecology.cells[n.y*30+n.x].woodYieldPotential),
+      harvestPressure(n),{nodeId:n.id,epoch}
+    )
   ]));
   applyWorldResourceRegeneration(s);
   const wood=s.nodes.filter(n=>n.type==='wood');
@@ -122,7 +148,7 @@ test('engine resourceRegenerationMode selects wood mode too (single writer A/B)'
   assert.notDeepEqual(eco,leg);
 });
 
-test('WM4.5 adds no save fields and save/load continuation remains deterministic',()=>{
+test('WM4.7 adds no save fields and save/load continuation remains deterministic',()=>{
   const a=createWorld(9),keys=Object.keys(JSON.parse(serialize(a))).sort();
   step(a,180);
   const b=restore(serialize(a));

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,serialize,step} from '../src/engine.mjs';
 import {K6_RESOURCE_REGEN} from '../src/worldsim-resource-policy.mjs?v=0.5.0';
+import {RESOURCE_REGEN_AUTHORITY} from '../src/worldsim-resource-authority.mjs';
 import {createFoodRegenerationImpact} from '../src/worldsim-food-regen-impact.mjs';
 
 test('WM4.2 impact report is deterministic and read-only',()=>{
@@ -9,7 +10,7 @@ test('WM4.2 impact report is deterministic and read-only',()=>{
   const a=createFoodRegenerationImpact(s),b=createFoodRegenerationImpact(s);
   assert.deepEqual(a,b);assert.equal(serialize(s),before);
   assert.equal(a.authority.unitFormula,'none');
-  assert.equal(a.authority.writer,'worldsim-wm4.6');
+  assert.equal(a.authority.writer,RESOURCE_REGEN_AUTHORITY.writer);
   assert.equal(a.legacy,K6_RESOURCE_REGEN.food);
   assert.equal(a.legacy.periodTicks,120);assert.equal(a.legacy.amount,3);assert.equal(a.legacy.renewable,true);
 });
@@ -27,7 +28,7 @@ test('impact report never proposes a replacement unit increment',()=>{
     assert.equal('candidateIncrement' in r,false);
     assert.equal(r.legacyAmount,3);
     assert.equal(r.legacyPeriodTicks,120);
-    assert.equal(r.authoritativeWriter,'worldsim-wm4.6');
+    assert.equal(r.authoritativeWriter,RESOURCE_REGEN_AUTHORITY.writer);
   }
 });
 
