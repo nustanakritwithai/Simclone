@@ -5,6 +5,7 @@
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {homeOf} from './individual-housing.mjs?v=0.5.0';
 import {relationshipOf} from './relationships.mjs?v=0.5.0';
+import {canAcceptFollower} from './leadership.mjs?v=0.5.0';
 
 export const COHABITATION_VERSION='IC6B-0.1';
 export const COHABITATION_RULES=Object.freeze({
@@ -43,6 +44,8 @@ export function cohabitationCandidates(s,subject){
   for(const owner of (s.agents??[]).filter(a=>eligibleOwner(s,subject,a))){
     const from=relationshipOf(s,subject.id,owner.id),to=relationshipOf(s,owner.id,subject.id);
     if(!passesGate(from,to))continue;
+    const leadership=canAcceptFollower(s,owner.id);
+    if(!leadership.ok)continue;
     const home=homeOf(s,owner.id,{completeOnly:true});
     const score=from.trust*2+from.affinity+from.respect+to.affinity-from.fear*2-to.fear*2;
     rows.push({
@@ -51,6 +54,9 @@ export function cohabitationCandidates(s,subject){
       ownerId:owner.id,
       houseId:home.houseId,
       score,
+      leadershipLevel:leadership.profile.level,
+      followerCapacity:leadership.profile.followerCapacity,
+      activeFollowers:leadership.profile.activeFollowers,
       evidence:{subjectToOwner:evidenceIds(from),ownerToSubject:evidenceIds(to)}
     });
   }
