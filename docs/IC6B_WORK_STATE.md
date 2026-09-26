@@ -84,3 +84,6 @@ Implementation candidate. Exact CI evidence pending. UNKNOWN is not PASS.
 ## Validation repair
 
 Verify run #36224941727 exposed fixture drift, not a runtime authority defect. General cohabitation tests used Original with a direct adult child even though IC6B intentionally excludes direct parent↔adult-child cohabitation. The unit, residency and browser fixtures now use adult siblings for positive cohabitation cases; the explicit parent-child rejection test remains unchanged. Exact replacement CI is still required.
+
+
+Verify run #36225366918 narrowed the remaining failures to two test assumptions: one positive cohabitation case still used the intentionally excluded direct parent↔adult-child pair, and the meal proof assumed a fixed five-tick completion. Positive fixtures now use non-lineage siblings consistently, and the meal proof waits for the actual deterministic EAT task to complete while asserting owner food remains unchanged. Exact replacement CI is still required.
