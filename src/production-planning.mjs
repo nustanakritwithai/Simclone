@@ -9,6 +9,7 @@ import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {housingCapacity,evaluateModularHouses,houseSite,nextHousePiece} from './housing.mjs?v=0.5.0';
 import {canonicalEdge,placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {personalHomeIntent} from './individual-home-planning.mjs?v=0.5.0';
+import {activeResidenceOf} from './relationships.mjs?v=0.5.0';
 import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 
 export const PRODUCTION_PLAN_VERSION='RP1-0.2';
@@ -124,7 +125,7 @@ function stepHousePlan(s,p,isWalkable){
   return r;
 }
 function stepPersonalHomePlan(s,p,isWalkable){
- const rows=eligible(s).map(a=>({a,intent:personalHomeIntent(s,a,isWalkable)})).filter(x=>!['HOME_COMPLETE','INELIGIBLE'].includes(x.intent.kind));
+ const rows=eligible(s).map(a=>({a,intent:personalHomeIntent(s,a,isWalkable)})).filter(x=>!['HOME_COMPLETE','INELIGIBLE','COHABITING'].includes(x.intent.kind));
  if(!rows.length)return null;
  const {a,intent}=rows.find(x=>x.intent.kind!=='NO_SITE')??rows[0];
  const note=(goal,outcome)=>{if(p.goal?.goal!==goal||p.goal?.outcome!==outcome||p.goal?.agentId!==a.id)record(p,s.tick,goal,outcome,a.id);};
@@ -152,7 +153,7 @@ function stepIndependentHomePlans(s,p,isWalkable){
  const offset=Math.floor(s.tick/PRODUCTION_RULES.attemptPeriod)%agents.length;
  for(let i=0;i<agents.length;i++){
   const a=agents[(i+offset)%agents.length];
-  if(a.satiety<35||a.energy<12||homeOf(s,a.id,{completeOnly:true}))continue;
+  if(a.satiety<35||a.energy<12||homeOf(s,a.id,{completeOnly:true})||activeResidenceOf(s,a.id))continue;
   if(s.rustPossessions.orders.some(o=>o.agentId===a.id)||s.rustMaterials.orders.some(o=>o.agentId===a.id))continue;
   const site=personalHomeSite(s,a,isWalkable);if(!site)continue;
   if(!a.homePlan||a.homePlan.x!==site.origin.x||a.homePlan.y!==site.origin.y)a.homePlan={version:'home-plan-1',x:site.origin.x,y:site.origin.y,createdTick:s.tick};

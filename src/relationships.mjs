@@ -5,10 +5,12 @@
 import {guardianOf} from './individual-resources.mjs?v=0.5.0';
 import {homeOf} from './individual-housing.mjs?v=0.5.0';
 
-export const SOCIAL_VERSION='IC6-social-1';
+export const SOCIAL_VERSION='IC6-social-2';
+export const PREVIOUS_SOCIAL_VERSION='IC6-social-1';
 export const SOCIAL_RULES=Object.freeze({
   maxRelations:512,
   evidencePerRelation:6,
+  maxResidences:512,
   scoreMin:-100,
   scoreMax:100,
   fearMin:0,
@@ -21,10 +23,14 @@ const people=s=>[...(s.agents??[]),...(s.archive??[])];
 const ids=s=>new Set(people(s).map(a=>a.id));
 const validId=id=>Number.isSafeInteger(id)&&id>0;
 
-export const createSocialState=()=>({version:SOCIAL_VERSION,nextEvidence:1,relations:[]});
+export const createSocialState=()=>({version:SOCIAL_VERSION,nextEvidence:1,relations:[],residences:[]});
 
 export function ensureSocialState(s){
   if(s.social===undefined)s.social=createSocialState();
+  else if(s.social?.version===PREVIOUS_SOCIAL_VERSION){
+    s.social.version=SOCIAL_VERSION;
+    if(s.social.residences===undefined)s.social.residences=[];
+  }
   return s.social;
 }
 
@@ -69,7 +75,12 @@ export function recordRelationshipEvidence(s,{
   return {ok:true,changed:true,relation:relationshipOf(s,fromId,toId)};
 }
 
-/** Read-only household projection: home owner + evidenced guardian dependents only. */
+export function activeResidenceOf(s,agentId){
+  const r=s.social?.residences?.find(r=>r.agentId===agentId&&r.leftTick===null);
+  return r?structuredClone(r):null;
+}
+
+/** Read-only household projection: owner + explicit cohabitants + evidenced guardian dependents. */
 export function householdForOwner(s,ownerId){
   const owner=s.agents?.find(a=>a.id===ownerId&&a.alive);
   if(!owner)return null;
@@ -77,12 +88,16 @@ export function householdForOwner(s,ownerId){
   if(!home)return null;
   const dependentIds=(s.agents??[]).filter(a=>a.alive&&a.id!==ownerId&&guardianOf(s,a)?.id===ownerId)
     .map(a=>a.id).sort((a,b)=>a-b);
+  const cohabitantIds=(s.social?.residences??[]).filter(r=>r.leftTick===null&&r.ownerId===ownerId)
+    .map(r=>r.agentId).filter(id=>id!==ownerId&&(s.agents??[]).some(a=>a.id===id&&a.alive))
+    .sort((a,b)=>a-b);
   return {
     houseId:home.houseId,
     ownerId,
-    residentIds:[ownerId,...dependentIds],
+    residentIds:[ownerId,...new Set([...dependentIds,...cohabitantIds])],
     dependentIds,
-    source:'owner+guardian-evidence'
+    cohabitantIds,
+    source:'owner+guardian+explicit-cohabitation'
   };
 }
 
@@ -90,7 +105,8 @@ export function householdOf(s,agentId){
   const a=s.agents?.find(a=>a.id===agentId&&a.alive);
   if(!a)return null;
   const guardian=guardianOf(s,a);
-  return householdForOwner(s,guardian?.id??a.id);
+  const residence=activeResidenceOf(s,a.id);
+  return householdForOwner(s,guardian?.id??residence?.ownerId??a.id);
 }
 
 export function allHouseholds(s){
@@ -103,7 +119,8 @@ export function validateSocialState(s,{required=false}={}){
   if(social===undefined)return required?['Social state']:[];
   const errors=[],known=ids(s);
   if(!social||social.version!==SOCIAL_VERSION||!Number.isSafeInteger(social.nextEvidence)||social.nextEvidence<1||
-    !Array.isArray(social.relations)||social.relations.length>SOCIAL_RULES.maxRelations)return ['Social state'];
+    !Array.isArray(social.relations)||social.relations.length>SOCIAL_RULES.maxRelations||
+    !Array.isArray(social.residences)||social.residences.length>SOCIAL_RULES.maxResidences)return ['Social state'];
   const pairs=new Set(),evidenceIds=new Set();
   let maxEvidence=0;
   for(const r of social.relations){
@@ -128,5 +145,25 @@ export function validateSocialState(s,{required=false}={}){
     }
   }
   if(social.nextEvidence<=maxEvidence)errors.push('Social evidence counter');
+  const activeResidents=new Set();
+  for(const r of social.residences){
+    if(!r||!validId(r.agentId)||!validId(r.ownerId)||r.agentId===r.ownerId||!known.has(r.agentId)||!known.has(r.ownerId)||
+      typeof r.houseId!=='string'||!/^H\d+$/.test(r.houseId)||
+      !Number.isInteger(r.joinedTick)||r.joinedTick<0||r.joinedTick>s.tick||
+      (r.leftTick!==null&&(!Number.isInteger(r.leftTick)||r.leftTick<r.joinedTick||r.leftTick>s.tick))||
+      typeof r.joinReason!=='string'||!r.joinReason||
+      (r.leftTick===null?r.leaveReason!==null:typeof r.leaveReason!=='string')||
+      !r.evidence||!Array.isArray(r.evidence.subjectToOwner)||!Array.isArray(r.evidence.ownerToSubject)||
+      [...r.evidence.subjectToOwner,...r.evidence.ownerToSubject].some(id=>!Number.isSafeInteger(id)||id<1))
+      errors.push('Social residence');
+    if(r?.leftTick===null){
+      if(activeResidents.has(r.agentId))errors.push('Social active residence');
+      activeResidents.add(r.agentId);
+      const resident=s.agents?.find(a=>a.id===r.agentId&&a.alive);
+      const owner=s.agents?.find(a=>a.id===r.ownerId&&a.alive);
+      const home=owner?homeOf(s,owner.id,{completeOnly:true}):null;
+      if(!resident||!owner||!home||home.houseId!==r.houseId)errors.push('Social residence home');
+    }
+  }
   return [...new Set(errors)];
 }

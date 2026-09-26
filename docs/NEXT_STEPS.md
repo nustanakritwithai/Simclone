@@ -1,9 +1,9 @@
-# Active gate — IC6 Social + Household
+# Active gate — IC6B Adult Cohabitation
 
-- IC1–IC5 Independent Clone World core is on main `0de96010`.
-- **IC6A candidate:** evidence-backed directed relationships + owner/guardian household projection on `feature/ic6-social-household`.
-- Required proof: relationship event integration, idempotency, save/load, no stranger residency, all prior independent/legacy regressions unchanged.
-- **IC6B after SAT:** adult cohabitation/share-home decision, then property/inheritance and cooperation/trade.
+- IC1–IC5 Independent Clone World core + IC6A relationship authority are on main `2c186fea`.
+- **IC6B implementation candidate:** evidence-gated adult cohabitation, explicit JOIN/LEAVE, shared survival-home destination, personal resources unchanged, household Inspector evidence.
+- Required proof: planner thresholds, JOIN/LEAVE authority, save migration, owner-death cleanup, personal-home pause/resume, browser Inspector/command smoke, all prior independent/legacy regressions unchanged.
+- **After IC6B SAT:** property/inheritance → cooperation/trade → social home-site preference → neighborhood emergence.
 
 # Active gate — Independent Clone World delivery
 

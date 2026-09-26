@@ -27,6 +27,7 @@ print('EVIDENCE SCOPE:',scope,flush=True)
 # This fixture was earned through real engine work, without prebuilt structures or free items.
 script="import{createWorld,step,serialize}from './src/engine.mjs';const s=createWorld(230926,{mode:'independent'});step(s,1400);console.log(serialize(s));"
 earned=subprocess.check_output(['node','--input-type=module','-e',script],cwd=ROOT,text=True).strip()
+social_fixture=subprocess.check_output(['node','scripts/ic6b-browser-fixture.mjs'],cwd=ROOT,text=True).strip()
 checks=[];errors=[]
 def check(name,condition=True):
     assert condition,name
@@ -118,6 +119,17 @@ try:
             page.locator('[data-pickup-world]').click();after=snap(page)
             picked=next(i for i in after['rustPossessions']['items'] if i['id']==item['id'])
             check('UX1: pickup uses engine command and never duplicates the item',picked['location']=={'kind':'bag','agentId':1} and len(after['rustPossessions']['items'])==len(before['rustPossessions']['items']))
+            # IC6B: engine-earned cohabitation state must be legible and UI actions must route through engine commands.
+            boot(page,social_fixture);pause(page);select_person(page,2);page.wait_for_timeout(150)
+            page.wait_for_selector('.household-summary[data-household-owner="3"]')
+            social_text=page.locator('.household-summary').inner_text()
+            check('IC6B: inspector shows authoritative household and relationship evidence','Trust 4' in social_text and 'Affinity 2' in social_text)
+            check('IC6B: cohabiting status is visible in personal home summary','อยู่ร่วมบ้าน' in page.locator('#personal-home-summary').inner_text())
+            page.locator('[data-leave-household="2"]').click()
+            page.wait_for_function('()=>!simclone.snapshot().social.residences.some(r=>r.agentId===2&&r.leftTick===null)')
+            check('IC6B: LEAVE_HOUSEHOLD uses engine command and removes active residency',page.locator('.household-summary').count()==0)
+            check('IC6B: relationship evidence remains after leaving',page.evaluate('simclone.snapshot().social.relations.some(r=>r.fromId===2&&r.toId===3&&r.trust===4&&r.affinity===2)'))
+            page.screenshot(path=str(OUT/'ic6b-household-1440.png'))
         context.close()
     check('no browser JavaScript errors',not errors)
     browser.close()

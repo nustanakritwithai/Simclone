@@ -3,10 +3,12 @@ import {materialStock} from './individual-resources.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {homeOf,personalHomeSite,nextPersonalHomePiece} from './individual-housing.mjs?v=0.5.0';
+import {activeResidenceOf} from './relationships.mjs?v=0.5.0';
 export const PERSONAL_HOME_PLAN_VERSION='IC2-0.1';
 export function personalHomeIntent(s,a,isWalkable=()=>true){
  const base={version:PERSONAL_HOME_PLAN_VERSION,agentId:Number.isSafeInteger(a?.id)?a.id:null};
  if(!a?.alive||!canPerformProductiveWork(s,a))return {...base,kind:'INELIGIBLE'};
+ const residence=activeResidenceOf(s,a.id);if(residence)return {...base,kind:'COHABITING',ownerId:residence.ownerId,houseId:residence.houseId};
  const owned=homeOf(s,a.id);if(owned?.complete)return {...base,kind:'HOME_COMPLETE',houseId:owned.houseId};
  const site=personalHomeSite(s,a,isWalkable),piece=nextPersonalHomePiece(s,a,isWalkable);
  if(!site||!piece?.pieceKind)return {...base,kind:'NO_SITE'};

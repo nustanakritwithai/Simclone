@@ -1,5 +1,6 @@
 import {isIndependent,materialStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
 import {survivalHome} from './individual-housing.mjs?v=0.5.0';
+import {residenceHome} from './household-residence.mjs?v=0.5.0';
 /** Survival 0.2 + Lifecycle 0.3.1: routing/reservations also enforce stage work eligibility. */
 import {canPerformProductiveWork,productiveWorkRate} from './lifecycle.mjs?v=0.5.0';
 import {autonomousBirthFoodTarget,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.5.0';
@@ -90,9 +91,9 @@ export function taskValid(s,a){
   if(isIndependent(s)&&t.kind==='EAT'){
     if(t.mealOwnerId!==mealOwnerId(s,a)||foodStock(s,a).food<=0)return false;
     const guardian=guardianOf(s,a);if(guardian)return t.guardianId===guardian.id&&t.x===guardian.x&&t.y===guardian.y;
-    if(t.fieldEat===true)return true;const h=survivalHome(s,a);return (h&&h.houseId===t.homeId&&h.x===t.x&&h.y===t.y);
+    if(t.fieldEat===true)return true;const h=residenceHome(s,a)??survivalHome(s,a);return (h&&h.houseId===t.homeId&&h.x===t.x&&h.y===t.y);
   }
-  if(isIndependent(s)&&t.kind==='REST'){if(t.fieldRest===true)return true;const h=survivalHome(s,a);return !!h&&h.houseId===t.homeId&&h.x===t.x&&h.y===t.y;}
+  if(isIndependent(s)&&t.kind==='REST'){if(t.fieldRest===true)return true;const h=residenceHome(s,a)??survivalHome(s,a);return !!h&&h.houseId===t.homeId&&h.x===t.x&&h.y===t.y;}
   if(t.kind==='EAT')return s.stock.food>0&&s.buildings.some(b=>b.id===t.targetId&&b.complete&&b.x===t.x&&b.y===t.y);
   if(t.kind==='REST')return t.fieldRest===true||s.buildings.some(b=>b.id===t.targetId&&b.complete&&b.x===t.x&&b.y===t.y);
   return ['IDLE','EXPLORE'].includes(t.kind);
