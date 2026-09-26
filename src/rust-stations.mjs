@@ -68,7 +68,7 @@ export function socketShape(kind,socket,bounds=GRID){
   }
   // Non-canonical edges are rejected, never silently rewritten, so preview and placement cannot diverge.
   if(socket.side!=='N'&&socket.side!=='W')return {ok:false,reason:'socket-shape'};
-  if(socket.side==='N'?(x<0||x>=GRID.w||y<0||y>GRID.h):(x<0||x>GRID.w||y<0||y>=GRID.h))return {ok:false,reason:'position'};
+  if(socket.side==='N'?(x<0||x>=bounds.w||y<0||y>bounds.h):(x<0||x>bounds.w||y<0||y>=bounds.h))return {ok:false,reason:'position'};
   return {ok:true,socket:{type:'edge',x,y,side:socket.side,level:1}};
 }
 const actorRange=(a,socket,anchor,bounds=GRID)=>{
