@@ -23,7 +23,7 @@ import {placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {ensureProductionPlan,productionCommand,stepProductionPlanning,validateProductionPlan} from './production-planning.mjs?v=0.5.0';
 import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsForAgent,validateMentorship} from './mentor-teaching.mjs?v=0.5.0';
 import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,activeResidenceOf,validateSocialState} from './relationships.mjs?v=0.5.0';
-import {householdResidenceCommand,endResidencesForAgent} from './household-residence.mjs?v=0.5.0';
+import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './household-residence.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -202,14 +202,11 @@ export function command(s,type,data={}){
 function candidates(s,a,book,field){
   ensureProfession(a,s.tick);
   const independent=isIndependent(s),stock=materialStock(s,a),meal=foodStock(s,a),guardian=independent?guardianOf(s,a):null;
-  const residence=independent&&!guardian?activeResidenceOf(s,a.id):null;
-  const residenceHouse=residence?homeOf(s,residence.ownerId,{completeOnly:true}):null;
   const out=[],targets=stockTargets(s,a),projected=plannedStock(s,book,a),freeFood=meal.food-reservedMealsFor(s,mealOwnerId(s,a),book.meals);
   const productive=canPerformProductiveWork(s,a);
   const compare=(x,y)=>routeDistance(field,x)-routeDistance(field,y)||x.id-y.id;
   const homes=s.buildings.filter(b=>b.complete&&routeDistance(field,b)>=0).sort(compare),unfinished=unfinishedHousing(s);
-  const sharedHome=residenceHouse?.origin?{id:residenceHouse.houseId,houseId:residenceHouse.houseId,ownerId:residenceHouse.ownerId,x:residenceHouse.origin.x,y:residenceHouse.origin.y}:null;
-  const home=independent?(sharedHome??survivalHome(s,a)):homes[0];
+  const home=independent?(residenceHome(s,a)??survivalHome(s,a)):homes[0];
   function add(kind,target,base,need=0,goal=0,status='candidate',extra={}){
     const travel=routeDistance(field,target),skillKind=extra.purposeKind??kind,skill=SKILLS.includes(skillKind)?level(a.skills[skillKind])*3:0;
     const laborMarket=Number(extra.laborAuthority?.bonus??0);
