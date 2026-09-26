@@ -5,8 +5,17 @@
 import {isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {activeResidenceOf,ensureSocialState,SOCIAL_RULES} from './relationships.mjs?v=0.5.0';
 import {cohabitationCandidates} from './cohabitation.mjs?v=0.5.0';
+import {homeOf} from './individual-housing.mjs?v=0.5.0';
 
 const fail=(reason,message)=>({ok:false,reason,message});
+
+export function residenceHome(s,a){
+  const residence=a?.alive?activeResidenceOf(s,a.id):null;
+  if(!residence)return null;
+  const h=homeOf(s,residence.ownerId,{completeOnly:true});
+  if(!h?.origin||h.houseId!==residence.houseId)return null;
+  return {id:h.houseId,houseId:h.houseId,ownerId:h.ownerId,x:h.origin.x,y:h.origin.y};
+}
 
 export function joinHousehold(s,agentId,ownerId){
   if(!isIndependent(s))return fail('mode','ใช้การอยู่ร่วมกันแบบปัจเจกได้เฉพาะโลก Independent');
