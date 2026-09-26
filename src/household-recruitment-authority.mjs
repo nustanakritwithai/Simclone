@@ -56,7 +56,6 @@ export function recruitmentDecisionsForCandidate(s,a){
   return rows.sort((x,y)=>
     y.urgencyRank-x.urgencyRank||
     y.priority-x.priority||
-    Number(y.preferenceMatch)-Number(x.preferenceMatch)||
     y.relationshipScore-x.relationshipScore||
     x.leaderId-y.leaderId||
     x.role.localeCompare(y.role)
@@ -77,11 +76,10 @@ export function stepHouseholdRecruitment(s){
   decisions.sort((x,y)=>
     y.urgencyRank-x.urgencyRank||
     y.priority-x.priority||
-    Number(y.preferenceMatch)-Number(x.preferenceMatch)||
     y.relationshipScore-x.relationshipScore||
-    x.candidateId-y.candidateId||
     x.leaderId-y.leaderId||
-    x.role.localeCompare(y.role)
+    x.role.localeCompare(y.role)||
+    x.candidateId-y.candidateId
   );
   const selected=decisions[0];
   if(!selected)return null;
