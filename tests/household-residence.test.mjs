@@ -45,7 +45,7 @@ function qualify(s,subject,owner){
 }
 
 test('IC6B JOIN_HOUSEHOLD adds explicit residency without transferring home ownership',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   const home=completeHome(s,owner);qualify(s,subject,owner);
   const beforeSubject={...materialStock(s,subject)},beforeOwner={...materialStock(s,owner)};
   const r=command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:owner.id});
@@ -60,7 +60,7 @@ test('IC6B JOIN_HOUSEHOLD adds explicit residency without transferring home owne
 });
 
 test('IC6B JOIN_HOUSEHOLD is idempotent and blocks switching without explicit leave',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],a=s.agents[1],b=s.agents[2];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],a=s.agents[2],b=s.agents[3];
   completeHome(s,a);completeHome(s,b);qualify(s,subject,a);qualify(s,subject,b);
   const first=command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:a.id});
   assert.equal(first.ok,true);assert.equal(first.changed,true);
@@ -71,7 +71,7 @@ test('IC6B JOIN_HOUSEHOLD is idempotent and blocks switching without explicit le
 });
 
 test('IC6B cohabitant REST targets shared home while personal resources stay personal',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   const home=completeHome(s,owner);qualify(s,subject,owner);
   assert.equal(command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:owner.id}).ok,true);
   subject.x=home.origin.x;subject.y=home.origin.y;subject.energy=1;subject.satiety=100;subject.task=null;
@@ -82,7 +82,7 @@ test('IC6B cohabitant REST targets shared home while personal resources stay per
 });
 
 test('IC6B cohabitant EAT uses own food at shared home, not owners food',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   const home=completeHome(s,owner);qualify(s,subject,owner);
   assert.equal(command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:owner.id}).ok,true);
   subject.x=home.origin.x;subject.y=home.origin.y;subject.energy=100;subject.satiety=10;subject.task=null;
@@ -94,7 +94,7 @@ test('IC6B cohabitant EAT uses own food at shared home, not owners food',()=>{
 });
 
 test('IC6B cohabitation pauses own-home goal and leaving resumes it',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   completeHome(s,owner);qualify(s,subject,owner);
   assert.equal(command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:owner.id}).ok,true);
   const joined=personalHomeIntent(s,subject,walkable);
@@ -106,7 +106,7 @@ test('IC6B cohabitation pauses own-home goal and leaving resumes it',()=>{
 });
 
 test('IC6B LEAVE_HOUSEHOLD ends residency without changing relationship or ownership',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   completeHome(s,owner);qualify(s,subject,owner);
   assert.equal(command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:owner.id}).ok,true);
   const relBefore=relationshipOf(s,subject.id,owner.id);
@@ -119,7 +119,7 @@ test('IC6B LEAVE_HOUSEHOLD ends residency without changing relationship or owner
 });
 
 test('IC6B owner death closes hosted residences deterministically',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   completeHome(s,owner);qualify(s,subject,owner);
   assert.equal(command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:owner.id}).ok,true);
   owner.satiety=0;owner.hp=.1;owner.task=null;
@@ -132,7 +132,7 @@ test('IC6B owner death closes hosted residences deterministically',()=>{
 });
 
 test('IC6B save/load preserves active residence and migrates IC6-social-1 to v2',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   completeHome(s,owner);qualify(s,subject,owner);
   assert.equal(command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:owner.id}).ok,true);
   const loaded=restore(serialize(s));
