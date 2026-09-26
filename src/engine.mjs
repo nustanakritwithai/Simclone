@@ -59,7 +59,7 @@ function event(s,type,text,agentId=null) {
 function createAgent(s,parent,initial=false,mode='manual'){
   const id=s.nextAgent++, k=id-1,autonomous=mode==='birth';
   const skills=Object.fromEntries(SKILLS.map(key=>[key,parent?Math.floor(parent.skills[key]*.35):60]));
-  skills[LEADERSHIP_SKILL]=parent?Math.floor(Number(parent.skills?.[LEADERSHIP_SKILL]??0)*.35):0;
+  if(isIndependent(s))skills[LEADERSHIP_SKILL]=parent?Math.floor(Number(parent.skills?.[LEADERSHIP_SKILL]??0)*.35):0;
   const preference=SKILLS[k%4],profession=professionForAction(preference);
   const skillProvenance=createSkillProvenance(id,skills,{kind:parent?'inheritance':'initial',sourceAgentId:parent?.id??null,tick:s.tick});
   const a={id,name:names[k%names.length]+(k>=names.length?' '+id:''),parentId:parent?.id??null,generation:parent?parent.generation+1:0,
@@ -425,11 +425,12 @@ export function validate(s){
     if(!walkable(s,a.x,a.y))bad('Agent position');
     if(['hp','satiety','energy'].some(k=>!finite(a[k])||a[k]<0||a[k]>100))bad('Agent needs');
     if(typeof a.alive!=='boolean'||!Number.isInteger(a.generation)||a.generation<0||typeof a.name!=='string'||a.name.length>50)bad('Agent identity');
-    if(!a.skills||ALL_SKILLS.some(k=>!finite(a.skills[k])||a.skills[k]<0))bad('Skills');
+    const requiredSkills=isIndependent(s)?ALL_SKILLS:SKILLS;
+    if(!a.skills||requiredSkills.some(k=>!finite(a.skills[k])||a.skills[k]<0))bad('Skills');
     if(a.profession!==undefined&&!isKingdomProfession(a.profession))bad('Profession');
     if(a.professionSinceTick!==undefined&&(!Number.isInteger(a.professionSinceTick)||a.professionSinceTick<0||a.professionSinceTick>s.tick))bad('Profession');
     if(a.career!==undefined&&(!Array.isArray(a.career)||a.career.length>8||a.career.some(c=>!c||!Number.isInteger(c.tick)||c.tick<0||c.tick>s.tick||!isKingdomProfession(c.profession))))bad('Career');
-    for(const e of validateSkillProvenance(a,ALL_SKILLS))bad(e);
+    for(const e of validateSkillProvenance(a,requiredSkills))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
@@ -517,7 +518,7 @@ function migrateHistory(s,sourceVersion){
 function migrateSkillProvenance(s){
   for(const a of allPeople(s)){
     if(!a.skillProvenance)a.skillProvenance=createLegacySkillProvenance(a.skills);
-    ensureLeadershipSkill(a,{tick:0});
+    if(isIndependent(s))ensureLeadershipSkill(a,{tick:0});
   }
   return s;
 }
@@ -544,7 +545,7 @@ function migrateSave(s){
   const sourceVersion=s.version;
   if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);return s;} // additive social skill defaults to zero; household balances migrate deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
-  if(sourceVersion===SAVE_VERSION){migrateSkillProvenance(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);syncHouseholdResources(s);return s;}
+  if(sourceVersion===SAVE_VERSION){migrateSkillProvenance(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
     migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);s.version=SAVE_VERSION;return s;
