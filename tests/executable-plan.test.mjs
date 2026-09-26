@@ -62,6 +62,20 @@ test('VAL2 unavailable step requests bounded replan and replacement choice reuse
   assert.equal(a.executablePlan.steps.length,2);
 });
 
+test('VAL2 completed step advances within the same goal without consuming replan budget',async()=>{
+  const {s,a,choice}=productiveFixture();
+  const mod=await import('../src/executable-plan.mjs');
+  mod.completeExecutablePlanStep(s,a,choice,{goalComplete:false});
+  assert.equal(a.executablePlan.steps.at(-1).status,'COMPLETED');
+  assert.equal(a.executablePlan.replanCount,0);
+  const next={...choice,targetId:choice.targetId+77,x:choice.x+1};
+  rememberPlanSelection(s,a,next);
+  acceptExecutablePlanChoice(s,a,next);
+  assert.equal(a.executablePlan.status,'ACTIVE');
+  assert.equal(a.executablePlan.replanCount,0);
+  assert.equal(a.executablePlan.steps.length,2);
+});
+
 test('VAL2 replan budget is bounded and exhaustion aborts the plan',()=>{
   const {s,a,choice}=productiveFixture();
   for(let i=0;i<3;i++){
