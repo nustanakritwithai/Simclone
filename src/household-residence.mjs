@@ -2,7 +2,7 @@
  * IC6B — explicit adult cohabitation residence authority.
  * Residency never changes physical house ownership or personal material ownership.
  */
-import {isIndependent} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,joinHouseholdResources} from './individual-resources.mjs?v=0.5.0';
 import {activeResidenceOf,ensureSocialState,SOCIAL_RULES} from './relationships.mjs?v=0.5.0';
 import {cohabitationCandidates} from './cohabitation.mjs?v=0.5.0';
 import {homeOf} from './individual-housing.mjs?v=0.5.0';
@@ -32,6 +32,8 @@ export function joinHousehold(s,agentId,ownerId){
   const candidate=cohabitationCandidates(s,subject).find(r=>r.ownerId===owner.id);
   if(!candidate)return fail('relationship','หลักฐานความสัมพันธ์หรือบ้านยังไม่ผ่านเงื่อนไขอยู่ร่วมกัน');
   if(social.residences.length>=SOCIAL_RULES.maxResidences)return fail('capacity','ประวัติ household ถึงขีดจำกัด');
+  const resourceMove=joinHouseholdResources(s,subject.id,candidate.houseId);
+  if(!resourceMove.ok)return fail(resourceMove.reason,'ทรัพยากรของบ้านรับของเพิ่มไม่ได้');
   const leadership=awardLeadershipForFirstFollower(s,owner.id,subject.id);
   const row={
     agentId:subject.id,
@@ -44,7 +46,7 @@ export function joinHousehold(s,agentId,ownerId){
     evidence:structuredClone(candidate.evidence)
   };
   social.residences.push(row);
-  return {ok:true,changed:true,agentId:subject.id,ownerId:owner.id,houseId:row.houseId,leadership,message:subject.name+' ย้ายมาอยู่บ้านของ '+owner.name+' แล้ว'};
+  return {ok:true,changed:true,agentId:subject.id,ownerId:owner.id,houseId:row.houseId,leadership,resourceMove,message:subject.name+' ย้ายมาอยู่บ้านของ '+owner.name+' แล้ว'};
 }
 
 export function leaveHousehold(s,agentId,reason='manual'){
