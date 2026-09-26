@@ -150,7 +150,7 @@ try:
             page.locator('[data-own-home="3"]').click()
             page.wait_for_selector('[data-household-recruitment]')
             recruit_text=page.locator('[data-household-recruitment]').inner_text()
-            check('IC7A: household home UI exposes food recruitment pressure','คนหาอาหาร' in recruit_text and 'ผู้สมัคร 1' in recruit_text)
+            check('IC7A: household home UI exposes food recruitment pressure · '+repr(recruit_text),'คนหาอาหาร' in recruit_text and 'ผู้สมัคร 1' in recruit_text)
             page.locator('#dialog-close').click()
             page.screenshot(path=str(OUT/'ic7a-recruitment-1440.png'))
         context.close()
