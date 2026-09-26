@@ -33,6 +33,7 @@ test('WM4.7 keeps one WorldSim writer and layers harvest pressure after ecology'
   assert.equal(RESOURCE_REGEN_AUTHORITY.stone,K6_RESOURCE_REGEN.stone);
   assert.equal(RESOURCE_REGEN_AUTHORITY.foodPolicy,FOOD_ECOLOGY_POLICY);
   assert.equal(RESOURCE_REGEN_AUTHORITY.woodPolicy,WOOD_ECOLOGY_POLICY);
+  assert.equal(RESOURCE_REGEN_AUTHORITY.harvestPressurePolicy,HARVEST_PRESSURE_POLICY);
   assert.equal(RESOURCE_REGEN_AUTHORITY.wood.amount,1);
   assert.equal(RESOURCE_REGEN_AUTHORITY.wood.periodTicks,720);
   assert.equal(RESOURCE_REGEN_AUTHORITY.stone.amount,0);
