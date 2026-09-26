@@ -1,4 +1,4 @@
-import {isIndependent,materialStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,resourceStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
 import {survivalHome} from './individual-housing.mjs?v=0.5.0';
 import {residenceHome} from './household-residence.mjs?v=0.5.0';
 /** Survival 0.2 + Lifecycle 0.3.1: routing/reservations also enforce stage work eligibility. */
@@ -67,7 +67,7 @@ export function taskValid(s,a){
   if(RESOURCE_ACTIONS[t.kind]){
     if(!canPerformProductiveWork(s,a))return false;
     const n=s.nodes.find(n=>n.id===t.targetId);
-    return !!n&&n.type===RESOURCE_ACTIONS[t.kind]&&n.x===t.x&&n.y===t.y&&n.amount>0&&materialStock(s,a)[n.type]<RULES.stockLimit;
+    return !!n&&n.type===RESOURCE_ACTIONS[t.kind]&&n.x===t.x&&n.y===t.y&&n.amount>0&&resourceStock(s,a)[n.type]<RULES.stockLimit;
   }
   if(t.kind==='BUILD'&&t.placement){
     // Modular piece: carrier still holds the item and the socket still passes the shared validator (planning mode).
@@ -130,7 +130,7 @@ export function reservations(s){
 }
 /** Include already-assigned production before allocating another gather job. */
 export function plannedStock(s,book,subject=null){
-  const projected=isIndependent(s)?(subject?{...materialStock(s,subject)}:materialTotals(s,{livingOnly:true})):{...s.stock};
+  const projected=isIndependent(s)?(subject?{...resourceStock(s,subject)}:materialTotals(s,{livingOnly:true})):{...s.stock};
   for(const [nodeId,agentId] of book.nodes){
     const n=s.nodes.find(n=>n.id===nodeId),a=s.agents.find(a=>a.id===agentId);
     if(!n||!a?.task||isIndependent(s)&&subject&&a.id!==subject.id)continue;

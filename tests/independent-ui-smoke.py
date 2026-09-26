@@ -124,6 +124,8 @@ try:
             page.wait_for_selector('.household-summary[data-household-owner="3"]')
             social_text=page.locator('.household-summary').inner_text()
             check('IC6B: inspector shows authoritative household and relationship evidence','Trust 4' in social_text and 'Affinity 2' in social_text)
+            check('Kingdom leadership: inspector shows skill-backed follower capacity','Leadership' in social_text and 'Lv.1' in social_text and '1/2' in social_text)
+            check('IC6C: selected cohabitant resolves to household resource scope','Household' in page.locator('#resource-scope').inner_text())
             check('IC6B: cohabiting status is visible in personal home summary','อยู่ร่วมบ้าน' in page.locator('#personal-home-summary').inner_text())
             page.locator('[data-leave-household="2"]').click()
             page.wait_for_function('()=>!simclone.snapshot().social.residences.some(r=>r.agentId===2&&r.leftTick===null)')

@@ -27,7 +27,7 @@ Allow a homeless productive adult to explicitly join another adult's complete ho
   - explicit adult cohabitants
 - Survival behavior:
   - cohabitant may REST/EAT at shared home
-  - food/material balances remain personal
+  - raw resources follow IC6C household resource routing while item/tool instances remain personal
 - Home behavior:
   - cohabitation pauses personal-home construction
   - leaving resumes personal-home goal

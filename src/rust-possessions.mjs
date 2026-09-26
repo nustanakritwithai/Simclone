@@ -1,5 +1,5 @@
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
-import {materialStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
+import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
 import {availableStationKinds,stationForRecipe} from './rust-stations.mjs?v=0.5.0';
 export const RUST_POSSESSIONS_VERSION='RS2-0.2';
@@ -16,7 +16,7 @@ export function queueCraft(s,{agentId,recipeId,stationId=null}={}){
   if(bag(p,agentId).length+p.orders.filter(o=>o.agentId===agentId).length>=RUST_POSSESSION_LIMITS.bag)return {ok:false,reason:'bag-full'};
   const station=stationForRecipe(s,recipeId,a,stationId);
   if(r.station!==CRAFT_STATIONS.HAND&&!station)return {ok:false,reason:'station',station:r.station};
-  const stock=materialStock(s,a);
+  const stock=resourceStock(s,a);
   const check=craftability({stock},recipeId,{stationKinds:availableStationKinds(s)});if(!check.ok)return check;
   // Atomic escrow: remove materials once at acceptance. Completion never spends again.
   for(const [k,n] of Object.entries(r.materials))stock[k]-=n;

@@ -1,4 +1,4 @@
-import {isIndependent,materialStock,mealOwnerId,reservedMealsFor,guardianOf} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,resourceStock,mealOwnerId,reservedMealsFor,guardianOf} from './individual-resources.mjs?v=0.5.0';
 /** Autonomous Birth 0.5.0 — deterministic pacing avoids synchronized generation collapse. */
 import {LIFE,LIFE_STAGES,lifeStage} from './lifecycle.mjs?v=0.5.0';
 import {HISTORY_LIMITS,allPeople,retainedCount,retentionPlan} from './history.mjs?v=0.5.0';
@@ -74,7 +74,7 @@ function independentBirthPlan(s){
  const meals=new Set(living(s).filter(a=>a.task?.kind==='EAT').map(a=>a.id));
  let blocked=null;
  for(const parent of parents){
-  const stock=materialStock(s,parent),freeFood=Math.max(0,stock.food-reservedMealsFor(s,parent.id,meals));
+  const stock=resourceStock(s,parent),freeFood=Math.max(0,stock.food-reservedMealsFor(s,parent.id,meals));
   const dependents=living(s).filter(a=>guardianOf(s,a)?.id===parent.id).length;
   const nextFoodTarget=Math.max(24,(dependents+2)*4),requiredFood=BIRTH_RULES.foodCost+nextFoodTarget,requiredWood=BIRTH_RULES.woodCost+BIRTH_RULES.woodSafetyFloor;
   const row={...base,parentId:parent.id,freeFood,nextFoodTarget,requiredFood,requiredWood};

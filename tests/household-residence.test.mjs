@@ -4,7 +4,7 @@ import {createWorld,command,step,serialize,restore,validate,walkable} from '../s
 import {canonicalEdge} from '../src/rust-stations.mjs';
 import {personalHomeSite,homeOf} from '../src/individual-housing.mjs';
 import {personalHomeIntent} from '../src/individual-home-planning.mjs';
-import {materialStock} from '../src/individual-resources.mjs';
+import {materialStock,resourceStock,resourceAccount} from '../src/individual-resources.mjs';
 import {
   relationshipOf,recordRelationshipEvidence,householdOf,
   activeResidenceOf,SOCIAL_VERSION
@@ -44,18 +44,22 @@ function qualify(s,subject,owner){
   assert.equal(recordRelationshipEvidence(s,{fromId:owner.id,toId:subject.id,kind:'test',key:'join:'+subject.id+':'+owner.id+':to',delta:{affinity:2}}).ok,true);
 }
 
-test('IC6B JOIN_HOUSEHOLD adds explicit residency without transferring home ownership',()=>{
+test('IC6C JOIN_HOUSEHOLD keeps home ownership but merges temporary raw resources into household pool',()=>{
   const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   const home=completeHome(s,owner);qualify(s,subject,owner);
-  const beforeSubject={...materialStock(s,subject)},beforeOwner={...materialStock(s,owner)};
+  const beforeSubject={...materialStock(s,subject)},poolBefore={...resourceStock(s,owner)};
   const r=command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:owner.id});
   assert.equal(r.ok,true);assert.equal(r.changed,true);assert.equal(r.houseId,home.houseId);
   assert.equal(homeOf(s,subject.id,{completeOnly:true}),null);
   assert.equal(homeOf(s,owner.id,{completeOnly:true}).ownerId,owner.id);
   assert.equal(activeResidenceOf(s,subject.id).ownerId,owner.id);
   assert.deepEqual(householdOf(s,subject.id).cohabitantIds,[subject.id]);
-  assert.deepEqual({...materialStock(s,subject)},beforeSubject);
-  assert.deepEqual({...materialStock(s,owner)},beforeOwner);
+  for(const k of ['food','wood','stone','charcoal']){
+    assert.equal(materialStock(s,subject)[k],0);
+    assert.equal(resourceStock(s,subject)[k],(poolBefore[k]??0)+(beforeSubject[k]??0));
+  }
+  assert.strictEqual(resourceStock(s,subject),resourceStock(s,owner));
+  assert.equal(resourceAccount(s,subject).kind,'household');
   assert.deepEqual(validate(s),[]);
 });
 
@@ -81,21 +85,17 @@ test('IC6B cohabitant REST targets shared home while personal resources stay per
   assert.equal(subject.task?.y,home.origin.y);
 });
 
-test('IC6B cohabitant EAT uses own food at shared home, not owners food',()=>{
+test('IC6C cohabitant EAT consumes shared household food while personal raw stores stay empty',()=>{
   const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   const home=completeHome(s,owner);qualify(s,subject,owner);
   assert.equal(command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:owner.id}).ok,true);
   subject.x=home.origin.x;subject.y=home.origin.y;subject.energy=100;subject.satiety=10;subject.task=null;
-  const mine=materialStock(s,subject),theirs=materialStock(s,owner);mine.food=10;theirs.food=11;
-  const myBefore=mine.food,theirBefore=theirs.food;
-  let sawEat=false;
-  for(let i=0;i<40&&mine.food===myBefore;i++){
-    step(s,1);
-    if(subject.task?.kind==='EAT')sawEat=true;
-  }
-  assert.equal(sawEat,true,'cohabitant should enter EAT task at shared home');
-  assert.equal(mine.food,myBefore-1,'completed EAT consumes the cohabitant own food');
-  assert.equal(theirs.food,theirBefore,'owner food remains untouched');
+  const pool=resourceStock(s,subject);assert.strictEqual(pool,resourceStock(s,owner));pool.food=10;
+  const before=pool.food;
+  for(let i=0;i<40&&pool.food===before;i++)step(s,1);
+  assert.equal(pool.food,before-1);
+  assert.equal(materialStock(s,subject).food,0);
+  assert.equal(materialStock(s,owner).food,0);
 });
 
 test('IC6B cohabitation pauses own-home goal and leaving resumes it',()=>{
