@@ -1,8 +1,8 @@
 # IC7A — Household Recruitment + Cooperation Work State
 
-Status: IMPLEMENTATION CANDIDATE / STACKED ON IC6C CLOSEOUT  
+Status: IMPLEMENTATION CANDIDATE / VERIFY PENDING  
 Branch: `feature/ic7a-household-recruitment-authority`  
-Base dependency: `feature/ic6c-remove-independent-central-stock` / PR #100  
+Base: `main@14c0ef4e61666f5212f7f2fb2c00aa078695651d` after IC6C PR #100 squash merge  
 Contract: `docs/IC7A_RECRUITMENT_COOPERATION_SUCCESS_CONTRACT.md`
 
 ## Implemented
@@ -13,6 +13,8 @@ Contract: `docs/IC7A_RECRUITMENT_COOPERATION_SUCCESS_CONTRACT.md`
   - `recruitmentDecision()`
   - `stepHouseholdRecruitment()`
 - deterministic recruitment cadence every 60 ticks;
+- frozen decision ranking: urgency → offer priority → relationship score → lower leader id → role → candidate id final tie-break;
+- work-preference affects willingness at normal urgency but does not outrank the frozen decision order;
 - at most one autonomous adult JOIN per cycle;
 - willingness requires:
   - existing relationship-backed candidate;
@@ -36,7 +38,9 @@ House dialog shows:
 
 - food shortage creates forager offer;
 - nearby stranger excluded;
-- deterministic one-per-cycle auto JOIN;
+- high/critical need accepts a relationship-backed off-preference candidate;
+- K4 emits all required roles: forager / woodcutter / miner / builder;
+- deterministic one-per-cycle auto JOIN with relationship score ahead of work-preference;
 - engine tick 60 activation;
 - Leadership-full suppression;
 - real productive work creates cooperation evidence once per action/year;
@@ -52,3 +56,10 @@ House dialog shows:
 - organization persistence separate from household.
 
 UNKNOWN is not PASS.
+
+## Verification state
+
+- Integration/base alignment: SAT — non-force merge commit aligned the branch with `main@14c0ef4e` without changing the IC7A tree.
+- Contract review repair: SAT — implementation ranking now matches the frozen Success Contract.
+- Exact candidate CI / browser proof: UNKNOWN until the current head workflow completes.
+- Public release: UNKNOWN; IC7A is not merged or released.
