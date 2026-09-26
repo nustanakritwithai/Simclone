@@ -159,6 +159,10 @@ export function validateSocialState(s,{required=false}={}){
     if(r?.leftTick===null){
       if(activeResidents.has(r.agentId))errors.push('Social active residence');
       activeResidents.add(r.agentId);
+      const resident=s.agents?.find(a=>a.id===r.agentId&&a.alive);
+      const owner=s.agents?.find(a=>a.id===r.ownerId&&a.alive);
+      const home=owner?homeOf(s,owner.id,{completeOnly:true}):null;
+      if(!resident||!owner||!home||home.houseId!==r.houseId)errors.push('Social residence home');
     }
   }
   return [...new Set(errors)];
