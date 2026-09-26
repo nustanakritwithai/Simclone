@@ -3,15 +3,16 @@ import assert from 'node:assert/strict';
 import {createWorld,serialize} from '../src/engine.mjs';
 import {createNeighborhoodShadow,neighborhoodOfOwner,NEIGHBORHOOD_RULES} from '../src/neighborhood-shadow.mjs';
 import {recordRelationshipEvidence} from '../src/relationships.mjs';
+import {canonicalEdge} from '../src/rust-stations.mjs';
 
 function completedHouse(state,id,ownerId,x,y){
   const houseId='H'+id;
   state.rustStations.stations.push(
     {id,kind:'WOOD_FOUNDATION',x,y,socket:{type:'cell',x,y,level:0}},
-    {id:id+1,kind:'WOOD_WALL',x,y,socket:{type:'edge',x,y,side:'N',level:1}},
-    {id:id+2,kind:'WOOD_WALL',x,y,socket:{type:'edge',x:x+1,y,side:'W',level:1}},
-    {id:id+3,kind:'WOOD_WALL',x,y,socket:{type:'edge',x,y:y+1,side:'N',level:1}},
-    {id:id+4,kind:'WOOD_DOORWAY',x,y,socket:{type:'edge',x,y,side:'W',level:1}},
+    {id:id+1,kind:'WOOD_WALL',x,y,socket:canonicalEdge(x,y,'N')},
+    {id:id+2,kind:'WOOD_WALL',x,y,socket:canonicalEdge(x,y,'E')},
+    {id:id+3,kind:'WOOD_WALL',x,y,socket:canonicalEdge(x,y,'S')},
+    {id:id+4,kind:'WOOD_DOORWAY',x,y,socket:canonicalEdge(x,y,'W')},
     {id:id+5,kind:'WOOD_ROOF',x,y,socket:{type:'cell',x,y,level:2}}
   );
   state.rustMaterials.householdStores.push({houseId,ownerId,food:0,wood:0,stone:0,charcoal:0});
