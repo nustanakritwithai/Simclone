@@ -1,3 +1,11 @@
+# Prepared next gate — IC7A Estate / Inheritance
+
+- IC6B remains the active implementation gate on PR #91.
+- **IC7A prepared:** read-only estate snapshot + factual living-descendant candidates on `feature/ic7-inheritance-prep`.
+- No property/material transfer is active.
+- `Foundation.placedBy` remains immutable construction provenance.
+- **IC7B only after IC6B SAT:** define current-title transfer evidence + no-heir/multi-heir/material-conservation policy before enabling mutation.
+
 # Active gate — IC6B Adult Cohabitation
 
 - IC1–IC5 Independent Clone World core + IC6A relationship authority are on main `2c186fea`.
