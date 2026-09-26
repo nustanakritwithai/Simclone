@@ -102,6 +102,8 @@ try:
         check(f'{width}: inspector discloses actual personal stock',page.locator('.personal-stock').get_attribute('data-owner')=='1')
         val_before=snap(page);life=page.locator('[data-autonomous-life="1"]')
         check(f'{width}: VAL1 inspector exposes current action and home plan',life.count()==1 and 'ตอนนี้' in life.inner_text() and 'แผนบ้าน' in life.inner_text())
+        plan=life.locator('[data-executable-plan]')
+        check(f'{width}: VAL2 inspector exposes retained goal step and bounded replans',plan.count()==1 and 'เป้าหมาย' in plan.inner_text() and 'ขั้นตอน' in plan.inner_text() and 'Replan' in plan.inner_text())
         why=life.locator('[data-autonomous-why]');why.locator('summary').click()
         check(f'{width}: VAL1 Why disclosure is evidence-only and read-only',snap(page)==val_before and ('Score' in why.inner_text() or 'UNKNOWN' in why.inner_text()))
         page.screenshot(path=str(OUT/f'owner-{width}.png'))
