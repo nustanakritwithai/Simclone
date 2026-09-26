@@ -1,5 +1,5 @@
 import {installIndependentUI} from './independent-ui.mjs?v=0.5.0';
-import {isIndependent,materialStock,materialTotals} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,resourceStock,resourceAccount,materialTotals} from './individual-resources.mjs?v=0.5.0';
 import {individualHouses} from './individual-housing.mjs?v=0.5.0';
 import {installUX,UI_VERSION} from './ux.mjs?v=0.5.0';
 import {createWorldStore,saveLabel} from './storage.mjs?v=0.5.0';
@@ -356,9 +356,14 @@ function actionText(a){if(!a.alive)return 'เสียชีวิตแล้�
 function inspect(){ux?.renderInspector();}
 function updateUI(){
  $('day').textContent='วันที่ '+day(state);const h=hour(state),mins=Math.floor(state.tick%15/15*60);$('clock').textContent=String(h).padStart(2,'0')+':'+String(mins).padStart(2,'0')+' · '+(h<6||h>=19?'กลางคืน':h<12?'เช้า':'บ่าย');
- const selectedAgent=state.agents.find(a=>a.id===selected),stock=isIndependent(state)?(selectedAgent?materialStock(state,selectedAgent):materialTotals(state,{livingOnly:true})):state.stock;
+ const selectedAgent=state.agents.find(a=>a.id===selected),stock=isIndependent(state)?(selectedAgent?resourceStock(state,selectedAgent):materialTotals(state,{livingOnly:true})):state.stock;
  for(const type of ['food','wood','stone'])$(type).textContent=stock[type];
- document.querySelector('.resources').title=isIndependent(state)?(selectedAgent?'ทรัพย์สินส่วนตัวของ '+selectedAgent.name:'ผลรวมทรัพย์สินทุกคน ไม่ใช่คลังกลาง'):'';
+ if(isIndependent(state)){
+  const account=selectedAgent?resourceAccount(state,selectedAgent):null;
+  document.querySelector('.resources').title=selectedAgent
+   ?(account?.kind==='household'?'ทรัพยากรร่วม Household '+account.houseId:'ทรัพยากรชั่วคราวของ '+selectedAgent.name)
+   :'ผลรวมทุก Household/คนไร้บ้าน · อ่านอย่างเดียว';
+ }else document.querySelector('.resources').title='';
  $('population').textContent=isIndependent(state)?living(state).length+' คน':living(state).length+' / '+capacity(state);
  $('pause').textContent=paused?'▶':'Ⅱ';$('pause').setAttribute('aria-label',paused?'เล่นต่อ':'หยุดเวลา');
  $('world-status').textContent=paused||dialog.open?'หยุดเวลา · โลกยังอยู่ตรงนี้':'โลกกำลังดำเนินไปด้วยตัวเอง';
