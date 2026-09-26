@@ -7,6 +7,7 @@ import {isIndependent,guardianOf} from './individual-resources.mjs?v=0.5.0';
  */
 import {evaluateModularHouses,nextHousePiece} from './housing.mjs?v=0.5.0';
 import {canPlaceStation,foundationAt} from './rust-stations.mjs?v=0.5.0';
+import {worldBounds} from './world-bounds.mjs?v=0.5.0';
 
 export const INDIVIDUAL_HOME_VERSION='IC1-0.1';
 export const INDIVIDUAL_HOME_RULES=Object.freeze({siteMinRadius:1,siteMaxRadius:8});
@@ -51,12 +52,12 @@ function hasAdjacentFoundation(s,x,y){
  * risk and private spatial knowledge belong to later IC slices.
  */
 function reachableCells(s,a,isWalkable){
- const seen=new Set(),queue=[];
+ const bounds=worldBounds(s),seen=new Set(),queue=[];
  if(!isWalkable(s,a.x,a.y))return seen;
  seen.add(a.x+':'+a.y);queue.push({x:a.x,y:a.y});
  for(let i=0;i<queue.length;i++)for(const [dx,dy] of DELTA){
   const x=queue[i].x+dx,y=queue[i].y+dy,k=x+':'+y;
-  if(x<0||x>=30||y<0||y>=26||seen.has(k)||!isWalkable(s,x,y))continue;
+  if(x<0||x>=bounds.w||y<0||y>=bounds.h||seen.has(k)||!isWalkable(s,x,y))continue;
   seen.add(k);queue.push({x,y});
  }
  return seen;

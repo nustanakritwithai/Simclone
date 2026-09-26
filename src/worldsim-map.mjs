@@ -1,8 +1,10 @@
+import {LEGACY_WORLD_BOUNDS,worldBounds} from './world-bounds.mjs?v=0.5.0';
 /** WM1 presentation only. Reads K6 tiles/resources; never writes simulation state.
  * This is a WorldSim-inspired terrain skin, not the 20.9.4 physics runtime.
  */
 export const WORLD_MAP_VERSION='wm1-visual-1';
-export const MAP_SIZE=Object.freeze({w:30,h:26});
+/** Legacy alias for old fixtures. Runtime uses worldBounds(state). */
+export const MAP_SIZE=Object.freeze({w:LEGACY_WORLD_BOUNDS.w,h:LEGACY_WORLD_BOUNDS.h});
 export const WORLD_TERRAIN=Object.freeze(['deepWater','shallowWater','sand','grass','forest','rock','path','bridge']);
 export const MAP_AUTHORITY=Object.freeze({mode:'path-authority-gate-1',path:'worldsim-wm2',resources:'simclone-k6',save:'simclone-0.5.0'});
 export const TERRAIN_COLORS=Object.freeze({deepWater:'#315f70',shallowWater:'#589496',sand:'#baa77a',grass:'#738f58',forest:'#426948',rock:'#889187',path:'#b4a37a',bridge:'#a18455'});
@@ -30,7 +32,7 @@ export const isVisualWater=terrain=>WATER.has(terrain);
 
 /** Detached immutable render snapshot. Caller owns caching; nothing is saved. */
 export function createWorldMapView(state){
-  const {w:width,h:height}=MAP_SIZE,n=width*height;
+  const {w:width,h:height}=worldBounds(state),n=width*height;
   if(!state||!Number.isSafeInteger(state.seed)||state.seed<0||state.seed>4294967295||
     !Array.isArray(state.tiles)||state.tiles.length!==n)throw new Error('Invalid map view input');
   for(let i=0;i<n;i++)if(!TILES.has(state.tiles[i]))throw new Error('Invalid gameplay terrain');
@@ -78,7 +80,7 @@ export function visualCellAt(view,x,y){
  * Future movement-cost gates may differentiate forest/rock/sand without changing this contract.
  */
 export function worldPathCellAt(state,x,y){
-  const {w,h}=MAP_SIZE;
+  const {w,h}=worldBounds(state);
   if(!state||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=w||y>=h)return null;
   const gameplayTile=state.tiles?.[y*w+x];
   if(!TILES.has(gameplayTile))return null;
@@ -86,7 +88,7 @@ export function worldPathCellAt(state,x,y){
   return Object.freeze({x,y,gameplayTile,terrainType,walkable:gameplayTile!=='water'});
 }
 export function worldPathWalkable(state,x,y){
-  const {w,h}=MAP_SIZE;
+  const {w,h}=worldBounds(state);
   if(!state||!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=w||y>=h)return false;
   const gameplayTile=state.tiles?.[y*w+x];
   return TILES.has(gameplayTile)&&gameplayTile!=='water';

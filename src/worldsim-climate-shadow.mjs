@@ -11,11 +11,11 @@ const clamp=n=>Math.max(0,Math.min(1,n));
 const round=n=>+clamp(n).toFixed(4);
 const roundC=n=>+n.toFixed(2);
 
-export function climateShadowForCell(cell,{cyclePhase=0,solar=null}={}){
+export function climateShadowForCell(cell,{cyclePhase=0,solar=null,worldHeight=26}={}){
   if(!cell)return null;
   const phase=((cyclePhase%1)+1)%1;
   const sun=solar===null?Math.max(0,Math.sin((phase-.25)*Math.PI*2)):clamp(solar);
-  const latitude=Math.abs((cell.y/25)*2-1),elevation=clamp(cell.elevation??.5),moisture=clamp(cell.moisture??.5);
+  const latitude=Math.abs((cell.y/Math.max(1,worldHeight-1))*2-1),elevation=clamp(cell.elevation??.5),moisture=clamp(cell.moisture??.5);
   const water=['deepWater','shallowWater'].includes(cell.terrainType);
   const temperatureNorm=clamp(.78-latitude*.22-elevation*.38+sun*.10-moisture*.03+(water?.03:0));
   const temperatureC=-2+temperatureNorm*38;
@@ -38,7 +38,7 @@ export function createClimateShadow(state,view=createWorldMapView(state)){
   const solar=Math.max(0,Math.sin((cyclePhase-.25)*Math.PI*2)),counts=Object.fromEntries(CLIMATE_WEATHER.map(x=>[x,0]));
   let temperatureC=0,humidity=0,cloudCover=0,rainPotential=0,droughtPressure=0,temperatureComfort=0,vegetationClimateFactor=0;
   const cells=view.cells.map(cell=>{
-    const climate=climateShadowForCell(cell,{cyclePhase,solar});counts[climate.weatherType]++;
+    const climate=climateShadowForCell(cell,{cyclePhase,solar,worldHeight:view.height});counts[climate.weatherType]++;
     temperatureC+=climate.temperatureC;humidity+=climate.humidity;cloudCover+=climate.cloudCover;rainPotential+=climate.rainPotential;
     droughtPressure+=climate.droughtPressure;temperatureComfort+=climate.temperatureComfort;vegetationClimateFactor+=climate.vegetationClimateFactor;
     return Object.freeze({index:cell.index,x:cell.x,y:cell.y,terrainType:cell.terrainType,...climate});

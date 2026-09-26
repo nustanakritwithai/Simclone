@@ -25,6 +25,7 @@ import {ensureProductionPlan,productionCommand,stepProductionPlanning,validatePr
 import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsForAgent,validateMentorship} from './mentor-teaching.mjs?v=0.5.0';
 import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,activeResidenceOf,validateSocialState} from './relationships.mjs?v=0.5.0';
 import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './household-residence.mjs?v=0.5.0';
+import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -39,7 +40,8 @@ export const LEGACY_SAVE_VERSION = '0.1.0';
 export const HISTORY_VERSION = '0.1.0';
 const DEATH_STATUSES = new Set(['recorded','legacy-evidence','legacy-unknown']);
 const DEATH_CAUSES = new Set(['age','starvation','unknown']);
-export const SIZE = { w: 30, h: 26 };
+/** Backward-compatible legacy default. Runtime systems must use worldBounds(state). */
+export const SIZE = { w: LEGACY_WORLD_BOUNDS.w, h: LEGACY_WORLD_BOUNDS.h };
 export const DAY_TICKS = LIFE.ticksPerYear;
 export const SKILLS = ['FORAGE', 'WOODCUT', 'MINE', 'BUILD'];
 export const SOCIAL_SKILLS = [LEADERSHIP_SKILL];
@@ -57,18 +59,19 @@ function event(s,type,text,agentId=null) {
   if(agentId){const a=s.agents.find(a=>a.id===agentId); if(a){a.memory.push({tick:s.tick,text});if(a.memory.length>8)a.memory.shift();}}
 }
 function createAgent(s,parent,initial=false,mode='manual'){
-  const id=s.nextAgent++, k=id-1,autonomous=mode==='birth';
+  const id=s.nextAgent++, k=id-1,autonomous=mode==='birth',bounds=worldBounds(s);
+  const start=scaleLegacyPoint(bounds,9+k%4,11+Math.floor(k/4)%3);
   const skills=Object.fromEntries(SKILLS.map(key=>[key,parent?Math.floor(parent.skills[key]*.35):60]));
   if(isIndependent(s))skills[LEADERSHIP_SKILL]=parent?Math.floor(Number(parent.skills?.[LEADERSHIP_SKILL]??0)*.35):0;
   const preference=SKILLS[k%4],profession=professionForAction(preference);
   const skillProvenance=createSkillProvenance(id,skills,{kind:parent?'inheritance':'initial',sourceAgentId:parent?.id??null,tick:s.tick});
   const a={id,name:names[k%names.length]+(k>=names.length?' '+id:''),parentId:parent?.id??null,generation:parent?parent.generation+1:0,
-    x:9+k%4,y:11+Math.floor(k/4)%3,hp:100,satiety:85,energy:90,alive:true,death:null,
+    x:start.x,y:start.y,hp:100,satiety:85,energy:90,alive:true,death:null,
     appearance:{coat:palette[k%palette.length],skin:['#e5b38a','#c99064','#f1c9a6','#a97050'][k%4],hair:['#302a28','#5e3e2c','#d5ad6f','#312e3b'][k%4],style:k%3},
     preference,profession,professionSinceTick:s.tick,career:[{tick:s.tick,profession}],skills,skillProvenance,knowledgeState:createKnowledgeState(),source:parent?(autonomous?'สืบทอดเมื่อเกิดจาก '+parent.name:'Clone จาก '+parent.name):'ความรู้เริ่มต้นของ Original',
     memory:[],task:null,trace:[],moveTick:0,workDone:0,bornTick:s.tick,life:autonomous?childLife(s.tick):adultLife(s.tick)};
   if(parent){a.x=parent.x;a.y=parent.y;}
-  if(initial&&parent){a.x=9+k%4;a.y=10+Math.floor(k/4)*2;a.satiety=65+k*3;a.energy=72+k*3;}
+  if(initial&&parent){const p=scaleLegacyPoint(bounds,9+k%4,10+Math.floor(k/4)*2);a.x=p.x;a.y=p.y;a.satiety=65+k*3;a.energy=72+k*3;}
   s.agents.push(a);
   if(isIndependent(s))addPersonalStore(s,a);
   event(s,'birth',parent?(autonomous?a.name+' เกิดจาก '+parent.name+' · รุ่น '+a.generation:a.name+' ถูกสร้างจาก '+parent.name+' · รุ่น '+a.generation):'Original เข้าสู่โลกใหม่',id);
@@ -96,23 +99,34 @@ export function createWorld(seed=230926,options={}){
   const independent=options.mode==='independent',population=independent?(options.population??6):6;
   if(options.mode!==undefined&&!['legacy','independent'].includes(options.mode))throw new Error('Unsupported world mode');
   if(!Number.isInteger(population)||population<1||population>6)throw new Error('Starting population must be 1..6');
+  const profile=options.worldProfile??'legacy',bounds=boundsForProfile(profile),large=profile==='large';
+  const camp=scaleLegacyPoint(bounds,11,12),shelter=scaleLegacyPoint(bounds,8,9),storedBounds=persistedWorldBounds(profile);
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
-    stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
+    ...(storedBounds?{worldBounds:storedBounds}:{}),
+    stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:camp.x,y:camp.y,complete:true,progress:30},{id:2,type:'shelter',x:shelter.x,y:shelter.y,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
   ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);ensureHouseholdResourceState(s);
   let nid=1;
-  for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
-    const river=20+Math.round(Math.sin(y*.26)*2), wet=x>=river&&x<river+3;
-    const bridge=wet&&(y===13||y===14);
-    const road=!independent&&((Math.abs(y-13)<1&&x>6&&x<27)||(Math.abs(x-11)<1&&y>7&&y<18));
+  const riverBase=scaleLegacyX(bounds,20),riverWave=large?4:2,riverWidth=large?6:3;
+  const bridgeStart=scaleLegacyY(bounds,13),bridgeEnd=scaleLegacyY(bounds,14);
+  const roadY=scaleLegacyY(bounds,13),roadX=scaleLegacyX(bounds,11);
+  const roadXMin=scaleLegacyX(bounds,6),roadXMax=scaleLegacyX(bounds,27),roadYMin=scaleLegacyY(bounds,7),roadYMax=scaleLegacyY(bounds,18);
+  const campMin=scaleLegacyPoint(bounds,7,8),campMax=scaleLegacyPoint(bounds,15,17);
+  const resourceChance=large?.12:.23,woodCut=large?.073:.14,foodCut=large?.099:.19;
+  for(let y=0;y<bounds.h;y++)for(let x=0;x<bounds.w;x++){
+    const legacyY=y*(LEGACY_WORLD_BOUNDS.h-1)/Math.max(1,bounds.h-1);
+    const river=riverBase+Math.round(Math.sin(legacyY*.26)*riverWave),wet=x>=river&&x<river+riverWidth;
+    const bridge=wet&&y>=bridgeStart&&y<=bridgeEnd;
+    const road=!independent&&((Math.abs(y-roadY)<1&&x>roadXMin&&x<roadXMax)||(Math.abs(x-roadX)<1&&y>roadYMin&&y<roadYMax));
     s.tiles.push(bridge?'bridge':wet?'water':road?'path':'grass');
-    const r=rng(s),inCamp=!independent&&x>=7&&x<=15&&y>=8&&y<=17;
-    if(!wet&&!road&&!inCamp&&r<.23){
-      const type=r<.14?'wood':r<.19?'food':'stone';
+    const r=rng(s),inCamp=!independent&&x>=campMin.x&&x<=campMax.x&&y>=campMin.y&&y<=campMax.y;
+    if(!wet&&!road&&!inCamp&&r<resourceChance){
+      const type=r<woodCut?'wood':r<foodCut?'food':'stone';
       s.nodes.push({id:nid++,type,x,y,amount:type==='stone'?70:35,max:type==='stone'?70:35});
     }
   }
-  if(!independent)for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]])
-    s.nodes.push({id:nid++,type,x,y,amount:45,max:45});
+  if(!independent)for(const [type,lx,ly] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]]){
+    const p=scaleLegacyPoint(bounds,lx,ly);s.nodes.push({id:nid++,type,x:p.x,y:p.y,amount:45,max:45});
+  }
   const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
   if(independent){initializeIndependentStart(s,walkable);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
   return s;
@@ -407,13 +421,15 @@ export function serialize(s){
 export function validate(s){
   const errors=[];const bad=x=>errors.push(x),finite=n=>typeof n==='number'&&Number.isFinite(n);
   if(!s||![SAVE_VERSION,INDEPENDENT_SAVE_VERSION].includes(s.version))return ['Unsupported save version'];
+  const boundsErrors=validateWorldBoundsState(s);if(boundsErrors.length)return boundsErrors;
+  const bounds=worldBounds(s),cellCount=worldCellCount(s);
   errors.push(...validateIndependentWorld(s));
   if(s.historyVersion!==HISTORY_VERSION)bad('History version');
   if(s.archiveVersion!==ARCHIVE_VERSION)bad('Archive version');
   if(!Array.isArray(s.archive)||s.archive.length>HISTORY_LIMITS.maxRetained)return ['Archive'];
   if(JSON.stringify(s.archive).length>HISTORY_LIMITS.maxArchiveCharacters)bad('Archive size');
   if(!Number.isInteger(s.tick)||s.tick<0||!Number.isInteger(s.rng)||!Number.isInteger(s.seed))bad('Clock/seed');
-  if(!Array.isArray(s.tiles)||s.tiles.length!==SIZE.w*SIZE.h||s.tiles.some(t=>!['grass','water','path','bridge'].includes(t)))return ['Terrain'];
+  if(!Array.isArray(s.tiles)||s.tiles.length!==cellCount||s.tiles.some(t=>!['grass','water','path','bridge'].includes(t)))return ['Terrain'];
   // Independent s.stock is a zero-only compatibility placeholder. validateIndependentWorld owns that contract.
   // Only legacy mode treats s.stock as a spendable inventory authority.
   if(!isIndependent(s)&&(!s.stock||['food','wood','stone'].some(k=>!finite(s.stock[k])||s.stock[k]<0||s.stock[k]>999)))bad('Inventory');
@@ -454,7 +470,7 @@ export function validate(s){
         if(d.status==='legacy-unknown'&&(d.tick!==null||d.ageYears!==null||d.cause!=='unknown'))bad('Death history');
       }
     }
-    if(a.task&&(!LABELS[a.task.kind]||!finite(a.task.work)||!Array.isArray(a.task.path)||a.task.path.length>SIZE.w*SIZE.h||a.task.path.some(p=>!walkable(s,p.x,p.y))))bad('Task');
+    if(a.task&&(!LABELS[a.task.kind]||!finite(a.task.work)||!Array.isArray(a.task.path)||a.task.path.length>cellCount||a.task.path.some(p=>!walkable(s,p.x,p.y))))bad('Task');
   }
   const byId=new Map(people.map(a=>[a.id,a]));
   for(const a of people){
@@ -466,7 +482,7 @@ export function validate(s){
     if(!parent)bad('Parent reference');
     else if(a.parentId===a.id||a.generation!==parent.generation+1||parent.bornTick>a.bornTick)bad('Parent lineage');
   }
-  if(!Array.isArray(s.nodes)||s.nodes.length>SIZE.w*SIZE.h||s.nodes.some(n=>!walkable(s,n.x,n.y)||!['food','wood','stone'].includes(n.type)||!finite(n.amount)||!finite(n.max)||n.amount<0||n.amount>n.max))bad('Resources');
+  if(!Array.isArray(s.nodes)||s.nodes.length>cellCount||s.nodes.some(n=>!walkable(s,n.x,n.y)||!['food','wood','stone'].includes(n.type)||!finite(n.amount)||!finite(n.max)||n.amount<0||n.amount>n.max))bad('Resources');
   if(!Array.isArray(s.buildings)||(!isIndependent(s)&&s.buildings.length<1)||s.buildings.length>12||s.buildings.some(b=>!walkable(s,b.x,b.y)||!['camp','shelter'].includes(b.type)||typeof b.complete!=='boolean'||!finite(b.progress)||b.progress<0||b.progress>30))bad('Buildings');
   if(!Array.isArray(s.events)||s.events.length>120||s.events.some(e=>typeof e.text!=='string'||!finite(e.tick)||!finite(e.id)))bad('Events');
   if(!s.stats||['gathered','built','cloned'].some(k=>!finite(s.stats[k])||s.stats[k]<0))bad('Stats');
