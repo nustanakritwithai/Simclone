@@ -171,7 +171,7 @@ function stepIndependentHomePlans(s,p,isWalkable){
    else if(intent.kind==='CRAFT_PIECE')recipeId=intent.recipeId;
    else continue;
   }
-  const stock=materialStock(s,a),recipe=RECIPE_CATALOG[recipeId];
+  const stock=resourceStock(s,a),recipe=RECIPE_CATALOG[recipeId];
   if(!recipe||Object.entries(recipe.materials).some(([k,n])=>stock[k]<n))continue;
   const r=rustCommand(s,'CRAFT_ITEM',{agentId:a.id,recipeId,stationId:recipeId==='HAMMER'?table.id:null},isWalkable);
   if(r.ok){record(p,s.tick,'personal-home-craft-'+recipeId,'accepted',a.id);return r;}
