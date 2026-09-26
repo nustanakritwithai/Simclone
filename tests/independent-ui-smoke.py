@@ -29,6 +29,7 @@ script="import{createWorld,step,serialize}from './src/engine.mjs';const s=create
 earned=subprocess.check_output(['node','--input-type=module','-e',script],cwd=ROOT,text=True).strip()
 social_fixture=subprocess.check_output(['node','scripts/ic6b-browser-fixture.mjs'],cwd=ROOT,text=True).strip()
 recruitment_fixture=subprocess.check_output(['node','scripts/ic7a-recruitment-browser-fixture.mjs'],cwd=ROOT,text=True).strip()
+trade_fixture=subprocess.check_output(['node','scripts/ic7b-trade-browser-fixture.mjs'],cwd=ROOT,text=True).strip()
 checks=[];errors=[]
 def check(name,condition=True):
     assert condition,name
@@ -153,6 +154,14 @@ try:
             check('IC7A: household home UI exposes food recruitment pressure','คนหาอาหาร' in recruit_text and 'ผู้สมัคร 1' in recruit_text)
             page.locator('#dialog-close').click()
             page.screenshot(path=str(OUT/'ic7a-recruitment-1440.png'))
+            # IC7B: two engine-built households expose a real surplus→shortage trade opportunity.
+            boot(page,trade_fixture);pause(page);select_person(page,2);page.wait_for_timeout(150)
+            page.locator('[data-own-home="2"]').click()
+            page.wait_for_selector('[data-household-trade]')
+            trade_text=page.locator('[data-household-trade]').inner_text()
+            check('IC7B: source house UI exposes authoritative trade opportunity','โอกาสค้า' in trade_text and '→' in trade_text)
+            page.locator('#dialog-close').click()
+            page.screenshot(path=str(OUT/'ic7b-trade-1440.png'))
         context.close()
     check('no browser JavaScript errors',not errors)
     browser.close()
