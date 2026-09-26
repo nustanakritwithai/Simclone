@@ -1,4 +1,4 @@
-import {isIndependent,materialStock,mealOwnerId,reservedMealsFor,guardianOf} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,resourceStock,mealOwnerId,reservedMealsFor,guardianOf} from './individual-resources.mjs?v=0.5.0';
 /** Autonomous Birth 0.5.0 — deterministic pacing avoids synchronized generation collapse. */
 import {LIFE,LIFE_STAGES,lifeStage} from './lifecycle.mjs?v=0.5.0';
 import {HISTORY_LIMITS,allPeople,retainedCount,retentionPlan} from './history.mjs?v=0.5.0';
