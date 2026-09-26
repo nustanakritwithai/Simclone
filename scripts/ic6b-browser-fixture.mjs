@@ -3,8 +3,8 @@ import {personalHomeSite} from '../src/individual-housing.mjs';
 import {canonicalEdge} from '../src/rust-stations.mjs';
 import {recordRelationshipEvidence} from '../src/relationships.mjs';
 
-const s=createWorld(230926,{mode:'independent',population:2});
-const subject=s.agents[0],owner=s.agents[1];
+const s=createWorld(230926,{mode:'independent',population:3});
+const subject=s.agents[1],owner=s.agents[2];
 
 function give(a,kind){
   const id=s.rustPossessions.nextItem++;
