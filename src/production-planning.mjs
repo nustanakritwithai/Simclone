@@ -1,4 +1,4 @@
-import {isIndependent,materialStock} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,resourceStock} from './individual-resources.mjs?v=0.5.0';
 import {personalHomeSite,homeOf} from './individual-housing.mjs?v=0.5.0';
 /** RP1 — deterministic autonomous Rust production coordinator.
  * It never completes work itself. It only issues existing validated Rust commands.
