@@ -59,7 +59,7 @@ try:
         context=browser.new_context(viewport={'width':width,'height':height},is_mobile=width<=700,has_touch=True)
         page=context.new_page()
         if NATIVE:
-            page.add_init_script("""()=>{const seed=sessionStorage.getItem('__simclone_test_seed');if(seed!==null){localStorage.setItem('simclone:world:v1',seed);sessionStorage.removeItem('__simclone_test_seed');}}""")
+            page.add_init_script("""const seed=sessionStorage.getItem('__simclone_test_seed');if(seed!==null){localStorage.setItem('simclone:world:v1',seed);sessionStorage.removeItem('__simclone_test_seed');}""")
         page.on('pageerror',lambda e:errors.append(str(e)));boot(page);pause(page)
         first=snap(page)
         check(f'{width}: new browser starts independent with no central buildings',first['buildings']==[] and first['stock']=={'food':0,'wood':0,'stone':0})
