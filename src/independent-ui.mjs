@@ -4,6 +4,7 @@ import {individualHouses,homeOf,survivalHome} from './individual-housing.mjs?v=0
 import {personalHomeIntent} from './individual-home-planning.mjs?v=0.5.0';
 import {householdOf,householdForOwner,activeResidenceOf,relationshipOf} from './relationships.mjs?v=0.5.0';
 import {cohabitationCandidate} from './cohabitation.mjs?v=0.5.0';
+import {leadershipProfile} from './leadership.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {walkable} from './survival.mjs?v=0.5.0';
 import {edgeCells} from './rust-stations.mjs?v=0.5.0';
@@ -46,10 +47,11 @@ export function installIndependentUI(api){
   const residence=activeResidenceOf(s,a.id),household=householdOf(s,a.id),candidate=residence?null:cohabitationCandidate(s,a);
   const householdOwner=household?[...s.agents,...s.archive].find(p=>p.id===household.ownerId):null;
   const relation=householdOwner&&householdOwner.id!==a.id?relationshipOf(s,a.id,householdOwner.id):null;
+  const leadership=householdOwner?leadershipProfile(s,householdOwner.id):null;
   const homeLabel=residence&&householdOwner?'อยู่ร่วมบ้านของ '+esc(householdOwner.name):h?(h.complete?'บ้านของ '+esc(a.name):'กำลังสร้าง '+esc(h.houseId)):(guardian?'พักกับ '+esc(guardian.name):'ยังไม่มีบ้านส่วนตัว');
   const homeAction=residence?'<button class="secondary" data-leave-household="'+a.id+'">ออกจาก household</button>':h?'<button class="secondary" data-own-home="'+a.id+'">ดูบ้าน</button>':candidate?'<button class="secondary" data-join-household="'+candidate.ownerId+'">ขออยู่ร่วมบ้าน</button>':'';
   const members=household?household.residentIds.map(id=>[...s.agents,...s.archive].find(p=>p.id===id)?.name??('#'+id)).join(', '):'';
-  const social=household?'<div class="household-summary" data-household-owner="'+household.ownerId+'"><small>Household · '+esc(householdOwner?.name??'#'+household.ownerId)+'</small><span>'+esc(members)+'</span>'+(relation?'<span>Trust <b>'+relation.trust+'</b> · Affinity <b>'+relation.affinity+'</b> · Respect <b>'+relation.respect+'</b></span>':'')+'</div>':'';
+  const social=household?'<div class="household-summary" data-household-owner="'+household.ownerId+'"><small>Household · '+esc(householdOwner?.name??'#'+household.ownerId)+'</small><span>'+esc(members)+'</span>'+(leadership?'<span>Leadership <b>Lv.'+leadership.level+'</b> · Followers <b>'+leadership.activeFollowers+'/'+leadership.followerCapacity+'</b></span>':'')+(relation?'<span>Trust <b>'+relation.trust+'</b> · Affinity <b>'+relation.affinity+'</b> · Respect <b>'+relation.respect+'</b></span>':'')+'</div>':'';
   const html='<div><b>⌂ '+homeLabel+'</b>'+homeAction+'</div><small>'+esc(labels[intent.kind]??intent.kind)+'</small>'+social+'<div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
   if(card.innerHTML!==html)card.innerHTML=html;
  }
