@@ -202,7 +202,7 @@ export function stepGovernanceAuthority(state,{force=false}={}){
         const current=rows.find(c=>c.agentId===governor.id);
         if(current){
           office.lastQualifiedTick=state.tick;
-        }else if(state.tick-office.lastQualifiedTick>=GOVERNANCE_RULES.qualificationGraceTicks){
+        }else if(state.tick-office.lastQualifiedTick>GOVERNANCE_RULES.qualificationGraceTicks){
           closeTerm(state,office,'support-lost');vacated.push({settlementId:office.settlementId,reason:'support-lost'});
         }
       }
