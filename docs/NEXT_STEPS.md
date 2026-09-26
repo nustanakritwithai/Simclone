@@ -1,3 +1,13 @@
+# Active gate — IC7B Household Cooperation
+
+- Base: `main@e0308619c2c082de6c0a8d8a7a99ec25d92c97ab` after IC7A recruitment/cooperation merge.
+- Productive household members now receive a bounded read-only task-score signal from existing K2 scarcity → K3 production → K4 labor offers.
+- Food shortage raises FORAGE, wood shortage raises WOODCUT, stone shortage raises MINE.
+- Survival emergency suppresses IC7B; children, homeless/non-household actors and Legacy receive no bonus.
+- Existing `candidates() → decide() → claim() → execute()` remains the only scheduler/executor; no parallel task/resource/membership writer.
+- Success Contract: `docs/IC7B_HOUSEHOLD_COOPERATION_SUCCESS_CONTRACT.md`.
+- After IC7B SAT: pause. Do not begin physical Household Trade/IC7C in this work session.
+
 # Prepared next gate — IC7A Recruitment + Cooperation Authority
 
 - Dependency: IC6C central-stock closeout / PR #100.
