@@ -5,16 +5,18 @@ import {installUX,UI_VERSION} from './ux.mjs?v=0.5.0';
 import {createWorldStore,saveLabel} from './storage.mjs?v=0.5.0';
 import {installNavigation} from './navigation.mjs?v=0.5.0';
 import {createWorldMapView,WORLD_MAP_VERSION,MAP_AUTHORITY} from './worldsim-map.mjs?v=0.5.0';
-import {VERSION,SIZE,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
+import {worldBounds} from './world-bounds.mjs?v=0.5.0';
+import {VERSION,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
 import {evaluateModularHouses} from './housing.mjs?v=0.5.0';
 import {drawPiece,structureDrawInfo,structureDepth,roofNeighbours} from './building-visuals.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,independentUI=null,nav=null,worldMapView=null;
 const store=createWorldStore({getStorage:()=>localStorage,serialize,restore});
-let state=createWorld(230926,{mode:document.documentElement.dataset.defaultWorld??'legacy'}),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
+const defaultFocusFor=s=>{const b=worldBounds(s);return {x:Math.round((b.w-1)*11/29),y:Math.round((b.h-1)*12/25)};};
+let state=createWorld(230926,{mode:document.documentElement.dataset.defaultWorld??'legacy',worldProfile:document.documentElement.dataset.worldProfile??'legacy'}),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
 let toastTimer,ground,cw=0,ch=0,dpr=1,zoom=innerWidth<700?1.12:1.25,pan={x:0,y:0};
-let focus={x:11,y:12},follow=false,positions=new Map(),lastUi=0,lastFrame=0,accumulator=0;
+let focus=defaultFocusFor(state),follow=false,positions=new Map(),lastUi=0,lastFrame=0,accumulator=0;
 const hw=27,hh=13.5;
 const proj=(x,y)=>({x:(x-y)*hw,y:(x+y)*hh});
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),4200);}
@@ -22,7 +24,7 @@ const loaded=store.load();if(loaded)state=loaded;
 if(store.status().kind==='protected')toast('เซฟเดิมมีปัญหา จึงยังไม่เขียนทับ · สำรองไฟล์เดิมได้ในเมนู');
 else if(store.status().kind==='unavailable')toast('เบราว์เซอร์ไม่ให้เข้าถึงบันทึก · ส่งออกไฟล์เพื่อเก็บโลกไว้');
 else if(loaded)toast('กลับสู่โลกเดิม · วันที่ '+day(state));
-if(isIndependent(state)){selected=null;focus={x:14,y:12};zoom=innerWidth<700?.55:.95;}
+if(isIndependent(state)){selected=null;const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=b.profile==='large'?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}
 function save(manual=false){const result=store.save(state);nav?.update();if(manual)toast(result.ok?'บันทึกโลกในเบราว์เซอร์นี้แล้ว':result.reason==='protected'?'ยังไม่เขียนทับเซฟเดิม · สำรองไฟล์ก่อนเริ่มโลกใหม่':'บันทึกไม่ได้ · ใช้ส่งออกไฟล์เพื่อเก็บโลกไว้');return result;}
 function portrait(a){const p=a.appearance;return `<svg class="portrait" viewBox="0 0 60 68" aria-label="${esc(a.name)}"><rect width="60" height="68" fill="#3b5747"/><circle cx="30" cy="31" r="27" fill="#667954" opacity=".35"/><path d="M7 69Q7 46 30 46Q53 46 53 69" fill="${p.coat}"/><path d="M25 43h10v10l-5 5-5-5" fill="${p.skin}"/><path d="M16 28Q12 10 30 9Q47 9 45 31L43 49H17Z" fill="${p.hair}"/><ellipse cx="30" cy="32" rx="12" ry="16" fill="${p.skin}"/><path d="${p.style===0?'M17 29Q13 9 31 10Q49 13 43 28L36 19 23 22Z':p.style===1?'M17 29Q12 12 30 10Q48 11 44 31L37 16 29 24Z':'M16 28Q12 8 31 9Q49 12 44 29L41 17 32 14 21 22Z'}" fill="${p.hair}"/><path d="M22 30h5m7 0h5" stroke="#4c392e" stroke-width="1.4"/><circle cx="25" cy="33" r="1.3" fill="#24352d"/><circle cx="36" cy="33" r="1.3" fill="#24352d"/><path d="M30 34v5h2M26 43q4 3 8 0" fill="none" stroke="#a66c54" stroke-width="1"/><path d="M19 52l11 7 11-7M30 59v10" stroke="#eee4ba88" stroke-width="1" fill="none"/></svg>`;}
 function polygon(c,points,fill,stroke=null){c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fillStyle=fill;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=.7;c.stroke();}}
@@ -30,13 +32,13 @@ function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,
 function line(c,points,color,width=1){c.strokeStyle=color;c.lineWidth=width;c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke();}
 function hash(x,y){return ((Math.imul(x+33,374761393)^Math.imul(y+41,668265263))>>>0)/4294967296;}
 function makeGround(){
- worldMapView=createWorldMapView(state);
- ground=document.createElement('canvas');ground.width=(SIZE.w+SIZE.h)*hw+120;ground.height=(SIZE.w+SIZE.h)*hh+110;
- const c=ground.getContext('2d');c.translate(SIZE.h*hw+60,32);
- const corners=[proj(0,0),proj(SIZE.w,0),proj(SIZE.w,SIZE.h),proj(0,SIZE.h)].map(p=>[p.x,p.y]);
+ worldMapView=createWorldMapView(state);const b=worldBounds(state);
+ ground=document.createElement('canvas');ground.width=(b.w+b.h)*hw+120;ground.height=(b.w+b.h)*hh+110;
+ const c=ground.getContext('2d');c.translate(b.h*hw+60,32);
+ const corners=[proj(0,0),proj(b.w,0),proj(b.w,b.h),proj(0,b.h)].map(p=>[p.x,p.y]);
  polygon(c,corners.map(([x,y])=>[x,y+20]),'#304b37');
- for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
-  const p=proj(x,y),cell=worldMapView.cells[y*SIZE.w+x],t=cell.terrainType,r=cell.detail;
+ for(let y=0;y<b.h;y++)for(let x=0;x<b.w;x++){
+  const p=proj(x,y),cell=worldMapView.cells[y*b.w+x],t=cell.terrainType,r=cell.detail;
   polygon(c,[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],cell.color);
   if(t==='grass'||t==='forest'){
    for(let k=0;k<(t==='forest'?3:4);k++){
@@ -326,7 +328,7 @@ function render(time){
  const bg=ctx.createLinearGradient(0,0,cw,ch);bg.addColorStop(0,'#4c654b');bg.addColorStop(1,'#314b3d');ctx.fillStyle=bg;ctx.fillRect(0,0,cw,ch);
  if(follow){const a=state.agents.find(a=>a.id===selected&&a.alive);if(a){focus.x+=(a.x-focus.x)*.03;focus.y+=(a.y-focus.y)*.03;}}
  ctx.save();ctx.translate(cameraOrigin().x+pan.x,cameraOrigin().y+pan.y);ctx.scale(zoom,zoom);const f=proj(focus.x,focus.y);ctx.translate(-f.x,-f.y);
- ctx.drawImage(ground,-SIZE.h*hw-60,-32);
+ const bounds=worldBounds(state);ctx.drawImage(ground,-bounds.h*hw-60,-32);
  const a=state.agents.find(a=>a.id===selected&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
  const structureCtx=structureRenderContext(),bubbles=worldBubbleSignals(state,selected,innerWidth<=700?3:5),bubbleMap=new Map(bubbles.map(x=>[x.agentId,x]));
@@ -421,8 +423,8 @@ function observe(){mode='observe';$('mode-hint').hidden=true;$('observe').classL
 $('observe').onclick=observe;
 $('recent-events').onclick=e=>{const id=e.target.closest('[data-event]')?.dataset.event;if(!id)return;const ev=state.events.find(e=>e.id===Number(id));if(ev?.agentId)selectAgent(ev.agentId,true);else history();};
 for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===b));const n=b.dataset.nav;if(n==='people')roster();else if(n==='systems')systems();else if(n==='rust')ux?.openRust();else if(n==='history')history();else{selected=null;follow=false;observe();}};
-$('recenter').onclick=()=>{focus={x:11,y:12};pan={x:0,y:0};follow=false;};
-const setZoom=z=>{zoom=Math.max(.5,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
+$('recenter').onclick=()=>{const a=state.agents.find(a=>a.alive);focus=a?{x:a.x,y:a.y}:defaultFocusFor(state);pan={x:0,y:0};follow=false;};
+const setZoom=z=>{const min=worldBounds(state).profile==='large'?.3:.5;zoom=Math.max(min,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
 canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
 function structureTargetAtScreen(sx,sy){
  const rows=[];
@@ -491,4 +493,4 @@ setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y),personalHomes:()=>individualHouses(state)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),worldSize:()=>({...worldBounds(state)}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y),personalHomes:()=>individualHouses(state)});
