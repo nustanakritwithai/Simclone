@@ -111,6 +111,7 @@ export function syncExecutablePlan(state,agent){
   if(!plan||TERMINAL_PLAN.has(plan.status))return plan??null;
   const step=currentStep(plan);
   if(!step)return invalidate(state,agent,'missing-current-step').plan;
+  if(plan.status==='REPLAN_REQUESTED')return plan;
   if(state.tick>step.timeoutTick)return invalidate(state,agent,'step-timeout',{timeout:true}).plan;
   const retained=agent.planning?.goal;
   if(retained&&retained.goal===plan.goal){
