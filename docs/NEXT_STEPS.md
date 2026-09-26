@@ -1,3 +1,14 @@
+# Active gate — VAL2 Executable Personal Plans
+
+- Base: `main@a81610c6b6a64dd157d5462420254ab734c0fca3` with VAL1 public exact-release SAT.
+- Extends the existing `personal-planning.mjs` goal authority; no second planner/scheduler/executor.
+- Adds deterministic plan identity, current step and bounded replan metadata (`maxReplans=3`).
+- Existing `candidates() → decide() → claim() → execute()` remains authoritative.
+- No LLM calls and no new resource/household/relationship/settlement writer.
+- Success Contract: `docs/VAL2_EXECUTABLE_PERSONAL_PLANS_SUCCESS_CONTRACT.md`.
+- Required proof: plan identity, target-change replacement, factual completion, bounded failure, save/load determinism, full regression/browser CI.
+- After VAL2 SAT: expose plan state through the existing VAL1 read-only Inspector projection before adding prediction.
+
 # Active gate — VAL1 Visible Autonomous Life
 
 - Base: `main@9283a9c88bf4b8f540498e8539e5551865b18e2c` after IC7B + MX7 exact-main Pages SAT.
