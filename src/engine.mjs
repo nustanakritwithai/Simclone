@@ -28,6 +28,8 @@ import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './h
 import {stepHouseholdRecruitment} from './household-recruitment-authority.mjs?v=0.5.0';
 import {householdCooperationSignal} from './household-cooperation.mjs?v=0.5.0';
 import {ensureSettlementState,stepSettlementAuthority,validateSettlementState,allSettlementSnapshots} from './settlement-authority.mjs?v=0.5.0';
+import {ensureGovernanceState,stepGovernanceAuthority,validateGovernanceState} from './governance-authority.mjs?v=0.5.0';
+import {stepGovernancePolicy,governorPolicySignal} from './governance-policy.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -137,7 +139,7 @@ export function createWorld(seed=230926,options={}){
     const p=scaleLegacyPoint(bounds,lx,ly);s.nodes.push({id:nid++,type,x:p.x,y:p.y,amount:45,max:45});
   }
   const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
-  if(independent){initializeIndependentStart(s,walkable);ensureSettlementState(s);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
+  if(independent){initializeIndependentStart(s,walkable);ensureSettlementState(s);ensureGovernanceState(s);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
@@ -239,12 +241,13 @@ function candidates(s,a,book,field){
     const travel=routeDistance(field,target),skillKind=extra.purposeKind??kind,skill=SKILLS.includes(skillKind)?level(a.skills[skillKind])*3:0;
     const laborMarket=Number(extra.laborAuthority?.bonus??0);
     const householdCooperation=Number(extra.householdCooperation?.bonus??0);
+    const governorPolicy=Number(extra.governorPolicy?.bonus??0);
     // Information-seeking must outrank doing nothing even when its waypoint is far.
     // Only the optional personal planner bounds this soft cost; execution still
     // pays the full route and hunger/energy interruptions remain authoritative.
     const distanceCost=extra.informationSeeking?Math.min(travel,8):travel;
     const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(distanceCost*.7),
-      ...(laborMarket?{laborMarket}: {}),...(householdCooperation?{householdCooperation}: {})};
+      ...(laborMarket?{laborMarket}: {}),...(householdCooperation?{householdCooperation}: {}),...(governorPolicy?{governorPolicy}: {})};
     out.push({kind,targetId:target.id??null,x:target.x,y:target.y,
       score:Object.values(factors).reduce((sum,v)=>sum+v,0),factors,travelSteps:Math.max(0,travel),
       status:travel<0?'no-path':status,...extra});
@@ -271,8 +274,9 @@ function candidates(s,a,book,field){
     const emergency=a.satiety<RULES.hungry||a.energy<RULES.exhausted;
     const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock,unfinished,emergency});
     const householdCooperation=householdCooperationSignal(s,a,kind,{emergency});
-    const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus?'satisfied':'candidate';
-    add(target.perception==='memory'?'EXPLORE':kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority,householdCooperation,
+    const governorPolicy=governorPolicySignal(s,a,kind,{emergency});
+    const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus&&!householdCooperation.active&&!governorPolicy.active?'satisfied':'candidate';
+    add(target.perception==='memory'?'EXPLORE':kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority,householdCooperation,governorPolicy,
       ...(target.perception?{purposeKind:kind,perception:target.perception,...(target.knowledgeKey?{knowledgeKey:target.knowledgeKey}:{})}: {})});
   }
   for(const b of s.buildings.filter(b=>!b.complete)){
@@ -433,6 +437,16 @@ export function step(s,count=1,options={}){
     if(recruitment?.ok&&recruitment.changed)event(s,'household',recruitment.message,recruitment.agentId??null);
     const settlement=stepSettlementAuthority(s);
     if(settlement?.changed&&settlement.createdIds.length)event(s,'settlement','เกิด Settlement ใหม่ '+settlement.createdIds.join(', '));
+    const governance=stepGovernanceAuthority(s);
+    if(governance?.changed){
+      for(const x of governance.appointed)event(s,'governance','แต่งตั้งผู้ปกครอง '+x.settlementId+' · #'+x.governorId,x.governorId);
+      for(const x of governance.vacated)event(s,'governance','ตำแหน่งผู้ปกครอง '+x.settlementId+' ว่าง · '+x.reason);
+    }
+    const policy=stepGovernancePolicy(s);
+    if(policy?.changed){
+      for(const x of policy.created)event(s,'governance','นโยบาย '+x.settlementId+' · '+x.good+' · bonus '+x.bonus,x.governorId);
+      for(const x of policy.resolved)event(s,'governance','นโยบาย '+x.settlementId+' แก้ shortage สำเร็จ · '+x.policyId);
+    }
     if(s.tick%DAY_TICKS===0){
       attemptAutonomousBirth(s);
       const independent=isIndependent(s),food=independent?materialTotals(s,{livingOnly:true}).food:s.stock.food;
@@ -453,6 +467,7 @@ export function validate(s){
   const bounds=worldBounds(s),cellCount=worldCellCount(s);
   errors.push(...validateIndependentWorld(s));
   errors.push(...validateSettlementState(s,{required:isIndependent(s)}));
+  errors.push(...validateGovernanceState(s,{required:isIndependent(s)}));
   if(s.historyVersion!==HISTORY_VERSION)bad('History version');
   if(s.archiveVersion!==ARCHIVE_VERSION)bad('Archive version');
   if(!Array.isArray(s.archive)||s.archive.length>HISTORY_LIMITS.maxRetained)return ['Archive'];
@@ -591,7 +606,7 @@ function migrateKnowledge(s){
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
-  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);ensureSettlementState(s);return s;} // additive social/settlement state migrates deterministically.
+  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);ensureSettlementState(s);ensureGovernanceState(s);return s;} // additive social/settlement/governance state migrates deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
   if(sourceVersion===SAVE_VERSION){migrateSkillProvenance(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
