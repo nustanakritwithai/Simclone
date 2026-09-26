@@ -6,7 +6,7 @@ feature: IC6B Adult Cohabitation
 status: active
 canonical: true
 owner: Project Brain
-validation: preparation-candidate
+validation: implementation-candidate
 last_reviewed: 2026-09-26
 ---
 
@@ -62,20 +62,25 @@ Tie break: lowest ownerId.
 
 No Math.random / Date / LLM.
 
-## IC6B preparation scope
+## IC6B implementation scope
 
-This preparation slice is read-only:
+The pure planner remains read-only:
 - `cohabitationCandidates(world, subject)`
 - `cohabitationCandidate(world, subject)`
 
-It does not yet:
-- move a resident;
-- persist residence;
-- share inventory/materials;
-- transfer ownership;
-- stop a personal-home build already underway.
+The residency authority adds:
+- `JOIN_HOUSEHOLD`
+- `LEAVE_HOUSEHOLD`
+- bounded residence history in `social.residences`
+- automatic residence close when owner/resident dies
+- shared-home REST/EAT destination
+- personal-home planning pauses while cohabiting and resumes after leave
 
-The execution slice after IC6A SAT will add an explicit authoritative share-home / leave-home transition.
+Residency does **not**:
+- transfer physical house ownership;
+- merge personal inventory/material balances;
+- infer romance/partner status;
+- create a second home ledger.
 
 ## Acceptance
 
@@ -86,6 +91,13 @@ The execution slice after IC6A SAT will add an explicit authoritative share-home
 5. Direct adult parent-child does not auto-cohabit.
 6. Candidate ranking is deterministic.
 7. Planner is read-only.
-8. Save/load of IC6A evidence produces the same candidate.
+8. JOIN persists one active residence and is idempotent.
+9. Switching owner requires explicit LEAVE first.
+10. Household projection includes explicit cohabitants without changing owner.
+11. REST/EAT may use shared home, while food/materials remain personal.
+12. Personal-home goal pauses while cohabiting and resumes after leave.
+13. Owner death closes hosted residence links.
+14. Save/load preserves residence; IC6-social-1 migrates to v2 with empty residence history.
+15. Existing IC1–IC6A regressions remain SAT.
 
 UNKNOWN is never PASS.
