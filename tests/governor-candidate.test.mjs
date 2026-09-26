@@ -15,14 +15,23 @@ import {
 } from '../src/governor-candidate.mjs';
 
 function completedHouse(state,id,ownerId,x,y){
-  state.rustStations.stations.push(
-    {id,kind:'WOOD_FOUNDATION',x,y,placedBy:ownerId,socket:{type:'cell',x,y,level:0}},
-    {id:id+1,kind:'WOOD_WALL',x,y,socket:canonicalEdge(x,y,'N')},
-    {id:id+2,kind:'WOOD_WALL',x,y,socket:canonicalEdge(x,y,'E')},
-    {id:id+3,kind:'WOOD_WALL',x,y,socket:canonicalEdge(x,y,'S')},
-    {id:id+4,kind:'WOOD_DOORWAY',x,y,socket:canonicalEdge(x,y,'W')},
-    {id:id+5,kind:'WOOD_ROOF',x,y,socket:{type:'cell',x,y,level:2}}
-  );
+  const specs=[
+    ['WOOD_FOUNDATION',{type:'cell',x,y,level:0}],
+    ['WOOD_WALL',canonicalEdge(x,y,'N')],
+    ['WOOD_WALL',canonicalEdge(x,y,'E')],
+    ['WOOD_WALL',canonicalEdge(x,y,'S')],
+    ['WOOD_DOORWAY',canonicalEdge(x,y,'W')],
+    ['WOOD_ROOF',{type:'cell',x,y,level:2}]
+  ];
+  for(let i=0;i<specs.length;i++){
+    const [kind,socket]=specs[i],stationId=id+i,itemInstanceId=100000+stationId,placementId='gov1:'+stationId;
+    state.rustStations.stations.push({
+      id:stationId,kind,x,y,complete:true,placedBy:ownerId,placedTick:0,structurePiece:true,
+      socket,sourceItemId:itemInstanceId,placementId
+    });
+    state.rustStations.placements.push({id:placementId,tick:0,stationId,itemInstanceId});
+  }
+  state.rustStations.nextStation=Math.max(state.rustStations.nextStation,id+6);
   const houseId='H'+id;
   const activated=activateHouseholdStore(state,houseId,ownerId);
   assert.equal(activated.ok,true);
