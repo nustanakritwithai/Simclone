@@ -4,7 +4,7 @@ import { assertVectors } from "../src/khet/vectors.mjs";
 import { damageOf } from "../src/khet/formula.mjs";
 import { typeMultiplier } from "../src/khet/content.mjs";
 import { createCharacter, buySkill, addExp, forgeGear, statsOf, rest, pointsLeft } from "../src/khet/character.mjs";
-import { startFight, playerStrike, canEnter, bossReadyAfter } from "../src/khet/combat.mjs";
+import { startFight, playerStrike, canEnter, bossReadyAfter, encounterShadow } from "../src/khet/combat.mjs";
 
 test("เวกเตอร์สูตรตรงแผน", () => {
   assert.doesNotThrow(() => assertVectors());
@@ -151,4 +151,26 @@ test("เลื่อนฐานไม่เติมพลังที่ห�
   extra.enemy.hp = 1;
   hunter = playerStrike(extra, hunter).character;
   assert.equal(hunter.shards, 7);
+});
+
+test("เงาการเจอศัตรูอ่านอย่างเดียว และไม่แต่งมอนสเตอร์", () => {
+  const hero = createCharacter("เงา", "ranger");
+  const before = JSON.stringify(hero);
+  assert.equal(encounterShadow(null), null);
+  assert.throws(() => encounterShadow({ adventurer: hero }), /unknown_zone/);
+  assert.throws(() => encounterShadow({ zone: "nope", adventurer: hero }), /unknown_zone/);
+  const mud = encounterShadow({ zone: "z1", adventurer: hero, monsterId: "MON_002" });
+  assert.deepEqual(mud, { zone: "z1", monsterId: "MON_002", enemyLevel: 1, rank: "normal", allowed: true });
+  assert.equal(JSON.stringify(hero), before);
+  const young = addExp(hero, 3374).character;
+  assert.throws(() => encounterShadow({ zone: "z2", adventurer: young, monsterId: "MON_002" }), /monster_outside_zone/);
+  const blocked = encounterShadow({ zone: "z2", adventurer: young });
+  assert.equal(blocked.allowed, false);
+  assert.equal(blocked.monsterId, null);
+  assert.equal(blocked.rank, "normal");
+  const cave = addExp(createCharacter("ถ้ำ", "ranger"), 46 ** 3).character;
+  const mouth = encounterShadow({ zone: "z4", adventurer: cave, monsterId: "MON_029" });
+  assert.equal(mouth.allowed, true);
+  assert.equal(mouth.rank, "elite");
+  assert.equal(mouth.enemyLevel >= 46, true);
 });
