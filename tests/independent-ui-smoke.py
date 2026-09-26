@@ -67,6 +67,13 @@ try:
         check(f'{width}: six separated people',len({(a['x'],a['y']) for a in first['agents']})==6)
         check(f'{width}: no horizontal overflow',page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'))
         check(f'{width}: individual mode does not advertise a central village','หมู่บ้านต้นกำเนิด' not in page.locator('.settlement').inner_text())
+        if width==1440:
+            select_person(page,1);page.wait_for_timeout(120)
+            fresh_selected=snap(page);personal=next(b for b in fresh_selected['rustMaterials']['personalStores'] if b['ownerId']==1)
+            check('IC6C closeout: homeless selected HUD reads temporary personal account',
+                  int(page.locator('#food').inner_text())==personal['food'] and
+                  int(page.locator('#wood').inner_text())==personal['wood'] and
+                  int(page.locator('#stone').inner_text())==personal['stone'])
         page.screenshot(path=str(OUT/f'fresh-{width}.png'))
         # Actual canvas taps, not calls to a menu-opening test hook.
         target=page.evaluate('''()=>{const s=simclone.snapshot(),box=document.querySelector('#world').getBoundingClientRect(),z=simclone.camera().zoom;for(const n of s.nodes){const p=simclone.screenPoint(n.x,n.y),x=box.x+p.x,y=box.y+p.y-(n.type==='wood'?(n.amount>0?42:5):8)*z;if(x<10||x>innerWidth-10||y<10||y>innerHeight-10||document.elementFromPoint(x,y)?.id!=='world')continue;const hit=simclone.worldObjectTargetAtScreen(x-box.x,y-box.y);if(hit?.type==='resource'&&hit.id===n.id&&s.agents.every(a=>{const q=simclone.screenPoint(a.x,a.y);return Math.hypot(p.x-q.x,(y-box.y)-(q.y-19*z))>40}))return {id:n.id,x,y};}return null;}''')
@@ -126,6 +133,11 @@ try:
             check('IC6B: inspector shows authoritative household and relationship evidence','Trust 4' in social_text and 'Affinity 2' in social_text)
             check('Kingdom leadership: inspector shows skill-backed follower capacity','Leadership' in social_text and 'Lv.1' in social_text and '1/2' in social_text)
             check('IC6C: selected cohabitant resolves to household resource scope','Household' in page.locator('#resource-scope').inner_text())
+            follower_hud=(page.locator('#food').inner_text(),page.locator('#wood').inner_text(),page.locator('#stone').inner_text())
+            select_person(page,3);page.wait_for_timeout(120)
+            owner_hud=(page.locator('#food').inner_text(),page.locator('#wood').inner_text(),page.locator('#stone').inner_text())
+            check('IC6C closeout: owner and follower HUD read the same Household resource account',follower_hud==owner_hud)
+            select_person(page,2);page.wait_for_timeout(120)
             check('IC6B: cohabiting status is visible in personal home summary','อยู่ร่วมบ้าน' in page.locator('#personal-home-summary').inner_text())
             page.locator('[data-leave-household="2"]').click()
             page.wait_for_function('()=>!simclone.snapshot().social.residences.some(r=>r.agentId===2&&r.leftTick===null)')
