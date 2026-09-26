@@ -63,6 +63,7 @@ function cachedEcologyPotentials(state){
   }
   const ecology=createResourceEcologyShadow(state);
   const potentials=Object.freeze({
+    width:ecology.width,
     food:Object.freeze(ecology.cells.map(c=>c.vegetationRegenerationPotential)),
     wood:Object.freeze(ecology.cells.map(c=>c.woodYieldPotential))
   });
@@ -126,7 +127,7 @@ export function applyWorldResourceRegeneration(state,options={}){
   if(foodDue){
     for(const node of state.nodes)if(node.type==='food'){
       const before=node.amount;
-      const potential=potentials?.food[node.y*MAP_SIZE.w+node.x]??0;
+      const potential=potentials?.food[node.y*potentials.width+node.x]??0;
       const baseIncrement=foodMode==='legacy'
         ? RESOURCE_REGEN_AUTHORITY.food.amount
         : foodEcologyIncrement(potential);
@@ -142,7 +143,7 @@ export function applyWorldResourceRegeneration(state,options={}){
   if(woodDue){
     for(const node of state.nodes)if(node.type==='wood'){
       const before=node.amount;
-      const potential=potentials?.wood[node.y*MAP_SIZE.w+node.x]??0;
+      const potential=potentials?.wood[node.y*potentials.width+node.x]??0;
       const baseIncrement=woodMode==='legacy'
         ? RESOURCE_REGEN_AUTHORITY.wood.amount
         : woodEcologyIncrement(potential);
