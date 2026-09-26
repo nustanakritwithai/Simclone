@@ -2,7 +2,6 @@
  * Groups high-suitability WorldSim cells into deterministic cardinally
  * contiguous Food/Wood/Stone zones. It does not place, move or mutate nodes.
  */
-import {MAP_SIZE} from './worldsim-map.mjs?v=0.5.0';
 import {createResourceEcologyShadow} from './worldsim-resource-shadow.mjs?v=0.5.0';
 import {RESOURCE_REGEN_AUTHORITY} from './worldsim-resource-authority.mjs?v=0.5.0';
 
@@ -17,7 +16,7 @@ export const RESOURCE_ZONE_POLICY=Object.freeze({
 
 const clamp=n=>Math.max(0,Math.min(1,n));
 const round4=n=>+n.toFixed(4);
-const cellIndex=(x,y)=>y*MAP_SIZE.w+x;
+const cellIndex=(x,y,width)=>y*width+x;
 
 function discreteQuantile(values,q){
   if(!values.length)return 0;
@@ -27,7 +26,7 @@ function discreteQuantile(values,q){
 
 export function resourceZoneThreshold(shadow,type){
   if(!RESOURCE_ZONE_TYPES.includes(type))throw new Error('Invalid resource zone type');
-  if(!shadow||!Array.isArray(shadow.cells)||shadow.cells.length!==MAP_SIZE.w*MAP_SIZE.h)
+  if(!shadow||!Number.isInteger(shadow.width)||!Number.isInteger(shadow.height)||!Array.isArray(shadow.cells)||shadow.cells.length!==shadow.width*shadow.height)
     throw new Error('Invalid resource ecology shadow');
   const values=shadow.cells.map(c=>c?.suitability?.[type]).filter(v=>typeof v==='number'&&Number.isFinite(v)&&v>0);
   if(!values.length)return 1;
@@ -35,16 +34,17 @@ export function resourceZoneThreshold(shadow,type){
   return round4(Math.min(max,Math.max(RESOURCE_ZONE_POLICY.absoluteFloor[type],discreteQuantile(values,RESOURCE_ZONE_POLICY.relativeQuantile))));
 }
 
-function cardinal(index){
-  const x=index%MAP_SIZE.w,y=Math.floor(index/MAP_SIZE.w),out=[];
-  if(y>0)out.push(index-MAP_SIZE.w);
+function cardinal(index,width,height){
+  const x=index%width,y=Math.floor(index/width),out=[];
+  if(y>0)out.push(index-width);
   if(x>0)out.push(index-1);
-  if(x<MAP_SIZE.w-1)out.push(index+1);
-  if(y<MAP_SIZE.h-1)out.push(index+MAP_SIZE.w);
+  if(x<width-1)out.push(index+1);
+  if(y<height-1)out.push(index+width);
   return out;
 }
 
 function componentsFor(shadow,type,threshold){
+  const {width,height}=shadow;
   const eligible=new Set(shadow.cells.filter(c=>(c?.suitability?.[type]??0)>0&&(c?.suitability?.[type]??0)>=threshold).map(c=>c.index));
   const visited=new Set(),components=[];
   for(const start of [...eligible].sort((a,b)=>a-b)){
@@ -52,7 +52,7 @@ function componentsFor(shadow,type,threshold){
     const queue=[start],indices=[];visited.add(start);
     for(let q=0;q<queue.length;q++){
       const index=queue[q];indices.push(index);
-      for(const n of cardinal(index))if(eligible.has(n)&&!visited.has(n)){visited.add(n);queue.push(n);}
+      for(const n of cardinal(index,width,height))if(eligible.has(n)&&!visited.has(n)){visited.add(n);queue.push(n);}
     }
     indices.sort((a,b)=>a-b);
     if(indices.length>=RESOURCE_ZONE_POLICY.minCells)components.push(indices);
@@ -61,10 +61,11 @@ function componentsFor(shadow,type,threshold){
 }
 
 function zoneFromComponent(state,shadow,type,threshold,indices){
+  const width=shadow.width;
   const set=new Set(indices),cells=indices.map(i=>shadow.cells[i]),scores=cells.map(c=>c.suitability[type]);
   let sx=0,sy=0;
   for(const c of cells){sx+=c.x;sy+=c.y;}
-  const nodeRows=(state.nodes??[]).filter(n=>n.type===type&&set.has(cellIndex(n.x,n.y))).sort((a,b)=>a.id-b.id);
+  const nodeRows=(state.nodes??[]).filter(n=>n.type===type&&set.has(cellIndex(n.x,n.y,width))).sort((a,b)=>a.id-b.id);
   const totalAmount=nodeRows.reduce((s,n)=>s+n.amount,0),totalCapacity=nodeRows.reduce((s,n)=>s+n.max,0);
   const averagePressure=nodeRows.length
     ? nodeRows.reduce((s,n)=>s+(n.max>0?clamp(1-n.amount/n.max):0),0)/nodeRows.length
@@ -111,7 +112,7 @@ export function createResourceZonesShadow(state,shadow=createResourceEcologyShad
     zones.push(...typeZones);
   }
   return Object.freeze({
-    version:RESOURCE_ZONE_SHADOW_VERSION,
+    version:RESOURCE_ZONE_SHADOW_VERSION,width:shadow.width,height:shadow.height,
     authority:Object.freeze({
       mode:'shadow-only',
       ecology:shadow.version,
@@ -128,7 +129,7 @@ export function createResourceZonesShadow(state,shadow=createResourceEcologyShad
 
 export function resourceZoneAt(projection,type,x,y){
   if(!projection||!RESOURCE_ZONE_TYPES.includes(type)||!Number.isInteger(x)||!Number.isInteger(y)||
-    x<0||y<0||x>=MAP_SIZE.w||y>=MAP_SIZE.h)return null;
-  const index=cellIndex(x,y);
+    x<0||y<0||x>=projection.width||y>=projection.height)return null;
+  const index=cellIndex(x,y,projection.width);
   return projection.zones.find(z=>z.type===type&&z.cellIndices.includes(index))??null;
 }
