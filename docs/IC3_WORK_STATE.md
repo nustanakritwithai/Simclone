@@ -26,8 +26,12 @@ Canonical rules: [IC3 contract](IC3_INDEPENDENT_START_SUCCESS_CONTRACT.md).
 - Untouched seed230926, 120 years: 20 living, generation6, 32 complete homes, 26 descendant homes. All initial six founders housed by year3. Original died of age84 at tick23760. Save/load and 600-tick single/batch continuation matched.
 - Full legacy observation-browser gate remains required on the exact candidate. Do not infer its completion from independent UI results.
 
+## Current candidate repair
+
+PR #88 run #36202368404 passed the IC2/IC3 unit and offline independent browser scopes, but the native HTTP/storage smoke timed out while restoring the earned six-home fixture. Runtime audit identified a test-harness defect: the test wrote the fixture to localStorage and then reloaded, while the game correctly saves the current world on `pagehide`, overwriting that fixture before reload. The native harness now stages the fixture in sessionStorage and injects it into localStorage at document init before app modules execute. This preserves the real pagehide autosave contract rather than disabling it.
+
 ## Remaining release gate
 
-Publish one atomic non-forced update to PR88; obtain and send its CI run URL once. Do not wait/poll. Repair only after a user-provided result or explicit check request. Do not merge/release a queued/running/failed candidate. After exact candidate success, merge and hand off the exact-main Pages run in the same way.
+Run exact candidate CI on the repaired native harness. Do not wait/poll in chat. Do not merge/release a queued/running/failed candidate. After exact candidate success, merge and hand off the exact-main Pages run in the same way.
 
 Deferred: automatic inheritance/transfer of dead owners' raw materials; relationship-driven households/cooperation/trade/neighborhoods; unlimited terrain/history; physical Android and GPU performance.
