@@ -1,7 +1,7 @@
 import {isIndependent,materialStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
 import {INDEPENDENT_SAVE_VERSION,addPersonalStore,validateIndependentWorld} from './individual-resources.mjs?v=0.5.0';
 import {initializeIndependentStart,independentSpawn} from './independent-start.mjs?v=0.5.0';
-import {survivalHome} from './individual-housing.mjs?v=0.5.0';
+import {survivalHome,homeOf} from './individual-housing.mjs?v=0.5.0';
 import {cultureCommand,stepCulture,validateCulture} from './cultural-archive.mjs?v=0.5.0';
 import {setPlanningPolicy,personalResourceCandidates,personalExplorationTarget,rememberPlanSelection,finishPersonalExploration,recordPlanProduction,validatePersonalPlanning} from './personal-planning.mjs?v=0.5.0';
 import {verifyResourceKnowledge,ageKnowledge} from './knowledge-revision.mjs?v=0.5.0';
@@ -22,7 +22,8 @@ import {pendingPersonalPlacements} from './individual-housing.mjs?v=0.5.0';
 import {placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {ensureProductionPlan,productionCommand,stepProductionPlanning,validateProductionPlan} from './production-planning.mjs?v=0.5.0';
 import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsForAgent,validateMentorship} from './mentor-teaching.mjs?v=0.5.0';
-import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,validateSocialState} from './relationships.mjs?v=0.5.0';
+import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,activeResidenceOf,validateSocialState} from './relationships.mjs?v=0.5.0';
+import {householdResidenceCommand,endResidencesForAgent} from './household-residence.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -80,7 +81,7 @@ function killAgent(s,a,cause){
   if(!a.alive)return false;
   const deathAge=ageYearsAtTick(s,a,s.tick);
   a.death={status:'recorded',tick:s.tick,cause,ageYears:deathAge};
-  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');
+  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
   const text=cause==='age'
     ?a.name+' เสียชีวิตตามวัยเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี'
     :a.name+' เสียชีวิตจากการขาดอาหารเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี';
@@ -119,6 +120,7 @@ export const previewPlacement = (s,data) => placementPreview(s,data,walkable);
 export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){
+  const residence=householdResidenceCommand(s,type,data);if(residence){if(residence.ok&&residence.changed)event(s,'household',residence.message,residence.agentId??null);return residence;}
   const mentorship=mentorshipCommand(s,type,data);if(mentorship){
     if(mentorship.ok&&mentorship.changed){
       event(s,'mentor',mentorship.message,mentorship.mentorId??null);
@@ -200,11 +202,14 @@ export function command(s,type,data={}){
 function candidates(s,a,book,field){
   ensureProfession(a,s.tick);
   const independent=isIndependent(s),stock=materialStock(s,a),meal=foodStock(s,a),guardian=independent?guardianOf(s,a):null;
+  const residence=independent&&!guardian?activeResidenceOf(s,a.id):null;
+  const residenceHouse=residence?homeOf(s,residence.ownerId,{completeOnly:true}):null;
   const out=[],targets=stockTargets(s,a),projected=plannedStock(s,book,a),freeFood=meal.food-reservedMealsFor(s,mealOwnerId(s,a),book.meals);
   const productive=canPerformProductiveWork(s,a);
   const compare=(x,y)=>routeDistance(field,x)-routeDistance(field,y)||x.id-y.id;
   const homes=s.buildings.filter(b=>b.complete&&routeDistance(field,b)>=0).sort(compare),unfinished=unfinishedHousing(s);
-  const home=independent?survivalHome(s,a):homes[0];
+  const sharedHome=residenceHouse?.origin?{id:residenceHouse.houseId,houseId:residenceHouse.houseId,ownerId:residenceHouse.ownerId,x:residenceHouse.origin.x,y:residenceHouse.origin.y}:null;
+  const home=independent?(sharedHome??survivalHome(s,a)):homes[0];
   function add(kind,target,base,need=0,goal=0,status='candidate',extra={}){
     const travel=routeDistance(field,target),skillKind=extra.purposeKind??kind,skill=SKILLS.includes(skillKind)?level(a.skills[skillKind])*3:0;
     const laborMarket=Number(extra.laborAuthority?.bonus??0);
