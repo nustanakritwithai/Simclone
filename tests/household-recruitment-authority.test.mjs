@@ -6,6 +6,7 @@ import {personalHomeSite,homeOf} from '../src/individual-housing.mjs';
 import {materialStock,resourceStock} from '../src/individual-resources.mjs';
 import {recordRelationshipEvidence,relationshipOf,activeResidenceOf} from '../src/relationships.mjs';
 import {householdRecruitmentOffers} from '../src/kingdom-household-organization.mjs';
+import {kingdomLaborMarketSnapshot} from '../src/kingdom-labor-market.mjs';
 import {recruitmentDecision,stepHouseholdRecruitment} from '../src/household-recruitment-authority.mjs';
 import {RULES} from '../src/survival.mjs';
 
@@ -63,6 +64,31 @@ test('IC7A food scarcity emits a relationship-backed forager recruitment offer',
   assert.equal(d.accepted,true);
 });
 
+test('IC7A high or critical need can recruit a relationship-backed off-preference candidate',()=>{
+  const {s,candidate}=foodPoorHouse();
+  candidate.preference='WOODCUT';
+  const d=recruitmentDecision(s,candidate);
+  assert.equal(d.role,'forager');
+  assert.ok(['high','critical'].includes(d.urgency));
+  assert.equal(d.preferenceMatch,false);
+  assert.equal(d.accepted,true);
+});
+
+test('IC7A K4 labor pressure exposes all required household recruitment roles',()=>{
+  const economy={
+    scarcity:{food:2,wood:2,stone:2},
+    premium:{forager:1,woodcutter:1,miner:1,builder:1}
+  };
+  const production={roles:{
+    forager:{workers:0,ideal:8,laborGap:8},
+    woodcutter:{workers:0,ideal:6,laborGap:6},
+    miner:{workers:0,ideal:6,laborGap:6},
+    builder:{workers:0,ideal:5,laborGap:5}
+  }};
+  const roles=kingdomLaborMarketSnapshot({economy,production}).offers.map(o=>o.role).sort();
+  assert.deepEqual(roles,['builder','forager','miner','woodcutter']);
+});
+
 test('IC7A stranger proximity alone never produces an autonomous recruitment decision',()=>{
   const {s,owner,home}=foodPoorHouse(),stranger=s.agents[3];
   stranger.x=home.origin.x;stranger.y=home.origin.y;
@@ -71,16 +97,21 @@ test('IC7A stranger proximity alone never produces an autonomous recruitment dec
   assert.equal(owner.alive,true);
 });
 
-test('IC7A cycle executes at most one deterministic JOIN and records recruitment role',()=>{
+test('IC7A cycle executes at most one JOIN and frozen ranking prefers stronger relationship over work preference',()=>{
   const {s,owner,candidate}=foodPoorHouse(),other=s.agents[1];
+  // Give the leader two available slots so both relationship-backed candidates appear in the offer.
+  owner.skills.LEADERSHIP=10;
   qualify(s,other,owner,'other-recruit');
+  candidate.preference='WOODCUT';
+  other.preference='FORAGE';
+  assert.equal(recordRelationshipEvidence(s,{fromId:candidate.id,toId:owner.id,kind:'test',key:'ranking:respect',delta:{respect:2}}).ok,true);
   s.tick=60;
   const beforeCandidate={...materialStock(s,candidate)};
   const r=stepHouseholdRecruitment(s);
   assert.equal(r.ok,true);assert.equal(r.changed,true);
   const active=s.social.residences.filter(x=>x.leftTick===null&&x.ownerId===owner.id);
-  assert.equal(active.length,1);
-  assert.equal(active[0].agentId,candidate.id,'matching FORAGE preference wins deterministic willingness');
+  assert.equal(active.length,1,'max one autonomous JOIN per recruitment cycle');
+  assert.equal(active[0].agentId,candidate.id,'relationship score outranks preference match after urgency and offer priority');
   assert.equal(active[0].joinReason,'recruitment:forager');
   assert.equal(materialStock(s,candidate).food,0);
   assert.ok(resourceStock(s,owner).food>=beforeCandidate.food);
