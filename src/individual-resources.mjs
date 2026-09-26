@@ -116,6 +116,15 @@ export function materialTotals(s,{livingOnly=false}={}){
  return out;
 }
 export function personalTargets(s,a){
+ const account=resourceAccount(s,a);
+ if(account.kind==='household'){
+  const members=s.agents.filter(x=>x.alive&&resourceAccount(s,x).houseId===account.houseId).length;
+  return {
+   food:canPerformProductiveWork(s,a)?Math.max(40,16+members*8):0,
+   wood:24+Math.max(0,members-1)*4,
+   stone:12+Math.max(0,members-1)*2
+  };
+ }
  const children=s.agents.filter(c=>guardianOf(s,c)?.id===a.id).length;
  return {food:canPerformProductiveWork(s,a)?Math.max(40,16+children*8):0,wood:24,stone:12};
 }
