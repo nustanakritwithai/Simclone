@@ -39,6 +39,7 @@ export const RESOURCE_REGEN_AUTHORITY=Object.freeze({
   foodPolicy:FOOD_ECOLOGY_POLICY,
   wood:K6_RESOURCE_REGEN.wood,
   woodPolicy:WOOD_ECOLOGY_POLICY,
+  harvestPressurePolicy:HARVEST_PRESSURE_POLICY,
   stone:K6_RESOURCE_REGEN.stone
 });
 
