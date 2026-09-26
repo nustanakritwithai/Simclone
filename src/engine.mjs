@@ -1,7 +1,7 @@
-import {isIndependent,materialStock,resourceStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,materialStock,resourceStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf,ensureHouseholdResourceState,activateHouseholdStore,joinHouseholdResources} from './individual-resources.mjs?v=0.5.0';
 import {INDEPENDENT_SAVE_VERSION,addPersonalStore,validateIndependentWorld} from './individual-resources.mjs?v=0.5.0';
 import {initializeIndependentStart,independentSpawn} from './independent-start.mjs?v=0.5.0';
-import {survivalHome,homeOf} from './individual-housing.mjs?v=0.5.0';
+import {survivalHome,homeOf,individualHouses} from './individual-housing.mjs?v=0.5.0';
 import {cultureCommand,stepCulture,validateCulture} from './cultural-archive.mjs?v=0.5.0';
 import {setPlanningPolicy,personalResourceCandidates,personalExplorationTarget,rememberPlanSelection,finishPersonalExploration,recordPlanProduction,validatePersonalPlanning} from './personal-planning.mjs?v=0.5.0';
 import {verifyResourceKnowledge,ageKnowledge} from './knowledge-revision.mjs?v=0.5.0';
@@ -98,7 +98,7 @@ export function createWorld(seed=230926,options={}){
   if(!Number.isInteger(population)||population<1||population>6)throw new Error('Starting population must be 1..6');
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
-  ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);
+  ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);ensureHouseholdResourceState(s);
   let nid=1;
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
     const river=20+Math.round(Math.sin(y*.26)*2), wet=x>=river&&x<river+3;
@@ -521,6 +521,20 @@ function migrateSkillProvenance(s){
   }
   return s;
 }
+function syncHouseholdResources(s){
+  if(!isIndependent(s))return s;
+  ensureHouseholdResourceState(s);
+  for(const h of individualHouses(s).filter(h=>h.complete&&Number.isSafeInteger(h.ownerId))){
+    const r=activateHouseholdStore(s,h.houseId,h.ownerId);
+    if(!r.ok)throw new Error('Household resource migration failed');
+  }
+  for(const r of s.social?.residences??[]){
+    if(r.leftTick!==null)continue;
+    const moved=joinHouseholdResources(s,r.agentId,r.houseId);
+    if(!moved.ok)throw new Error('Household resident resource migration failed');
+  }
+  return s;
+}
 function migrateKnowledge(s){
   for(const a of allPeople(s))if(!a.knowledgeState)a.knowledgeState=createKnowledgeState();
   return s;
@@ -528,9 +542,9 @@ function migrateKnowledge(s){
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
-  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);return s;} // additive social skill defaults to zero; never guesses historical leadership.
+  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);return s;} // additive social skill defaults to zero; household balances migrate deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
-  if(sourceVersion===SAVE_VERSION){migrateSkillProvenance(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);return s;}
+  if(sourceVersion===SAVE_VERSION){migrateSkillProvenance(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);syncHouseholdResources(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
     migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);s.version=SAVE_VERSION;return s;
