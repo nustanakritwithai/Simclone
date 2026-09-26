@@ -132,8 +132,9 @@ test('GOV2 appoints deterministic top candidate without changing profession or S
 });
 
 test('GOV5 support loss keeps one full governance-cycle grace then vacates',()=>{
-  const {s,owners,governor}=governanceWorld(4);
+  const {s,owners,governor,successor}=governanceWorld(4);
   loseSupportTo(s,governor.id,owners.map(x=>x.id));
+  loseSupportTo(s,successor.id,owners.map(x=>x.id));
   s.tick=720;
   stepGovernanceAuthority(s,{force:true});
   assert.equal(governanceOffice(s,'S1').status,'active','first missed qualification cycle is grace');
@@ -148,6 +149,7 @@ test('GOV5 support loss keeps one full governance-cycle grace then vacates',()=>
 test('GOV5 Governor death vacates immediately and appoints next valid candidate without ownership transfer',()=>{
   const {s,owners,governor,successor}=governanceWorld(5);
   const ownerIds=s.settlementState.records.map(r=>r.anchorOwnerId);
+  const ownerProfessions=owners.map(x=>x.profession),successorProfession=successor.profession;
   governor.alive=false;governor.hp=0;governor.task=null;governor.moveTick=0;
   governor.death={status:'recorded',tick:s.tick,cause:'age',ageYears:30};
   const residence=s.social.residences.find(r=>r.agentId===governor.id&&r.leftTick===null);
@@ -161,7 +163,8 @@ test('GOV5 Governor death vacates immediately and appoints next valid candidate 
   assert.equal(o.governorId,successor.id);
   assert.equal(o.history.at(-1).governorId,governor.id);
   assert.deepEqual(s.settlementState.records.map(x=>x.anchorOwnerId),ownerIds);
-  assert.deepEqual(owners.map(x=>x.profession),owners.map(x=>x.profession));
+  assert.deepEqual(owners.map(x=>x.profession),ownerProfessions);
+  assert.equal(successor.profession,successorProfession);
 });
 
 test('GOV3 broad food shortage creates one bounded Food Security policy',()=>{
