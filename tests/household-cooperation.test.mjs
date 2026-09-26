@@ -82,7 +82,7 @@ test('IC7B signal is read-only and absent outside productive Independent househo
   assert.equal(householdCooperationSignal(s,worker,'FORAGE',{emergency:true}).bonus,0);
   assert.equal(serialize(s),before,'signal must not mutate state');
 
-  const homeless=s.agents[2];
+  const homeless=s.agents[1]; // outside the owner/worker household and has no complete home
   assert.equal(householdCooperationSignal(s,homeless,'FORAGE').reason,'no-household');
   assert.equal(householdCooperationSignal(s,homeless,'FORAGE').bonus,0);
 
