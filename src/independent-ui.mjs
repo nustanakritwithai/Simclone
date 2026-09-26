@@ -2,6 +2,8 @@
 import {isIndependent,materialStock,materialTotals,guardianOf} from './individual-resources.mjs?v=0.5.0';
 import {individualHouses,homeOf,survivalHome} from './individual-housing.mjs?v=0.5.0';
 import {personalHomeIntent} from './individual-home-planning.mjs?v=0.5.0';
+import {householdOf,householdForOwner,activeResidenceOf,relationshipOf} from './relationships.mjs?v=0.5.0';
+import {cohabitationCandidate} from './cohabitation.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {walkable} from './survival.mjs?v=0.5.0';
 import {edgeCells} from './rust-stations.mjs?v=0.5.0';
@@ -10,7 +12,7 @@ export function installIndependentUI(api){
  const $=id=>document.getElementById(id);
  const card=document.createElement('div');card.id='personal-home-summary';card.className='personal-home-summary';
  $('inspector').append(card);
- const labels={INELIGIBLE:'ยังไม่ถึงวัยสร้างบ้าน',HOME_COMPLETE:'บ้านเสร็จแล้ว',NO_SITE:'กำลังหาพื้นที่',NEED_HAMMER:'เตรียมโต๊ะและค้อนส่วนตัว',EQUIP_HAMMER:'กำลังสวมค้อน',NEED_MATERIALS:'หาไม้และหินส่วนตัว',CRAFT_PIECE:'คราฟต์ชิ้นส่วนบ้าน',PLACE_PIECE:'นำชิ้นส่วนไปก่อสร้าง'};
+ const labels={INELIGIBLE:'ยังไม่ถึงวัยสร้างบ้าน',COHABITING:'อยู่ร่วม household · หยุดสร้างบ้านตัวเองชั่วคราว',HOME_COMPLETE:'บ้านเสร็จแล้ว',NO_SITE:'กำลังหาพื้นที่',NEED_HAMMER:'เตรียมโต๊ะและค้อนส่วนตัว',EQUIP_HAMMER:'กำลังสวมค้อน',NEED_MATERIALS:'หาไม้และหินส่วนตัว',CRAFT_PIECE:'คราฟต์ชิ้นส่วนบ้าน',PLACE_PIECE:'นำชิ้นส่วนไปก่อสร้าง'};
  const button=(id,name)=>'<button class="secondary" data-person="'+id+'">'+esc(name)+'</button>';
  function update(){
   const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected),on=isIndependent(s);
@@ -41,16 +43,26 @@ export function installIndependentUI(api){
   }
   if(!on||!a)return;
   const stock=materialStock(s,a),h=homeOf(s,a.id),guardian=guardianOf(s,a),intent=personalHomeIntent(s,a,walkable);
-  const html='<div><b>⌂ '+(h?(h.complete?'บ้านของ '+esc(a.name):'กำลังสร้าง '+esc(h.houseId)):(guardian?'พักกับ '+esc(guardian.name):'ยังไม่มีบ้านส่วนตัว'))+'</b>'+(h?'<button class="secondary" data-own-home="'+a.id+'">ดูบ้าน</button>':'')+'</div><small>'+esc(labels[intent.kind]??intent.kind)+'</small><div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
+  const residence=activeResidenceOf(s,a.id),household=householdOf(s,a.id),candidate=residence?null:cohabitationCandidate(s,a);
+  const householdOwner=household?[...s.agents,...s.archive].find(p=>p.id===household.ownerId):null;
+  const relation=householdOwner&&householdOwner.id!==a.id?relationshipOf(s,a.id,householdOwner.id):null;
+  const homeLabel=residence&&householdOwner?'อยู่ร่วมบ้านของ '+esc(householdOwner.name):h?(h.complete?'บ้านของ '+esc(a.name):'กำลังสร้าง '+esc(h.houseId)):(guardian?'พักกับ '+esc(guardian.name):'ยังไม่มีบ้านส่วนตัว');
+  const homeAction=residence?'<button class="secondary" data-leave-household="'+a.id+'">ออกจาก household</button>':h?'<button class="secondary" data-own-home="'+a.id+'">ดูบ้าน</button>':candidate?'<button class="secondary" data-join-household="'+candidate.ownerId+'">ขออยู่ร่วมบ้าน</button>':'';
+  const members=household?household.residentIds.map(id=>[...s.agents,...s.archive].find(p=>p.id===id)?.name??('#'+id)).join(', '):'';
+  const social=household?'<div class="household-summary" data-household-owner="'+household.ownerId+'"><small>Household · '+esc(householdOwner?.name??'#'+household.ownerId)+'</small><span>'+esc(members)+'</span>'+(relation?'<span>Trust <b>'+relation.trust+'</b> · Affinity <b>'+relation.affinity+'</b> · Respect <b>'+relation.respect+'</b></span>':'')+'</div>':'';
+  const html='<div><b>⌂ '+homeLabel+'</b>'+homeAction+'</div><small>'+esc(labels[intent.kind]??intent.kind)+'</small>'+social+'<div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
   if(card.innerHTML!==html)card.innerHTML=html;
  }
  function openHome(h){
   const s=api.read().state,owner=[...s.agents,...s.archive].find(a=>a.id===h.ownerId),actor=s.agents.find(a=>a.id===api.read().selected&&a.alive),stock=materialStock(s,h.ownerId);
-  const data={agentId:actor?.id??null,houseId:h.houseId},preview=api.preview('CREATE_ARCHIVE',data);
+  const data={agentId:actor?.id??null,houseId:h.houseId},preview=api.preview('CREATE_ARCHIVE',data),household=householdForOwner(s,h.ownerId);
+  const currentResidence=actor?activeResidenceOf(s,actor.id):null,joinPreview=actor&&actor.id!==h.ownerId?api.preview('JOIN_HOUSEHOLD',{agentId:actor.id,ownerId:h.ownerId}):null;
+  const residents=(household?.residentIds??[h.ownerId]).map(id=>[...s.agents,...s.archive].find(p=>p.id===id)?.name??('#'+id)).join(', ');
+  const residenceAction=currentResidence?.ownerId===h.ownerId?'<button class="secondary" data-leave-household="'+actor.id+'">ออกจาก household</button>':joinPreview?.ok?'<button class="primary" data-join-household="'+h.ownerId+'">อยู่ร่วมบ้านนี้</button>':'';
   const ownArchive=s.culture?.houseId===h.houseId;
   api.openDialog('บ้านของ '+(owner?.name??'ไม่ทราบเจ้าของ'),'PERSONAL HOME · '+h.houseId,
    '<section class="personal-house-detail" data-house="'+esc(h.houseId)+'" data-owner="'+(h.ownerId??'unknown')+'"><div class="personal-house-hero">⌂</div><h3>'+esc(h.complete?'สร้างเสร็จแล้ว':'กำลังก่อสร้าง · ขาด '+h.missing.length+' ชิ้น')+'</h3><p>เจ้าของ: '+esc(owner?.name??'UNKNOWN')+' · '+h.origin.x+', '+h.origin.y+'</p>'+
-   (owner?button(owner.id,'เลือก '+owner.name):'')+'<p>ของเจ้าของบ้าน — อาหาร '+stock.food+' · ไม้ '+stock.wood+' · หิน '+stock.stone+'</p><p class="source-note">เจ้าของมาจากผู้วางฐาน #'+h.originStationId+' ไม่ใช่จำนวนที่พักส่วนกลาง</p>'+
+   (owner?button(owner.id,'เลือก '+owner.name):'')+'<p data-household-residents>Household: '+esc(residents)+'</p>'+residenceAction+'<p>ของเจ้าของบ้าน — อาหาร '+stock.food+' · ไม้ '+stock.wood+' · หิน '+stock.stone+'</p><p class="source-note">เจ้าของมาจากผู้วางฐาน #'+h.originStationId+' · การอยู่ร่วมบ้านไม่โอน ownership หรือทรัพยากร</p>'+
    (ownArchive?'<p>คลังความรู้สาธารณะอยู่ที่บ้านนี้ · '+s.culture.entries.length+' เรื่อง</p><button class="secondary" data-home-archive="'+esc(h.houseId)+'">อ่านคลังความรู้</button>':h.complete&&!s.culture?'<button class="primary" data-create-home-archive="'+esc(h.houseId)+'" '+(preview.ok?'':'disabled')+'>เปิดคลังความรู้ที่บ้าน</button><p class="source-note">'+esc(preview.ok?'ใช้ไม้ส่วนตัว 6 และหิน 2':preview.message)+'</p>':'')+'</section>');
   $('dialog').dataset.kind='personal-home';
  }
@@ -74,11 +86,15 @@ export function installIndependentUI(api){
   $('dialog').dataset.kind='home-archive';
  }
  $('inspector').addEventListener('click',e=>{
+  const join=e.target.closest('[data-join-household]');if(join){const r=api.execute('JOIN_HOUSEHOLD',{agentId:api.read().selected,ownerId:Number(join.dataset.joinHousehold)});api.toast(r.message);if(r.ok)api.save();return;}
+  const leave=e.target.closest('[data-leave-household]');if(leave){const r=api.execute('LEAVE_HOUSEHOLD',{agentId:Number(leave.dataset.leaveHousehold)});api.toast(r.message);if(r.ok)api.save();return;}
   const b=e.target.closest('[data-own-home]');if(!b)return;
   const h=homeOf(api.read().state,Number(b.dataset.ownHome));if(h){api.center(h.origin);openHome(h);}
  });
  $('dialog-body').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.joinHousehold){const r=api.execute('JOIN_HOUSEHOLD',{agentId:api.read().selected,ownerId:Number(b.dataset.joinHousehold)});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}return;}
+  if(b.dataset.leaveHousehold){const r=api.execute('LEAVE_HOUSEHOLD',{agentId:Number(b.dataset.leaveHousehold)});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}return;}
   if(b.dataset.createHomeArchive){const r=api.execute('CREATE_ARCHIVE',{agentId:api.read().selected,houseId:b.dataset.createHomeArchive});api.toast(r.message);if(r.ok){api.save();openHome(homeOf(api.read().state,api.read().selected));}}
   if(b.dataset.personalCommand){const r=api.execute(b.dataset.personalCommand,{agentId:api.read().selected,stationId:Number(b.dataset.station),recipeId:b.dataset.recipe});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}}
   if(b.dataset.homeArchive)openArchive();
