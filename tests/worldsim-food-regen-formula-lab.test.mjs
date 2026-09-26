@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {RESOURCE_REGEN_AUTHORITY} from '../src/worldsim-resource-authority.mjs';
 import {createWorld,serialize} from '../src/engine.mjs';
 import {evaluateFoodRegenerationFormula} from '../src/worldsim-food-regen-formula-lab.mjs';
 
@@ -7,7 +8,7 @@ test('formula lab is read-only and preserves current writer metadata',()=>{
   const s=createWorld(230926),before=serialize(s);
   const x=evaluateFoodRegenerationFormula(s,()=>3);
   assert.equal(serialize(s),before);
-  assert.equal(x.authority.writer,'worldsim-wm4.6');
+  assert.equal(x.authority.writer,RESOURCE_REGEN_AUTHORITY.writer);
   assert.equal(x.authority.cadenceTicks,120);
   assert.equal(x.authority.mutatesNodes,false);
 });
