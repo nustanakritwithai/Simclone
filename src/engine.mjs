@@ -26,6 +26,7 @@ import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsFor
 import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,activeResidenceOf,validateSocialState} from './relationships.mjs?v=0.5.0';
 import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './household-residence.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
+import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -106,21 +107,25 @@ export function createWorld(seed=230926,options={}){
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:camp.x,y:camp.y,complete:true,progress:30},{id:2,type:'shelter',x:shelter.x,y:shelter.y,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
   ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);ensureHouseholdResourceState(s);
   let nid=1;
-  const riverBase=scaleLegacyX(bounds,20),riverWave=large?4:2,riverWidth=large?6:3;
+  const riverWidth=large?6:3;
   const bridgeStart=scaleLegacyY(bounds,13),bridgeEnd=scaleLegacyY(bounds,14);
   const roadY=scaleLegacyY(bounds,13),roadX=scaleLegacyX(bounds,11);
   const roadXMin=scaleLegacyX(bounds,6),roadXMax=scaleLegacyX(bounds,27),roadYMin=scaleLegacyY(bounds,7),roadYMax=scaleLegacyY(bounds,18);
   const campMin=scaleLegacyPoint(bounds,7,8),campMax=scaleLegacyPoint(bounds,15,17);
-  const resourceChance=large?.12:.23,woodCut=large?.073:.14,foodCut=large?.099:.19;
   for(let y=0;y<bounds.h;y++)for(let x=0;x<bounds.w;x++){
-    const legacyY=y*(LEGACY_WORLD_BOUNDS.h-1)/Math.max(1,bounds.h-1);
-    const river=riverBase+Math.round(Math.sin(legacyY*.26)*riverWave),wet=x>=river&&x<river+riverWidth;
+    const river=large?regionalRiverCenter(bounds,y):20+Math.round(Math.sin(y*.26)*2),wet=x>=river&&x<river+riverWidth;
     const bridge=wet&&y>=bridgeStart&&y<=bridgeEnd;
     const road=!independent&&((Math.abs(y-roadY)<1&&x>roadXMin&&x<roadXMax)||(Math.abs(x-roadX)<1&&y>roadYMin&&y<roadYMax));
     s.tiles.push(bridge?'bridge':wet?'water':road?'path':'grass');
     const r=rng(s),inCamp=!independent&&x>=campMin.x&&x<=campMax.x&&y>=campMin.y&&y<=campMax.y;
-    if(!wet&&!road&&!inCamp&&r<resourceChance){
-      const type=r<woodCut?'wood':r<foodCut?'food':'stone';
+    if(large){
+      const decision=regionalResourceDecision(s.seed,bounds,x,y,{blocked:wet||road||inCamp});
+      if(decision.spawn){
+        const type=decision.type;
+        s.nodes.push({id:nid++,type,x,y,amount:type==='stone'?70:35,max:type==='stone'?70:35});
+      }
+    }else if(!wet&&!road&&!inCamp&&r<.23){
+      const type=r<.14?'wood':r<.19?'food':'stone';
       s.nodes.push({id:nid++,type,x,y,amount:type==='stone'?70:35,max:type==='stone'?70:35});
     }
   }
