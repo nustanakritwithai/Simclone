@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createWorld,command,serialize,walkable} from '../src/engine.mjs';
+import {createWorld,command,serialize,restore,walkable} from '../src/engine.mjs';
 import {canonicalEdge} from '../src/rust-stations.mjs';
 import {personalHomeSite,homeOf} from '../src/individual-housing.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
@@ -84,7 +84,7 @@ test('Kingdom household organization/recruitment shadow is byte-read-only and de
   const before=serialize(s),a=householdRecruitmentOffers(s,owner.id);
   assert.equal(serialize(s),before);
   const copy=JSON.parse(before);
-  const restored=(await import('../src/engine.mjs')).restore(JSON.stringify(copy));
+  const restored=restore(JSON.stringify(copy));
   const b=householdRecruitmentOffers(restored,owner.id);
   assert.deepEqual(b,a);
 });
