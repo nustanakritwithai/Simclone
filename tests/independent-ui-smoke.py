@@ -35,10 +35,12 @@ def pause(page):
     if page.locator('#pause').inner_text()!='▶':page.locator('#pause').click()
 def boot(page,saved=None):
     if NATIVE:
-        page.goto(url,wait_until='load')
+        # Seed the requested save before app modules execute. Writing localStorage
+        # and then reloading is incorrect here because app.mjs saves the current
+        # world on pagehide and would overwrite the fixture before reload.
         if saved is not None:
-            page.evaluate('(s)=>localStorage.setItem("simclone:world:v1",s)',saved)
-            page.reload(wait_until='load')
+            page.evaluate('(s)=>sessionStorage.setItem("__simclone_test_seed",s)',saved)
+        page.goto(url,wait_until='load')
     else:
         page.goto('about:blank');storage(page,saved);page.set_content(HTML)
     page.wait_for_function('window.simclone && simclone.snapshot().worldMode?.kind === "independent"')
@@ -55,7 +57,10 @@ try:
     browser=p.chromium.launch(executable_path='/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else None,headless=True,args=['--no-sandbox'])
     for width,height in [(w,h) for w,h in [(1440,1000),(390,844),(320,740),(844,390)] if ARGS.width is None or ARGS.width==w]:
         context=browser.new_context(viewport={'width':width,'height':height},is_mobile=width<=700,has_touch=True)
-        page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)));boot(page);pause(page)
+        page=context.new_page()
+        if NATIVE:
+            page.add_init_script("""()=>{const seed=sessionStorage.getItem('__simclone_test_seed');if(seed!==null){localStorage.setItem('simclone:world:v1',seed);sessionStorage.removeItem('__simclone_test_seed');}}""")
+        page.on('pageerror',lambda e:errors.append(str(e)));boot(page);pause(page)
         first=snap(page)
         check(f'{width}: new browser starts independent with no central buildings',first['buildings']==[] and first['stock']=={'food':0,'wood':0,'stone':0})
         check(f'{width}: six separated people',len({(a['x'],a['y']) for a in first['agents']})==6)
