@@ -1,5 +1,5 @@
 import {isIndependent,resourceStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
-import {survivalHome} from './individual-housing.mjs?v=0.5.0';
+import {survivalHome,homeOf} from './individual-housing.mjs?v=0.5.0';
 import {residenceHome} from './household-residence.mjs?v=0.5.0';
 /** Survival 0.2 + Lifecycle 0.3.1: routing/reservations also enforce stage work eligibility. */
 import {canPerformProductiveWork,productiveWorkRate} from './lifecycle.mjs?v=0.5.0';
@@ -68,6 +68,12 @@ export function taskValid(s,a){
     if(!canPerformProductiveWork(s,a))return false;
     const n=s.nodes.find(n=>n.id===t.targetId);
     return !!n&&n.type===RESOURCE_ACTIONS[t.kind]&&n.x===t.x&&n.y===t.y&&n.amount>0&&resourceStock(s,a)[n.type]<RULES.stockLimit;
+  }
+  if(isIndependent(s)&&t.kind==='TRADE_DELIVERY'){
+    if(!canPerformProductiveWork(s,a))return false;
+    const c=s.householdTrade?.contracts?.find(c=>c.id===t.targetId&&c.carrierId===a.id&&c.status==='in-transit'&&c.cargoQuantity>0);
+    const h=c&&homeOf(s,c.destinationOwnerId,{completeOnly:true});
+    return !!c&&!!h?.origin&&h.houseId===c.destinationHouseId&&h.origin.x===t.x&&h.origin.y===t.y;
   }
   if(t.kind==='BUILD'&&t.placement){
     // Modular piece: carrier still holds the item and the socket still passes the shared validator (planning mode).
