@@ -27,6 +27,7 @@ import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,
 import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './household-residence.mjs?v=0.5.0';
 import {stepHouseholdRecruitment} from './household-recruitment-authority.mjs?v=0.5.0';
 import {householdCooperationSignal} from './household-cooperation.mjs?v=0.5.0';
+import {syncExecutablePlan,executablePlanContinuationFactor,reconcileExecutablePlanChoices,acceptExecutablePlanChoice,noteExecutablePlanInterruption,invalidateExecutablePlanTask,abortExecutablePlan,validateExecutablePlans} from './executable-plan.mjs?v=0.5.0';
 import {ensureSettlementState,stepSettlementAuthority,validateSettlementState,allSettlementSnapshots} from './settlement-authority.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
@@ -94,7 +95,7 @@ function killAgent(s,a,cause){
   if(!a.alive)return false;
   const deathAge=ageYearsAtTick(s,a,s.tick);
   a.death={status:'recorded',tick:s.tick,cause,ageYears:deathAge};
-  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
+  abortExecutablePlan(s,a,'death');a.alive=false;a.hp=0;a.task=null;a.moveTick=0;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
   const text=cause==='age'
     ?a.name+' เสียชีวิตตามวัยเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี'
     :a.name+' เสียชีวิตจากการขาดอาหารเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี';
@@ -243,8 +244,9 @@ function candidates(s,a,book,field){
     // Only the optional personal planner bounds this soft cost; execution still
     // pays the full route and hunger/energy interruptions remain authoritative.
     const distanceCost=extra.informationSeeking?Math.min(travel,8):travel;
+    const planContinuation=Number(executablePlanContinuationFactor(s,a,{kind,targetId:target.id??null,purposeKind:extra.purposeKind??null}).bonus??0);
     const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(distanceCost*.7),
-      ...(laborMarket?{laborMarket}: {}),...(householdCooperation?{householdCooperation}: {})};
+      ...(laborMarket?{laborMarket}: {}),...(householdCooperation?{householdCooperation}: {}),...(planContinuation?{planContinuation}: {})};
     out.push({kind,targetId:target.id??null,x:target.x,y:target.y,
       score:Object.values(factors).reduce((sum,v)=>sum+v,0),factors,travelSteps:Math.max(0,travel),
       status:travel<0?'no-path':status,...extra});
@@ -294,7 +296,9 @@ function candidates(s,a,book,field){
   return out.sort((x,y)=>y.score-x.score||(x.kind<y.kind?-1:x.kind>y.kind?1:0)||(x.targetId??0)-(y.targetId??0));
 }
 function decide(s,a,book){
+  syncExecutablePlan(s,a);
   const field=routeField(s,a),choices=candidates(s,a,book,field);
+  reconcileExecutablePlanChoices(s,a,choices);
   a.trace=choices;
   for(const c of choices){
     if(c.status!=='candidate')continue;
@@ -305,6 +309,7 @@ function decide(s,a,book){
       ...(Number.isInteger(c.exploreCursor)?{exploreCursor:c.exploreCursor}:{}),...(c.placement?{placement:{...c.placement,socket:{...c.placement.socket}}}:{})};
     if(!claim(book,s,a)){c.status='reserved';a.task=null;continue;}
     rememberPlanSelection(s,a,c);
+    acceptExecutablePlanChoice(s,a,c);
     const career=adoptProfession(a,c.kind,s.tick);
     if(career.changed&&s.tick-(a.lastCareerEventTick??-999)>=60){event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);a.lastCareerEventTick=s.tick;}
     c.status='selected';a.moveTick=0;return;
@@ -411,20 +416,27 @@ export function step(s,count=1,options={}){
       if(a.hp===0){killAgent(s,a,'starvation');continue;}
       if(shouldDieOfAge(s,a)){killAgent(s,a,'age');continue;}
       ageKnowledge(a,s.tick);
-      if(a.task&&interrupt(s,a)){a.task=null;a.moveTick=0;}
+      if(a.task&&interrupt(s,a)){
+        if(taskValid(s,a))noteExecutablePlanInterruption(s,a,a.task,'survival-interruption');
+        else invalidateExecutablePlanTask(s,a,a.task,'task-invalid');
+        a.task=null;a.moveTick=0;
+      }
     }
     stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
     const {book,rejected}=reservations(s);
-    for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
+    for(const id of rejected){const a=s.agents.find(a=>a.id===id);if(a?.task)noteExecutablePlanInterruption(s,a,a.task,'reservation-rejected');if(a)a.task=null;}
     const agents=living(s),rotation=s.tick%Math.max(1,agents.length);
     const priority=a=>a.satiety<RULES.hungry?0:a.energy<RULES.exhausted?1:2;
     const order=agents.map((a,index)=>({a,order:(index+rotation)%agents.length})).sort((x,y)=>
       priority(x.a)-priority(y.a)||(priority(x.a)===0?x.a.satiety-y.a.satiety:priority(x.a)===1?x.a.energy-y.a.energy:0)||x.order-y.order);
     for(const {a} of order){
-      if(a.task&&!taskValid(s,a)){release(book,a,a.task);a.task=null;}
+      if(a.task&&!taskValid(s,a)){invalidateExecutablePlanTask(s,a,a.task,'task-invalid-before-execute');release(book,a,a.task);a.task=null;}
       if(!a.task)decide(s,a,book);
       const task=a.task;
-      if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
+      if(task){
+        execute(s,a);
+        if(a.task!==task){release(book,a,task);syncExecutablePlan(s,a);}
+      }
     }
     const teaching=stepMentorship(s);if(teaching)event(s,'mentor',teaching.message,teaching.mentorId);
     const cultural=stepCulture(s);
@@ -453,6 +465,7 @@ export function validate(s){
   const bounds=worldBounds(s),cellCount=worldCellCount(s);
   errors.push(...validateIndependentWorld(s));
   errors.push(...validateSettlementState(s,{required:isIndependent(s)}));
+  errors.push(...validateExecutablePlans(s));
   if(s.historyVersion!==HISTORY_VERSION)bad('History version');
   if(s.archiveVersion!==ARCHIVE_VERSION)bad('Archive version');
   if(!Array.isArray(s.archive)||s.archive.length>HISTORY_LIMITS.maxRetained)return ['Archive'];
