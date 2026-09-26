@@ -40,7 +40,7 @@ function qualify(s,subject,owner,{trust=4,affinity=2,respect=0,ownerAffinity=2,f
 }
 
 test('IC6B nearby stranger never qualifies without relationship evidence',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],owner=s.agents[2];
   completeHome(s,owner);subject.x=owner.x;subject.y=owner.y;
   assert.equal(cohabitationCandidate(s,subject),null);
 });
@@ -69,7 +69,7 @@ test('IC6B direct adult parent-child does not auto-cohabit',()=>{
 });
 
 test('IC6B candidate ordering is deterministic by evidence score then owner id',()=>{
-  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],a=s.agents[1],b=s.agents[2];
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[1],a=s.agents[2],b=s.agents[3];
   completeHome(s,a);completeHome(s,b);
   qualify(s,subject,a,{trust:4,affinity:2,respect:0,ownerAffinity:2,key:'a'});
   qualify(s,subject,b,{trust:5,affinity:2,respect:1,ownerAffinity:2,key:'b'});
