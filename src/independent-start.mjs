@@ -1,13 +1,15 @@
 /** Deterministic no-Camp start. Spawn placement is world generation, not agent omniscience. */
 import {INDEPENDENT_MODE,INDEPENDENT_SAVE_VERSION,PERSONAL_MATERIAL_VERSION,HOUSEHOLD_MATERIAL_VERSION,addPersonalStore} from './individual-resources.mjs?v=0.5.0';
+import {worldBounds} from './world-bounds.mjs?v=0.5.0';
 const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const rank=(seed,x,y)=>{let n=(seed^Math.imul(x+1,374761393)^Math.imul(y+1,668265263))>>>0;n^=n>>>13;return Math.imul(n,1274126177)>>>0;};
 /** World generation ranks walkable cells with nearby food, wood and stone; agent knowledge is not populated by this lookup. */
 export function independentSpawn(s,isWalkable,occupied=[]){
- const options=[];
- for(let y=1;y<25;y++)for(let x=1;x<29;x++){
+ const bounds=worldBounds(s),options=[];
+ const foods=s.nodes.filter(n=>n.type==='food'&&n.amount>0),woods=s.nodes.filter(n=>n.type==='wood'&&n.amount>0),stones=s.nodes.filter(n=>n.type==='stone'&&n.amount>0);
+ for(let y=1;y<bounds.h-1;y++)for(let x=1;x<bounds.w-1;x++){
   if(!isWalkable(s,x,y)||s.nodes.some(n=>n.x===x&&n.y===y)||s.rustStations.stations.some(st=>st.x===x&&st.y===y))continue;
-  const p={x,y},foods=s.nodes.filter(n=>n.type==='food'&&n.amount>0),woods=s.nodes.filter(n=>n.type==='wood'&&n.amount>0),stones=s.nodes.filter(n=>n.type==='stone'&&n.amount>0);
+  const p={x,y};
   const food=Math.min(...foods.map(n=>distance(p,n))),wood=Math.min(...woods.map(n=>distance(p,n))),stone=Math.min(...stones.map(n=>distance(p,n)));
   if(food>4||wood>4||stone>8)continue;
   const separation=occupied.length?Math.min(...occupied.map(o=>distance(p,o))):12;
