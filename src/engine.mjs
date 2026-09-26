@@ -1,4 +1,4 @@
-import {isIndependent,materialStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,materialStock,resourceStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
 import {INDEPENDENT_SAVE_VERSION,addPersonalStore,validateIndependentWorld} from './individual-resources.mjs?v=0.5.0';
 import {initializeIndependentStart,independentSpawn} from './independent-start.mjs?v=0.5.0';
 import {survivalHome,homeOf} from './individual-housing.mjs?v=0.5.0';
@@ -79,7 +79,7 @@ function attemptAutonomousBirth(s){
   if(!plan.ok)return null;
   const parent=s.agents.find(a=>a.id===plan.parentId&&a.alive);
   if(!parent||!compactRetired(s).ok)return null;
-  const funds=materialStock(s,parent);funds.food-=BIRTH_RULES.foodCost;funds.wood-=BIRTH_RULES.woodCost;
+  const funds=resourceStock(s,parent);funds.food-=BIRTH_RULES.foodCost;funds.wood-=BIRTH_RULES.woodCost;
   return createAgent(s,parent,false,'birth');
 }
 function killAgent(s,a,cause){
@@ -154,7 +154,7 @@ export function command(s,type,data={}){
     if(living(s).length>=(isIndependent(s)?36:Math.min(36,capacity(s))))return {ok:false,message:'ที่พักเต็มแล้ว สร้างบ้านให้เสร็จก่อน'};
     const retention=retentionPlan(s);
     if(!retention.ok)return {ok:false,reason:retention.reason,message:'พื้นที่ประวัติตัวละครเต็ม · หยุดเพิ่มคนโดยไม่ลบบรรพบุรุษ'};
-    const funds=materialStock(s,parent),book=reservations(s).book;
+    const funds=resourceStock(s,parent),book=reservations(s).book;
     const freeFood=isIndependent(s)?Math.max(0,funds.food-reservedMealsFor(s,parent.id,book.meals)):survivalSummary(s).freeFood;
     if(freeFood<8||funds.wood<4)return {ok:false,message:'ต้องมีอาหารว่าง 8 และไม้ 4 · อาหารที่จองไว้ให้คนกินไม่นับเป็นอาหารว่าง'};
     const spawn=isIndependent(s)?independentSpawn(s,walkable,living(s)):null;
@@ -206,7 +206,7 @@ export function command(s,type,data={}){
 /** One reachable destination per job family; busy nodes never hide a free alternative. */
 function candidates(s,a,book,field){
   ensureProfession(a,s.tick);
-  const independent=isIndependent(s),stock=materialStock(s,a),meal=foodStock(s,a),guardian=independent?guardianOf(s,a):null;
+  const independent=isIndependent(s),stock=resourceStock(s,a),meal=foodStock(s,a),guardian=independent?guardianOf(s,a):null;
   const out=[],targets=stockTargets(s,a),projected=plannedStock(s,book,a),freeFood=meal.food-reservedMealsFor(s,mealOwnerId(s,a),book.meals);
   const productive=canPerformProductiveWork(s,a);
   const compare=(x,y)=>routeDistance(field,x)-routeDistance(field,y)||x.id-y.id;
@@ -290,7 +290,7 @@ function gain(s,a,key,targetId=null){
   if(level(a.skills[key])>old)event(s,'skill',a.name+' พัฒนา '+LABELS[key]+' เป็นระดับ '+level(a.skills[key]),a.id);
 }
 function execute(s,a){
-  const t=a.task,stock=materialStock(s,a),meal=foodStock(s,a);
+  const t=a.task,stock=resourceStock(s,a),meal=foodStock(s,a);
   if(t.kind==='IDLE'){a.energy=clamp(a.energy+.3);if(++t.work>=12)a.task=null;return;}
   if(t.kind==='EAT'&&meal.food<=0){a.task=null;return;}
   if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const p=t.path.shift();a.x=p.x;a.y=p.y;a.moveTick=0;}return;}
