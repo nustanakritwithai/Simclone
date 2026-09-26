@@ -42,40 +42,35 @@ function supportFromOwner(state,ownerId,candidateId){
   });
 }
 
-function candidateForSettlement(state,snapshot,agent){
-  if(!agent?.alive||!canPerformProductiveWork(state,agent))return null;
-  const current=snapshot.current;
-  if(!current?.residentIds?.includes(agent.id))return null;
-  const level=leadershipLevel(agent);
-  if(level<GOVERNOR_CANDIDATE_RULES.minimumLeadershipLevel)return null;
-
-  const ownHousehold=householdOf(state,agent.id);
+function evaluationForSettlement(state,snapshot,agent){
+  const current=snapshot?.current;
+  const resident=!!agent?.alive&&!!current?.residentIds?.includes(agent.id);
+  const productive=resident&&canPerformProductiveWork(state,agent);
+  const level=productive?leadershipLevel(agent):0;
+  const ownHousehold=productive?householdOf(state,agent.id):null;
   const ownHouseholdOwnerId=ownHousehold?.ownerId??null;
   const support=[];
-  for(const ownerId of current.ownerIds){
+  if(productive)for(const ownerId of current.ownerIds){
     if(ownerId===ownHouseholdOwnerId)continue;
     const row=supportFromOwner(state,ownerId,agent.id);
     if(row)support.push(row);
   }
   support.sort((a,b)=>a.ownerId-b.ownerId);
-
-  const requiredSupport=Math.ceil(current.households/2);
-  if(support.length<requiredSupport)return null;
-
+  const requiredSupport=current?Math.ceil(current.households/2):0;
   const supportTrust=support.reduce((n,r)=>n+r.trust,0);
   const supportRespect=support.reduce((n,r)=>n+r.respect,0);
   const supportEvidenceCount=support.reduce((n,r)=>n+r.evidenceCount,0);
   const supportContinuityTicks=support.reduce((m,r)=>Math.max(m,r.continuityTicks),0);
-
+  const qualified=resident&&productive&&level>=GOVERNOR_CANDIDATE_RULES.minimumLeadershipLevel&&support.length>=requiredSupport;
   return Object.freeze({
     version:GOVERNOR_CANDIDATE_VERSION,
-    settlementId:snapshot.id,
-    agentId:agent.id,
-    profession:agent.profession??null,
+    settlementId:snapshot?.id??null,
+    agentId:agent?.id??null,
+    profession:agent?.profession??null,
     leadershipSkill:LEADERSHIP_SKILL,
-    leadershipXP:Number(agent.skills?.[LEADERSHIP_SKILL]??0),
+    leadershipXP:Number(agent?.skills?.[LEADERSHIP_SKILL]??0),
     leadershipLevel:level,
-    requiredSupport,
+    resident,productive,requiredSupport,
     supportOwnerIds:frozenArray(support.map(r=>r.ownerId)),
     supportHouseholds:support.length,
     supportTrust,
@@ -83,8 +78,13 @@ function candidateForSettlement(state,snapshot,agent){
     supportEvidenceCount,
     supportContinuityTicks,
     support:frozenArray(support),
-    qualified:true
+    qualified
   });
+}
+
+function candidateForSettlement(state,snapshot,agent){
+  const row=evaluationForSettlement(state,snapshot,agent);
+  return row.qualified?row:null;
 }
 
 function compareCandidates(a,b){
@@ -161,4 +161,15 @@ export function governorCandidatesForSettlement(state,settlementId){
 
 export function topGovernorCandidate(state,settlementId){
   return governorCandidatesForSettlement(state,settlementId)[0]??null;
+}
+
+export function governorCandidateEvaluation(state,settlementId,agentId){
+  if(!isIndependent(state))return null;
+  const record=state.settlementState?.records?.find(r=>r.id===settlementId&&r.status==='active');
+  if(!record)return null;
+  const snapshot=settlementSnapshot(state,record);
+  if(!snapshot?.current)return null;
+  const agent=state.agents?.find(a=>a.id===agentId);
+  if(!agent)return null;
+  return evaluationForSettlement(state,snapshot,agent);
 }
