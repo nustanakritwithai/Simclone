@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {RESOURCE_REGEN_AUTHORITY} from '../src/worldsim-resource-authority.mjs';
 import {createWorld,serialize} from '../src/engine.mjs';
 import {calibrateFoodEcology} from '../src/worldsim-food-regen-calibration.mjs';
 
@@ -7,7 +8,7 @@ test('food ecology calibration is deterministic and read-only',()=>{
   const s=createWorld(230926),before=serialize(s);
   const a=calibrateFoodEcology(s),b=calibrateFoodEcology(s);
   assert.deepEqual(a,b);assert.equal(serialize(s),before);
-  assert.equal(a.authority.writer,'worldsim-wm4.6');
+  assert.equal(a.authority.writer,RESOURCE_REGEN_AUTHORITY.writer);
   assert.equal(a.authority.mutatesNodes,false);
   assert.equal(a.authority.unitFormula,'none');
 });
