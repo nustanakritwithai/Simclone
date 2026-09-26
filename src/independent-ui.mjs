@@ -10,6 +10,7 @@ import {householdRecruitmentOffers} from './kingdom-household-organization.mjs?v
 import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {walkable} from './survival.mjs?v=0.5.0';
 import {edgeCells} from './rust-stations.mjs?v=0.5.0';
+import {allSettlementSnapshots} from './settlement-authority.mjs?v=0.5.0';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function installIndependentUI(api){
  const $=id=>document.getElementById(id);
@@ -19,10 +20,11 @@ export function installIndependentUI(api){
  const button=(id,name)=>'<button class="secondary" data-person="'+id+'">'+esc(name)+'</button>';
  function update(){
   const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected),on=isIndependent(s);
+  const settlements=on?allSettlementSnapshots(s).filter(x=>x.status==='active'):[];
   document.body.classList.toggle('independent-world',on);
   const heading=document.querySelector('.settlement h1'),eyebrow=document.querySelector('.settlement .eyebrow');
-  if(heading)heading.textContent=on?'ต่างคนต่างเริ่มชีวิต':'หมู่บ้านต้นกำเนิด';
-  if(eyebrow)eyebrow.textContent=on?'INDEPENDENT CLONE WORLD':'YOUR FIRST SETTLEMENT';
+  if(heading)heading.textContent=on?(settlements.length?'Settlement เกิดเอง '+settlements.length+' แห่ง':'ต่างคนต่างเริ่มชีวิต'):'หมู่บ้านต้นกำเนิด';
+  if(eyebrow)eyebrow.textContent=on?(settlements.length?'EMERGENT SETTLEMENT · MX7':'INDEPENDENT CLONE WORLD'):'YOUR FIRST SETTLEMENT';
   const populationLabel=document.querySelector('.population small');if(populationLabel)populationLabel.textContent=on?'คนในโลก':'คน / ที่พัก';
   const recenter=$('recenter');if(recenter){recenter.setAttribute('aria-label',on?'ดูภาพรวมโลก':'กลับหมู่บ้าน');recenter.title=on?'ดูภาพรวมโลก':'กลับหมู่บ้าน';}
   const auto=$('autonomy-status');if(on&&auto){auto.querySelector('b').textContent='PERSONAL AUTONOMY · ACTIVE';if(!s.agents.some(a=>a.alive&&a.trace?.some(t=>t.status==='selected')))auto.querySelector('span').textContent='แต่ละคนหากินและสร้างบ้านของตัวเอง';}
@@ -30,7 +32,7 @@ export function installIndependentUI(api){
   resourceScope.hidden=!on;resourceScope.textContent=on?(a?(resourceAccount(s,a).kind==='household'?'ทรัพยากร Household · บ้าน '+resourceAccount(s,a).houseId:'ทรัพยากรชั่วคราวของ '+a.name):'ผลรวมทุก Household/คนไร้บ้าน · อ่านอย่างเดียว'):'';
 
   if(!card.isConnected)$('inspector').insertBefore(card,$('inspector-detail'));
-  const marker=$('seed-label');if(on)marker.textContent='ชีวิตอิสระ · SEED '+s.seed;
+  const marker=$('seed-label');if(on)marker.textContent=(settlements.length?'SETTLEMENT '+settlements.length+' · ':'ชีวิตอิสระ · ')+'SEED '+s.seed;
   card.hidden=!on||!a;
   if(on&&$('dialog').open){
    const kind=$('dialog').dataset.kind,homes=individualHouses(s).filter(h=>h.complete),housing=$('dialog').querySelector('[data-system-card="housing"]');
