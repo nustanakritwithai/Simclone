@@ -1,3 +1,11 @@
+# Active gate — IC6C Central Stock Closeout
+
+- Base: `main@e9a512ff` with Kingdom household integration + WM4.8.
+- Independent gameplay authority is now `resourceAccount() → resourceStock()`; `s.stock` is retained only as an exact-zero save compatibility placeholder.
+- Closeout removes remaining Independent reads from selected HUD, daily event and autonomous birth pre-read while preserving legacy `s.stock` behavior.
+- Required proof: zero placeholder, non-zero derived totals, birth independence from placeholder/freeFood, aggregate daily event, homeless HUD, same-household HUD equality, validator rejection of non-zero placeholder, full regression/browser CI.
+- After SAT: activate Recruitment/Cooperation authority, then atomic Household Trade + Logistics.
+
 # Active gate — Kingdom Full Integration
 
 - Integration base: `main@dc13e8f` with WM4.8 ecological resource zones preserved.
