@@ -12,40 +12,41 @@ import {kingdomMarketSnapshot} from './kingdom-market.mjs?v=0.5.0';
 import {worldPathWalkable} from './worldsim-map.mjs?v=0.5.0';
 import {housingCapacity,unfinishedHousing} from './housing.mjs?v=0.5.0';
 import {canPlaceStation} from './rust-stations.mjs?v=0.5.0';
+import {LEGACY_WORLD_BOUNDS,worldBounds} from './world-bounds.mjs?v=0.5.0';
 export const RULES = Object.freeze({
-  width:30, height:26, moveTicks:3, mealSatiety:48, hungry:35,
+  width:LEGACY_WORLD_BOUNDS.w, height:LEGACY_WORLD_BOUNDS.h, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
   jobPolicy:'survival-0.2', jobMaxTicks:2580
 });
 export const skillLevel = xp => Math.min(10, 1 + Math.floor(Math.sqrt(xp / 20)));
 export const RESOURCE_ACTIONS = Object.freeze({FORAGE:'food',WOODCUT:'wood',MINE:'stone'});
-export const tileAt = (s,x,y) => s.tiles[y*RULES.width+x];
+export const tileAt = (s,x,y) => {const b=worldBounds(s);return s.tiles[y*b.w+x];};
 export const walkable = (s,x,y) => worldPathWalkable(s,x,y);
 
 /** One breadth-first search per decision; distances include bridges and detours. */
 export function routeField(s,start){
-  const size=RULES.width*RULES.height,dist=new Int32Array(size).fill(-1),parent=new Int32Array(size).fill(-1);
-  if(!walkable(s,start.x,start.y))return {dist,parent,start:-1};
-  const first=start.y*RULES.width+start.x,queue=new Int32Array(size);let head=0,tail=1;
+  const bounds=worldBounds(s),size=bounds.w*bounds.h,dist=new Int32Array(size).fill(-1),parent=new Int32Array(size).fill(-1);
+  if(!walkable(s,start.x,start.y))return {dist,parent,start:-1,width:bounds.w,height:bounds.h};
+  const first=start.y*bounds.w+start.x,queue=new Int32Array(size);let head=0,tail=1;
   queue[0]=first;dist[first]=0;parent[first]=first;
   while(head<tail){
-    const i=queue[head++],x=i%RULES.width,y=Math.floor(i/RULES.width);
+    const i=queue[head++],x=i%bounds.w,y=Math.floor(i/bounds.w);
     for(const [dx,dy] of [[1,0],[0,1],[-1,0],[0,-1]]){
-      const nx=x+dx,ny=y+dy,k=ny*RULES.width+nx;
+      const nx=x+dx,ny=y+dy,k=ny*bounds.w+nx;
       if(walkable(s,nx,ny)&&dist[k]===-1){dist[k]=dist[i]+1;parent[k]=i;queue[tail++]=k;}
     }
   }
-  return {dist,parent,start:first};
+  return {dist,parent,start:first,width:bounds.w,height:bounds.h};
 }
 export function routeDistance(field,target){
-  const {x,y}=target;
-  if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=RULES.width||y>=RULES.height)return -1;
-  return field.dist[y*RULES.width+x];
+  const {x,y}=target,width=field.width??RULES.width,height=field.height??RULES.height;
+  if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=width||y>=height)return -1;
+  return field.dist[y*width+x];
 }
 export function routeTo(field,target){
   if(routeDistance(field,target)<0)return null;
-  const out=[];
-  for(let k=target.y*RULES.width+target.x;k!==field.start;k=field.parent[k])out.push({x:k%RULES.width,y:Math.floor(k/RULES.width)});
+  const width=field.width??RULES.width,out=[];
+  for(let k=target.y*width+target.x;k!==field.start;k=field.parent[k])out.push({x:k%width,y:Math.floor(k/width)});
   return out.reverse();
 }
 export const pathTo=(s,a,b)=>walkable(s,b.x,b.y)?routeTo(routeField(s,a),b):null;
