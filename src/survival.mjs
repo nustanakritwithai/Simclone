@@ -13,6 +13,7 @@ import {worldPathWalkable} from './worldsim-map.mjs?v=0.5.0';
 import {housingCapacity,unfinishedHousing} from './housing.mjs?v=0.5.0';
 import {canPlaceStation} from './rust-stations.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,worldBounds} from './world-bounds.mjs?v=0.5.0';
+import {cachedRouteField} from './route-cache.mjs?v=0.5.0';
 export const RULES = Object.freeze({
   width:LEGACY_WORLD_BOUNDS.w, height:LEGACY_WORLD_BOUNDS.h, moveTicks:3, mealSatiety:48, hungry:35,
   exhausted:12, nodeWorkers:1, builders:2, stockLimit:999,
@@ -23,8 +24,8 @@ export const RESOURCE_ACTIONS = Object.freeze({FORAGE:'food',WOODCUT:'wood',MINE
 export const tileAt = (s,x,y) => {const b=worldBounds(s);return s.tiles[y*b.w+x];};
 export const walkable = (s,x,y) => worldPathWalkable(s,x,y);
 
-/** One breadth-first search per decision; distances include bridges and detours. */
-export function routeField(s,start){
+/** One BFS per distinct start cell; cached fields never enter save state. */
+export function routeFieldUncached(s,start){
   const bounds=worldBounds(s),size=bounds.w*bounds.h,dist=new Int32Array(size).fill(-1),parent=new Int32Array(size).fill(-1);
   if(!walkable(s,start.x,start.y))return {dist,parent,start:-1,width:bounds.w,height:bounds.h};
   const first=start.y*bounds.w+start.x,queue=new Int32Array(size);let head=0,tail=1;
@@ -37,6 +38,9 @@ export function routeField(s,start){
     }
   }
   return {dist,parent,start:first,width:bounds.w,height:bounds.h};
+}
+export function routeField(s,start){
+  return cachedRouteField(s,start,()=>routeFieldUncached(s,start));
 }
 export function routeDistance(field,target){
   const {x,y}=target,width=field.width??RULES.width,height=field.height??RULES.height;
