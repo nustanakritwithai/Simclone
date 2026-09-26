@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createWorld,command,step,serialize,restore,validate,walkable} from '../src/engine.mjs';
 import {canonicalEdge} from '../src/rust-stations.mjs';
 import {personalHomeSite,homeOf} from '../src/individual-housing.mjs';
+import {personalHomeIntent} from '../src/individual-home-planning.mjs';
 import {materialStock} from '../src/individual-resources.mjs';
 import {
   relationshipOf,recordRelationshipEvidence,householdOf,
@@ -90,6 +91,18 @@ test('IC6B cohabitant EAT uses own food at shared home, not owners food',()=>{
   for(let i=0;i<5&&mine.food===myBefore;i++)step(s,1);
   assert.equal(mine.food,myBefore-1);
   assert.equal(theirs.food,theirBefore);
+});
+
+test('IC6B cohabitation pauses own-home goal and leaving resumes it',()=>{
+  const s=createWorld(230926,{mode:'independent'}),subject=s.agents[0],owner=s.agents[1];
+  completeHome(s,owner);qualify(s,subject,owner);
+  assert.equal(command(s,'JOIN_HOUSEHOLD',{agentId:subject.id,ownerId:owner.id}).ok,true);
+  const joined=personalHomeIntent(s,subject,walkable);
+  assert.equal(joined.kind,'COHABITING');assert.equal(joined.ownerId,owner.id);
+  assert.equal(command(s,'LEAVE_HOUSEHOLD',{agentId:subject.id}).ok,true);
+  const left=personalHomeIntent(s,subject,walkable);
+  assert.notEqual(left.kind,'COHABITING');
+  assert.notEqual(left.kind,'HOME_COMPLETE');
 });
 
 test('IC6B LEAVE_HOUSEHOLD ends residency without changing relationship or ownership',()=>{
