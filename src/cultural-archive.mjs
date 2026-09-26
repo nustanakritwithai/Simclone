@@ -6,6 +6,7 @@ import {homeOf,individualHouses} from './individual-housing.mjs?v=0.5.0';
  */
 import {KNOWLEDGE_LIMITS,BELIEF_STATUS} from './knowledge.mjs?v=0.5.0';
 import {KNOWLEDGE_REVISION_RULES} from './knowledge-revision.mjs?v=0.5.0';
+import {worldBounds} from './world-bounds.mjs?v=0.5.0';
 export const CULTURE_VERSION='cultural-archive-1';
 export const CULTURE_RULES=Object.freeze({entries:16,history:3,range:4,periodTicks:120,woodCost:6,stoneCost:2,maxCharacters:32000});
 const clone=x=>JSON.parse(JSON.stringify(x));
@@ -13,6 +14,7 @@ const freeze=x=>Object.freeze(clone(x));
 const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const people=s=>[...s.agents,...s.archive];
 const actor=(s,id)=>s.agents.find(a=>a.id===id&&a.alive);
+const inWorld=(s,x,y)=>{const b=worldBounds(s);return Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<b.w&&y<b.h;};
 export function archivePlace(s){
  if(!s.culture)return null;
  if(isIndependent(s)){const h=individualHouses(s).find(h=>h.houseId===s.culture.houseId&&h.complete&&h.ownerId===s.culture.ownerId);return h?{type:'house',id:h.houseId,...h.origin}:null;}
@@ -57,7 +59,7 @@ export function publishKnowledge(s,agentId,key){
   if(!b||b.status!==BELIEF_STATUS.CONFIRMED||b.sourceKind!=='direct'||b.observedTick===null||
     s.tick-b.observedTick>=KNOWLEDGE_REVISION_RULES.staleAfterTicks)return fail('knowledge','ต้องยืนยันข้อมูลด้วยตนเองและยังไม่หมดอายุก่อนบันทึก');
   if(!b.value||!Number.isSafeInteger(b.value.resourceId)||b.value.resourceId<1||!['food','wood','stone'].includes(b.value.type)||
-    !Number.isInteger(b.value.x)||!Number.isInteger(b.value.y)||b.value.x<0||b.value.y<0||b.value.x>=30||b.value.y>=26||
+    !inWorld(s,b.value.x,b.value.y)||
     !Number.isSafeInteger(b.observedTick)||b.observedTick<0||b.observedTick>s.tick||
     typeof b.originEvidenceId!=='string'||b.originEvidenceId.length>160||typeof b.evidenceIds.at(-1)!=='string'||b.evidenceIds.at(-1).length>160)
     return fail('knowledge','ข้อมูลความรู้ไม่อยู่ในรูปแบบที่บันทึกได้');
@@ -137,8 +139,7 @@ export function validateCulture(s){
   const c=s.culture,errors=[];if(c===undefined)return people(s).some(a=>a.knowledgeState.evidence.some(e=>e.channel==='archive'))?['Missing cultural archive']:errors;
   const tick=t=>Number.isSafeInteger(t)&&t>=0&&t<=s.tick;
   const ids=new Set(people(s).map(a=>a.id)),hasId=id=>Number.isSafeInteger(id)&&ids.has(id);
-  const value=v=>v&&Number.isSafeInteger(v.resourceId)&&['food','wood','stone'].includes(v.type)&&
-    Number.isInteger(v.x)&&Number.isInteger(v.y)&&v.x>=0&&v.y>=0&&v.x<30&&v.y<26;
+  const value=v=>v&&Number.isSafeInteger(v.resourceId)&&['food','wood','stone'].includes(v.type)&&inWorld(s,v.x,v.y);
   if(!c||c.version!==CULTURE_VERSION||(isIndependent(s)?c.hostKind!=='house'||!hasId(c.ownerId)||place(s)?.type!=='house':place(s)?.type!=='camp')||!tick(c.createdTick)||typeof c.automation!=='boolean'||
     !(c.lastProcessedTick===-1||tick(c.lastProcessedTick))||!Array.isArray(c.entries)||c.entries.length>CULTURE_RULES.entries)return ['Cultural archive'];
   if(JSON.stringify(c).length>CULTURE_RULES.maxCharacters)errors.push('Cultural archive size');
