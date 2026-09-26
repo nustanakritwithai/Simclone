@@ -1,3 +1,11 @@
+# Prepared next gate — IC7A Recruitment + Cooperation Authority
+
+- Dependency: IC6C central-stock closeout / PR #100.
+- Household food/wood/stone/building labor pressure now produces relationship-backed recruitment candidates.
+- Autonomous acceptance runs every 60 ticks, max one JOIN per cycle, and reuses the existing JOIN_HOUSEHOLD writer.
+- Real follower resource work records bounded owner→worker Trust/Respect evidence.
+- After IC7A SAT: activate atomic Household Trade contract/cargo/delivery, then Logistics and Neighborhood derivation.
+
 # Active gate — IC6C Central Stock Closeout
 
 - Base: `main@e9a512ff` with Kingdom household integration + WM4.8.
