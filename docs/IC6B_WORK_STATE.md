@@ -1,46 +1,70 @@
 # IC6B — Adult Cohabitation Work State
 
-Status: PREPARED / STACKED ON IC6A  
-Branch: `feature/ic6b-cohabitation-prep`  
-Base dependency: `feature/ic6-social-household` / PR #89  
+Status: IMPLEMENTATION CANDIDATE  
+Branch: `feature/ic6b-cohabitation`  
+Base: `main@2c186feadf2093ed3e89a4739c6dc171d37d4f73` with IC6A merged  
 Contract: `docs/IC6B_COHABITATION_SUCCESS_CONTRACT.md`
 
 ## Goal
 
-Prepare an evidence-gated share-home planner without activating residency mutation before IC6A relationship authority is SAT.
+Allow a homeless productive adult to explicitly join another adult's complete home only when IC6A relationship evidence passes deterministic thresholds.
 
-## Implemented preparation
+## Implemented candidate
 
-- Pure planner: `src/cohabitation.mjs`
-- Requires:
-  - homeless productive subject
-  - productive owner with complete owned home
-  - persisted IC6A relationship thresholds
-  - no direct parent↔adult-child auto-cohabitation
-- Proximity alone never qualifies.
-- Candidate score is deterministic and evidence-backed.
-- Planner returns houseId, ownerId, score and relationship evidence IDs.
-- No move/share-home/leave-home command yet.
-- No resource sharing or ownership transfer.
+- Pure planner:
+  - `cohabitationCandidates()`
+  - `cohabitationCandidate()`
+- Explicit commands:
+  - `JOIN_HOUSEHOLD`
+  - `LEAVE_HOUSEHOLD`
+- Social extension upgraded:
+  - `IC6-social-2`
+  - bounded `social.residences`
+  - IC6-social-1 migrates with empty residence history
+- Household projection:
+  - owner
+  - guardian dependents
+  - explicit adult cohabitants
+- Survival behavior:
+  - cohabitant may REST/EAT at shared home
+  - food/material balances remain personal
+- Home behavior:
+  - cohabitation pauses personal-home construction
+  - leaving resumes personal-home goal
+- Lifecycle:
+  - owner/resident death closes active residence links
+- Ownership:
+  - physical house ownership remains founding Foundation `placedBy`
+  - JOIN never transfers house ownership
 
-## Authored tests
+## Authored proof
 
-`tests/cohabitation.test.mjs` proves:
-- nearby stranger is rejected;
-- threshold evidence produces candidate;
-- subject with own home is rejected;
-- direct adult parent-child is rejected;
-- deterministic ranking between multiple eligible owners.
+- `tests/cohabitation.test.mjs`
+  - relationship threshold planner
+  - proximity-only rejection
+  - own-home exclusion
+  - adult parent-child exclusion
+  - deterministic ranking
+- `tests/household-residence.test.mjs`
+  - JOIN/LEAVE authority
+  - idempotency and explicit switch requirement
+  - shared-home REST
+  - personal-food EAT
+  - ownership/material isolation
+  - personal-home pause/resume
+  - owner-death cleanup
+  - save/load
+  - IC6-social-1 → v2 migration
 
-## Activation after IC6A SAT
+## Explicitly deferred
 
-1. Add explicit authoritative `JOIN_HOUSEHOLD` / `LEAVE_HOUSEHOLD` transition.
-2. Persist residence decision separately from physical house ownership.
-3. Household projection includes explicit cohabitants + guardian dependents.
-4. Personal resources remain personal until cooperation/trade gate.
-5. Leaving household does not transfer house ownership.
-6. Save/load and death/owner-loss behavior must be explicit.
+- automatic adult cohabitation execution;
+- romance/partner semantics;
+- shared material wallet;
+- inheritance/property transfer;
+- cooperation/trade;
+- neighborhood derivation.
 
 ## Validation state
 
-Preparation candidate only. UNKNOWN is not PASS.
+Implementation candidate. Exact CI evidence pending. UNKNOWN is not PASS.
