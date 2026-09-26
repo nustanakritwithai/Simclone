@@ -1,3 +1,11 @@
+# Prepared next gate — IC7B Household Trade Authority
+
+- Dependency: IC7A Recruitment + Cooperation / PR #101.
+- Household surplus can become conserved in-transit cargo only with reciprocal owner relationship evidence.
+- Carrier uses normal navigation; delivery writes destination Household stock exactly once.
+- Successful delivery creates Trust/Affinity/Debt evidence; carrier death strands cargo without material loss.
+- After IC7B SAT: stranded-cargo recovery + Logistics/risk, then Neighborhood derivation from repeated household interaction.
+
 # Prepared next gate — IC7A Recruitment + Cooperation Authority
 
 - Dependency: IC6C central-stock closeout / PR #100.
