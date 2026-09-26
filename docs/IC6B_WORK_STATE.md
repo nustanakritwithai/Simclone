@@ -79,3 +79,8 @@ Allow a homeless productive adult to explicitly join another adult's complete ho
 ## Validation state
 
 Implementation candidate. Exact CI evidence pending. UNKNOWN is not PASS.
+
+
+## Validation repair
+
+Verify run #36224941727 exposed fixture drift, not a runtime authority defect. General cohabitation tests used Original with a direct adult child even though IC6B intentionally excludes direct parent↔adult-child cohabitation. The unit, residency and browser fixtures now use adult siblings for positive cohabitation cases; the explicit parent-child rejection test remains unchanged. Exact replacement CI is still required.
