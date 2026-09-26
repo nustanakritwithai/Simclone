@@ -44,9 +44,9 @@ function leadership(state,agent,xp){
   assert.equal(recordEarnedSkill(agent,'LEADERSHIP',xp,state.tick,{action:'GOV_TEST'}),true);
 }
 
-function evidence(state,from,to,{trust=4,respect=2,affinity=1,fear=0,tick=60,key='e'}={}){
+function evidence(state,from,to,{trust=4,respect=2,affinity=1,fear=0,tick=60,key='e',kind='governance-support'}={}){
   const r=recordRelationshipEvidence(state,{
-    fromId:from.id,toId:to.id,kind:'governance-support',
+    fromId:from.id,toId:to.id,kind,
     key:key+':'+from.id+':'+to.id+':'+tick,tick,delta:{trust,respect,affinity,fear}
   });
   assert.equal(r.ok,true,JSON.stringify(r));
@@ -58,8 +58,8 @@ function settlementOnly(seed=9001){
   owners.forEach((a,i)=>completedHouse(s,3001+i*100,a.id,5+i*3,5));
   s.tick=120;
   // Community evidence among owners; no GOV candidate is implied by this alone.
-  evidence(s,owners[0],owners[1],{trust:2,respect:0,affinity:1,tick:0,key:'community-a'});
-  evidence(s,owners[2],owners[1],{trust:2,respect:0,affinity:1,tick:30,key:'community-b'});
+  evidence(s,owners[0],owners[1],{trust:2,respect:0,affinity:1,tick:0,key:'community-a',kind:'cooperation'});
+  evidence(s,owners[2],owners[1],{trust:2,respect:0,affinity:1,tick:30,key:'community-b',kind:'knowledge-share'});
   s.tick=360;
   const promoted=stepSettlementAuthority(s,{force:true});
   assert.deepEqual(promoted.createdIds,['S1']);
