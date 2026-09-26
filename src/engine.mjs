@@ -1,7 +1,7 @@
-import {isIndependent,materialStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf} from './individual-resources.mjs?v=0.5.0';
+import {isIndependent,materialStock,resourceStock,foodStock,mealOwnerId,reservedMealsFor,materialTotals,personalTargets,guardianOf,ensureHouseholdResourceState,activateHouseholdStore,joinHouseholdResources} from './individual-resources.mjs?v=0.5.0';
 import {INDEPENDENT_SAVE_VERSION,addPersonalStore,validateIndependentWorld} from './individual-resources.mjs?v=0.5.0';
 import {initializeIndependentStart,independentSpawn} from './independent-start.mjs?v=0.5.0';
-import {survivalHome,homeOf} from './individual-housing.mjs?v=0.5.0';
+import {survivalHome,homeOf,individualHouses} from './individual-housing.mjs?v=0.5.0';
 import {cultureCommand,stepCulture,validateCulture} from './cultural-archive.mjs?v=0.5.0';
 import {setPlanningPolicy,personalResourceCandidates,personalExplorationTarget,rememberPlanSelection,finishPersonalExploration,recordPlanProduction,validatePersonalPlanning} from './personal-planning.mjs?v=0.5.0';
 import {verifyResourceKnowledge,ageKnowledge} from './knowledge-revision.mjs?v=0.5.0';
@@ -12,6 +12,7 @@ import {LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,c
 import {BIRTH_RULES,birthPlan,isAutonomousChild} from './reproduction.mjs?v=0.5.0';
 import {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,retentionPlan,compactRetired} from './history.mjs?v=0.5.0';
 import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenance,recordEarnedSkill,validateSkillProvenance} from './skill-provenance.mjs?v=0.5.0';
+import {ensureLeadershipSkill,LEADERSHIP_SKILL,leadershipProfile} from './leadership.mjs?v=0.5.0';
 import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,recordResourceDiscovery,shareKnowledge,withinKnowledgeRange,validateKnowledgeState,activeKnowledge} from './knowledge.mjs?v=0.5.0';
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
@@ -27,6 +28,7 @@ import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './h
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
+export {leadershipProfile};
 export {tileAt,walkable,pathTo,survivalSummary,LIFE,LIFE_STAGES,ageYears,ageYearsAtTick,lifeStage,adultLife,childLife,canPerformProductiveWork,productiveWorkRate,lifespanYears,shouldDieOfAge,BIRTH_RULES,birthPlan,isAutonomousChild};
 export const VERSION = '0.5.0';
 export const SAVE_VERSION = '0.5.0';
@@ -40,6 +42,8 @@ const DEATH_CAUSES = new Set(['age','starvation','unknown']);
 export const SIZE = { w: 30, h: 26 };
 export const DAY_TICKS = LIFE.ticksPerYear;
 export const SKILLS = ['FORAGE', 'WOODCUT', 'MINE', 'BUILD'];
+export const SOCIAL_SKILLS = [LEADERSHIP_SKILL];
+export const ALL_SKILLS = [...SKILLS,...SOCIAL_SKILLS];
 export const LABELS = { FORAGE:'หาอาหาร', WOODCUT:'ตัดไม้', MINE:'ขุดหิน', BUILD:'สร้างบ้าน', CRAFT:'คราฟต์', PROCESS:'แปรรูป', EAT:'กินอาหาร', REST:'พักผ่อน', EXPLORE:'สำรวจ', IDLE:'พักรอ' };
 export const clamp = (n, lo=0, hi=100) => Math.max(lo, Math.min(hi, n));
 export const level = skillLevel;
@@ -55,6 +59,7 @@ function event(s,type,text,agentId=null) {
 function createAgent(s,parent,initial=false,mode='manual'){
   const id=s.nextAgent++, k=id-1,autonomous=mode==='birth';
   const skills=Object.fromEntries(SKILLS.map(key=>[key,parent?Math.floor(parent.skills[key]*.35):60]));
+  if(isIndependent(s))skills[LEADERSHIP_SKILL]=parent?Math.floor(Number(parent.skills?.[LEADERSHIP_SKILL]??0)*.35):0;
   const preference=SKILLS[k%4],profession=professionForAction(preference);
   const skillProvenance=createSkillProvenance(id,skills,{kind:parent?'inheritance':'initial',sourceAgentId:parent?.id??null,tick:s.tick});
   const a={id,name:names[k%names.length]+(k>=names.length?' '+id:''),parentId:parent?.id??null,generation:parent?parent.generation+1:0,
@@ -74,7 +79,7 @@ function attemptAutonomousBirth(s){
   if(!plan.ok)return null;
   const parent=s.agents.find(a=>a.id===plan.parentId&&a.alive);
   if(!parent||!compactRetired(s).ok)return null;
-  const funds=materialStock(s,parent);funds.food-=BIRTH_RULES.foodCost;funds.wood-=BIRTH_RULES.woodCost;
+  const funds=resourceStock(s,parent);funds.food-=BIRTH_RULES.foodCost;funds.wood-=BIRTH_RULES.woodCost;
   return createAgent(s,parent,false,'birth');
 }
 function killAgent(s,a,cause){
@@ -93,7 +98,7 @@ export function createWorld(seed=230926,options={}){
   if(!Number.isInteger(population)||population<1||population>6)throw new Error('Starting population must be 1..6');
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:11,y:12,complete:true,progress:30},{id:2,type:'shelter',x:8,y:9,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
-  ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);
+  ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);ensureHouseholdResourceState(s);
   let nid=1;
   for(let y=0;y<SIZE.h;y++)for(let x=0;x<SIZE.w;x++){
     const river=20+Math.round(Math.sin(y*.26)*2), wet=x>=river&&x<river+3;
@@ -109,7 +114,7 @@ export function createWorld(seed=230926,options={}){
   if(!independent)for(const [type,x,y] of [['food',6,12],['food',8,18],['wood',6,9],['wood',15,7],['stone',15,16]])
     s.nodes.push({id:nid++,type,x,y,amount:45,max:45});
   const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
-  if(independent){initializeIndependentStart(s,walkable);setPlanningPolicy(s,'local');}
+  if(independent){initializeIndependentStart(s,walkable);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
@@ -149,7 +154,7 @@ export function command(s,type,data={}){
     if(living(s).length>=(isIndependent(s)?36:Math.min(36,capacity(s))))return {ok:false,message:'ที่พักเต็มแล้ว สร้างบ้านให้เสร็จก่อน'};
     const retention=retentionPlan(s);
     if(!retention.ok)return {ok:false,reason:retention.reason,message:'พื้นที่ประวัติตัวละครเต็ม · หยุดเพิ่มคนโดยไม่ลบบรรพบุรุษ'};
-    const funds=materialStock(s,parent),book=reservations(s).book;
+    const funds=resourceStock(s,parent),book=reservations(s).book;
     const freeFood=isIndependent(s)?Math.max(0,funds.food-reservedMealsFor(s,parent.id,book.meals)):survivalSummary(s).freeFood;
     if(freeFood<8||funds.wood<4)return {ok:false,message:'ต้องมีอาหารว่าง 8 และไม้ 4 · อาหารที่จองไว้ให้คนกินไม่นับเป็นอาหารว่าง'};
     const spawn=isIndependent(s)?independentSpawn(s,walkable,living(s)):null;
@@ -201,7 +206,7 @@ export function command(s,type,data={}){
 /** One reachable destination per job family; busy nodes never hide a free alternative. */
 function candidates(s,a,book,field){
   ensureProfession(a,s.tick);
-  const independent=isIndependent(s),stock=materialStock(s,a),meal=foodStock(s,a),guardian=independent?guardianOf(s,a):null;
+  const independent=isIndependent(s),stock=resourceStock(s,a),meal=foodStock(s,a),guardian=independent?guardianOf(s,a):null;
   const out=[],targets=stockTargets(s,a),projected=plannedStock(s,book,a),freeFood=meal.food-reservedMealsFor(s,mealOwnerId(s,a),book.meals);
   const productive=canPerformProductiveWork(s,a);
   const compare=(x,y)=>routeDistance(field,x)-routeDistance(field,y)||x.id-y.id;
@@ -285,7 +290,7 @@ function gain(s,a,key,targetId=null){
   if(level(a.skills[key])>old)event(s,'skill',a.name+' พัฒนา '+LABELS[key]+' เป็นระดับ '+level(a.skills[key]),a.id);
 }
 function execute(s,a){
-  const t=a.task,stock=materialStock(s,a),meal=foodStock(s,a);
+  const t=a.task,stock=resourceStock(s,a),meal=foodStock(s,a);
   if(t.kind==='IDLE'){a.energy=clamp(a.energy+.3);if(++t.work>=12)a.task=null;return;}
   if(t.kind==='EAT'&&meal.food<=0){a.task=null;return;}
   if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const p=t.path.shift();a.x=p.x;a.y=p.y;a.moveTick=0;}return;}
@@ -420,11 +425,12 @@ export function validate(s){
     if(!walkable(s,a.x,a.y))bad('Agent position');
     if(['hp','satiety','energy'].some(k=>!finite(a[k])||a[k]<0||a[k]>100))bad('Agent needs');
     if(typeof a.alive!=='boolean'||!Number.isInteger(a.generation)||a.generation<0||typeof a.name!=='string'||a.name.length>50)bad('Agent identity');
-    if(!a.skills||SKILLS.some(k=>!finite(a.skills[k])||a.skills[k]<0))bad('Skills');
+    const requiredSkills=isIndependent(s)?ALL_SKILLS:SKILLS;
+    if(!a.skills||requiredSkills.some(k=>!finite(a.skills[k])||a.skills[k]<0))bad('Skills');
     if(a.profession!==undefined&&!isKingdomProfession(a.profession))bad('Profession');
     if(a.professionSinceTick!==undefined&&(!Number.isInteger(a.professionSinceTick)||a.professionSinceTick<0||a.professionSinceTick>s.tick))bad('Profession');
     if(a.career!==undefined&&(!Array.isArray(a.career)||a.career.length>8||a.career.some(c=>!c||!Number.isInteger(c.tick)||c.tick<0||c.tick>s.tick||!isKingdomProfession(c.profession))))bad('Career');
-    for(const e of validateSkillProvenance(a,SKILLS))bad(e);
+    for(const e of validateSkillProvenance(a,requiredSkills))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
@@ -510,7 +516,24 @@ function migrateHistory(s,sourceVersion){
   return s;
 }
 function migrateSkillProvenance(s){
-  for(const a of allPeople(s))if(!a.skillProvenance)a.skillProvenance=createLegacySkillProvenance(a.skills);
+  for(const a of allPeople(s)){
+    if(!a.skillProvenance)a.skillProvenance=createLegacySkillProvenance(a.skills);
+    if(isIndependent(s))ensureLeadershipSkill(a,{tick:0});
+  }
+  return s;
+}
+function syncHouseholdResources(s){
+  if(!isIndependent(s))return s;
+  ensureHouseholdResourceState(s);
+  for(const h of individualHouses(s).filter(h=>h.complete&&Number.isSafeInteger(h.ownerId))){
+    const r=activateHouseholdStore(s,h.houseId,h.ownerId);
+    if(!r.ok)throw new Error('Household resource migration failed');
+  }
+  for(const r of s.social?.residences??[]){
+    if(r.leftTick!==null)continue;
+    const moved=joinHouseholdResources(s,r.agentId,r.houseId);
+    if(!moved.ok)throw new Error('Household resident resource migration failed');
+  }
   return s;
 }
 function migrateKnowledge(s){
@@ -520,9 +543,9 @@ function migrateKnowledge(s){
 function migrateSave(s){
   if(!s)return s;
   const sourceVersion=s.version;
-  if(sourceVersion===INDEPENDENT_SAVE_VERSION){ensureSocialState(s);return s;} // IC6 adds empty social state only; never guesses historical scores.
+  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);return s;} // additive social skill defaults to zero; household balances migrate deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
-  if(sourceVersion===SAVE_VERSION){ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);return s;}
+  if(sourceVersion===SAVE_VERSION){migrateSkillProvenance(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){
     if(!Array.isArray(s.archive)||s.archiveVersion!==ARCHIVE_VERSION||s.historyVersion!==HISTORY_VERSION)return s;
     migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);s.version=SAVE_VERSION;return s;
