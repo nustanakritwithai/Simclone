@@ -27,7 +27,7 @@ import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,
 import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './household-residence.mjs?v=0.5.0';
 import {stepHouseholdRecruitment} from './household-recruitment-authority.mjs?v=0.5.0';
 import {householdCooperationSignal} from './household-cooperation.mjs?v=0.5.0';
-import {syncExecutablePlan,executablePlanContinuationFactor,reconcileExecutablePlanChoices,acceptExecutablePlanChoice,noteExecutablePlanInterruption,invalidateExecutablePlanTask,abortExecutablePlan,validateExecutablePlans} from './executable-plan.mjs?v=0.5.0';
+import {syncExecutablePlan,executablePlanContinuationFactor,reconcileExecutablePlanChoices,acceptExecutablePlanChoice,completeExecutablePlanStep,noteExecutablePlanInterruption,invalidateExecutablePlanTask,abortExecutablePlan,validateExecutablePlans} from './executable-plan.mjs?v=0.5.0';
 import {ensureSettlementState,stepSettlementAuthority,validateSettlementState,allSettlementSnapshots} from './settlement-authority.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
@@ -358,7 +358,10 @@ function execute(s,a){
       const hammer=s.rustPossessions.items.filter(i=>i.kind==='HAMMER'&&i.location?.kind==='bag'&&i.location.agentId===a.id).sort((x,y)=>x.id-y.id)[0];
       if(hammer&&command(s,'EQUIP_ITEM',{agentId:a.id,itemId:hammer.id}).ok)r=command(s,'PLACE_STATION',data);
     }
-    if(r.ok&&r.completedHouse){gain(s,a,'BUILD',r.stationId);recordPlanProduction(s,a,t,1);}
+    if(r.ok){
+      if(r.completedHouse){gain(s,a,'BUILD',r.stationId);recordPlanProduction(s,a,t,1);}
+      completeExecutablePlanStep(s,a,t,{goalComplete:r.completedHouse===true});
+    }
     a.task=null;
   }else if(t.kind==='BUILD'){
     const b=s.buildings.find(b=>b.id===t.targetId);
