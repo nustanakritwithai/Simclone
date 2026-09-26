@@ -25,7 +25,7 @@ const HOME_LABEL=Object.freeze({
 });
 const FACTOR_LABEL=Object.freeze({
   base:'ฐาน',need:'ความต้องการ',goal:'เป้าหมาย',skill:'ทักษะ',distance:'ระยะทาง',
-  laborMarket:'แรงงาน',householdCooperation:'ช่วย Household'
+  laborMarket:'แรงงาน',householdCooperation:'ช่วย Household',governorPolicy:'นโยบายผู้ปกครอง'
 });
 const freeze=x=>Object.freeze(x);
 const number=n=>Number.isFinite(Number(n))?Number(n):0;
