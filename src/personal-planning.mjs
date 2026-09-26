@@ -84,9 +84,12 @@ export function finishPersonalExploration(state,agent,task){
   if(Number.isInteger(task.exploreCursor))p.cursor=(task.exploreCursor+1)%worldCellCount(state);
   if(task.knowledgeKey){
     const result=verifyResourceKnowledge(state,agent.id,task.knowledgeKey);
-    if(p.goal)p.goal={...p.goal,phase:result.status==='CONFIRMED'?'work':'verify',
-      status:result.status==='CONFIRMED'?'active':'failed',updatedTick:state.tick,
-      outcome:result.ok?result.reason:'UNKNOWN'};
+    if(p.goal){
+      const phase=result.status==='CONFIRMED'?'work':'verify';
+      p.goal={...p.goal,phase,step:p.goal.planVersion===EXECUTABLE_PLAN_VERSION?stepFor(p.goal.kind,phase):p.goal.step,
+        status:result.status==='CONFIRMED'?'active':'failed',updatedTick:state.tick,
+        outcome:result.ok?result.reason:'UNKNOWN'};
+    }
     lesson(state,agent,task.purposeKind??'EXPLORE',task.targetId,result.ok?result.reason:'UNKNOWN');
   }else if(p.goal)p.goal={...p.goal,status:'completed',updatedTick:state.tick,outcome:'explored-location'};
 }
