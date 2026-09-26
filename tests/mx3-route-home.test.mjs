@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,serialize,walkable} from '../src/engine.mjs';
 import {routeField,routeFieldUncached,routeDistance} from '../src/survival.mjs';
-import {routeCacheSnapshot,clearRouteCache,ROUTE_CACHE_LIMIT} from '../src/route-cache.mjs';
+import {routeCacheSnapshot,clearRouteCache,ROUTE_CACHE_LIMIT} from '../src/route-cache.mjs?v=0.5.0';
 import {personalHomeSite} from '../src/individual-housing.mjs';
 import {smartHomeSiteEvidence,chooseSmartHomeSite} from '../src/home-site-scoring.mjs';
 import {worldBounds} from '../src/world-bounds.mjs';
