@@ -88,9 +88,14 @@ test('IC6B cohabitant EAT uses own food at shared home, not owners food',()=>{
   subject.x=home.origin.x;subject.y=home.origin.y;subject.energy=100;subject.satiety=10;subject.task=null;
   const mine=materialStock(s,subject),theirs=materialStock(s,owner);mine.food=10;theirs.food=11;
   const myBefore=mine.food,theirBefore=theirs.food;
-  for(let i=0;i<5&&mine.food===myBefore;i++)step(s,1);
-  assert.equal(mine.food,myBefore-1);
-  assert.equal(theirs.food,theirBefore);
+  let sawEat=false;
+  for(let i=0;i<40&&mine.food===myBefore;i++){
+    step(s,1);
+    if(subject.task?.kind==='EAT')sawEat=true;
+  }
+  assert.equal(sawEat,true,'cohabitant should enter EAT task at shared home');
+  assert.equal(mine.food,myBefore-1,'completed EAT consumes the cohabitant own food');
+  assert.equal(theirs.food,theirBefore,'owner food remains untouched');
 });
 
 test('IC6B cohabitation pauses own-home goal and leaving resumes it',()=>{
