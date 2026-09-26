@@ -4,6 +4,7 @@ import {householdOf} from './relationships.mjs?v=0.5.0';
 import {householdEconomySnapshot} from './kingdom-household-economy.mjs?v=0.5.0';
 import {personalHomeIntent} from './individual-home-planning.mjs?v=0.5.0';
 import {walkable} from './survival.mjs?v=0.5.0';
+import {cloneExecutablePlan} from './executable-plan.mjs?v=0.5.0';
 
 export const AUTONOMOUS_LIFE_VIEW_VERSION='VAL1-0.1';
 
@@ -25,7 +26,10 @@ const HOME_LABEL=Object.freeze({
 });
 const FACTOR_LABEL=Object.freeze({
   base:'ฐาน',need:'ความต้องการ',goal:'เป้าหมาย',skill:'ทักษะ',distance:'ระยะทาง',
-  laborMarket:'แรงงาน',householdCooperation:'ช่วย Household'
+  laborMarket:'แรงงาน',householdCooperation:'ช่วย Household',planContinuation:'แผนต่อเนื่อง'
+});
+const GOAL_LABEL=Object.freeze({
+  'secure-food':'สำรองอาหาร','collect-wood':'สะสมไม้','collect-stone':'สะสมหิน','finish-shelter':'สร้างบ้านให้เสร็จ',explore:'สำรวจพื้นที่'
 });
 const freeze=x=>Object.freeze(x);
 const number=n=>Number.isFinite(Number(n))?Number(n):0;
@@ -52,6 +56,31 @@ function factorView(trace){
   return freeze(Object.entries(trace.factors)
     .map(([key,value])=>freeze({key,label:FACTOR_LABEL[key]??key,value:number(value)}))
     .filter(row=>row.value!==0));
+}
+
+function executablePlanView(agent){
+  const plan=cloneExecutablePlan(agent);if(!plan)return null;
+  const step=plan.steps.find(s=>s.stepId===plan.currentStepId)??null;
+  return freeze({
+    planId:plan.planId,
+    goal:plan.goal,
+    goalLabel:GOAL_LABEL[plan.goal]??plan.goal,
+    status:plan.status,
+    replanCount:plan.replanCount,
+    maxReplans:plan.maxReplans,
+    step:step?freeze({
+      stepId:step.stepId,
+      actionType:step.actionType,
+      purposeKind:step.purposeKind??null,
+      label:step.actionType==='EXPLORE'&&step.purposeKind
+        ?'สำรวจเพื่อ'+(ACTION_LABEL[step.purposeKind]??step.purposeKind)
+        :(ACTION_LABEL[step.actionType]??step.actionType),
+      status:step.status,
+      attemptCount:step.attemptCount,
+      timeoutTick:step.timeoutTick,
+      lastFailureReason:step.lastFailureReason
+    }):null
+  });
 }
 
 function householdView(state,agent){
@@ -95,11 +124,13 @@ export function autonomousLifeSnapshot(state,agentId){
       factors
     }),
     homePlan:freeze({kind:String(intent?.kind??'UNKNOWN'),label:HOME_LABEL[intent?.kind]??String(intent?.kind??'UNKNOWN')}),
+    executablePlan:executablePlanView(agent),
     household:householdView(state,agent),
     sources:freeze({
       action:agent.task?'agent.task':'none',
       decision:trace?'agent.trace:selected':'UNKNOWN',
       homePlan:'personalHomeIntent',
+      executablePlan:agent.executablePlan?'VAL2 retained executablePlan':'none',
       household:'householdEconomySnapshot'
     })
   });
