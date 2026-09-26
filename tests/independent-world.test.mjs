@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createWorld,step,command,serialize,restore,validate,walkable,birthPlan,capacity} from '../src/engine.mjs';
-import {materialStock,materialTotals,guardianOf,isIndependent} from '../src/individual-resources.mjs';
+import {materialStock,resourceStock,materialTotals,guardianOf,isIndependent} from '../src/individual-resources.mjs';
 import {individualHouses,homeOf,personalHomeSite,survivalHome} from '../src/individual-housing.mjs';
 import {canPlaceStation,stationForRecipe,stationLimit} from '../src/rust-stations.mjs';
 import {taskValid,pathTo,RULES} from '../src/survival.mjs';
@@ -65,7 +65,7 @@ test('IC3 completed personal house is the owners real REST/EAT target, not a str
  const stranger=homeOf(s,s.agents[1].id);assert.notEqual(home.houseId,stranger.houseId);
  a.x=home.x;a.y=home.y;a.task=null;a.energy=0;a.satiety=100;step(s);
  assert.equal(a.task.kind,'REST');assert.equal(a.task.homeId,home.houseId);assert.equal(a.task.fieldRest,false);assert.equal(taskValid(s,a),true);
- a.task=null;a.satiety=30;a.energy=100;materialStock(s,a).food=10;const f=materialStock(s,a).food;step(s,4);assert.ok(materialStock(s,a).food<f);assert.ok(a.satiety>30);
+ a.task=null;a.satiety=30;a.energy=100;resourceStock(s,a).food=10;const f=resourceStock(s,a).food;step(s,4);assert.ok(resourceStock(s,a).food<f);assert.ok(a.satiety>30);
 });
 test('IC3 birth is allowed without ANY global house capacity, charged only to a ready parent',()=>{
  const s=fresh();s.tick=360;const a=s.agents[0];Object.assign(materialStock(s,a),{food:40,wood:20});
@@ -81,7 +81,7 @@ test('IC3 autonomous child uses evidence-based guardian and never performs const
 test('IC3 child food access requires actual guardian position, not remote inventory teleportation',()=>{
  const s=earnedWorld(),child=s.agents.find(a=>a.life.ageAtAnchorYears===0),g=guardianOf(s,child);
  child.task={kind:'EAT',targetId:g.id,x:g.x,y:g.y,path:pathTo(s,child,g),work:0,policy:RULES.jobPolicy,started:s.tick,mealOwnerId:g.id,guardianId:g.id,fieldEat:false};
- materialStock(s,g).food=20;assert.equal(taskValid(s,child),true);
+ resourceStock(s,g).food=20;assert.equal(taskValid(s,child),true);
  g.x+=walkable(s,g.x+1,g.y)?1:-1;assert.equal(taskValid(s,child),false,'moved guardian requires replanning');
 });
 test('IC3 private material state missing, negative, duplicated or mixed with old schema is rejected',()=>{
@@ -98,9 +98,9 @@ test('IC3 read-only housing projection cache invalidates same-tick structural ed
  const roof=s.rustStations.stations.find(st=>st.kind==='WOOD_ROOF'&&st.placedBy===1);roof.kind='WOOD_FOUNDATION';assert.equal(homeOf(s,1).complete,false);
 });
 test('IC3 optional archive can be hosted at an owned home without Camp and survive reload',()=>{
- const s=earnedWorld(),a=s.agents[0],h=homeOf(s,a.id);a.x=h.origin.x;a.y=h.origin.y;a.task=null;Object.assign(materialStock(s,a),{wood:30,stone:10});
+ const s=earnedWorld(),a=s.agents[0],h=homeOf(s,a.id);a.x=h.origin.x;a.y=h.origin.y;a.task=null;Object.assign(resourceStock(s,a),{wood:30,stone:10});
  const before=serialize(s);assert.equal(command(s,'CREATE_ARCHIVE',{agentId:2,houseId:h.houseId}).ok,false);assert.equal(serialize(s),before);
- assert.equal(command(s,'CREATE_ARCHIVE',{agentId:a.id,houseId:h.houseId}).ok,true);assert.equal(materialStock(s,a).wood,24);assert.equal(s.culture.houseId,h.houseId);assert.equal(s.culture.ownerId,a.id);
+ assert.equal(command(s,'CREATE_ARCHIVE',{agentId:a.id,houseId:h.houseId}).ok,true);assert.equal(resourceStock(s,a).wood,24);assert.equal(s.culture.houseId,h.houseId);assert.equal(s.culture.ownerId,a.id);
  const once=serialize(s);assert.equal(command(s,'CREATE_ARCHIVE',{agentId:a.id,houseId:h.houseId}).changed,false);assert.equal(serialize(s),once);assert.deepEqual(validate(s),[]);assert.equal(serialize(restore(once)),once);
 });
 test('IC3 distinct-owner foundations cannot be fused by an unauthorized adjacent placement',()=>{
