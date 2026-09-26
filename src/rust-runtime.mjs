@@ -3,7 +3,7 @@ import {createRustPossessions,queueCraft,advanceCraft,equipTool,unequipTool,pick
 import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS,stationLimit} from './rust-stations.mjs?v=0.5.0';
 import {completedHouseIds} from './housing.mjs?v=0.5.0';
 import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
-import {activateHouseholdStore} from './individual-resources.mjs?v=0.5.0';
+import {activateHouseholdStore,isIndependent} from './individual-resources.mjs?v=0.5.0';
 export const RUST_RUNTIME_VERSION='RS1-RS4-integrated-0.2';
 export function ensureRustState(s){
   if(s.rustPossessions===undefined)s.rustPossessions=createRustPossessions();
@@ -34,10 +34,14 @@ export function rustCommand(s,type,data={},isWalkable){
     if(r.ok&&!r.duplicate){
       const done=[...completedHouseIds(s)].find(id=>!before.has(id));
       if(done){
-        const foundationId=Number(done.slice(1)),foundation=s.rustStations.stations.find(st=>st.id===foundationId&&st.kind==='WOOD_FOUNDATION');
-        const activated=foundation?activateHouseholdStore(s,done,foundation.placedBy):{ok:false,reason:'house'};
-        if(!activated.ok)throw new Error('Household resource activation failed');
-        r={...r,completedHouse:done,householdStoreActivated:activated.changed};
+        let householdStoreActivated=false;
+        if(isIndependent(s)){
+          const foundationId=Number(done.slice(1)),foundation=s.rustStations.stations.find(st=>st.id===foundationId&&st.kind==='WOOD_FOUNDATION');
+          const activated=foundation?activateHouseholdStore(s,done,foundation.placedBy):{ok:false,reason:'house'};
+          if(!activated.ok)throw new Error('Household resource activation failed');
+          householdStoreActivated=activated.changed;
+        }
+        r={...r,completedHouse:done,householdStoreActivated};
       }
     }
   }
