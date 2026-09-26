@@ -12,7 +12,7 @@ Freeze the only future seam between เขตศิลา and Simclone before an
 
 ## What already exists
 
-`src/khet/` computes job stats, combat, zones, and enemy monsters. It is not called from `index.html` or `src/engine.mjs`. It does not replace skill XP.
+`src/khet/` computes job stats, combat, zones, and enemy monsters. `src/engine.mjs` does not call it. It does not replace skill XP. `index.html` may load only the panel named by the caller contract.
 
 ## Authority that must stay untouched
 
@@ -25,7 +25,7 @@ Freeze the only future seam between เขตศิลา and Simclone before an
 ## Non-goals
 
 - Do not merge PR #123 from this preparation.
-- Do not edit `index.html`, `src/engine.mjs`, `src/skill-provenance.mjs`, personal planning, VAL2/VAL3 projections, household, ecology, or Pages workflows.
+- Do not edit `src/engine.mjs`, `src/skill-provenance.mjs`, personal planning, VAL2/VAL3 projections, household, ecology, or Pages workflows.
 - Do not write world nodes, stock, tasks, households, relationships, settlements, or saves.
 - Monsters stay zone enemies. No tame, ranch, breed, gene, or pet.
 - No second stat or damage formula. `statValue` and `damageOf` remain the only khet math.
@@ -35,7 +35,7 @@ Freeze the only future seam between เขตศิลา and Simclone before an
 
 ## Seam, implemented and not wired
 
-`encounterShadow(input)` in `src/khet/combat.mjs` returns a projection or null. It is not imported by `index.html` or `src/engine.mjs`.
+`encounterShadow(input)` in `src/khet/combat.mjs` returns a projection or null. It is not imported by `src/engine.mjs`.
 
 The caller must pass an explicit plain object:
 
@@ -48,15 +48,15 @@ The projection may contain only zone, monster id, enemy level, rank, and whether
 Rules:
 
 - It does not import `src/engine.mjs`, `src/skill-provenance.mjs`, or any world writer.
-- `index.html` does not import it. UI wiring needs its own contract.
+- `index.html` does not import the shadow module itself. Only `src/khet-panel.mjs` may, and only under the caller contract.
 - `agent.skills` is neither an argument nor an output.
 - A missing or unknown zone throws `unknown_zone`. A monster outside the zone throws `monster_outside_zone`. No monster is invented when the id is omitted.
 - A null input returns null. UNKNOWN is not PASS. A Clone meeting a khet monster is still UNKNOWN until a later contract names the caller.
 
 ## Acceptance of this prepared gate
 
-1. This file states `encounterShadow` and says wiring is NOT APPROVED.
-2. `index.html` and `src/engine.mjs` do not reference `src/khet` or `khet-sila`.
+1. This file states `encounterShadow` and says engine wiring is NOT APPROVED.
+2. `src/engine.mjs` does not reference `src/khet` or `khet-sila`. `index.html` may load only `src/khet-panel.mjs`.
 3. Files in `src/khet/` do not import `engine.mjs`, `skill-provenance.mjs`, or world writers.
 4. `tests/khet-sila.test.mjs` still proves the locked stat vectors and combat rules.
 5. No skill XP test is edited by this preparation.
@@ -64,8 +64,8 @@ Rules:
 ## Not yet SAT
 
 - Browser, Pages, and public release are out of scope.
-- Merge stays forbidden until a later contract names the caller and the proof.
+- Merge stays forbidden. Naming the caller does not approve a merge.
 
 ## After this shadow
 
-Do not import it from `index.html` or the engine until asked. Do not merge #123.
+The caller is named in `docs/KHET_PANEL_CALLER_SUCCESS_CONTRACT.md`. That contract allows `index.html` to load `src/khet-panel.mjs` only. It still does not allow an engine import or a merge.
