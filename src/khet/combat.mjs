@@ -290,10 +290,31 @@ function bossReadyAfter(current, next, ready) {
   if (next === "z4" && current !== "z4") return true;
   return ready;
 }
+function encounterShadow(input) {
+  if (!input || typeof input !== "object") return null;
+  const band = ZONES.find((item) => item.id === input.zone);
+  if (!band) throw new Error("unknown_zone");
+  if (!input.adventurer || typeof input.adventurer.exp !== "number") return null;
+  const level = characterLevel(input.adventurer);
+  let monsterId = null;
+  if (input.monsterId != null) {
+    const monster = monsterById(input.monsterId);
+    if (monster.stage !== band.stage) throw new Error("monster_outside_zone");
+    monsterId = monster.id;
+  }
+  return {
+    zone: band.id,
+    monsterId,
+    enemyLevel: zoneLevel(band.id, level),
+    rank: band.rank,
+    allowed: canEnter(band.id, level)
+  };
+}
 export {
   bossReadyAfter,
   bossUnlocked,
   canEnter,
+  encounterShadow,
   playerStrike,
   startFight,
   zoneLevel
