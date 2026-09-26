@@ -4,8 +4,8 @@
  */
 export const KINGDOM_LABOR_VERSION='K4-shadow-0.1';
 export const LABOR_OFFER_CAP=4;
-const ROLE_GOOD=Object.freeze({woodcutter:'wood',miner:'stone',builder:'building'});
-const ROLE_LABEL=Object.freeze({woodcutter:'คนตัดไม้',miner:'คนขุดหิน',builder:'ช่างก่อสร้าง'});
+const ROLE_GOOD=Object.freeze({forager:'food',woodcutter:'wood',miner:'stone',builder:'building'});
+const ROLE_LABEL=Object.freeze({forager:'คนหาอาหาร',woodcutter:'คนตัดไม้',miner:'คนขุดหิน',builder:'ช่างก่อสร้าง'});
 const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
 
 export function laborOfferCandidate(role,{economy,production}={}){
@@ -39,7 +39,7 @@ export function laborOfferCandidate(role,{economy,production}={}){
 }
 
 export function kingdomLaborMarketSnapshot({economy=null,production=null}={}){
-  const offers=['woodcutter','miner','builder']
+  const offers=['forager','woodcutter','miner','builder']
     .map(role=>laborOfferCandidate(role,{economy,production}))
     .filter(Boolean)
     .sort((a,b)=>b.priority-a.priority||a.role.localeCompare(b.role))
