@@ -11,6 +11,7 @@ import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {walkable} from './survival.mjs?v=0.5.0';
 import {edgeCells} from './rust-stations.mjs?v=0.5.0';
 import {allSettlementSnapshots} from './settlement-authority.mjs?v=0.5.0';
+import {autonomousLifeSnapshot} from './autonomous-life-view.mjs?v=0.5.0';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function installIndependentUI(api){
  const $=id=>document.getElementById(id);
@@ -52,12 +53,17 @@ export function installIndependentUI(api){
   const householdOwner=household?[...s.agents,...s.archive].find(p=>p.id===household.ownerId):null;
   const relation=householdOwner&&householdOwner.id!==a.id?relationshipOf(s,a.id,householdOwner.id):null;
   const leadership=householdOwner?leadershipProfile(s,householdOwner.id):null;
-  const account=resourceAccount(s,a);
+  const account=resourceAccount(s,a),life=autonomousLifeSnapshot(s,a.id);
+  const lifePressure=life?.household?.topOffer?'<span>แรงกดดัน Household <b>'+esc(life.household.topOffer.label||life.household.topOffer.role)+'</b> · '+esc(life.household.topOffer.urgency)+'</span>':'';
+  const lifeWhy=life?.decision?.reason==='selected-trace'
+    ?'<details data-autonomous-why><summary>ทำไมเลือกงานนี้? · Score '+life.decision.score+'</summary><div class="personal-stock">'+life.decision.factors.map(f=>'<span>'+esc(f.label)+' <b>'+esc(signed(f.value))+'</b></span>').join('')+'</div><small>'+(life.decision.scoreMatches?'✓ ตรงกับ engine trace':'UNKNOWN · score ไม่ตรงกับ factors')+'</small></details>'
+    :'<details data-autonomous-why><summary>ทำไมเลือกงานนี้?</summary><small>UNKNOWN · ไม่มี selected trace ที่ตรงกับงานปัจจุบัน</small></details>';
+  const lifeHtml=life?'<div class="household-summary autonomous-life-summary" data-autonomous-life="'+a.id+'"><small>Autonomous Life · VAL1</small><span>ตอนนี้ <b>'+esc(life.currentAction?.label??'ยังไม่มีงานปัจจุบัน')+'</b></span><span>แผนบ้าน <b>'+esc(life.homePlan.label)+'</b></span>'+lifePressure+lifeWhy+'</div>':'';
   const homeLabel=residence&&householdOwner?'อยู่ร่วมบ้านของ '+esc(householdOwner.name):h?(h.complete?'บ้านของ '+esc(a.name):'กำลังสร้าง '+esc(h.houseId)):(guardian?'พักกับ '+esc(guardian.name):'ยังไม่มีบ้านส่วนตัว');
   const homeAction=residence?'<button class="secondary" data-leave-household="'+a.id+'">ออกจาก household</button>':h?'<button class="secondary" data-own-home="'+a.id+'">ดูบ้าน</button>':candidate?'<button class="secondary" data-join-household="'+candidate.ownerId+'">ขออยู่ร่วมบ้าน</button>':'';
   const members=household?household.residentIds.map(id=>[...s.agents,...s.archive].find(p=>p.id===id)?.name??('#'+id)).join(', '):'';
   const social=household?'<div class="household-summary" data-household-owner="'+household.ownerId+'"><small>Household · '+esc(householdOwner?.name??'#'+household.ownerId)+'</small><span>'+esc(members)+'</span>'+(leadership?'<span>Leadership <b>Lv.'+leadership.level+'</b> · Followers <b>'+leadership.activeFollowers+'/'+leadership.followerCapacity+'</b></span>':'')+(relation?'<span>Trust <b>'+relation.trust+'</b> · Affinity <b>'+relation.affinity+'</b> · Respect <b>'+relation.respect+'</b></span>':'')+'</div>':'';
-  const html='<div><b>⌂ '+homeLabel+'</b>'+homeAction+'</div><small>'+esc(labels[intent.kind]??intent.kind)+'</small>'+social+'<small>'+(account.kind==='household'?'ทรัพยากรร่วมของบ้าน '+esc(account.houseId):'ทรัพยากรชั่วคราวส่วนตัว')+'</small><div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
+  const html='<div><b>⌂ '+homeLabel+'</b>'+homeAction+'</div><small>'+esc(labels[intent.kind]??intent.kind)+'</small>'+lifeHtml+social+'<small>'+(account.kind==='household'?'ทรัพยากรร่วมของบ้าน '+esc(account.houseId):'ทรัพยากรชั่วคราวส่วนตัว')+'</small><div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
   if(card.innerHTML!==html)card.innerHTML=html;
  }
  function openHome(h){
