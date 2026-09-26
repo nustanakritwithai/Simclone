@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,serialize,step} from '../src/engine.mjs';
 import {K6_RESOURCE_REGEN,createResourceRegenerationShadow} from '../src/worldsim-resource-regen-shadow.mjs';
+import {RESOURCE_REGEN_AUTHORITY} from '../src/worldsim-resource-authority.mjs';
 
 test('WM4.0 captures exact K6 regeneration contract',()=>{
   assert.deepEqual(K6_RESOURCE_REGEN.food,{periodTicks:120,amount:3,renewable:true});
@@ -11,7 +12,7 @@ test('WM4.0 captures exact K6 regeneration contract',()=>{
 
 test('regeneration observer reports WorldSim writer and stays read-only',()=>{
   const s=createWorld(230926),before=serialize(s),x=createResourceRegenerationShadow(s);
-  assert.equal(x.authority.writer,'worldsim-wm4.6');assert.equal(x.authority.worldsimMutation,false);
+  assert.equal(x.authority.writer,RESOURCE_REGEN_AUTHORITY.writer);assert.equal(x.authority.worldsimMutation,false);
   assert.equal(serialize(s),before);
 });
 
@@ -64,5 +65,5 @@ test('full nodes propose zero increment even on a regeneration boundary',()=>{
 test('every regeneration observer row names the WM4.1 WorldSim writer',()=>{
   const x=createResourceRegenerationShadow(createWorld(8080));
   assert.ok(x.rows.length>0);
-  assert.ok(x.rows.every(r=>r.authoritativeWriter==='worldsim-wm4.6'));
+  assert.ok(x.rows.every(r=>r.authoritativeWriter===RESOURCE_REGEN_AUTHORITY.writer));
 });
