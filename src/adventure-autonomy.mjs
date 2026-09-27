@@ -19,6 +19,14 @@ export const AUTONOMOUS_ADVENTURE_POLICY=Object.freeze({
 
 const livingAdventurer=a=>a?.alive===true&&a.profession==='adventurer';
 
+function monsterClaimedByOtherAdventurer(state,agent,worldMonsterId){
+  return (state.agents??[]).some(other=>other.alive&&other.id!==agent.id&&(
+    other.task?.adventureHunt?.worldMonsterId===worldMonsterId||
+    other.adventureEncounter?.worldMonsterId===worldMonsterId||
+    (other.adventureCombat?.worldMonsterId===worldMonsterId&&other.adventureCombat.status==='ACTIVE')
+  ));
+}
+
 export function autonomousAdventureSafety(agent){
   if(!livingAdventurer(agent))return Object.freeze({ok:false,reason:'not-adventurer'});
   if(agent.hp<AUTONOMOUS_ADVENTURE_POLICY.minHp)return Object.freeze({ok:false,reason:'hp'});
@@ -34,6 +42,7 @@ export function chooseAutonomousAdventureTarget(state,agent){
   const field=routeField(state,agent),rows=[];
   for(const monster of [...(state.wildMonsters?.entities??[])].sort((a,b)=>String(a.worldMonsterId).localeCompare(String(b.worldMonsterId)))){
     if(monster.status!=='IDLE'||monster.hpCurrent<=0)continue;
+    if(monsterClaimedByOtherAdventurer(state,agent,monster.worldMonsterId))continue;
     if(!Number.isSafeInteger(monster.level)||monster.level>progression.level+AUTONOMOUS_ADVENTURE_POLICY.maxTargetLevelAboveSelf)continue;
     let engagement;
     try{
