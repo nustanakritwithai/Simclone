@@ -25,7 +25,7 @@ test('DSP1 projects current renderer authorities without mutating simulation sta
   assert.equal(count(snap.entities,'resource'),s.nodes.length);
   assert.equal(count(snap.entities,'building'),s.buildings.filter(b=>b.type!=='shelter').length);
   assert.equal(count(snap.entities,'station'),s.rustStations?.stations?.length??0);
-  assert.equal(count(snap.entities,'monster'),12);
+  assert.equal(count(snap.entities,'monster'),s.wildMonsters.entities.length);
   assert.equal(count(snap.entities,'agent'),s.agents.filter(a=>a.alive).length);
   assert.equal(snap.entities.some(row=>row.kind==='building'&&row.buildingType==='shelter'),false);
 });
