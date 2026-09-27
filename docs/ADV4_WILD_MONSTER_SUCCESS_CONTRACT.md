@@ -27,9 +27,10 @@ No Math.random or wall-clock Date may be a gameplay rule.
 
 ## Verified source inputs
 
-Simclone branch base:
+Simclone current-main base after non-force refresh:
 
-- main@5ddb4e00062100f025847ad0cbd0d14e01c421ff
+- main@65bfcfb241e1971a4cb06b8e7c7ac32110f7d1da
+- branch was initially created when main was 5ddb4e00062100f025847ad0cbd0d14e01c421ff, then main advanced during implementation; current main was merged normally with force=false before PR creation
 
 Pocket Monster donor:
 
