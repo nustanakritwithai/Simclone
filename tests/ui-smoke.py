@@ -10,12 +10,12 @@ checks=[];errors=[]
 def check(name,condition=True):
  assert condition,name
  checks.append(name);print('PASS',name,flush=True)
-def boot_with_html(page,content,saved=None):
+def boot_with_html(page,content,saved=None,settle_ms=400):
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.evaluate("saved=>{const m=new Map(saved?[['simclone:world:v1',saved]]:[]);Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v))}})}",saved)
  page.set_content(content,wait_until='load')
  page.wait_for_function("window.simclone?.uiVersion==='0.5.0'")
- page.wait_for_timeout(400)
+ if settle_ms:page.wait_for_timeout(settle_ms)
 def boot(page,saved=None):boot_with_html(page,html,saved)
 def paused(page):
  if page.locator('#pause').get_attribute('aria-pressed')!='true':page.locator('#pause').click()
@@ -77,12 +77,14 @@ with sync_playwright() as p:
   if target:break
  assert target is not None
  adv['x'],adv['y']=target
- advpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot_with_html(advpage,independent_html,json.dumps(adventure_saved,ensure_ascii=False));paused(advpage)
+ advpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot_with_html(advpage,independent_html,json.dumps(adventure_saved,ensure_ascii=False),settle_ms=0);paused(advpage);advpage.wait_for_timeout(100)
  check('Adventure UI fits mobile without adding a sixth mobile-nav tab',advpage.locator('#adventure-launch').is_visible() and advpage.locator('.mobile-nav button').count()==5 and no_overflow(advpage))
  advpage.locator('#adventure-launch').tap()
  check('Adventure panel reads canonical profession level qualification and zones',advpage.locator('[data-adv-profile]').count()==1 and 'นักผจญภัย' in advpage.locator('#dialog-body').inner_text() and advpage.locator('[data-adv-action="start-expedition"][data-zone="z1"]').count()==1)
+ z1=advpage.locator('[data-adv-action="start-expedition"][data-zone="z1"]')
+ check('idle Adventurer fixture exposes enabled z1 action before command',z1.is_enabled() and snap(advpage)['agents'][0].get('task') is None)
  before_pos=(snap(advpage)['agents'][0]['x'],snap(advpage)['agents'][0]['y'])
- advpage.locator('[data-adv-action="start-expedition"][data-zone="z1"]').tap()
+ z1.tap()
  started=snap(advpage)['agents'][0]
  check('Adventure start routes through engine and never teleports',started['task']['kind']=='EXPLORE' and started['task'].get('adventureExpedition',{}).get('zoneId')=='z1' and (started['x'],started['y'])==before_pos)
  check('Adventure HUD appears on the running world during expedition',advpage.locator('#adventure-hud').is_visible() and 'EXPEDITION' in advpage.locator('#adventure-hud').inner_text())
