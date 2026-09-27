@@ -66,7 +66,6 @@ function engagementOccupied(state,agent,x,y,targetWorldMonsterId){
 export function findAdventureMonsterEngagement(state,agent,worldMonsterId,adventureLevel,{walkable,routeField,routeDistance}={}){
   if(!agent||!integer(agent.x,0)||!integer(agent.y,0))throw new Error('invalid_agent_position');
   if(typeof walkable!=='function'||typeof routeField!=='function'||typeof routeDistance!=='function')throw new Error('missing_path_authority');
-  if(control==='autonomous'&&targetPolicy!==ADVENTURE_HUNT_AUTONOMOUS_POLICY)throw new Error('autonomous_hunt_policy');
   const monster=wildMonsterById(state,worldMonsterId);
   if(!monster||monster.status!=='IDLE'||monster.hpCurrent<=0)throw new Error('monster_unavailable');
   assertAdventureZoneAccess(monster.zoneId,adventureLevel);
@@ -90,6 +89,7 @@ export function adventureHuntId(agentId,started,worldMonsterId,x,y){
 }
 
 export function createAdventureHuntTask(state,agent,worldMonsterId,adventureLevel,engagement,path,{control=null,targetPolicy=null}={}){
+  if(control==='autonomous'&&targetPolicy!==ADVENTURE_HUNT_AUTONOMOUS_POLICY)throw new Error('autonomous_hunt_policy');
   const monster=wildMonsterById(state,worldMonsterId);
   if(!monster||monster.status!=='IDLE'||monster.zoneId!==engagement?.zoneId)throw new Error('monster_unavailable');
   assertAdventureZoneAccess(monster.zoneId,adventureLevel);
