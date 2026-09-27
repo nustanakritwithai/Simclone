@@ -49,10 +49,10 @@ test('MX1 large world generation is byte-deterministic for the same seed and pro
 
 test('SWA1 restore accepts released Large saves and upgrades them to one Same-World map',()=>{
   const a=createWorld(99,{mode:'independent',worldProfile:'large'});
-  step(a,40);const b=restore(serialize(a));
+  step(a,40);const b=restore(serialize(a),{sameWorld:true});
   assert.deepEqual(worldBounds(b),SAME_WORLD_BOUNDS);
   assert.equal(b.tiles.length,84*52);
-  const text=serialize(b),c=restore(text);
+  const text=serialize(b),c=restore(text,{sameWorld:true});
   assert.equal(serialize(c),text);
   step(b,80);step(c,80);
   assert.equal(serialize(b),serialize(c));
