@@ -42,6 +42,7 @@ import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,wo
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventure-annex.mjs?v=0.5.0';
 import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement,defeatWildMonster,stepWildMonsterLifecycle,migrateWildMonsterLifecycleState} from './adventure-world-monsters.mjs?v=0.5.0';
+import {autonomousAdventureIntent} from './adventure-autonomy.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -475,6 +476,31 @@ function decide(s,a,book){
     a.moveTick=0;return;
   }
 }
+function stepAutonomousAdventure(s,a){
+  const intent=autonomousAdventureIntent(s,a);
+  if(!intent)return false;
+  if(intent.type==='wait-combat'||intent.type==='wait-encounter'||intent.type==='wait-result')return true;
+
+  if(intent.type==='start-hunt'){
+    const r=command(s,'START_ADVENTURE_HUNT',{agentId:a.id,worldMonsterId:intent.worldMonsterId});
+    return r.ok;
+  }
+  if(intent.type==='start-combat'){
+    const r=command(s,'START_ADVENTURE_COMBAT',{agentId:a.id});
+    return r.ok;
+  }
+  if(intent.type==='attack'){
+    const r=command(s,'ADVENTURE_COMBAT_ACTION',{agentId:a.id,action:'BASIC_ATTACK',expectedTurn:intent.expectedTurn});
+    return r.ok;
+  }
+  if(intent.type==='finish-result'){
+    if(intent.claimLoot)command(s,'CLAIM_ADVENTURE_LOOT',{agentId:a.id});
+    const r=command(s,'FINISH_ADVENTURE_RESULT',{agentId:a.id});
+    return r.ok;
+  }
+  return false;
+}
+
 function gain(s,a,key,targetId=null){
   if(!SKILLS.includes(key))return;
   const old=level(a.skills[key]);a.skills[key]+=5;a.workDone++;
@@ -610,6 +636,7 @@ export function step(s,count=1,options={}){
       priority(x.a)-priority(y.a)||(priority(x.a)===0?x.a.satiety-y.a.satiety:priority(x.a)===1?x.a.energy-y.a.energy:0)||x.order-y.order);
     for(const {a} of order){
       if(a.task&&(!taskValid(s,a)||!adventureExpeditionTaskValid(s,a,a.task,{walkable}))){release(book,a,a.task);a.task=null;}
+      if(stepAutonomousAdventure(s,a))continue;
       if(!a.task)decide(s,a,book);
       const task=a.task;
       if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
