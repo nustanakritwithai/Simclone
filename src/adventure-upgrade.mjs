@@ -2,7 +2,7 @@ import {
   ADVENTURE_GEAR_STAT_BOUNDS,
   boundCombatModifiers,
   normalizeGearDefinition,
-} from './adventure-gear.mjs';
+} from './adventure-gear.mjs?v=0.5.0';
 
 export const ADVENTURE_MAX_UPGRADE_LEVEL = 10;
 export const ADVENTURE_UPGRADE_STEP_PERCENT = 10;
