@@ -128,6 +128,10 @@ export function installAdventureUI({read,openDialog,closeDialog,execute,select,c
       run('ADVENTURE_COMBAT_ACTION',{agentId,action:'BASIC_ATTACK',expectedTurn:turn},{success:r=>r.status==='ACTIVE'?'โจมตี · Turn '+r.turn:r.status==='VICTORY'?'ชนะ · +'+r.xpAwarded+' XP':'พ่ายแพ้'});return;
     }
     if(action==='claim-loot'){run('CLAIM_ADVENTURE_LOOT',{agentId},{success:r=>r.changed?'รับ loot '+r.itemIds.length+' ชิ้น':'loot ชุดนี้รับแล้ว'});return;}
+    if(action==='finish-result'){
+      run('FINISH_ADVENTURE_RESULT',{agentId},{success:r=>r.skippedLoot?'เดินทางต่อ · ข้าม loot':'พร้อมเดินทางต่อ'});
+      return;
+    }
     if(action==='equip-gear'){run('EQUIP_ADVENTURE_GEAR',{agentId,itemId:Number(button.dataset.item)},{success:()=> 'สวมอุปกรณ์แล้ว'});open(agentId);return;}
     if(action==='unequip-gear'){run('UNEQUIP_ADVENTURE_GEAR',{agentId,slot:button.dataset.slot},{success:()=> 'ถอดอุปกรณ์แล้ว'});open(agentId);return;}
   }
@@ -161,12 +165,15 @@ export function installAdventureUI({read,openDialog,closeDialog,execute,select,c
         '<button type="button" class="adv-primary" data-adv-action="attack" data-agent="'+agent.id+'">Attack</button>';
     }else if(combat?.status==='VICTORY'){
       const def=monsterDefinition(combat.monsterId),fire=def?.types?.[0]==='Fire',claim=combat.lootClaim;
+      const loot=claim?'<div class="adv-loot-done">Loot '+claim.itemIds.length+' ชิ้น · กระเป๋า '+claim.bagged+' · ตกพื้น '+claim.dropped+'</div>':
+        fire?'<button type="button" class="adv-primary" data-adv-action="claim-loot" data-agent="'+agent.id+'">รับ Loot</button>':'<div class="adv-notice compact">Loot profile ของธาตุนี้ยังไม่เปิดใน V1</div>';
+      const continueLabel=fire&&!claim?'เดินทางต่อ · ข้าม Loot':'เดินทางต่อ';
       body='<div class="adv-hud-title"><span>VICTORY</span><b>'+esc(monsterLabel(combat.monsterId))+'</b></div>'+
-        '<p>Adventure XP +'+(combat.reward?.xpAward??0)+'</p>'+
-        (claim?'<div class="adv-loot-done">Loot '+claim.itemIds.length+' ชิ้น · กระเป๋า '+claim.bagged+' · ตกพื้น '+claim.dropped+'</div>':
-          fire?'<button type="button" class="adv-primary" data-adv-action="claim-loot" data-agent="'+agent.id+'">รับ Loot</button>':'<div class="adv-notice compact">Loot profile ของธาตุนี้ยังไม่เปิดใน V1</div>');
+        '<p>Adventure XP +'+(combat.reward?.xpAward??0)+'</p>'+loot+
+        '<button type="button" class="adv-secondary" data-adv-action="finish-result" data-agent="'+agent.id+'">'+continueLabel+'</button>';
     }else if(combat?.status==='DEFEATED'){
-      body='<div class="adv-hud-title"><span>DEFEATED</span><b>'+esc(agent.name)+'</b></div><p>HP คงไว้ที่ 1 · ระบบ Return/Recovery จะเปิดใน gate ถัดไป</p>';
+      body='<div class="adv-hud-title"><span>DEFEATED</span><b>'+esc(agent.name)+'</b></div><p>HP คงไว้ที่ 1 · กลับไปพักก่อนออกล่าครั้งต่อไป</p>'+
+        '<button type="button" class="adv-secondary" data-adv-action="finish-result" data-agent="'+agent.id+'">จบการต่อสู้</button>';
     }
     hud.innerHTML='<div class="adv-hud-top"><button type="button" data-adv-action="open" aria-label="เปิดรายละเอียด Adventure">⚔</button></div>'+body;
   }
