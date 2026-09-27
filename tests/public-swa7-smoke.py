@@ -44,9 +44,9 @@ with sync_playwright() as p:
     context=browser.new_context(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
     page=context.new_page()
     page.on('pageerror',lambda e:errors.append(str(e)))
+    seed_literal=json.dumps(SAVED)
     page.add_init_script(
-        """saved=>{localStorage.clear();localStorage.setItem('simclone:world:v1',saved);}""",
-        SAVED
+        "localStorage.clear();localStorage.setItem('simclone:world:v1',"+seed_literal+");"
     )
     response=page.goto(URL,wait_until='load',timeout=60000)
     check('SWA7 public Pages HTTP loads',response is not None and response.ok)
