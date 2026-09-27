@@ -727,9 +727,9 @@ function migrateKnowledge(s){
   for(const a of allPeople(s))if(!a.knowledgeState)a.knowledgeState=createKnowledgeState();
   return s;
 }
-function migrateSave(s){
+function migrateSave(s,{sameWorld=false}={}){
   if(!s)return s;
-  expandLargeWorldToSameWorld(s);
+  if(sameWorld)expandLargeWorldToSameWorld(s);
   const sourceVersion=s.version;
   if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);ensureSettlementState(s);ensureGovernanceState(s);return s;} // additive social/settlement/governance state migrates deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
@@ -756,8 +756,8 @@ function migrateSave(s){
   migrateSkillProvenance(s);migrateKnowledge(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);s.version=SAVE_VERSION;
   return s;
 }
-export function restore(text){
+export function restore(text,options={}){
   if(typeof text!=='string'||text.length>HISTORY_LIMITS.maxSaveCharacters)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป');
-  const s=migrateSave(JSON.parse(text)),errors=validate(s);
+  const s=migrateSave(JSON.parse(text),options),errors=validate(s);
   if(errors.length)throw new Error('บันทึกไม่ถูกต้อง: '+errors.join(', '));return s;
 }
