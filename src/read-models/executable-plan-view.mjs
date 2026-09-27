@@ -36,7 +36,12 @@ export function executablePlanSnapshot(state,agentId){
       planId:isVal2?goal.planId:null,
       step:isVal2?freeze({kind:String(goal.step.kind),phase:String(goal.step.phase)}):null,
       attempt:isVal2?integerOrNull(goal.attempt):null,
-      maxReplans:isVal2?integerOrNull(goal.maxReplans):null
+      maxReplans:isVal2?integerOrNull(goal.maxReplans):null,
+      sequenceVersion:typeof goal.sequenceVersion==='string'?goal.sequenceVersion:null,
+      stepIndex:Array.isArray(goal.steps)?integerOrNull(goal.stepIndex):null,
+      steps:Array.isArray(goal.steps)?freeze(goal.steps.map(s=>freeze({
+        id:String(s.id??'UNKNOWN'),kind:String(s.kind??'UNKNOWN'),status:String(s.status??'UNKNOWN')
+      }))):freeze([])
     })
   });
 }
