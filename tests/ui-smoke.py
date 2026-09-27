@@ -40,7 +40,7 @@ with sync_playwright() as p:
  # SWA3: physical Wild Monster authority must be visually targetable without mutating simulation.
  monster_state=snap(desktop)
  monsters=monster_state.get('wildMonsters',{}).get('entities',[])
- check('SWA3 Same-World exposes 12 physical Wild Monsters',len(monsters)==12)
+ check('SWA3 Same-World exposes 24 physical Wild Monsters',len(monsters)==24)
  monster=monsters[0]
  mp=desktop.evaluate('(m)=>simclone.screenPoint(m.x,m.y)',monster)
  # Pan into the navigation-owned safe playfield rather than an arbitrary viewport point.
@@ -438,7 +438,7 @@ with sync_playwright() as p:
   check(f'layout {w}x{h} no document overflow',no_overflow(q))
   if w==390:
    ms=snap(q).get('wildMonsters',{}).get('entities',[])
-   check('390x844: Wild Monster authority survives mobile boot',len(ms)==12)
+   check('390x844: Wild Monster authority survives mobile boot',len(ms)==24)
    m0=ms[0];p0=q.evaluate('(m)=>simclone.screenPoint(m.x,m.y)',m0)
    # Hit testing is screen-space and intentionally larger than the painted silhouette.
    mhit=q.evaluate('(v)=>simclone.worldObjectTargetAtScreen(v.x,v.y)',{'x':p0['x'],'y':p0['y']-20*q.evaluate('simclone.camera().zoom')})
