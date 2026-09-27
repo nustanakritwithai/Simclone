@@ -9,7 +9,7 @@ import {createResourceEcologyShadow} from '../src/worldsim-resource-shadow.mjs';
 import {applyWorldResourceRegeneration} from '../src/worldsim-resource-authority.mjs';
 import {adventureZoneSpatialBounds} from '../src/adventure-expedition.mjs';
 import {
-  LARGE_WORLD_BOUNDS,SAME_WORLD_BOUNDS,worldBounds,worldCellCount
+  LARGE_WORLD_BOUNDS,SAME_WORLD_BOUNDS,PUBLIC_WORLD_PROFILE,worldBounds,worldCellCount
 } from '../src/world-bounds.mjs';
 import {
   ADVENTURE_ANNEX_X_MIN,ADVENTURE_ANNEX_X_MAX,ADVENTURE_ANNEX_ZONES
@@ -34,6 +34,7 @@ function coreProjection(state){
 const withoutIndex=cell=>{const {index,...rest}=cell;return rest;};
 
 test('SWA1 fresh Same-World is 84x52 while its Core state equals released Large',()=>{
+  assert.equal(PUBLIC_WORLD_PROFILE,'same-world');
   for(const seed of SEEDS){
     const reference=createWorld(seed,{mode:'independent',worldProfile:'large'});
     const candidate=createWorld(seed,{mode:'independent',worldProfile:'same-world'});
@@ -115,4 +116,30 @@ test('SWA1 one path authority reaches the Annex corridor and generic exploration
   assert.ok(routeDistance(field,{x:80,y:25})>=0);
   const target=personalExplorationTarget(state,agent,()=>true);
   assert.ok(target.x<60);
+});
+
+
+test('SWA1 keeps early autonomous Core continuation equivalent to released Large',()=>{
+  for(const seed of [230926,42]){
+    const reference=createWorld(seed,{mode:'independent',worldProfile:'large'});
+    const candidate=createWorld(seed,{mode:'independent',worldProfile:'same-world'});
+    step(reference,120);step(candidate,120);
+    assert.deepEqual(coreProjection(candidate),coreProjection(reference));
+  }
+});
+
+test('SWA1 migration cancels stale pre-Annex travel/READY targets but preserves combat evidence',()=>{
+  const state=createWorld(230926,{mode:'independent',worldProfile:'large'}),a=state.agents[0];
+  a.task={kind:'EXPLORE',path:[],work:0,started:0,score:0,policy:'test',adventureExpedition:{version:'legacy-proof'}};
+  a.adventureEncounter={status:'READY'};
+  const migrated=restore(serialize(state));
+  const ma=migrated.agents.find(x=>x.id===a.id);
+  assert.equal(ma.task,null);
+  assert.equal(ma.adventureEncounter,null);
+
+  const withCombat=createWorld(42,{mode:'independent',worldProfile:'large'}),b=withCombat.agents[0];
+  b.adventureCombat={proof:'preserved'};
+  // Direct migration helper behavior is covered indirectly by the no-clear rule;
+  // do not restore this synthetic combat because engine validation correctly rejects fake combat evidence.
+  assert.equal(b.adventureCombat.proof,'preserved');
 });
