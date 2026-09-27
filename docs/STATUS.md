@@ -2,14 +2,15 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main: `1f704dcb4df0bc1b5aae7dc718321facac54bb59`.
+> Source main: `250285d4a6d381751c60791bd9897fd7ab92a70f`.
 > Adventure V1 is released.
 > SWA0–SWA5 are merged.
+> Display V1 D0 + DSP1 is merged through PR #146 as a read-only world-presentation model.
 > Same-World is 84×52; visible Wild Monsters can be selected, hunted through real pathfinding, bound to combat by exact `worldMonsterId`, and use world-entity HP as the single Monster HP authority.
 >
-> Next gameplay gate: **SWA6 — DEFEATED / despawn / deterministic respawn lifecycle**.
-> Parallel display candidate: **Display V1 D0 + DSP1** on `feature/display-d0-dsp1-world-presentation`.
-> DSP1 is a pure read model over existing simulation authorities; it does not replace the current renderer, hit testing, selection, or gameplay commands.
+> Active candidate: **SWA6** on `integration/swa6-after-display-v1`.
+> SWA6 owns `ENGAGED → DEFEATED → hidden → RESPAWNING → IDLE(new incarnation)`, terminal result closeout, deterministic respawn, stale-incarnation protection and SWA5 terminal migration.
+> SWA7 remains the final browser/mobile/public release proof after SWA6 merges.
 >
 > Sections below predate the current Same-World release line and are retained as historical context where they conflict with this override.
 

@@ -76,9 +76,11 @@ test('SWA5 BASIC_ATTACK commits Monster HP only through world entity authority',
     assert.equal(m.engagedByAgentId,a.id);
     assert.ok(m.hpCurrent>0);
   }else if(a.adventureCombat.status==='VICTORY'){
-    assert.equal(m.status,'ENGAGED');
-    assert.equal(m.engagedByAgentId,a.id);
+    assert.equal(m.status,'DEFEATED');
+    assert.equal(m.engagedByAgentId,null);
     assert.equal(m.hpCurrent,0);
+    assert.ok(Number.isSafeInteger(m.defeatedTick));
+    assert.ok(Number.isSafeInteger(m.respawnTick));
   }else{
     assert.equal(a.adventureCombat.status,'DEFEATED');
     assert.equal(m.status,'IDLE');
@@ -144,9 +146,10 @@ test('SWA5 world-bound combat reaches a terminal state without creating a second
   }
   assert.notEqual(a.adventureCombat.status,'ACTIVE');
   if(a.adventureCombat.status==='VICTORY'){
-    assert.equal(m.status,'ENGAGED');
+    assert.equal(m.status,'DEFEATED');
     assert.equal(m.hpCurrent,0);
-    assert.equal(m.engagedByAgentId,a.id);
+    assert.equal(m.engagedByAgentId,null);
+    assert.ok(m.respawnTick>m.defeatedTick);
     assert.equal(a.adventureCombat.reward?.status,'COMMITTED');
   }else{
     assert.equal(a.adventureCombat.status,'DEFEATED');
