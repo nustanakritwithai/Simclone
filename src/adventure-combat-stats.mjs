@@ -5,7 +5,7 @@ import {
   ADVENTURE_COMBAT_RATING_KEYS,
   ADVENTURE_COMBAT_STAT_MAX,
   createAdventurerCombatProfile,
-} from './adventure-combat-profile.mjs';
+} from './adventure-combat-profile.mjs?v=0.5.0';
 
 export const ADVENTURE_COMBAT_STATS_VERSION = 'adventure-combat-stats/v1';
 export const ADVENTURE_COMBAT_AGENT_HP_MAX = 100;
