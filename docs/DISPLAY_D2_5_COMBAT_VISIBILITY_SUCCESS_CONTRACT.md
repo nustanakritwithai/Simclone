@@ -3,10 +3,10 @@ type: success-contract
 project: Simclone
 domain: display-system
 feature: D2.5 Adventure Combat Visibility Hotfix
-status: implementation-candidate
+status: released
 canonical: true
 owner: Project Brain + Display Integration
-validation: UNKNOWN
+validation: SAT
 last_reviewed: 2026-09-28
 ---
 
@@ -92,3 +92,9 @@ D3 still owns the full journey visualization:
 11. Existing SWA4-SWA7 lifecycle regressions remain SAT.
 12. Exact-head Verify must be SUCCESS.
 13. UNKNOWN is never PASS.
+
+
+## Release evidence
+
+D2.5 merged through PR #156 on `main@da08ab1131548f8276c40b7188ab6a40ff2a055b`.
+Exact-main Pages #99 / run `36340979453` was SUCCESS. D2.5 remains the single strike/counter/damage-number presentation owner for D3.
