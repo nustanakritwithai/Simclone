@@ -13,6 +13,7 @@ import {installAdventureUI} from './adventure-ui.mjs?v=0.5.0';
 import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
 import {worldReadabilityRegions} from './display-world-readability.mjs?v=0.5.0';
 import {worldHitCandidate,resolveWorldHit,worldSelection,selectionFromWorldHit} from './read-models/world-hit-resolver.mjs?v=0.5.0';
+import {adventureJourneyVisualSnapshot,ADVENTURE_DEFEAT_CUE_TICKS,ADVENTURE_RESPAWN_CUE_TICKS} from './read-models/adventure-journey-visuals.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,independentUI=null,adventureUI=null,nav=null,worldMapView=null;
@@ -399,6 +400,71 @@ function structureRenderContext(){
  };
  return {hasFoundation,roofOptionsFor};
 }
+function drawAdventureBadge(c,x,y,label,{fill='#102a23e8',stroke='#d9c48d',text='#f3e7c3'}={}){
+ c.save();c.font='700 10px system-ui';c.textAlign='center';c.textBaseline='middle';
+ const width=Math.max(42,c.measureText(label).width+14);
+ c.fillStyle=fill;c.beginPath();c.roundRect(x-width/2,y-8,width,16,5);c.fill();
+ c.strokeStyle=stroke;c.lineWidth=1;c.stroke();c.fillStyle=text;c.fillText(label,x,y+.5);c.restore();
+}
+function drawAdventureJourney(c,j,time){
+ if(!j?.actor)return;
+ const actor=proj(j.actor.x,j.actor.y),target=j.target?proj(j.target.x,j.target.y):null,pulse=(Math.sin(time*.008+j.agentId)+1)/2;
+ if(j.phase==='HUNT'){
+  if(j.path?.length>1){
+   c.save();c.setLineDash([6,5]);
+   const pts=j.path.map(p=>{const q=proj(p.x,p.y);return [q.x,q.y];});
+   line(c,pts,'#e9c872cc',1.7);c.setLineDash([]);c.restore();
+  }
+  if(j.engagement){
+   const q=proj(j.engagement.x,j.engagement.y);
+   c.save();c.strokeStyle='#f0d58bcc';c.lineWidth=1.3;c.beginPath();c.arc(q.x,q.y,7+pulse*2,0,Math.PI*2);c.stroke();c.restore();
+  }
+  if(target){
+   c.save();c.strokeStyle='#efbc63';c.lineWidth=2;c.beginPath();c.ellipse(target.x,target.y-15,19+pulse*3,12+pulse*2,0,0,Math.PI*2);c.stroke();c.restore();
+   drawAdventureBadge(c,target.x,target.y-49,'HUNT');
+  }
+  return;
+ }
+ if(j.phase==='READY'&&target){
+  c.save();c.strokeStyle='#e7cf84';c.lineWidth=1.6;c.setLineDash([4,4]);line(c,[[actor.x,actor.y-18],[target.x,target.y-18]],'#e7cf84aa',1.2);c.setLineDash([]);c.restore();
+  drawAdventureBadge(c,(actor.x+target.x)/2,(actor.y+target.y)/2-34,'READY');
+  return;
+ }
+ if(j.phase==='ENGAGED'&&target){
+  c.save();c.strokeStyle='#e8a85f';c.lineWidth=2;c.beginPath();c.ellipse(target.x,target.y-16,21+pulse*2,14+pulse,0,0,Math.PI*2);c.stroke();
+  c.strokeStyle='#e8a85f88';c.lineWidth=1.2;line(c,[[actor.x,actor.y-20],[target.x,target.y-20]],'#e8a85f88',1.2);c.restore();
+  drawAdventureBadge(c,(actor.x+target.x)/2,(actor.y+target.y)/2-38,'⚔ ENGAGED',{stroke:'#e8a85f'});
+  if(Number.isFinite(j.monsterHpCurrent)&&Number.isFinite(j.monsterHpMax)&&j.monsterHpMax>0){
+   const ratio=Math.max(0,Math.min(1,j.monsterHpCurrent/j.monsterHpMax));
+   c.fillStyle='#10211bdd';c.fillRect(target.x-22,target.y-39,44,5);c.fillStyle='#c57d62';c.fillRect(target.x-22,target.y-39,44*ratio,5);
+  }
+  if(j.lastTurn){
+   if(j.lastTurn.heroHit&&j.lastTurn.heroDamage>0)drawAdventureBadge(c,target.x,target.y-62,'-'+j.lastTurn.heroDamage,{fill:'#47251fe8',stroke:j.lastTurn.heroCritical?'#f4d06f':'#d88d6f'});
+   if(j.lastTurn.counterHit&&j.lastTurn.counterDamage>0)drawAdventureBadge(c,actor.x,actor.y-57,'-'+j.lastTurn.counterDamage,{fill:'#3b2221e8',stroke:'#ca7c72'});
+  }
+  return;
+ }
+ if(j.phase==='VICTORY'){
+  const q=target??actor;drawAdventureBadge(c,q.x,q.y-48,'✦ VICTORY',{fill:'#253923ee',stroke:'#e9d36e'});
+  return;
+ }
+ if(j.phase==='DEFEATED'){
+  drawAdventureBadge(c,actor.x,actor.y-49,'DEFEATED',{fill:'#3e2526ee',stroke:'#cf8278'});
+ }
+}
+function drawAdventureLifecycleCue(c,cue,time){
+ const p=proj(cue.x,cue.y),pulse=(Math.sin(time*.01+(cue.spawnEpoch??0))+1)/2;
+ if(cue.kind==='DEFEAT'){
+  const t=Math.max(0,Math.min(1,1-cue.ageTicks/Math.max(1,ADVENTURE_DEFEAT_CUE_TICKS)));
+  c.save();c.globalAlpha=.22+.58*t;
+  for(let i=0;i<3;i++)ellipse(c,p.x-8+i*8,p.y-13-i*5,5+i,3+i*.7,'#c6b59a');
+  c.restore();drawAdventureBadge(c,p.x,p.y-43,'DEFEATED',{fill:'#332a27dd',stroke:'#b49a82'});
+ }else if(cue.kind==='RESPAWN'){
+  const t=Math.max(0,Math.min(1,1-cue.ageTicks/Math.max(1,ADVENTURE_RESPAWN_CUE_TICKS)));
+  c.save();c.globalAlpha=.3+.6*t;c.strokeStyle='#c7e3a3';c.lineWidth=1.8;c.beginPath();c.ellipse(p.x,p.y-15,20+pulse*7,13+pulse*4,0,0,Math.PI*2);c.stroke();c.restore();
+  drawAdventureBadge(c,p.x,p.y-46,'RESPAWN',{fill:'#20382be8',stroke:'#b6d893'});
+ }
+}
 function render(time){
  ctx.setTransform(dpr,0,0,dpr,0,0);
  const bg=ctx.createLinearGradient(0,0,cw,ch);bg.addColorStop(0,'#4c654b');bg.addColorStop(1,'#314b3d');ctx.fillStyle=bg;ctx.fillRect(0,0,cw,ch);
@@ -406,12 +472,18 @@ function render(time){
  ctx.save();ctx.translate(cameraOrigin().x+pan.x,cameraOrigin().y+pan.y);ctx.scale(zoom,zoom);const f=proj(focus.x,focus.y);ctx.translate(-f.x,-f.y);
  const bounds=worldBounds(state);ctx.drawImage(ground,-bounds.h*hw-60,-32);
  const a=state.agents.find(a=>a.id===activeAgentId&&a.alive);
- if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
+ if(a?.task?.path.length&&!a.task.adventureHunt){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
+ const journeyView=adventureJourneyVisualSnapshot(state,{activeAgentId});
  const structureCtx=structureRenderContext(),bubbles=worldBubbleSignals(state,activeAgentId,innerWidth<=700?3:5),bubbleMap=new Map(bubbles.map(x=>[x.agentId,x]));
+ for(const j of journeyView.journeys)if(j.phase==='HUNT'&&j.path?.length>1){
+  ctx.save();ctx.setLineDash([6,5]);line(ctx,j.path.map(p=>{const q=proj(p.x,p.y);return [q.x,q.y];}),'#e9c87288',1.4);ctx.setLineDash([]);ctx.restore();
+ }
  for(const link of selectedRelationshipLinks(state,activeAgentId))drawRelationshipLink(ctx,link);
  for(const link of recentCommunicationLinks(state))drawCommunicationLink(ctx,link);
  const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...droppedWorldItems(state).map(item=>({kind:'drop-item',data:item,depth:item.x+item.y+.15})),...(state.wildMonsters?.entities??[]).filter(m=>m.status!=='DEFEATED'&&m.status!=='RESPAWNING').map(m=>({kind:'wild-monster',data:m,depth:m.x+m.y+.18})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
  for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else if(o.kind==='drop-item')drawDroppedItem(ctx,o.data);else if(o.kind==='wild-monster')drawWildMonster(ctx,o.data,time);else person(ctx,o.data,time,bubbleMap.get(o.data.id)??null);}
+ for(const j of journeyView.journeys)drawAdventureJourney(ctx,j,time);
+ for(const cue of journeyView.lifecycle)drawAdventureLifecycleCue(ctx,cue,time);
  for(const pulse of resourceTargetPulses(state,bubbles))drawResourcePulse(ctx,pulse,time);
  for(const signal of bubbles)drawTaskTarget(ctx,signal);
  for(const burst of recentLifeBursts(state))drawLifeBurst(ctx,burst,time);
@@ -610,4 +682,4 @@ setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),worldSize:()=>({...worldBounds(state)}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,activeAgentId),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y),worldSelection:()=>selection?{...selection}:null,activeAgent:()=>activeAgentId,worldTargetAtScreen:(x,y)=>worldTargetAtScreen(x,y),resolveWorldHit:candidates=>resolveWorldHit(candidates),selectedWorldMonster:()=>selection?.kind==='monster'?selection.id:null,openMonsterContext:id=>openMonsterContext(id),personalHomes:()=>individualHouses(state)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),worldSize:()=>({...worldBounds(state)}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,activeAgentId),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y),worldSelection:()=>selection?{...selection}:null,activeAgent:()=>activeAgentId,adventureJourneyVisuals:()=>adventureJourneyVisualSnapshot(state,{activeAgentId}),worldTargetAtScreen:(x,y)=>worldTargetAtScreen(x,y),resolveWorldHit:candidates=>resolveWorldHit(candidates),selectedWorldMonster:()=>selection?.kind==='monster'?selection.id:null,openMonsterContext:id=>openMonsterContext(id),personalHomes:()=>individualHouses(state)});
