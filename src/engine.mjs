@@ -16,6 +16,8 @@ import {ensureLeadershipSkill,LEADERSHIP_SKILL,leadershipProfile} from './leader
 import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,recordResourceDiscovery,shareKnowledge,withinKnowledgeRange,validateKnowledgeState,activeKnowledge} from './knowledge.mjs?v=0.5.0';
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession,noteExploreCompletion,validateAdventurerQualification} from './kingdom-utility.mjs?v=0.5.0';
 import {ADVENTURE_SKILL,ensureAdventureProgressionSkill,inheritedAdventureXp,validateAdventureProgression} from './adventure-progression.mjs?v=0.5.0';
+import {adventureProgressionSnapshot} from './adventure-progression.mjs?v=0.5.0';
+import {findAdventureZoneEntry,createAdventureExpeditionTask,adventureExpeditionTaskValid,completeAdventureExpedition,validateAdventureEncounterState} from './adventure-expedition.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
@@ -101,7 +103,7 @@ function killAgent(s,a,cause){
   if(!a.alive)return false;
   const deathAge=ageYearsAtTick(s,a,s.tick);
   a.death={status:'recorded',tick:s.tick,cause,ageYears:deathAge};
-  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
+  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;a.adventureEncounter=null;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
   const text=cause==='age'
     ?a.name+' เสียชีวิตตามวัยเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี'
     :a.name+' เสียชีวิตจากการขาดอาหารเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี';
@@ -178,6 +180,28 @@ export function command(s,type,data={}){
   }
   const cultural=cultureCommand(s,type,data);if(cultural)return cultural;
   if(type==='SET_PLANNING_POLICY')return setPlanningPolicy(s,data.policy);
+  if(type==='START_ADVENTURE_EXPEDITION'){
+    if(!isIndependent(s))return {ok:false,reason:'mode',message:'Adventure expedition requires Independent world'};
+    const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
+    if(a.profession!=='adventurer')return {ok:false,reason:'profession',message:'ต้องเป็นนักผจญภัยก่อน'};
+    if(!canPerformProductiveWork(s,a))return {ok:false,reason:'stage',message:'ยังออกผจญภัยไม่ได้'};
+    if(a.task)return {ok:false,reason:'busy',message:'Clone กำลังทำงานอื่นอยู่'};
+    if(a.adventureEncounter)return {ok:false,reason:'encounter-pending',message:'มี encounter ที่ยังไม่จบ'};
+    if(a.satiety<RULES.hungry)return {ok:false,reason:'hungry',message:'หิวเกินไปสำหรับการออกผจญภัย'};
+    if(a.energy<RULES.exhausted)return {ok:false,reason:'exhausted',message:'เหนื่อยเกินไปสำหรับการออกผจญภัย'};
+    const progression=adventureProgressionSnapshot(a);
+    if(!progression)return {ok:false,reason:'progression',message:'Adventure progression ไม่ถูกต้อง'};
+    let entry;
+    try{entry=findAdventureZoneEntry(s,a,data.zoneId,progression.level,{walkable,routeField,routeDistance});}
+    catch(error){return {ok:false,reason:error.message,message:'เข้าเขตผจญภัยไม่ได้'};}
+    const path=pathTo(s,a,entry);
+    if(!path)return {ok:false,reason:'no-path',message:'ไม่มีเส้นทางเดินไปเขตศิลา'};
+    a.task=createAdventureExpeditionTask(s,a,data.zoneId,progression.level,entry,path);
+    a.moveTick=0;
+    event(s,'adventure',a.name+' ออกเดินทางสู่ '+data.zoneId,a.id);
+    return {ok:true,agentId:a.id,zoneId:data.zoneId,target:{x:entry.x,y:entry.y},pathLength:path.length};
+  }
   if(type==='CLONE'){
     const parent=s.agents.find(a=>a.id===data.parentId&&a.alive);
     if(!parent)return {ok:false,message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
@@ -306,6 +330,7 @@ function candidates(s,a,book,field){
   return out.sort((x,y)=>y.score-x.score||(x.kind<y.kind?-1:x.kind>y.kind?1:0)||(x.targetId??0)-(y.targetId??0));
 }
 function decide(s,a,book){
+  if(a.adventureEncounter?.status==='READY')return;
   const field=routeField(s,a),choices=candidates(s,a,book,field);
   a.trace=choices;
   for(const c of choices){
@@ -414,11 +439,16 @@ function execute(s,a){
       event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);
       a.lastCareerEventTick=s.tick;
     }
+    if(t.adventureExpedition){
+      const encounter=completeAdventureExpedition(s,a,t);
+      a.adventureEncounter=encounter;
+      event(s,'adventure',a.name+' พบ '+encounter.monsterId+' Lv.'+encounter.monsterLevel+' ที่ '+encounter.zoneId,a.id);
+    }
     a.task=null;
   }
 }
 function interrupt(s,a){
-  const t=a.task;if(!taskValid(s,a))return true;
+  const t=a.task;if(!taskValid(s,a)||!adventureExpeditionTaskValid(s,a,t,{walkable}))return true;
   if(s.tick%12!==0)return false;
   // Hunger wins over tiredness; avoid oscillating between rest and foraging.
   if(a.satiety<RULES.hungry&&!['EAT','FORAGE'].includes(t.kind))return true;
@@ -448,7 +478,7 @@ export function step(s,count=1,options={}){
     const order=agents.map((a,index)=>({a,order:(index+rotation)%agents.length})).sort((x,y)=>
       priority(x.a)-priority(y.a)||(priority(x.a)===0?x.a.satiety-y.a.satiety:priority(x.a)===1?x.a.energy-y.a.energy:0)||x.order-y.order);
     for(const {a} of order){
-      if(a.task&&!taskValid(s,a)){release(book,a,a.task);a.task=null;}
+      if(a.task&&(!taskValid(s,a)||!adventureExpeditionTaskValid(s,a,a.task,{walkable}))){release(book,a,a.task);a.task=null;}
       if(!a.task)decide(s,a,book);
       const task=a.task;
       if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
@@ -519,6 +549,7 @@ export function validate(s){
     for(const e of validateAdventurerQualification(a,s.tick))bad(e);
     for(const e of validateSkillProvenance(a,requiredSkills))bad(e);
     for(const e of validateAdventureProgression(a,{required:isIndependent(s)}))bad(e);
+    for(const e of validateAdventureEncounterState(s,a))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
