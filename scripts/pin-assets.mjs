@@ -1,10 +1,18 @@
 /** Keep source versions independent of browser cache keys. No build toolchain. */
 import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
-import {resolve} from 'node:path';
+import {resolve,relative} from 'node:path';
 import {createHash} from 'node:crypto';
-const root=resolve(import.meta.dirname,'..'),imports={};
-for(const name of readdirSync(resolve(root,'src')).filter(n=>n.endsWith('.mjs')).sort()){
-  const hash=createHash('sha256').update(readFileSync(resolve(root,'src',name))).digest('hex').slice(0,16);
+const root=resolve(import.meta.dirname,'..'),src=resolve(root,'src'),imports={};
+function runtimeModules(dir=src){
+  return readdirSync(dir,{withFileTypes:true}).flatMap(entry=>{
+    const full=resolve(dir,entry.name);
+    if(entry.isDirectory())return runtimeModules(full);
+    if(!entry.isFile()||!entry.name.endsWith('.mjs'))return [];
+    return [relative(src,full).replaceAll('\\','/')];
+  }).sort();
+}
+for(const name of runtimeModules()){
+  const hash=createHash('sha256').update(readFileSync(resolve(src,name))).digest('hex').slice(0,16);
   imports[`./src/${name}?v=0.5.0`]=`./src/${name}?v=0.5.0&rev=${hash}`;
 }
 const mapping='<script type="importmap" id="runtime-import-map">'+JSON.stringify({imports})+'</script>';
