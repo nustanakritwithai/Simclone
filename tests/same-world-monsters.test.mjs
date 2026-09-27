@@ -139,8 +139,12 @@ test('SWA2 validation fails closed on duplicate ID, wrong zone, overlap and HP d
   assert.ok(validate(overlap).includes('Wild monsters'));
 
   const hp=clone(base);
-  hp.wildMonsters.entities[0].hpCurrent--;
+  hp.wildMonsters.entities[0].hpCurrent=0;
   assert.ok(validate(hp).includes('Wild monsters'));
+
+  const overflow=clone(base);
+  overflow.wildMonsters.entities[0].hpCurrent=overflow.wildMonsters.entities[0].hpMax+1;
+  assert.ok(validate(overflow).includes('Wild monsters'));
 });
 
 test('SWA2 world authority source has no random, wall-clock or DOM gameplay rule',()=>{
