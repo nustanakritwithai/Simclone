@@ -11,6 +11,7 @@ import {evaluateModularHouses} from './housing.mjs?v=0.5.0';
 import {drawPiece,structureDrawInfo,structureDepth,roofNeighbours} from './building-visuals.mjs?v=0.5.0';
 import {installAdventureUI} from './adventure-ui.mjs?v=0.5.0';
 import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
+import {worldReadabilityRegions} from './display-world-readability.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,independentUI=null,adventureUI=null,nav=null,worldMapView=null;
@@ -90,14 +91,16 @@ function openMonsterContext(worldMonsterId){
  dialog.dataset.kind='monster';return true;
 }
 function makeGround(){
- worldMapView=createWorldMapView(state);const b=worldBounds(state);
+ worldMapView=createWorldMapView(state);const b=worldBounds(state),readability=worldReadabilityRegions(state),adventureRegions=readability.filter(r=>r.adventure);
  ground=document.createElement('canvas');ground.width=(b.w+b.h)*hw+120;ground.height=(b.w+b.h)*hh+110;
  const c=ground.getContext('2d');c.translate(b.h*hw+60,32);
  const corners=[proj(0,0),proj(b.w,0),proj(b.w,b.h),proj(0,b.h)].map(p=>[p.x,p.y]);
  polygon(c,corners.map(([x,y])=>[x,y+20]),'#304b37');
  for(let y=0;y<b.h;y++)for(let x=0;x<b.w;x++){
   const p=proj(x,y),cell=worldMapView.cells[y*b.w+x],t=cell.terrainType,r=cell.detail;
-  polygon(c,[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],cell.color);
+  const diamond=[[p.x,p.y-hh],[p.x+hw,p.y],[p.x,p.y+hh],[p.x-hw,p.y]],region=adventureRegions.find(z=>x>=z.minX&&x<=z.maxX);
+  polygon(c,diamond,cell.color);
+  if(region)polygon(c,diamond,region.wash);
   if(t==='grass'||t==='forest'){
    for(let k=0;k<(t==='forest'?3:4);k++){
     const dx=(hash(x+k*7,y+2)-.5)*32,dy=(hash(x,y+k*5)-.5)*12;
@@ -110,6 +113,23 @@ function makeGround(){
   if(t==='rock')line(c,[[p.x-12,p.y+1],[p.x-4,p.y-4],[p.x+5,p.y-1],[p.x+10,p.y-3]],'#c6ccbb66',.8);
   if(t==='path')line(c,[[p.x-8,p.y+2],[p.x+5,p.y-3]],'#d1c19366',.7);
   if(t==='bridge')for(let k=-2;k<=2;k++)line(c,[[p.x-19+k*4,p.y+k*3-4],[p.x+9+k*4,p.y+k*3+9]],'#d2b484',1.2);
+ }
+ if(adventureRegions.length){
+  const entry=proj(adventureRegions[0].minX,25);
+  c.save();c.textAlign='center';c.textBaseline='middle';
+  c.font='600 20px system-ui';c.fillStyle='#10261fd9';c.fillRect(entry.x-90,entry.y-47,180,28);
+  c.strokeStyle='#dcc68b99';c.lineWidth=1;c.strokeRect(entry.x-90,entry.y-47,180,28);
+  c.fillStyle='#f1dfb0';c.fillText('ADVENTURE ANNEX',entry.x,entry.y-33);
+  for(const region of adventureRegions){
+   const p=proj(region.markerX,region.markerY),gate=proj(region.gateX,region.gateY);
+   c.fillStyle=region.accent;c.beginPath();c.moveTo(gate.x,gate.y-10);c.lineTo(gate.x+9,gate.y);c.lineTo(gate.x,gate.y+10);c.lineTo(gate.x-9,gate.y);c.closePath();c.fill();
+   c.strokeStyle='#16291f99';c.lineWidth=1;c.stroke();
+   c.fillStyle='#10261fe6';c.fillRect(p.x-58,p.y-13,116,31);
+   c.strokeStyle=region.accent;c.strokeRect(p.x-58,p.y-13,116,31);
+   c.fillStyle='#f3e7c3';c.font='700 18px system-ui';c.fillText(region.shortLabel,p.x,p.y-1);
+   c.fillStyle='#c8d4c6';c.font='600 11px system-ui';c.fillText(region.levelLabel,p.x,p.y+12);
+  }
+  c.restore();
  }
 }
 function tree(c,n){
