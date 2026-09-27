@@ -42,6 +42,7 @@ import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,wo
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventure-annex.mjs?v=0.5.0';
 import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement,defeatWildMonster,stepWildMonsterLifecycle,migrateWildMonsterLifecycleState} from './adventure-world-monsters.mjs?v=0.5.0';
+import {autonomousAdventureIntent} from './adventure-autonomy.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -224,13 +225,13 @@ export function command(s,type,data={}){
     if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
     if(a.profession!=='adventurer')return {ok:false,reason:'profession',message:'ต้องเป็นนักผจญภัยก่อน'};
     if(!canPerformProductiveWork(s,a))return {ok:false,reason:'stage',message:'ยังออกล่ามอนสเตอร์ไม่ได้'};
+    const monster=wildMonsterById(s,data.worldMonsterId);
+    if(!monster||monster.status!=='IDLE'||monster.hpCurrent<=0)return {ok:false,reason:'monster-unavailable',message:'มอนสเตอร์ตัวนี้ไม่พร้อม'};
     if(a.task)return {ok:false,reason:'busy',message:'Clone กำลังทำงานอื่นอยู่'};
     if(a.adventureEncounter)return {ok:false,reason:'encounter-pending',message:'มี encounter ที่ยังไม่จบ'};
     if(a.adventureCombat)return {ok:false,reason:'combat-pending',message:'มี combat ที่ยังไม่จบ'};
     if(a.satiety<RULES.hungry)return {ok:false,reason:'hungry',message:'หิวเกินไปสำหรับการล่า'};
     if(a.energy<RULES.exhausted)return {ok:false,reason:'exhausted',message:'เหนื่อยเกินไปสำหรับการล่า'};
-    const monster=wildMonsterById(s,data.worldMonsterId);
-    if(!monster||monster.status!=='IDLE'||monster.hpCurrent<=0)return {ok:false,reason:'monster-unavailable',message:'มอนสเตอร์ตัวนี้ไม่พร้อม'};
     const claimed=s.agents.some(other=>other.alive&&other.id!==a.id&&(
       other.task?.adventureHunt?.worldMonsterId===monster.worldMonsterId||
       other.adventureEncounter?.worldMonsterId===monster.worldMonsterId||
@@ -244,7 +245,7 @@ export function command(s,type,data={}){
     catch(error){return {ok:false,reason:error.message,message:'เดินไปหามอนสเตอร์ไม่ได้'};}
     const path=pathTo(s,a,engagement);
     if(!path)return {ok:false,reason:'no-path',message:'ไม่มีเส้นทางเดินไปหามอนสเตอร์'};
-    a.task=createAdventureHuntTask(s,a,monster.worldMonsterId,progression.level,engagement,path);
+    a.task=createAdventureHuntTask(s,a,monster.worldMonsterId,progression.level,engagement,path,{control:data.control==='autonomous'?'autonomous':null});
     a.moveTick=0;
     event(s,'adventure',a.name+' ออกล่า '+monster.monsterId+' ที่ '+monster.zoneId,a.id);
     return {ok:true,agentId:a.id,worldMonsterId:monster.worldMonsterId,zoneId:monster.zoneId,target:{x:engagement.x,y:engagement.y},monster:{x:monster.x,y:monster.y},pathLength:path.length};
@@ -475,6 +476,31 @@ function decide(s,a,book){
     a.moveTick=0;return;
   }
 }
+function stepAutonomousAdventure(s,a){
+  const intent=autonomousAdventureIntent(s,a);
+  if(!intent)return false;
+  if(intent.type==='wait-combat'||intent.type==='wait-encounter'||intent.type==='wait-result')return true;
+
+  if(intent.type==='start-hunt'){
+    const r=command(s,'START_ADVENTURE_HUNT',{agentId:a.id,worldMonsterId:intent.worldMonsterId,control:'autonomous'});
+    return r.ok;
+  }
+  if(intent.type==='start-combat'){
+    const r=command(s,'START_ADVENTURE_COMBAT',{agentId:a.id});
+    return r.ok;
+  }
+  if(intent.type==='attack'){
+    const r=command(s,'ADVENTURE_COMBAT_ACTION',{agentId:a.id,action:'BASIC_ATTACK',expectedTurn:intent.expectedTurn});
+    return r.ok;
+  }
+  if(intent.type==='finish-result'){
+    if(intent.claimLoot)command(s,'CLAIM_ADVENTURE_LOOT',{agentId:a.id});
+    const r=command(s,'FINISH_ADVENTURE_RESULT',{agentId:a.id});
+    return r.ok;
+  }
+  return false;
+}
+
 function gain(s,a,key,targetId=null){
   if(!SKILLS.includes(key))return;
   const old=level(a.skills[key]);a.skills[key]+=5;a.workDone++;
@@ -610,6 +636,7 @@ export function step(s,count=1,options={}){
       priority(x.a)-priority(y.a)||(priority(x.a)===0?x.a.satiety-y.a.satiety:priority(x.a)===1?x.a.energy-y.a.energy:0)||x.order-y.order);
     for(const {a} of order){
       if(a.task&&(!taskValid(s,a)||!adventureExpeditionTaskValid(s,a,a.task,{walkable}))){release(book,a,a.task);a.task=null;}
+      if(stepAutonomousAdventure(s,a))continue;
       if(!a.task)decide(s,a,book);
       const task=a.task;
       if(task){execute(s,a);if(a.task!==task)release(book,a,task);}

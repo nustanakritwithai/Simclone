@@ -1,15 +1,17 @@
 # Simclone — current implementation status
 
-> **Current verified override — 2026-09-27**
+> **Current verified override — 2026-09-28**
 >
-> Source main: `4c75a098f01c179a425e045617f849683250d13b`.
-> Adventure V1 is released.
-> Same-World Adventure SWA0–SWA7 is released and public proof is SAT.
-> Display V1 D0 + DSP1 + D1 is released; Core / Adventure Annex / z1–z4 readability is public.
+> Source main: `b7983c1334a55b70a94d2ee46fcb9ffd9217e950`.
+> Exact-main Pages #98 = SUCCESS.
+> Adventure V1 and Same-World Adventure SWA0–SWA7 are released.
+> Display D0 + DSP1 + D1 + D2 are released; unified deterministic `{kind,id}` selection is public.
 >
-> Active display candidate: **D2 — Unified Selection + Deterministic Hit Resolver**.
-> D2 replaces split runtime hit arbitration with one presentation-only `{kind,id}` selection contract while preserving `activeAgentId` only as actor/Inspector context.
-> D2 must prove desktop/mobile overlap behavior and exact IDs before merge.
+> Active gameplay candidate: **Autonomous Adventurer Hunt Loop V1** on `feature/autonomous-adventurer-hunt-loop`.
+> Current released Adventurers can Hunt/Combat through manual UI, but ordinary autonomy does not initiate Hunt or Attack. This candidate adds deterministic policy that selects a reachable physical worldMonsterId and drives the released command path automatically under explicit survival gates.
+>
+> Parallel display candidate: **D3 Adventure Journey Visualization** on `feature/display-d3-adventure-journey`.
+> D3 owns presentation only. It must visualize gameplay truth and must not create combat, HP, path, defeat or respawn state.
 >
 > Sections below predate the current release line and are retained as historical context where they conflict with this override.
 
