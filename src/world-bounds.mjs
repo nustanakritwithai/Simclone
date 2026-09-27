@@ -13,7 +13,7 @@ export const WORLD_PROFILES=Object.freeze({
   'same-world':SAME_WORLD_BOUNDS
 });
 export const DEFAULT_WORLD_PROFILE='legacy';
-export const PUBLIC_WORLD_PROFILE='large';
+export const PUBLIC_WORLD_PROFILE='same-world';
 
 export function boundsForProfile(profile=DEFAULT_WORLD_PROFILE){
   const bounds=WORLD_PROFILES[profile];
