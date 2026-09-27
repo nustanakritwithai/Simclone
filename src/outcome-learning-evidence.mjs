@@ -68,3 +68,38 @@ export function terminalOutcomeEvidenceState(agent){
 
   return freeze({evidence:(verifiedSat||verifiedViol)?'VERIFIED':'EVIDENCE_CONFLICT'});
 }
+
+
+export function receiptBackedFailureEvidence(agent,kind){
+  const plan=agent?.planning?.goal??null;
+  if(!plan||plan.planVersion!=='VAL2-0.1'||plan.kind!==kind||plan.status!=='failed'||
+    plan.outcome!=='VIOL:replan-budget-exhausted'||!Number.isInteger(plan.attempt)||plan.attempt!==plan.maxReplans)
+    return freeze({evidence:'NO_VERIFIED_TERMINAL_VIOL'});
+
+  const lessons=Array.isArray(agent?.planning?.lessons)?agent.planning.lessons:[];
+  let lesson=null;
+  for(let i=lessons.length-1;i>=0;i--){
+    const row=lessons[i];
+    if(row?.tick===plan.updatedTick&&row?.kind===plan.kind&&sameTarget(row?.targetId,plan.targetId)){lesson=row;break;}
+  }
+  if(!lesson||lesson.outcome!=='VIOL'||lesson.amount!==0||lesson.planId!==plan.planId)
+    return freeze({evidence:'TERMINAL_LESSON_UNLINKED'});
+
+  const receipts=Array.isArray(agent?.planning?.predictions)?agent.planning.predictions:[];
+  let receipt=null;
+  for(let i=receipts.length-1;i>=0;i--){
+    const row=receipts[i];
+    if(row?.planId===plan.planId&&row?.taskKind===kind&&sameTarget(row?.targetId,plan.targetId)&&row.tick<=lesson.tick){receipt=row;break;}
+  }
+  if(!receipt)return freeze({evidence:'PREDICTION_RECEIPT_MISSING'});
+  if(receipt.interruptionNow!==null||receipt.traceSource!=='agent.trace:selected')
+    return freeze({evidence:'RECEIPT_NOT_CAUSAL_ELIGIBLE',receiptId:receipt.receiptId});
+
+  return freeze({
+    evidence:'RECEIPT_BACKED_VIOL',
+    planId:plan.planId,
+    receiptId:receipt.receiptId,
+    lessonTick:lesson.tick,
+    receiptTick:receipt.tick
+  });
+}
