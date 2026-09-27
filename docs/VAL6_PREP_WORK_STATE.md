@@ -1,6 +1,6 @@
 # VAL6 — Preparation Work State
 
-Status: PREPARED / IMPLEMENTATION BLOCKED
+Status: IMPLEMENTED CANDIDATE / VERIFY PENDING
 
 ## Baseline
 
@@ -13,10 +13,10 @@ VAL5 is merged on this SHA.
 VAL5 exact-main release at preparation time:
 
 - Pages run #82
-- status: IN PROGRESS
-- VAL5 public release: UNKNOWN
+- status: SUCCESS
+- VAL5 public release: SAT
 
-Do not implement or merge VAL6 until that exact-main public gate is SAT.
+Dependency gate satisfied. VAL6 implementation is now present on this branch; merge remains blocked until exact candidate CI is SAT.
 
 ## Audit question
 
@@ -86,15 +86,22 @@ VAL6 prep changes docs only.
 
 Future implementation is expected to touch the candidate scoring path, so current main and open PR changed files must be re-read immediately before coding.
 
+## Implemented candidate
+
+- pure authority: `src/outcome-learning-authority.mjs`
+- VAL5 retained-evidence helper exported read-only
+- one `outcomeLearning` factor added to the existing candidate score
+- positive-only cap = 4
+- survival emergency / VIOL / UNKNOWN / conflict suppress the factor
+- no persisted learning ledger
+- runtime pins refreshed
+- targeted authority/integration tests added
+
 ## Next action
 
-After VAL5 Pages #82 is confirmed SAT:
-
-1. Re-read exact current `main`.
-2. Re-check open PRs and branch ownership.
-3. Sync this prep branch non-force if main advanced.
-4. Implement pure learning signal.
-5. Add one `outcomeLearning` factor to existing candidate scoring.
-6. Run exact candidate CI.
-7. Merge only after SAT.
-8. Run exact-main Pages/public gate.
+1. Re-read exact current `main` before PR/merge.
+2. Verify diff ownership remains isolated.
+3. Run exact candidate CI.
+4. Repair only from evidence if VIOL.
+5. Merge only after candidate SAT.
+6. Run exact-main Pages/public gate.
