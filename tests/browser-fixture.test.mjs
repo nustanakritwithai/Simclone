@@ -15,10 +15,12 @@ assert all(url.startswith('data:text/javascript;base64,') for url in n.values())
 assert len(normal.encode())<2000000, 'offline fixture must not embed the dependency DAG recursively'
 app=base64.b64decode(n['simclone/src/app.mjs'].split(',',1)[1]).decode()
 assert 'Injected module load failure' not in app
+assert 'simclone/src/read-models/world-presentation.mjs' in n
 assert base64.b64decode(f['simclone/src/app.mjs'].split(',',1)[1]).decode()=="throw new Error('Injected module load failure');"
 for name,url in n.items():
  text=base64.b64decode(url.split(',',1)[1]).decode()
  assert 'data:text/javascript;base64,' not in text, name
+ assert not re.search(r"(?:from\\s*|import\\s*|import\\(\\s*)['\\\"](?:\\.\\.?/)",text), name
  for target in re.findall(r"(?:from\\s*|import\\s*|import\\(\\s*)['\\\"](simclone/[^'\\\"]+)['\\\"]",text):assert target in n,target
 print('UNIQUE',len(n))
 `;
