@@ -30,7 +30,7 @@ D1 is presentation only.
 
 DSP1 is merged through PR #146.
 
-Gameplay truth remains SWA authorities. SWA6 is merged on current main and owns DEFEATED/despawn/respawn. SWA7 is the active public-release gate.
+Gameplay truth remains SWA authorities. SWA0–SWA7 are released. SWA7 hotfix is merged and exact-main Pages #96 is SUCCESS.
 
 ## Visual language
 
@@ -82,4 +82,4 @@ Zone coordinates and level ranges must not be duplicated in app.mjs.
 
 ## Integration note
 
-D1 v2 is rebuilt from post-SWA6 `main@d4378bae2d707662bd1d614a397538f73495e5ba`. SWA7 PR #150 does not own `app.mjs`, `index.html`, the offline browser fixture, or cache-pin tooling. D1 must still re-read current main before merge. The offline Chromium fixture resolves both `./` and `../` local ESM imports so nested read-model modules are exercised through the normal browser boot gate.
+D1 v2 is reconciled onto released `main@b397936fdf583619e6723b2919f76aba9f8969d2` after SWA7 hotfix PR #152. D1 must still require exact-head Verify and visual proof before merge. The offline Chromium fixture resolves both `./` and `../` local ESM imports so nested read-model modules are exercised through the normal browser boot gate.
