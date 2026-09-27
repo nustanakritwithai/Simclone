@@ -14,7 +14,7 @@ last_reviewed: 2026-09-28
 
 ## Baseline
 
-D2 and D2.5 Combat Visibility are released on `main@da08ab1131548f8276c40b7188ab6a40ff2a055b`.
+D2 and D2.5 Combat Visibility are released on `main@da08ab1131548f8276c40b7188ab6a40ff2a055b`; exact-main Pages #99 / run `36340979453` is SUCCESS.
 
 D3 reads the already released SWA4–SWA6 lifecycle and must not create a second Adventure state machine.
 
@@ -112,7 +112,7 @@ Actual deterministic browser flow must prove on desktop and mobile:
 - D3 overlay helper writes no simulation state
 - D3 does not participate in D2 hit candidate collection
 - D2.5 remains single strike/damage animation owner
-- standard exact-head Verify SAT
+- standard exact-head Verify SAT (no false-positive from Canvas `c.save()`)
 - dedicated D3 browser visual proof SAT
 - merge then exact-main Pages SAT
 - UNKNOWN is never PASS
