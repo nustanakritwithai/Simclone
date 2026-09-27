@@ -27,11 +27,17 @@ test('D3 journey overlays never participate in D2 hit candidate collection',()=>
 });
 
 test('D3 overlay helpers are presentation-only and do not dispatch gameplay commands',()=>{
-  const start=source.indexOf('function drawAdventureBadge');
-  const end=source.indexOf('function render(time)');
-  assert.ok(start>=0&&end>start,'D3 helper boundary');
-  const overlay=source.slice(start,end);
-  for(const forbidden of ['command(','state.','step(','save(','wildMonsters.entities.push','hpCurrent=']){
+  const badgeStart=source.indexOf('function drawAdventureBadge');
+  const journeyStart=source.indexOf('function drawAdventureJourney');
+  const lifecycleStart=source.indexOf('function drawAdventureLifecycleCue');
+  const renderStart=source.indexOf('function render(time)');
+  assert.ok(badgeStart>=0&&journeyStart>badgeStart&&lifecycleStart>journeyStart&&renderStart>lifecycleStart,'D3 helper boundaries');
+  const overlays=[
+    source.slice(badgeStart,journeyStart),
+    source.slice(journeyStart,lifecycleStart),
+    source.slice(lifecycleStart,renderStart)
+  ];
+  for(const overlay of overlays)for(const forbidden of ['command(','state.','step(','save(','wildMonsters.entities.push','hpCurrent=']){
     assert.equal(overlay.includes(forbidden),false,forbidden);
   }
 });
