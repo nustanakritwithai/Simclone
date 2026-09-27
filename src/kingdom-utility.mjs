@@ -89,9 +89,10 @@ function explicitAdventurer(transition){
 }
 export function adoptProfession(agent,kind,tick,transition){
   if(transition!==undefined){
-    const previous=ensureProfession(agent,tick);
     const ready=kind==='EXPLORE'&&explicitAdventurer(transition)&&agent?.adventurerQualification?.version===1&&agent.adventurerQualification.accepted===ADVENTURER_QUALIFICATION&&Number.isInteger(tick)&&tick>=0;
-    if(!ready||previous==='adventurer')return {changed:false,profession:previous};
+    if(!ready)return {changed:false,profession:isKingdomProfession(agent?.profession)?agent.profession:undefined};
+    const previous=ensureProfession(agent,tick);
+    if(previous==='adventurer')return {changed:false,profession:previous};
     agent.profession='adventurer';
     agent.professionSinceTick=tick;
     if(!Array.isArray(agent.career))agent.career=[];
@@ -120,13 +121,16 @@ export function noteExploreCompletion(agent,fact){
   if(!Number.isInteger(fact.tick)||fact.tick<0||!Number.isInteger(fact.x)||fact.x<0||!Number.isInteger(fact.y)||fact.y<0||!Number.isInteger(fact.started)||fact.started<0||fact.started>fact.tick)return skip;
   if(!agent.adventurerQualification)agent.adventurerQualification=blankQualification();
   const q=agent.adventurerQualification;
-  if(q.version!==1||q.accepted>=ADVENTURER_QUALIFICATION)return {counted:false,accepted:q.accepted,career:null};
+  if(validateAdventurerQualification(agent,fact.tick).length)return {counted:false,accepted:q.accepted,career:null};
   const id=`${fact.started}:${fact.x}:${fact.y}`;
   if(q.recent.some(row=>row.id===id))return {counted:false,accepted:q.accepted,career:null};
   q.recent.push({id,tick:fact.tick,x:fact.x,y:fact.y});
   while(q.recent.length>QUALIFICATION_HISTORY)q.recent.shift();
-  q.accepted+=1;
-  const career=q.accepted===ADVENTURER_QUALIFICATION?adoptProfession(agent,'EXPLORE',fact.tick,{qualifiedProfession:'adventurer',qualification:'explore-3'}):null;
+  const previousAccepted=q.accepted;
+  if(q.accepted<ADVENTURER_QUALIFICATION)q.accepted+=1;
+  const career=previousAccepted<ADVENTURER_QUALIFICATION&&q.accepted===ADVENTURER_QUALIFICATION
+    ?adoptProfession(agent,'EXPLORE',fact.tick,{qualifiedProfession:'adventurer',qualification:'explore-3'})
+    :null;
   return {counted:true,accepted:q.accepted,career};
 }
 export function validateAdventurerQualification(agent,tick){
@@ -134,6 +138,7 @@ export function validateAdventurerQualification(agent,tick){
   if(q===undefined)return [];
   const bad=['Adventurer qualification'];
   if(!q||q.version!==1||!Number.isInteger(q.accepted)||q.accepted<0||q.accepted>ADVENTURER_QUALIFICATION||!Array.isArray(q.recent)||q.recent.length>QUALIFICATION_HISTORY)return bad;
+  if(q.accepted!==Math.min(ADVENTURER_QUALIFICATION,q.recent.length))return bad;
   const ids=new Set();
   for(const row of q.recent){
     if(!row||typeof row.id!=='string'||!Number.isInteger(row.tick)||row.tick<0||row.tick>tick||!Number.isInteger(row.x)||row.x<0||!Number.isInteger(row.y)||row.y<0||ids.has(row.id))return bad;
