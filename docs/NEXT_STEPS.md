@@ -3,27 +3,23 @@
 > **Current verified override — 2026-09-27**
 >
 > Adventure V1 is released.
-> SWA0–SWA5 are merged.
-> Display V1 D0 + DSP1 is merged on `main@250285d4a6d381751c60791bd9897fd7ab92a70f`.
+> SWA0–SWA6 are merged on `main@d4378bae2d707662bd1d614a397538f73495e5ba`.
+> Display V1 D0 + DSP1 is also merged.
 >
-> Active gameplay branch: `integration/swa6-after-display-v1`
-> Active gameplay gate: **SWA6 — Victory → DEFEATED → despawn → deterministic respawn**
+> Active release branch: `release/swa7-same-world-closeout`
+> Active gate: **SWA7 — Public Same-World Adventure Release Closeout**
 >
-> SWA6 may merge only after exact-head Verify is SAT on the integration branch.
+> SWA7 sequence:
+> 1. exact-head PR Verify must be SAT
+> 2. merge SWA7 release gate
+> 3. exact-main Pages must run npm/UI/native browser regressions
+> 4. Pages must deploy exact main
+> 5. public-byte comparison must match exact release
+> 6. public Playwright must prove visible Monster → Hunt → READY → Combat → Victory → hidden → Continue → deterministic respawn
+> 7. screenshot/result evidence artifact must be uploaded
+> 8. only then mark Same-World Adventure SWA0–SWA7 RELEASED
 >
-> After SWA6 SAT:
-> 1. SWA7 — exact-main CI/Pages
-> 2. public-byte identity
-> 3. browser/mobile proof of visible Monster → Hunt → Combat → Victory → disappear → Continue → respawn
-> 4. close Same-World Adventure release line
->
-> Display next line after DSP1:
-> 1. D1 — World Readability: Core / Adventure Annex / z1–z4 and entity silhouettes
-> 2. D2 — unified `{kind,id}` selection + deterministic hit resolution
-> 3. D3 — authority-driven Adventure visualization using merged SWA6 lifecycle truth
-> 4. D4 — render registry + viewport culling + LOD
-> 5. D5 — visualKey asset resolver; PR #139 remains donor assets only
-> 6. D6 — desktop/mobile/public visual proof
+> Display next line after DSP1 remains D1→D6 and must consume merged SWA6 lifecycle truth without becoming gameplay authority.
 >
 > Product lock: one map, one coordinate system, no teleport scene, no encounter-only fake Monster, and no renderer-owned gameplay state.
 >
