@@ -84,6 +84,11 @@ export function expandLargeWorldToSameWorld(state){
     for(let x=ADVENTURE_ANNEX_X_MIN;x<=ADVENTURE_ANNEX_X_MAX;x++)tiles.push(adventureAnnexTile(state.seed,x,y));
   }
   state.tiles=tiles;
+  for(const agent of state.agents??[]){
+    if(agent?.adventureCombat)continue; // An in-flight/terminal V1 fight may finish at its preserved Core coordinate.
+    if(agent?.task?.adventureExpedition){agent.task=null;agent.moveTick=0;}
+    if(agent?.adventureEncounter)agent.adventureEncounter=null;
+  }
   state.worldBounds=persistedWorldBounds('same-world');
   state.adventureAnnex={version:ADVENTURE_ANNEX_VERSION,coreProfile:'large',xMin:ADVENTURE_ANNEX_X_MIN,xMax:ADVENTURE_ANNEX_X_MAX};
   return Object.freeze({ok:true,changed:true});
