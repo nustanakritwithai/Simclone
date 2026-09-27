@@ -30,6 +30,7 @@ import {householdCooperationSignal} from './household-cooperation.mjs?v=0.5.0';
 import {ensureSettlementState,stepSettlementAuthority,validateSettlementState,allSettlementSnapshots} from './settlement-authority.mjs?v=0.5.0';
 import {ensureGovernanceState,stepGovernanceAuthority,validateGovernanceState} from './governance-authority.mjs?v=0.5.0';
 import {stepGovernancePolicy,governorPolicySignal} from './governance-policy.mjs?v=0.5.0';
+import {outcomeLearningSignal} from './outcome-learning-authority.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -242,12 +243,15 @@ function candidates(s,a,book,field){
     const laborMarket=Number(extra.laborAuthority?.bonus??0);
     const householdCooperation=Number(extra.householdCooperation?.bonus??0);
     const governorPolicy=Number(extra.governorPolicy?.bonus??0);
+    const emergency=a.satiety<RULES.hungry||a.energy<RULES.exhausted;
+    const outcomeLearning=Number(outcomeLearningSignal(s,a,kind,{emergency}).bonus??0);
     // Information-seeking must outrank doing nothing even when its waypoint is far.
     // Only the optional personal planner bounds this soft cost; execution still
     // pays the full route and hunger/energy interruptions remain authoritative.
     const distanceCost=extra.informationSeeking?Math.min(travel,8):travel;
     const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(distanceCost*.7),
-      ...(laborMarket?{laborMarket}: {}),...(householdCooperation?{householdCooperation}: {}),...(governorPolicy?{governorPolicy}: {})};
+      ...(laborMarket?{laborMarket}: {}),...(householdCooperation?{householdCooperation}: {}),...(governorPolicy?{governorPolicy}: {}),
+      ...(outcomeLearning?{outcomeLearning}: {})};
     out.push({kind,targetId:target.id??null,x:target.x,y:target.y,
       score:Object.values(factors).reduce((sum,v)=>sum+v,0),factors,travelSteps:Math.max(0,travel),
       status:travel<0?'no-path':status,...extra});
