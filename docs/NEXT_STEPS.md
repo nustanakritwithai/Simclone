@@ -1,4 +1,27 @@
-# Current handoff — Adventure V1 release gate
+# Current handoff — Same-World Adventure Expansion
+
+> **Current verified override — 2026-09-27**
+>
+> Adventure V1 is already released on `main@a97fcfdec4c9bcd5586eafe479f6ac618cf70fc3` through merged PR #138.
+> Do not repeat I8 release work.
+>
+> Active branch: `feature/adventure-same-world`
+>
+> Active gate: **SWA0 — Core Preservation Contract**
+>
+> Required order after SWA0 SAT:
+> 1. SWA1 — safe 60×52 → 84×52 Annex terrain/migration with Core equivalence proof
+> 2. SWA2 — deterministic Wild Monster World Authority
+> 3. SWA3 — visible/tappable monsters in the existing object list
+> 4. SWA4 — real-path monster-target expedition
+> 5. SWA5 — bind combat to `worldMonsterId`
+> 6. SWA6 — defeat/despawn/respawn lifecycle
+> 7. SWA7 — browser/mobile/public proof
+>
+> Product lock: one map, one coordinate system, no teleport scene, no encounter-only fake monster.
+>
+> The older Adventure V1 release-gate notes below are retained as historical context only.
+
 
 ## Public source of truth
 
