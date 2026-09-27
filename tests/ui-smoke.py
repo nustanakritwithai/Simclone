@@ -55,6 +55,7 @@ with sync_playwright() as p:
  mp2=desktop.evaluate('(m)=>simclone.screenPoint(m.x,m.y)',monster)
  hit=desktop.evaluate('(q)=>simclone.worldObjectTargetAtScreen(q.x,q.y)',{'x':mp2['x'],'y':mp2['y']-20*desktop.evaluate('simclone.camera().zoom')})
  check('SWA3 monster canvas hit target resolves exact worldMonsterId',hit is not None and hit['type']=='monster' and hit['id']==monster['worldMonsterId'])
+ paused(desktop)
  before_monster_tap=snap(desktop)
  desktop.mouse.click(box['x']+mp2['x'],box['y']+mp2['y']-20*desktop.evaluate('simclone.camera().zoom'))
  desktop.wait_for_selector('#dialog[open][data-kind="monster"] [data-world-monster]')
