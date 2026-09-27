@@ -1,7 +1,7 @@
 /** VAL6 — bounded deterministic learning authority from retained productive outcomes. */
 import {isIndependent} from './individual-resources.mjs?v=0.5.0';
-import {productiveOutcomeEvidenceSnapshot} from './read-models/outcome-learning-shadow.mjs';
-import {actionOutcomeVerificationSnapshot} from './read-models/action-outcome-verification.mjs';
+import {productiveOutcomeEvidenceSnapshot} from './read-models/outcome-learning-shadow.mjs?v=0.5.0';
+import {actionOutcomeVerificationSnapshot} from './read-models/action-outcome-verification.mjs?v=0.5.0';
 
 export const OUTCOME_LEARNING_AUTHORITY_VERSION='VAL6-0.1';
 export const MAX_OUTCOME_LEARNING_BONUS=4;
