@@ -1,7 +1,6 @@
-/** SWA2 — one authoritative Wild Monster world-state ledger.
- * Wild monsters are physical enemies in the Same-World Adventure Annex.
- * This module owns initial deterministic spawn state only; rendering, hunting,
- * combat binding, defeat and respawn transitions belong to later SWA gates.
+/** SWA2/SWA5 — one authoritative Wild Monster world-state ledger.
+ * SWA2 owns deterministic spawn identity. SWA5 adds ENGAGED ownership and the
+ * single canonical Monster HP writer. DEFEATED/despawn/respawn remain SWA6.
  */
 import {worldBounds} from './world-bounds.mjs?v=0.5.0';
 import {ADVENTURE_ANNEX_ZONES,adventureAnnexZoneAt} from './adventure-annex.mjs?v=0.5.0';
