@@ -18,6 +18,7 @@ import {professionForAction,professionLabel,ensureProfession,isKingdomProfession
 import {ADVENTURE_SKILL,ensureAdventureProgressionSkill,inheritedAdventureXp,validateAdventureProgression} from './adventure-progression.mjs?v=0.5.0';
 import {adventureProgressionSnapshot} from './adventure-progression.mjs?v=0.5.0';
 import {findAdventureZoneEntry,createAdventureExpeditionTask,adventureExpeditionTaskValid,completeAdventureExpedition,validateAdventureEncounterState} from './adventure-expedition.mjs?v=0.5.0';
+import {startAdventureCombatSession,resolveAdventureCombatTurnProposal,validateAdventureCombatState} from './adventure-combat-session.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
@@ -103,7 +104,7 @@ function killAgent(s,a,cause){
   if(!a.alive)return false;
   const deathAge=ageYearsAtTick(s,a,s.tick);
   a.death={status:'recorded',tick:s.tick,cause,ageYears:deathAge};
-  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;a.adventureEncounter=null;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
+  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;a.adventureEncounter=null;a.adventureCombat=null;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
   const text=cause==='age'
     ?a.name+' เสียชีวิตตามวัยเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี'
     :a.name+' เสียชีวิตจากการขาดอาหารเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี';
@@ -188,6 +189,7 @@ export function command(s,type,data={}){
     if(!canPerformProductiveWork(s,a))return {ok:false,reason:'stage',message:'ยังออกผจญภัยไม่ได้'};
     if(a.task)return {ok:false,reason:'busy',message:'Clone กำลังทำงานอื่นอยู่'};
     if(a.adventureEncounter)return {ok:false,reason:'encounter-pending',message:'มี encounter ที่ยังไม่จบ'};
+    if(a.adventureCombat)return {ok:false,reason:'combat-pending',message:'มี combat ที่ยังไม่จบ'};
     if(a.satiety<RULES.hungry)return {ok:false,reason:'hungry',message:'หิวเกินไปสำหรับการออกผจญภัย'};
     if(a.energy<RULES.exhausted)return {ok:false,reason:'exhausted',message:'เหนื่อยเกินไปสำหรับการออกผจญภัย'};
     const progression=adventureProgressionSnapshot(a);
@@ -201,6 +203,41 @@ export function command(s,type,data={}){
     a.moveTick=0;
     event(s,'adventure',a.name+' ออกเดินทางสู่ '+data.zoneId,a.id);
     return {ok:true,agentId:a.id,zoneId:data.zoneId,target:{x:entry.x,y:entry.y},pathLength:path.length};
+  }
+  if(type==='START_ADVENTURE_COMBAT'){
+    if(!isIndependent(s))return {ok:false,reason:'mode',message:'Adventure combat requires Independent world'};
+    const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
+    if(a.profession!=='adventurer')return {ok:false,reason:'profession',message:'ต้องเป็นนักผจญภัยก่อน'};
+    if(a.task)return {ok:false,reason:'busy',message:'Clone ยังมี task อยู่'};
+    if(a.adventureCombat)return {ok:false,reason:'combat-pending',message:'มี combat ที่ยังไม่จบ'};
+    if(a.adventureEncounter?.status!=='READY')return {ok:false,reason:'encounter',message:'ยังไม่มี encounter พร้อมต่อสู้'};
+    let session;
+    try{session=startAdventureCombatSession(s,a,a.adventureEncounter);}
+    catch(error){return {ok:false,reason:error.message,message:'เริ่ม combat ไม่ได้'};}
+    a.adventureCombat=session;
+    a.adventureEncounter=null;
+    event(s,'adventure',a.name+' เริ่มต่อสู้กับ '+session.monsterId+' Lv.'+session.monsterLevel,a.id);
+    return {ok:true,combatId:session.combatId,turn:session.turn,status:session.status,monsterHpCurrent:session.monsterHpCurrent,monsterHpMax:session.monsterHpMax};
+  }
+  if(type==='ADVENTURE_COMBAT_ACTION'){
+    const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
+    const session=a.adventureCombat;
+    if(!session||session.status!=='ACTIVE')return {ok:false,reason:'combat',message:'ไม่มี combat ที่กำลังดำเนินอยู่'};
+    if(data.action!=='BASIC_ATTACK')return {ok:false,reason:'action',message:'I3 รองรับ BASIC_ATTACK เท่านั้น'};
+    if(!Number.isSafeInteger(data.expectedTurn)||data.expectedTurn!==session.turn)return {ok:false,reason:'stale-turn',message:'combat turn ไม่ตรงกับ state ปัจจุบัน'};
+    let proposal;
+    try{proposal=resolveAdventureCombatTurnProposal(s,a,session,{action:'BASIC_ATTACK'});}
+    catch(error){return {ok:false,reason:error.message,message:'resolve combat ไม่ได้'};}
+    a.hp=proposal.agentHpAfter;
+    a.adventureCombat=proposal.session;
+    const state=a.adventureCombat.status;
+    if(state==='VICTORY')event(s,'adventure',a.name+' ชนะ '+a.adventureCombat.monsterId,a.id);
+    else if(state==='DEFEATED')event(s,'adventure',a.name+' พ่ายแพ้ต่อ '+a.adventureCombat.monsterId,a.id);
+    return {ok:true,combatId:a.adventureCombat.combatId,turn:a.adventureCombat.turn,status:state,
+      agentHp:a.hp,monsterHpCurrent:a.adventureCombat.monsterHpCurrent,monsterHpMax:a.adventureCombat.monsterHpMax,
+      heroDamage:proposal.heroOutcome.damage,counterDamage:proposal.counterOutcome?.damage??0};
   }
   if(type==='CLONE'){
     const parent=s.agents.find(a=>a.id===data.parentId&&a.alive);
@@ -330,7 +367,7 @@ function candidates(s,a,book,field){
   return out.sort((x,y)=>y.score-x.score||(x.kind<y.kind?-1:x.kind>y.kind?1:0)||(x.targetId??0)-(y.targetId??0));
 }
 function decide(s,a,book){
-  if(a.adventureEncounter?.status==='READY')return;
+  if(a.adventureEncounter?.status==='READY'||a.adventureCombat)return;
   const field=routeField(s,a),choices=candidates(s,a,book,field);
   a.trace=choices;
   for(const c of choices){
@@ -550,6 +587,7 @@ export function validate(s){
     for(const e of validateSkillProvenance(a,requiredSkills))bad(e);
     for(const e of validateAdventureProgression(a,{required:isIndependent(s)}))bad(e);
     for(const e of validateAdventureEncounterState(s,a))bad(e);
+    for(const e of validateAdventureCombatState(s,a))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
