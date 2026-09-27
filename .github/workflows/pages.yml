@@ -77,3 +77,18 @@ jobs:
           cmp --silent src/app.mjs /tmp/public-app.mjs
           cmp --silent src/building-visuals.mjs /tmp/public-building-visuals.mjs
           echo "PASS public Pages: HTTP fetch and exact release bytes match ${RELEASE_SHA}"
+
+      - name: Verify public Same-World Adventure lifecycle
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: python tests/public-swa7-smoke.py
+
+      - name: Upload SWA7 public browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swa7-public-evidence-${{ github.sha }}
+          path: evidence-public-swa7/
+          if-no-files-found: warn
+
