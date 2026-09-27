@@ -32,6 +32,47 @@ function runUntil(s,predicate,max=5000){
   assert.fail('autonomous Adventure condition not reached within '+max+' ticks');
 }
 
+
+test('AUTO-ADV2 targets the strongest reachable Monster that does not exceed own Adventure level',()=>{
+  const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
+  const z1=s.wildMonsters.entities.filter(m=>m.zoneId==='z1'&&m.status==='IDLE').sort((x,y)=>x.level-y.level||x.worldMonsterId.localeCompare(y.worldMonsterId));
+  assert.ok(z1.length>0);
+  const trainingLevel=z1[0].level;
+  makeAdventurer(s,a,trainingLevel);
+  const target=chooseAutonomousAdventureTarget(s,a);
+  assert.ok(target);
+  assert.ok(target.monsterLevel<=trainingLevel);
+  const expectedLevel=Math.max(...z1.filter(m=>m.level<=trainingLevel).map(m=>m.level));
+  assert.equal(target.monsterLevel,expectedLevel);
+  assert.equal(target.adventureLevel,trainingLevel);
+  assert.equal(target.levelGap,trainingLevel-target.monsterLevel);
+});
+
+test('AUTO-ADV2 waits for safe respawn instead of attacking an over-level Monster',()=>{
+  const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
+  const z1=s.wildMonsters.entities.filter(m=>m.zoneId==='z1').sort((x,y)=>x.level-y.level);
+  const trainingLevel=z1[0].level;
+  makeAdventurer(s,a,trainingLevel);
+  for(const m of s.wildMonsters.entities)if(m.level<=trainingLevel){
+    m.status='DEFEATED';m.hpCurrent=0;m.defeatedTick=s.tick;m.respawnTick=s.tick+5;m.engagedByAgentId=null;
+  }
+  assert.equal(chooseAutonomousAdventureTarget(s,a),null);
+});
+
+test('AUTO-ADV2 leveling up unlocks stronger training targets deterministically',()=>{
+  const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
+  const z1=s.wildMonsters.entities.filter(m=>m.zoneId==='z1'&&m.status==='IDLE').sort((x,y)=>x.level-y.level||x.worldMonsterId.localeCompare(y.worldMonsterId));
+  const low=z1[0].level,high=z1.at(-1).level;
+  makeAdventurer(s,a,low);
+  const first=chooseAutonomousAdventureTarget(s,a);
+  assert.ok(first&&first.monsterLevel<=low);
+  makeAdventurer(s,a,high);
+  const next=chooseAutonomousAdventureTarget(s,a);
+  assert.ok(next&&next.monsterLevel<=high);
+  assert.ok(next.monsterLevel>=first.monsterLevel);
+  assert.equal(next.monsterLevel,high);
+});
+
 test('AUTO-ADV safe Adventurer selects a physical Monster and starts a real Hunt without UI commands',()=>{
   const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
   makeAdventurer(s,a,60);
