@@ -46,7 +46,8 @@ function wildMonsterType(m){return wildMonsterDef(m)?.types?.[0]??'Normal';}
 function drawWildMonster(c,m,time){
  const def=wildMonsterDef(m),type=wildMonsterType(m),fill=MONSTER_TYPE_COLORS[type]??MONSTER_TYPE_COLORS.Normal;
  const p=proj(m.x,m.y),selected=m.worldMonsterId===selectedWorldMonsterId,elite=m.rank==='elite',pulse=(Math.sin(time*.006+m.spawnSlot)+1)/2;
- c.save();c.translate(p.x,p.y);
+ const markerScale=Math.max(1,.85/Math.max(.01,zoom));
+ c.save();c.translate(p.x,p.y);c.scale(markerScale,markerScale);
  ellipse(c,0,5,17,6,'#132a254f');
  if(selected){c.strokeStyle='#f1d59d';c.lineWidth=2;c.beginPath();c.ellipse(0,-12,22+pulse*2,15+pulse,0,0,Math.PI*2);c.stroke();}
  c.fillStyle=fill;c.strokeStyle=elite?'#f4cf79':'#263c35';c.lineWidth=elite?2:1.2;
