@@ -41,7 +41,7 @@ import {actionPredictionEvidence} from './action-prediction-evidence.mjs?v=0.5.0
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventure-annex.mjs?v=0.5.0';
-import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById} from './adventure-world-monsters.mjs?v=0.5.0';
+import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement} from './adventure-world-monsters.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -258,10 +258,16 @@ export function command(s,type,data={}){
     let session;
     try{session=startAdventureCombatSession(s,a,a.adventureEncounter);}
     catch(error){return {ok:false,reason:error.message,message:'เริ่ม combat ไม่ได้'};}
+    if(session.worldMonsterId){
+      try{engageWildMonster(s,session.worldMonsterId,a.id,a.adventureEncounter);}
+      catch(error){return {ok:false,reason:error.message,message:'ผูก combat กับ world monster ไม่ได้'};}
+    }
     a.adventureCombat=session;
     a.adventureEncounter=null;
+    const boundMonster=session.worldMonsterId?wildMonsterById(s,session.worldMonsterId):null;
     event(s,'adventure',a.name+' เริ่มต่อสู้กับ '+session.monsterId+' Lv.'+session.monsterLevel,a.id);
-    return {ok:true,combatId:session.combatId,turn:session.turn,status:session.status,monsterHpCurrent:session.monsterHpCurrent,monsterHpMax:session.monsterHpMax};
+    return {ok:true,combatId:session.combatId,turn:session.turn,status:session.status,worldMonsterId:session.worldMonsterId??null,
+      monsterHpCurrent:boundMonster?.hpCurrent??session.monsterHpCurrent,monsterHpMax:session.monsterHpMax};
   }
   if(type==='ADVENTURE_COMBAT_ACTION'){
     const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
@@ -273,18 +279,26 @@ export function command(s,type,data={}){
     let proposal;
     try{proposal=resolveAdventureCombatTurnProposal(s,a,session,{action:'BASIC_ATTACK'});}
     catch(error){return {ok:false,reason:error.message,message:'resolve combat ไม่ได้'};}
+    const bound=session.worldMonsterId?wildMonsterById(s,session.worldMonsterId):null;
+    const worldBefore=bound?{hpCurrent:bound.hpCurrent,status:bound.status,engagedByAgentId:bound.engagedByAgentId}:null;
     let reward={changed:false,evidence:'OUTCOME_UNKNOWN',xpAward:0,session:proposal.session};
-    if(proposal.session.status!=='ACTIVE'){
-      try{reward=commitVerifiedAdventureCombatReward(a,proposal.session,s.tick);}
-      catch(error){return {ok:false,reason:error.message,message:'verify combat outcome ไม่ได้'};}
+    try{
+      if(bound){
+        commitWildMonsterCombatHp(s,session.worldMonsterId,a.id,{expectedBefore:proposal.monsterHpBefore,hpAfter:proposal.monsterHpAfter});
+        if(proposal.session.status==='DEFEATED')releaseWildMonsterEngagement(s,session.worldMonsterId,a.id);
+      }
+      if(proposal.session.status!=='ACTIVE')reward=commitVerifiedAdventureCombatReward(a,proposal.session,s.tick);
+    }catch(error){
+      if(bound&&worldBefore){bound.hpCurrent=worldBefore.hpCurrent;bound.status=worldBefore.status;bound.engagedByAgentId=worldBefore.engagedByAgentId;}
+      return {ok:false,reason:error.message,message:bound?'commit world combat ไม่ได้':'verify combat outcome ไม่ได้'};
     }
     a.hp=proposal.agentHpAfter;
     a.adventureCombat=reward.session;
-    const state=a.adventureCombat.status;
-    if(state==='VICTORY')event(s,'adventure',a.name+' ชนะ '+a.adventureCombat.monsterId+(reward.xpAward?' · +'+reward.xpAward+' Adventure XP':''),a.id);
-    else if(state==='DEFEATED')event(s,'adventure',a.name+' พ่ายแพ้ต่อ '+a.adventureCombat.monsterId,a.id);
-    return {ok:true,combatId:a.adventureCombat.combatId,turn:a.adventureCombat.turn,status:state,
-      agentHp:a.hp,monsterHpCurrent:a.adventureCombat.monsterHpCurrent,monsterHpMax:a.adventureCombat.monsterHpMax,
+    const combatState=a.adventureCombat.status,currentMonster=session.worldMonsterId?wildMonsterById(s,session.worldMonsterId):null;
+    if(combatState==='VICTORY')event(s,'adventure',a.name+' ชนะ '+a.adventureCombat.monsterId+(reward.xpAward?' · +'+reward.xpAward+' Adventure XP':''),a.id);
+    else if(combatState==='DEFEATED')event(s,'adventure',a.name+' พ่ายแพ้ต่อ '+a.adventureCombat.monsterId,a.id);
+    return {ok:true,combatId:a.adventureCombat.combatId,turn:a.adventureCombat.turn,status:combatState,worldMonsterId:a.adventureCombat.worldMonsterId??null,
+      agentHp:a.hp,monsterHpCurrent:currentMonster?.hpCurrent??a.adventureCombat.monsterHpCurrent,monsterHpMax:a.adventureCombat.monsterHpMax,
       heroDamage:proposal.heroOutcome.damage,counterDamage:proposal.counterOutcome?.damage??0,
       outcomeEvidence:reward.evidence,xpAwarded:reward.xpAward};
   }
