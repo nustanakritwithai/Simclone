@@ -1,5 +1,14 @@
 # Simclone — active agent guide
 
+> **Current verified override — 2026-09-27**
+>
+> Released main is `a97fcfdec4c9bcd5586eafe479f6ac618cf70fc3`.
+> Adventure V1 I0–I8 shipped through merged PR #138.
+> Same-World Adventure is the active expansion line; SWA0 is on draft PR #140 from `feature/adventure-same-world`.
+> PRs #130/#132/#133/#134/#135/#136/#137 and PR #123 are donor/history only and must not be merged into main again.
+> The older baseline notes below are retained as history where they conflict with this override.
+
+
 Always read `GAME_PLAN.md`, `docs/STATUS.md`, `docs/NEXT_STEPS.md`, current `main`, open PRs and the exact Success Contract before changing code.
 
 A handoff or old PR is never source of truth over the current repository.
