@@ -3,7 +3,7 @@
  * targets, never authoritative statements about remote quantities or existence.
  */
 import {KNOWLEDGE_REVISION_RULES,verifyResourceKnowledge} from './knowledge-revision.mjs?v=0.5.0';
-import {LEGACY_WORLD_BOUNDS,worldBounds,worldCellCount} from './world-bounds.mjs?v=0.5.0';
+import {LEGACY_WORLD_BOUNDS,coreWorldBounds,worldBounds,worldCellCount} from './world-bounds.mjs?v=0.5.0';
 export const PERSONAL_PLANNING_VERSION='personal-knowledge-1';
 export const EXECUTABLE_PLAN_VERSION='VAL2-0.1';
 export const MULTI_STEP_SEQUENCE_VERSION='VAL7-0.1';
@@ -82,7 +82,7 @@ export function personalResourceCandidates(state,agent,type){
 /** Enumerate reachable exploration waypoints without inspecting any resource node. */
 export function personalExplorationTarget(state,agent,reachable){
   if(!active(state))return null;
-  const p=init(state,agent),bounds=worldBounds(state),cells=worldCellCount(state);
+  const p=init(state,agent),bounds=coreWorldBounds(state),cells=bounds.w*bounds.h;
   for(let offset=0;offset<cells;offset++){
     const cursor=(p.cursor+offset)%cells;
     const cell=(cursor*113+(state.seed>>>0)%cells)%cells;
