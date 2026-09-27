@@ -78,7 +78,7 @@ def run_flow(browser,label,width,height,mobile):
     page.mouse.click(box['x']+mp['x'],box['y']+tap_y)
     page.wait_for_selector('#dialog[open][data-kind="monster"] [data-action="hunt-monster"]')
 
-    page.locator('[data-action="hunt-monster"]').tap()
+    page.locator('[data-action="hunt-monster"]').click()
     hunt=view(page)
     assert len(hunt['journeys'])==1 and hunt['journeys'][0]['phase']=='HUNT',(label,hunt)
     assert hunt['journeys'][0]['targetWorldMonsterId']==old_id
@@ -88,7 +88,7 @@ def run_flow(browser,label,width,height,mobile):
     screenshot(page,label,'01-hunt')
 
     # Complete Hunt using the real simulation.
-    page.locator('[data-speed="5"]').tap()
+    page.locator('[data-speed="5"]').click()
     page.evaluate("window.__d3Hidden=false");running(page)
     page.wait_for_function('(id)=>simclone.snapshot().agents[0].adventureEncounter?.worldMonsterId===id',arg=old_id,timeout=20000)
     paused(page);page.evaluate("window.__d3Hidden=true")
@@ -99,14 +99,14 @@ def run_flow(browser,label,width,height,mobile):
     screenshot(page,label,'02-ready')
 
     page.wait_for_selector('[data-adv-action="start-combat"]')
-    page.locator('[data-adv-action="start-combat"]').tap()
+    page.locator('[data-adv-action="start-combat"]').click()
     engaged=view(page)
     assert engaged['journeys'][0]['phase']=='ENGAGED',(label,engaged)
     assert engaged['journeys'][0]['monsterStatus']=='ENGAGED'
     screenshot(page,label,'03-engaged')
 
     # One real attack must surface verified last-turn damage/HP evidence.
-    page.locator('[data-adv-action="attack"]').tap()
+    page.locator('[data-adv-action="attack"]').click()
     damaged=view(page)
     assert damaged['journeys'][0]['phase'] in ('ENGAGED','VICTORY'),(label,damaged)
     assert damaged['journeys'][0]['lastTurn'] is not None
@@ -116,7 +116,7 @@ def run_flow(browser,label,width,height,mobile):
     for _ in range(100):
         combat=snap(page)['agents'][0]['adventureCombat']
         if combat['status']!='ACTIVE': break
-        page.locator('[data-adv-action="attack"]').tap()
+        page.locator('[data-adv-action="attack"]').click()
         page.wait_for_timeout(20)
 
     terminal=snap(page)
@@ -133,7 +133,7 @@ def run_flow(browser,label,width,height,mobile):
     screenshot(page,label,'05-victory-defeat')
 
     page.wait_for_selector('[data-adv-action="finish-result"]')
-    page.locator('[data-adv-action="finish-result"]').tap()
+    page.locator('[data-adv-action="finish-result"]').click()
     assert snap(page)['agents'][0].get('adventureCombat') is None
 
     page.evaluate("window.__d3Hidden=false");running(page)
