@@ -115,6 +115,10 @@ function renderEncounter() {
     <section class="card">
       <p>This is a frozen outcome visualization. HUD buttons do not calculate or dispatch combat.</p>
     </section>
+    <div class="inline-actions">
+      <button data-prototype-action="encounter-return">Return to world</button>
+      <button class="emphasis" data-open="loot">Show loot result fixture</button>
+    </div>
   `;
 }
 
@@ -242,11 +246,12 @@ document.addEventListener("click", (event) => {
 
   const prototypeAction = event.target.closest("[data-prototype-action]");
   if (prototypeAction) {
-    const label = prototypeAction.dataset.prototypeAction === "continue"
+    const action = prototypeAction.dataset.prototypeAction;
+    const label = action === "continue"
       ? "Continue is a no-op prototype intent."
-      : "Return closes the result sheet only.";
+      : "Return closes the current sheet only.";
     showToast(label);
-    if (prototypeAction.dataset.prototypeAction === "return") closePanel();
+    if (action === "return" || action === "encounter-return") closePanel();
   }
 });
 
@@ -258,7 +263,6 @@ async function init() {
     if (!response.ok) throw new Error("Fixture load failed: " + response.status);
     fixture = await response.json();
     renderWorld();
-    openPanel("inspector");
   } catch (error) {
     document.querySelector("#expedition-title").textContent = "Fixture unavailable";
     document.querySelector("#expedition-detail").textContent =
