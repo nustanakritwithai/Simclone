@@ -37,6 +37,43 @@ with sync_playwright() as p:
  desktop=b.new_page(viewport={'width':1440,'height':1000});boot(desktop)
  check('desktop boot with UI 0.5.0 and engine 0.5.0',desktop.evaluate('simclone.version')=='0.5.0')
  check('world actually advances',snap(desktop)['tick']>0)
+ # SWA3: physical Wild Monster authority must be visually targetable without mutating simulation.
+ monster_state=snap(desktop)
+ monsters=monster_state.get('wildMonsters',{}).get('entities',[])
+ check('SWA3 Same-World exposes 12 physical Wild Monsters',len(monsters)==12)
+ monster=monsters[0]
+ mp=desktop.evaluate('(m)=>simclone.screenPoint(m.x,m.y)',monster)
+ # Pan into the navigation-owned safe playfield rather than an arbitrary viewport point.
+ box=desktop.locator('#world').bounding_box()
+ safe=desktop.evaluate('simclone.safeFrame()')
+ target_x=(safe['left']+safe['right'])/2
+ target_y=(safe['top']+safe['bottom'])/2
+ monster_y=mp['y']-20*desktop.evaluate('simclone.camera().zoom')
+ dx=target_x-mp['x']
+ dy=target_y-monster_y
+ start_x=(safe['left']+safe['right'])/2
+ start_y=(safe['top']+safe['bottom'])/2
+ desktop.mouse.move(box['x']+start_x,box['y']+start_y)
+ desktop.mouse.down()
+ desktop.mouse.move(box['x']+start_x+dx,box['y']+start_y+dy,steps=8)
+ desktop.mouse.up()
+ desktop.wait_for_timeout(120)
+ mp2=desktop.evaluate('(m)=>simclone.screenPoint(m.x,m.y)',monster)
+ tap_y=mp2['y']-20*desktop.evaluate('simclone.camera().zoom')
+ hit=desktop.evaluate('(q)=>simclone.worldObjectTargetAtScreen(q.x,q.y)',{'x':mp2['x'],'y':tap_y})
+ check('SWA3 monster canvas hit target resolves exact worldMonsterId',hit is not None and hit['type']=='monster' and hit['id']==monster['worldMonsterId'])
+ check('SWA3 target is inside the unobstructed canvas playfield',
+       desktop.evaluate('(q)=>document.elementFromPoint(q.x,q.y)?.id==="world"',{'x':box['x']+mp2['x'],'y':box['y']+tap_y}))
+ paused(desktop)
+ before_monster_tap=snap(desktop)
+ desktop.mouse.click(box['x']+mp2['x'],box['y']+tap_y)
+ desktop.wait_for_selector('#dialog[open][data-kind="monster"] [data-world-monster]')
+ check('SWA3 tapping visible monster opens read-only world entity card',
+       desktop.locator('[data-world-monster]').get_attribute('data-world-monster')==monster['worldMonsterId'] and
+       ('Lv.'+str(monster['level'])) in desktop.locator('#dialog-body').inner_text() and
+       snap(desktop)==before_monster_tap)
+ desktop.screenshot(path=str(OUT/'desktop-wild-monster.png'))
+ desktop.locator('#dialog-close').click()
  desktop.screenshot(path=str(OUT/'desktop-world.png'))
  paused(desktop);t=snap(desktop)['tick'];desktop.wait_for_timeout(700);check('pause freezes simulation',snap(desktop)['tick']==t)
  desktop.locator('[data-tab="why"]').click()
@@ -310,6 +347,13 @@ with sync_playwright() as p:
  for w,h in [(360,800),(320,740),(844,390),(768,1024)]:
   q=b.new_page(viewport={'width':w,'height':h},is_mobile=w<=700,has_touch=True);boot(q);paused(q)
   check(f'layout {w}x{h} no document overflow',no_overflow(q))
+  if w==390:
+   ms=snap(q).get('wildMonsters',{}).get('entities',[])
+   check('390x844: Wild Monster authority survives mobile boot',len(ms)==12)
+   m0=ms[0];p0=q.evaluate('(m)=>simclone.screenPoint(m.x,m.y)',m0)
+   # Hit testing is screen-space and intentionally larger than the painted silhouette.
+   mhit=q.evaluate('(v)=>simclone.worldObjectTargetAtScreen(v.x,v.y)',{'x':p0['x'],'y':p0['y']-20*q.evaluate('simclone.camera().zoom')})
+   check('390x844: monster hit target remains touch-readable',mhit is not None and mhit['type']=='monster' and mhit['id']==m0['worldMonsterId'])
   for sel in ['#pause','#menu']:
    r=q.locator(sel).bounding_box();check(f'{w}x{h} {sel} on screen',r['x']>=0 and r['x']+r['width']<=w+1)
   q.screenshot(path=str(OUT/f'world-{w}x{h}.png'))

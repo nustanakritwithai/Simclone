@@ -2,13 +2,14 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main: `dd3fa43c3e8057a36534cf5e1b731c95da73ac1d`.
+> Source main: `e82637081d9c2dab053d840340326ec94fdf143a`.
 > Adventure V1 is released.
-> SWA0 PR #140 and SWA1 PR #141 are merged.
-> Same-World now has one physical `84×52` map with Core x0–59 and Adventure Annex x60–83.
+> SWA0, SWA1 and SWA2 are merged.
+> Same-World is 84×52 and now owns 12 deterministic Wild Monster world entities across z1-z4.
 >
-> Active candidate: SWA2 / `feature/swa2-wild-monster-authority`.
-> SWA2 adds one saveable Wild Monster world-state ledger with 12 deterministic physical entities: 3 each in z1-z4. It reuses Adventure V1 monster definitions and stat projection and adds no renderer/UI authority.
+> Active candidate: SWA3 / `feature/swa3-visible-monsters`.
+> SWA3 renders those authoritative entities in the existing canvas depth list, gives them type/level/elite cues, and exposes read-only tappable context by exact `worldMonsterId`.
+> Hunt/path/combat state is not part of SWA3.
 >
 > Sections below predate the Same-World release line and are retained as historical context where they conflict with this override.
 
