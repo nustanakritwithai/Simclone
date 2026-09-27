@@ -45,7 +45,12 @@ with sync_playwright() as p:
     page=context.new_page()
     page.on('pageerror',lambda e:errors.append(str(e)))
     seed_literal=json.dumps(SAVED)
+    # Freeze simulation before public modules execute. This mirrors a background
+    # tab and prevents autonomy from claiming the deterministic Adventurer
+    # before the proof can press the real Pause control.
     page.add_init_script(
+        "window.__swa7Hidden=true;"
+        "Object.defineProperty(document,'hidden',{configurable:true,get:()=>window.__swa7Hidden});"
         "localStorage.clear();localStorage.setItem('simclone:world:v1',"+seed_literal+");"
     )
     response=page.goto(URL,wait_until='load',timeout=60000)
@@ -122,6 +127,7 @@ with sync_playwright() as p:
           abs(hunted['task']['x']-monster['x'])+abs(hunted['task']['y']-monster['y'])==1)
 
     page.locator('[data-speed="5"]').tap()
+    page.evaluate("window.__swa7Hidden=false")
     running(page)
     page.wait_for_function(
         '(id)=>simclone.snapshot().agents[0].adventureEncounter?.worldMonsterId===id',
