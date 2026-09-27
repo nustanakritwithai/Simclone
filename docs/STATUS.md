@@ -1,15 +1,16 @@
 # Simclone — current implementation status
 
-> **Current verified override — 2026-09-27**
+> **Current verified override — 2026-09-28**
 >
-> Source main: `4c75a098f01c179a425e045617f849683250d13b`.
-> Adventure V1 is released.
-> Same-World Adventure SWA0–SWA7 is released and public proof is SAT.
-> Display V1 D0 + DSP1 + D1 is released; Core / Adventure Annex / z1–z4 readability is public.
+> Source main: `da08ab1131548f8276c40b7188ab6a40ff2a055b`.
+> Adventure V1 and Same-World Adventure SWA0–SWA7 are RELEASED.
+> Display D0 + DSP1 + D1 + D2 are RELEASED.
+> D2.5 Combat Visibility hotfix is RELEASED through PR #156.
+> Exact-main Pages #99 / run `36340979453` = SUCCESS.
 >
-> Active display candidate: **D2 — Unified Selection + Deterministic Hit Resolver**.
-> D2 replaces split runtime hit arbitration with one presentation-only `{kind,id}` selection contract while preserving `activeAgentId` only as actor/Inspector context.
-> D2 must prove desktop/mobile overlap behavior and exact IDs before merge.
+> Active display candidate: **D3 — Adventure Journey Visualization** on PR #157.
+> D3 reads released SWA4–SWA6 authority and adds Hunt / READY / ENGAGED / Victory / Defeat / Respawn presentation only.
+> D2.5 keeps single ownership of strike/counter/damage-number animation.
 >
 > Sections below predate the current release line and are retained as historical context where they conflict with this override.
 

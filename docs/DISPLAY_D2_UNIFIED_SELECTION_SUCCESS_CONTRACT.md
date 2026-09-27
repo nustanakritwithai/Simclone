@@ -3,10 +3,10 @@ type: success-contract
 project: Simclone
 domain: display-system
 feature: D2 Unified Selection + Hit Resolver
-status: implementation-candidate
+status: released
 canonical: true
 owner: Project Brain + Display Integration
-validation: UNKNOWN
+validation: SAT
 last_reviewed: 2026-09-27
 ---
 
@@ -138,3 +138,9 @@ Must prove exact `{kind,id}` for:
 ## Conflict rule
 
 PR #84 is stale relative to released Same-World + D1. Do not merge it into D2. Reimplement only behavior that is reverified on current main.
+
+
+## Release evidence
+
+D2 merged through PR #154 on `main@b7983c1334a55b70a94d2ee46fcb9ffd9217e950`.
+Exact-head Verify and D2 interaction proof were SAT. Exact-main Pages #98 / run `36336936777` was SUCCESS.

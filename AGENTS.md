@@ -1,14 +1,15 @@
 # Simclone — active agent guide
 
-> **Current verified override — 2026-09-27**
+> **Current verified override — 2026-09-28**
 >
-> Source main is `4c75a098f01c179a425e045617f849683250d13b` after merged Display D1 PR #151.
+> Source main is `da08ab1131548f8276c40b7188ab6a40ff2a055b` after merged D2.5 PR #156.
 > Adventure V1 and Same-World Adventure SWA0–SWA7 are released.
-> Exact-main Pages #97 is SUCCESS, including public lifecycle proof.
-> Display V1 D0 + DSP1 + D1 are merged/released.
-> Active display candidate: D2 Unified Selection + Deterministic Hit Resolver on `feature/display-d2-unified-selection-v2`.
-> D2 owns presentation/input arbitration only. Simulation/gameplay authorities remain unchanged.
-> PR #84 is stale UX history/donor only and must not be merged into D2.
+> Display D0 + DSP1 + D1 + D2 + D2.5 are released.
+> Exact-main Pages #99 / run `36340979453` is SUCCESS.
+> Active display candidate: D3 Adventure Journey Visualization on PR #157 / `integration/display-d3-after-d2-5`.
+> D2.5 remains the sole owner of strike/counter/damage-number animation; D3 owns journey/lifecycle cues only.
+> PR #155 autonomous Adventure work is a separate gameplay line; D3 must not absorb or duplicate its policy/writers.
+> PR #84 remains stale UX history/donor only.
 > The older baseline notes below are retained as history where they conflict with this override.
 
 
