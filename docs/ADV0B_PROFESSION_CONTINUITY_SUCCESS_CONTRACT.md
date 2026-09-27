@@ -1,7 +1,7 @@
 # ADV0B — Profession continuity
 
-Status: CONTRACT FROZEN. RUNTIME NOT STARTED. MERGE NOT APPROVED.  
-Base: `main@388ddaf32f81429edcb24ba6b6f62ef6135734c7` (VAL5 merge). Pages SAT: [run 36302102186](https://github.com/nustanakritwithai/Simclone/actions/runs/36302102186).  
+Status: CANDIDATE IMPLEMENTED ON PR #130. MERGE NOT APPROVED.  
+Base: `main@5ddb4e00062100f025847ad0cbd0d14e01c421ff` (VAL7–VAL10 cognition completion). Pages SAT: [run 36302102186](https://github.com/nustanakritwithai/Simclone/actions/runs/36302102186).  
 Depends on [ADV0](ADV0_ADVENTURER_PROFESSION_SUCCESS_CONTRACT.md). This file does not implement it.
 
 ## Goal
@@ -62,4 +62,4 @@ Leaving `adventurer` for one of the four is not given a threshold here. No such 
 
 ## Not SAT
 
-The edit is not in the tree. Behavior proof is UNKNOWN. Contract text is not that proof.
+The edit is present only in the PR #130 candidate. Behavior proof remains UNKNOWN until exact candidate CI succeeds.

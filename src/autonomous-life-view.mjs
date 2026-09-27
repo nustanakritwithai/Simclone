@@ -25,7 +25,7 @@ const HOME_LABEL=Object.freeze({
 });
 const FACTOR_LABEL=Object.freeze({
   base:'ฐาน',need:'ความต้องการ',goal:'เป้าหมาย',skill:'ทักษะ',distance:'ระยะทาง',
-  laborMarket:'แรงงาน',householdCooperation:'ช่วย Household',governorPolicy:'นโยบายผู้ปกครอง'
+  laborMarket:'แรงงาน',householdCooperation:'ช่วย Household',governorPolicy:'นโยบายผู้ปกครอง',outcomeLearning:'ประสบการณ์'
 });
 const freeze=x=>Object.freeze(x);
 const number=n=>Number.isFinite(Number(n))?Number(n):0;
@@ -52,6 +52,35 @@ function factorView(trace){
   return freeze(Object.entries(trace.factors)
     .map(([key,value])=>freeze({key,label:FACTOR_LABEL[key]??key,value:number(value)}))
     .filter(row=>row.value!==0));
+}
+
+function reasoningView(agent,trace){
+  const planning=agent?.planning??null,goal=planning?.goal??null,planId=typeof goal?.planId==='string'?goal.planId:null;
+  const steps=Array.isArray(goal?.steps)?goal.steps.map(s=>freeze({id:String(s.id??'UNKNOWN'),kind:String(s.kind??'UNKNOWN'),status:String(s.status??'UNKNOWN')})):[];
+  const receipts=Array.isArray(planning?.predictions)?planning.predictions:[];
+  const receipt=[...receipts].reverse().find(r=>!planId||r.planId===planId)??null;
+  const lessons=Array.isArray(planning?.lessons)?planning.lessons:[];
+  const outcome=[...lessons].reverse().find(l=>!planId||l.planId===planId)??lessons.at(-1)??null;
+  const learning=Number(trace?.factors?.outcomeLearning??0);
+  return freeze({
+    plan:goal?freeze({
+      planId,goal:String(goal.goal??'UNKNOWN'),status:String(goal.status??'UNKNOWN'),
+      sequenceVersion:goal.sequenceVersion??null,
+      stepIndex:Number.isInteger(goal.stepIndex)?goal.stepIndex:null,
+      steps:freeze(steps)
+    }):null,
+    prediction:receipt?freeze({
+      receiptId:String(receipt.receiptId??'UNKNOWN'),planId:receipt.planId??null,
+      taskKind:String(receipt.taskKind??'UNKNOWN'),targetId:receipt.targetId??null,
+      minimumTravelTicks:number(receipt.minimumTravelTicks),selectedScore:number(receipt.selectedScore),
+      revalidate:String(receipt.revalidate??'UNKNOWN'),tick:number(receipt.tick)
+    }):null,
+    outcome:outcome?freeze({
+      tick:number(outcome.tick),kind:String(outcome.kind??'UNKNOWN'),targetId:outcome.targetId??null,
+      result:String(outcome.outcome??'UNKNOWN'),amount:number(outcome.amount),planId:outcome.planId??null
+    }):null,
+    learningFactor:learning
+  });
 }
 
 function householdView(state,agent){
@@ -96,11 +125,13 @@ export function autonomousLifeSnapshot(state,agentId){
     }),
     homePlan:freeze({kind:String(intent?.kind??'UNKNOWN'),label:HOME_LABEL[intent?.kind]??String(intent?.kind??'UNKNOWN')}),
     household:householdView(state,agent),
+    reasoning:reasoningView(agent,trace),
     sources:freeze({
       action:agent.task?'agent.task':'none',
       decision:trace?'agent.trace:selected':'UNKNOWN',
       homePlan:'personalHomeIntent',
-      household:'householdEconomySnapshot'
+      household:'householdEconomySnapshot',
+      reasoning:'agent.planning + agent.trace'
     })
   });
 }

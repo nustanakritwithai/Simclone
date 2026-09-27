@@ -4,7 +4,7 @@ Status: CONTRACT FROZEN. RUNTIME CANDIDATE ON VAL6. NOT MERGED.
 Base contract was `main@388ddaf32f81429edcb24ba6b6f62ef6135734c7`.  
 Integration base: `main@babea1d1e4b0390fc223338a84d60a1309c34139` (VAL6). Every VAL6 `outcomeLearningSignal` line stays. Pages for `babea1d` is UNKNOWN while [run 36303568538](https://github.com/nustanakritwithai/Simclone/actions/runs/36303568538) has not been reported SUCCESS.
 
-This file is the source of truth for the direction change. It does not implement it. PR descriptions and the stale side-game branch are not authority.
+This file is the source of truth for the direction change. PR #130 now carries the candidate implementation on the current base. Exact candidate CI is still required; PR descriptions and the stale side-game branch are not authority.
 
 ## What was checked
 
@@ -164,7 +164,7 @@ No combat, เขตศิลา region, loot, specialization, or `EXPLORE` skil
 
 ## Not SAT
 
-- This revision is a contract. Qualification behavior and the profession write are not implemented, so those tests are UNKNOWN.
+- Qualification behavior and the profession write are now implemented only as a PR #130 candidate. They remain UNKNOWN until exact candidate CI succeeds.
 - Browser and the public site do not show this flow. The live site is `main`, which has no ศิลา button and no Adventurer profession.
 - PR #123's unit success is not this gate.
 - Candidate verify SUCCESS on `b0c5119` covered the previous wording only.

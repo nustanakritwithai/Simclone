@@ -3,7 +3,7 @@ import {INDEPENDENT_SAVE_VERSION,addPersonalStore,validateIndependentWorld} from
 import {initializeIndependentStart,independentSpawn} from './independent-start.mjs?v=0.5.0';
 import {survivalHome,homeOf,individualHouses} from './individual-housing.mjs?v=0.5.0';
 import {cultureCommand,stepCulture,validateCulture} from './cultural-archive.mjs?v=0.5.0';
-import {setPlanningPolicy,personalResourceCandidates,personalExplorationTarget,rememberPlanSelection,finishPersonalExploration,recordPlanProduction,validatePersonalPlanning} from './personal-planning.mjs?v=0.5.0';
+import {setPlanningPolicy,personalResourceCandidates,personalExplorationTarget,rememberPlanSelection,recordPredictionReceipt,finishPersonalExploration,recordPlanProduction,validatePersonalPlanning} from './personal-planning.mjs?v=0.5.0';
 import {verifyResourceKnowledge,ageKnowledge} from './knowledge-revision.mjs?v=0.5.0';
 /** Simclone 0.5.0 — evidence-backed personal knowledge over skill provenance. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
@@ -14,7 +14,7 @@ import {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,retent
 import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenance,recordEarnedSkill,validateSkillProvenance} from './skill-provenance.mjs?v=0.5.0';
 import {ensureLeadershipSkill,LEADERSHIP_SKILL,leadershipProfile} from './leadership.mjs?v=0.5.0';
 import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,recordResourceDiscovery,shareKnowledge,withinKnowledgeRange,validateKnowledgeState,activeKnowledge} from './knowledge.mjs?v=0.5.0';
-import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
+import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession,noteExploreCompletion,validateAdventurerQualification} from './kingdom-utility.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
@@ -31,6 +31,7 @@ import {ensureSettlementState,stepSettlementAuthority,validateSettlementState,al
 import {ensureGovernanceState,stepGovernanceAuthority,validateGovernanceState} from './governance-authority.mjs?v=0.5.0';
 import {stepGovernancePolicy,governorPolicySignal} from './governance-policy.mjs?v=0.5.0';
 import {outcomeLearningSignal} from './outcome-learning-authority.mjs?v=0.5.0';
+import {actionPredictionEvidence} from './action-prediction-evidence.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -315,7 +316,9 @@ function decide(s,a,book){
     rememberPlanSelection(s,a,c);
     const career=adoptProfession(a,c.kind,s.tick);
     if(career.changed&&s.tick-(a.lastCareerEventTick??-999)>=60){event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);a.lastCareerEventTick=s.tick;}
-    c.status='selected';a.moveTick=0;return;
+    c.status='selected';
+    recordPredictionReceipt(s,a,actionPredictionEvidence(a,a.task,c));
+    a.moveTick=0;return;
   }
 }
 function gain(s,a,key,targetId=null){
@@ -396,7 +399,20 @@ function execute(s,a){
       }
       a.task=null;
     }
-  }else if(t.work>=6){finishPersonalExploration(s,a,t);a.task=null;}
+  }else if(t.work>=6){
+    finishPersonalExploration(s,a,t);
+    const belief=t.knowledgeKey?a.knowledgeState?.beliefs?.find(b=>b.key===t.knowledgeKey):null;
+    const qualification=noteExploreCompletion(a,{
+      kind:t.kind,tick:s.tick,x:a.x,y:a.y,started:t.started,
+      alive:a.alive===true,productive:canPerformProductiveWork(s,a),
+      knowledge:t.knowledgeKey?(belief?.status??'UNKNOWN'):'none'
+    });
+    if(qualification.career?.changed&&s.tick-(a.lastCareerEventTick??-999)>=60){
+      event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);
+      a.lastCareerEventTick=s.tick;
+    }
+    a.task=null;
+  }
 }
 function interrupt(s,a){
   const t=a.task;if(!taskValid(s,a))return true;
@@ -497,6 +513,7 @@ export function validate(s){
     if(a.profession!==undefined&&!isKingdomProfession(a.profession))bad('Profession');
     if(a.professionSinceTick!==undefined&&(!Number.isInteger(a.professionSinceTick)||a.professionSinceTick<0||a.professionSinceTick>s.tick))bad('Profession');
     if(a.career!==undefined&&(!Array.isArray(a.career)||a.career.length>8||a.career.some(c=>!c||!Number.isInteger(c.tick)||c.tick<0||c.tick>s.tick||!isKingdomProfession(c.profession))))bad('Career');
+    for(const e of validateAdventurerQualification(a,s.tick))bad(e);
     for(const e of validateSkillProvenance(a,requiredSkills))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');

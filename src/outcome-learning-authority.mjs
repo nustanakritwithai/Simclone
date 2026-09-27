@@ -1,9 +1,10 @@
 /** VAL6 — bounded deterministic learning authority from retained productive outcomes. */
 import {isIndependent} from './individual-resources.mjs?v=0.5.0';
-import {productiveOutcomeEvidenceSnapshot,terminalOutcomeEvidenceState} from './outcome-learning-evidence.mjs?v=0.5.0';
+import {productiveOutcomeEvidenceSnapshot,terminalOutcomeEvidenceState,receiptBackedFailureEvidence} from './outcome-learning-evidence.mjs?v=0.5.0';
 
 export const OUTCOME_LEARNING_AUTHORITY_VERSION='VAL6-0.1';
 export const MAX_OUTCOME_LEARNING_BONUS=4;
+export const MAX_NEGATIVE_OUTCOME_LEARNING_PENALTY=-1;
 
 const SUPPORTED=new Set(['FORAGE','WOODCUT','MINE','BUILD']);
 const freeze=x=>Object.freeze(x);
@@ -11,7 +12,7 @@ const freeze=x=>Object.freeze(x);
 function result(kind,reason,row=null,bonus=0){
   return freeze({
     version:OUTCOME_LEARNING_AUTHORITY_VERSION,
-    active:bonus>0,
+    active:bonus!==0,
     bonus,
     reason,
     kind:String(kind??'UNKNOWN'),
@@ -34,6 +35,8 @@ export function outcomeLearningSignal(state,agent,kind,{emergency=false}={}){
 
   const terminal=terminalOutcomeEvidenceState(agent);
   if(terminal.evidence==='EVIDENCE_CONFLICT')return result(kind,'evidence-conflict',row);
+  const failure=receiptBackedFailureEvidence(agent,kind);
+  if(failure.evidence==='RECEIPT_BACKED_VIOL')return result(kind,'receipt-backed-terminal-viol',row,MAX_NEGATIVE_OUTCOME_LEARNING_PENALTY);
   if(row.violCount>0)return result(kind,'violation-evidence',row);
   if(row.unknownCount>0)return result(kind,'unknown-evidence',row);
   if(row.satCount!==row.sampleCount||row.totalAmount<=0)return result(kind,'not-all-productive-sat',row);
