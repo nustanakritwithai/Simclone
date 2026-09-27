@@ -6,9 +6,11 @@
 export const WORLD_BOUNDS_VERSION='MX0-0.1';
 export const LEGACY_WORLD_BOUNDS=Object.freeze({profile:'legacy',w:30,h:26});
 export const LARGE_WORLD_BOUNDS=Object.freeze({profile:'large',w:60,h:52});
+export const SAME_WORLD_BOUNDS=Object.freeze({profile:'same-world',w:84,h:52});
 export const WORLD_PROFILES=Object.freeze({
   legacy:LEGACY_WORLD_BOUNDS,
-  large:LARGE_WORLD_BOUNDS
+  large:LARGE_WORLD_BOUNDS,
+  'same-world':SAME_WORLD_BOUNDS
 });
 export const DEFAULT_WORLD_PROFILE='legacy';
 export const PUBLIC_WORLD_PROFILE='large';
@@ -22,6 +24,10 @@ export function persistedWorldBounds(profile){
   const bounds=boundsForProfile(profile);
   if(profile==='legacy')return null;
   return {version:WORLD_BOUNDS_VERSION,profile:bounds.profile,w:bounds.w,h:bounds.h};
+}
+export function coreWorldBounds(state){
+  const bounds=worldBounds(state);
+  return bounds.profile==='same-world'?LARGE_WORLD_BOUNDS:bounds;
 }
 export function worldBounds(state){
   const raw=state?.worldBounds;
