@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,step,serialize,restore} from '../src/engine.mjs';
-import {rememberPlanSelection,recordPlanProduction} from '../src/personal-planning.mjs';
+import {rememberPlanSelection,recordPlanProduction,recordPredictionReceipt} from '../src/personal-planning.mjs';
 import {
   outcomeLearningShadowSnapshot,
   OUTCOME_LEARNING_SHADOW_VERSION,
@@ -21,6 +21,7 @@ test('VAL5 empty outcome evidence is explicit and byte-read-only',()=>{
   assert.equal(view.version,OUTCOME_LEARNING_SHADOW_VERSION);
   assert.equal(view.evidence,'NO_OUTCOME_EVIDENCE');
   assert.equal(view.predictionHistory,PREDICTION_HISTORY_EVIDENCE);
+  assert.deepEqual(view.predictionReceipts,{count:0,latestReceiptId:null,latestTick:null});
   assert.deepEqual(view.outcomes,[]);
   assert.deepEqual(view.byKind,[]);
 });
@@ -51,22 +52,27 @@ test('VAL5 surfaces VAL4 verified outcome but creates no learning authority',()=
   assert.equal(view.currentOutcome.evidence,'VERIFIED');
   assert.equal(view.currentOutcome.result,'SAT');
   assert.equal(view.evidence,'OUTCOME_EVIDENCE');
-  assert.equal(view.predictionHistory,'NOT_RETAINED');
+  assert.equal(view.predictionHistory,'RETAINED_VAL9');
   assert.equal(Object.hasOwn(view,'predictionAccuracy'),false);
   assert.equal(Object.hasOwn(view,'scoreAdjustment'),false);
   assert.equal(Object.hasOwn(view,'preference'),false);
   assert.equal(Object.hasOwn(view,'learnedRule'),false);
 });
 
-test('VAL5 keeps current VAL3 prediction live-only instead of fabricating history',()=>{
-  const s=createWorld(230926,{mode:'independent'});
-  step(s,1);
-  const a=s.agents.find(a=>a.alive&&a.task);assert.ok(a);
+test('VAL5 read model reconciles with retained VAL9 receipts without inventing accuracy',()=>{
+  const s=createWorld(230926,{mode:'independent'}),a=s.agents[0];
+  rememberPlanSelection(s,a,{kind:'FORAGE',targetId:77,x:4,y:4});
+  recordPredictionReceipt(s,a,{
+    taskKind:'FORAGE',targetId:77,remainingRouteSteps:2,moveTicksPerStep:3,currentMoveProgress:0,
+    minimumTravelTicks:6,revalidate:'RESOURCE_AT_TARGET',interruptionNow:null,
+    selectedScore:88,traceSource:'agent.trace:selected'
+  });
   const before=serialize(s),view=outcomeLearningShadowSnapshot(s,a.id);
   assert.equal(serialize(s),before);
-  assert.ok(view.livePrediction);
-  assert.equal(view.predictionHistory,'NOT_RETAINED');
-  assert.equal(Object.hasOwn(view.livePrediction,'accuracy'),false);
+  assert.equal(view.predictionHistory,'RETAINED_VAL9');
+  assert.equal(view.predictionReceipts.count,1);
+  assert.equal(view.predictionReceipts.latestReceiptId,a.planning.predictions[0].receiptId);
+  assert.equal(Object.hasOwn(view,'predictionAccuracy'),false);
 });
 
 test('VAL5 conflicting terminal evidence never promotes to learned knowledge',()=>{
