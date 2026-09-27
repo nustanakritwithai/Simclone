@@ -57,6 +57,7 @@ export function autonomousAdventureIntent(state,agent){
 
   const combat=agent.adventureCombat;
   if(combat?.worldMonsterId){
+    if(combat.control!=='autonomous')return null;
     if(combat.status==='ACTIVE'){
       const due=combat.startedTick+(combat.turn+1)*AUTONOMOUS_ADVENTURE_POLICY.attackIntervalTicks;
       return Object.freeze(state.tick>=due
@@ -73,6 +74,7 @@ export function autonomousAdventureIntent(state,agent){
 
   const encounter=agent.adventureEncounter;
   if(encounter?.status==='READY'&&encounter.worldMonsterId){
+    if(encounter.control!=='autonomous')return null;
     const due=encounter.encounterTick+AUTONOMOUS_ADVENTURE_POLICY.readyHoldTicks;
     return Object.freeze(state.tick>=due
       ?{type:'start-combat',agentId:agent.id,worldMonsterId:encounter.worldMonsterId}
