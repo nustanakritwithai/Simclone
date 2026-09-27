@@ -2,7 +2,7 @@ import {
   CORE6_STAT_KEYS,
   POCKET_MONSTER_WILD_SOURCE,
   monsterDefinition,
-} from './adventure-monsters.mjs';
+} from './adventure-monsters.mjs?v=0.5.0';
 
 export const WILD_MONSTER_LEVEL_MIN = 1;
 export const WILD_MONSTER_LEVEL_MAX = 60;
