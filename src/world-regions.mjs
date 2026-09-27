@@ -3,7 +3,8 @@
  * mutable world ledger. Engine generation and WorldSim presentation consume
  * the same pure regional evidence.
  */
-import {worldBounds} from './world-bounds.mjs?v=0.5.0';
+import {LARGE_WORLD_BOUNDS,worldBounds} from './world-bounds.mjs?v=0.5.0';
+import {ADVENTURE_ANNEX_X_MIN,adventureAnnexRegionEvidence} from './adventure-annex.mjs?v=0.5.0';
 
 export const WORLD_REGION_VERSION='MX2-0.1';
 export const WORLD_REGION_TYPES=Object.freeze([
@@ -74,6 +75,13 @@ export function worldRegionAt(seed,bounds,x,y){
   });
 }
 
+export function worldRegionAtState(state,x,y){
+  const bounds=worldBounds(state);
+  if(bounds.profile==='same-world'&&x>=ADVENTURE_ANNEX_X_MIN)return adventureAnnexRegionEvidence(state.seed,x,y);
+  const reference=bounds.profile==='same-world'?LARGE_WORLD_BOUNDS:bounds;
+  return worldRegionAt(state.seed,reference,x,y);
+}
+
 export function resourcePolicyForRegion(region){
   const policy=REGION_RESOURCE_POLICY[region];
   if(!policy)throw new Error('Invalid world region');
@@ -92,7 +100,7 @@ export function regionalResourceDecision(seed,bounds,x,y,{blocked=false}={}){
 export function createWorldRegionView(state){
   const bounds=worldBounds(state),counts=Object.fromEntries(WORLD_REGION_TYPES.map(k=>[k,0])),cells=[];
   for(let y=0;y<bounds.h;y++)for(let x=0;x<bounds.w;x++){
-    const evidence=worldRegionAt(state.seed,bounds,x,y);counts[evidence.region]++;
+    const evidence=worldRegionAtState(state,x,y);counts[evidence.region]++;
     cells.push(Object.freeze({index:y*bounds.w+x,x,y,...evidence}));
   }
   return Object.freeze({
