@@ -732,7 +732,8 @@ function migrateKnowledge(s){
 }
 function migrateSave(s,{sameWorld=false}={}){
   if(!s)return s;
-  if(sameWorld){expandLargeWorldToSameWorld(s);ensureWildMonsterWorld(s);}
+  if(sameWorld)expandLargeWorldToSameWorld(s);
+  if(s?.worldBounds?.profile==='same-world')ensureWildMonsterWorld(s);
   const sourceVersion=s.version;
   if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);ensureSettlementState(s);ensureGovernanceState(s);return s;} // additive social/settlement/governance state migrates deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
