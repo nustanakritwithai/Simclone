@@ -3,6 +3,7 @@ import {monsterStatsAtLevel} from './adventure-monster-stats.mjs?v=0.5.0';
 import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
 import {resolveAdventureCombat} from './adventure-combat.mjs?v=0.5.0';
 import {agentHpFromCombatRatio} from './adventure-combat-stats.mjs?v=0.5.0';
+import {adventureCombatLoadoutSnapshot,validateAdventureCombatLoadoutSnapshot} from './adventure-equipment-bridge.mjs?v=0.5.0';
 
 export const ADVENTURE_COMBAT_SESSION_VERSION='adventure-combat-session/v1';
 export const ADVENTURE_COMBAT_SESSION_STATUSES=Object.freeze(['ACTIVE','VICTORY','DEFEATED']);
@@ -40,6 +41,8 @@ export function startAdventureCombatSession(state,agent,encounter){
   if(!encounter||encounter.status!=='READY'||encounter.x!==agent.x||encounter.y!==agent.y)throw new Error('combat_encounter');
   const monster=monsterStatsAtLevel(encounter.monsterId,encounter.monsterLevel);
   if(!monster.ok)throw new Error('combat_monster');
+  const loadout=adventureCombatLoadoutSnapshot(state,agent.id);
+  neutralAdventurerCombatProfile(agent,encounter.adventureLevel,loadout.modifiers);
   const combatId='advcombat:'+encounter.encounterId;
   return freeze({
     version:ADVENTURE_COMBAT_SESSION_VERSION,
@@ -47,7 +50,7 @@ export function startAdventureCombatSession(state,agent,encounter){
     status:'ACTIVE',zoneId:encounter.zoneId,monsterId:encounter.monsterId,monsterLevel:encounter.monsterLevel,rank:encounter.rank,
     adventureLevel:encounter.adventureLevel,x:encounter.x,y:encounter.y,startedTick:state.tick,turn:0,
     monsterHpMax:monster.stats.hp,monsterHpCurrent:monster.stats.hp,
-    lastTurn:null,
+    loadout,lastTurn:null,
   });
 }
 
@@ -65,6 +68,7 @@ export function validateAdventureCombatState(state,agent){
   if(c.status==='ACTIVE'&&c.monsterHpCurrent===0)return bad;
   if(c.status==='VICTORY'&&c.monsterHpCurrent!==0)return bad;
   if(c.status==='DEFEATED'&&agent.hp<=0)return bad;
+  if((c.status==='ACTIVE'||c.loadout!==undefined)&&validateAdventureCombatLoadoutSnapshot(c.loadout).length)return bad;
   if(c.lastTurn!==null){
     if(!c.lastTurn||!integer(c.lastTurn.turn,0)||c.lastTurn.turn!==c.turn-1)return bad;
     if(!['ACTIVE','VICTORY','DEFEATED'].includes(c.lastTurn.status))return bad;
@@ -79,7 +83,7 @@ export function resolveAdventureCombatTurnProposal(state,agent,session,{action}=
   if(!agent.alive||agent.profession!=='adventurer'||agent.x!==session.x||agent.y!==session.y)throw new Error('combat_actor');
   if(!(agent.hp>0))throw new Error('combat_hp');
 
-  const hero=neutralAdventurerCombatProfile(agent,session.adventureLevel);
+  const hero=neutralAdventurerCombatProfile(agent,session.adventureLevel,session.loadout.modifiers);
   const monsterBefore=monsterProfile(session);
   const heroOutcome=resolveAdventureCombat({
     attacker:hero,defender:monsterBefore,action:ADVENTURE_BASIC_ATTACK,

@@ -19,7 +19,7 @@ export function adventureCombatLoadoutSnapshot(state,agentId){
     if(row.agentId!==agentId||!ADVENTURE_GEAR_SLOTS.includes(slot))continue;
     const item=p.items?.find(i=>i.id===row.itemId&&i.location?.kind==='bag'&&i.location.agentId===agentId);
     const gear=item&&ADVENTURE_GEAR_EXAMPLES[item.kind];
-    if(!item||!gear||gear.slot!==slot||!Number.isSafeInteger(item.upgradeLevel)||item.upgradeLevel<0||item.upgradeLevel>ADVENTURE_MAX_UPGRADE_LEVEL)throw new Error('invalid_adventure_equipment');
+    if(!item||!gear||gear.slot!==slot||item.upgradeLevel!==0)throw new Error('invalid_adventure_equipment');
     items.push(freeze({
       itemId:item.id,gearId:gear.gearId,slot,rarity:gear.rarity,upgradeLevel:item.upgradeLevel,
       modifiers:calculateUpgradeModifiers(gear.baseModifiers,item.upgradeLevel),
@@ -40,7 +40,7 @@ export function validateAdventureCombatLoadoutSnapshot(snapshot){
     const seen=new Set(),entries=[];
     for(const item of snapshot.items){
       const gear=ADVENTURE_GEAR_EXAMPLES[item?.gearId];
-      if(!gear||item.slot!==gear.slot||seen.has(item.slot)||!Number.isSafeInteger(item.itemId)||!Number.isSafeInteger(item.upgradeLevel)||item.upgradeLevel<0||item.upgradeLevel>ADVENTURE_MAX_UPGRADE_LEVEL)return ['Adventure loadout'];
+      if(!gear||item.slot!==gear.slot||seen.has(item.slot)||!Number.isSafeInteger(item.itemId)||item.upgradeLevel!==0)return ['Adventure loadout'];
       const modifiers=calculateUpgradeModifiers(gear.baseModifiers,item.upgradeLevel);
       if(JSON.stringify(modifiers)!==JSON.stringify(item.modifiers))return ['Adventure loadout'];
       seen.add(item.slot);entries.push({slot:item.slot,modifiers});

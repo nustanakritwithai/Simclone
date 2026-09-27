@@ -1,4 +1,5 @@
 import {projectAdventurerCombatStats} from './adventure-combat-stats.mjs?v=0.5.0';
+import {boundCombatModifiers,ADVENTURE_LOADOUT_STAT_BOUNDS} from './adventure-gear.mjs?v=0.5.0';
 
 export const ADVENTURE_HUMAN_COMBAT_VERSION='adventure-human-combat/v1';
 export const ADVENTURE_HUMAN_BASE_STAT=50;
@@ -32,11 +33,24 @@ export function neutralAdventurerCoreStatsAtLevel(level){
   });
 }
 
-export function neutralAdventurerCombatProfile(agent,level){
+export function adventurerCoreStatsWithLoadout(level,loadoutModifiers={}){
+  const base=neutralAdventurerCoreStatsAtLevel(level);
+  const modifiers=boundCombatModifiers(loadoutModifiers,ADVENTURE_LOADOUT_STAT_BOUNDS);
+  return Object.freeze({
+    hp:base.hp+(modifiers.HP??0),
+    atk:base.atk+(modifiers.ATK??0),
+    def:base.def+(modifiers.DEF??0),
+    spAtk:base.spAtk+(modifiers.SPATK??0),
+    spDef:base.spDef+(modifiers.SPDEF??0),
+    spd:base.spd+(modifiers.SPD??0),
+  });
+}
+
+export function neutralAdventurerCombatProfile(agent,level,loadoutModifiers={}){
   if(!agent||!validLevel(level))throw new TypeError('invalid_adventurer_profile_input');
   const projected=projectAdventurerCombatStats({
     agent:{hp:agent.hp},
-    adventureProgression:{combatLevel:level,coreStats:neutralAdventurerCoreStatsAtLevel(level)},
+    adventureProgression:{combatLevel:level,coreStats:adventurerCoreStatsWithLoadout(level,loadoutModifiers)},
     ratings:ADVENTURE_HUMAN_RATINGS,
   });
   if(!projected.ok)throw new Error('adventurer_profile_'+projected.reason);

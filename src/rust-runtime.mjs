@@ -90,7 +90,7 @@ export function validateRustState(s){
   if(!p||p.version!==RUST_POSSESSIONS_VERSION||!Number.isSafeInteger(p.nextItem)||!Number.isSafeInteger(p.nextOrder)||!Array.isArray(p.items)||p.items.length>RUST_POSSESSION_LIMITS.items||!Array.isArray(p.orders)||p.orders.length>RUST_POSSESSION_LIMITS.orders||!Array.isArray(p.equipment))e.push('Rust possessions');
   else{
     const ids=new Set();for(const i of p.items){const def=ITEM_CATALOG[i?.kind];if(!i||!Number.isSafeInteger(i.id)||ids.has(i.id)||!def||!people.has(i.createdBy)||!i.location)e.push('Rust item');ids.add(i?.id);
-      if(def?.category==='gear'&&(!Number.isSafeInteger(i.upgradeLevel)||i.upgradeLevel<0||i.upgradeLevel>ADVENTURE_MAX_UPGRADE_LEVEL))e.push('Rust gear');
+      if(def?.category==='gear'&&i.upgradeLevel!==0)e.push('Rust gear');
       if(i?.location?.kind==='bag'&&!alive.has(i.location.agentId))e.push('Rust bag');
       if(i?.location?.kind==='drop'&&(!Number.isInteger(i.location.x)||!Number.isInteger(i.location.y)))e.push('Rust drop');
       if(!['bag','drop'].includes(i?.location?.kind))e.push('Rust item location');
@@ -102,7 +102,7 @@ export function validateRustState(s){
       const slot=equipmentSlotOf(q),key=q?.agentId+':'+slot,item=p.items.find(i=>i.id===q?.itemId&&i.location?.kind==='bag'&&i.location.agentId===q?.agentId),def=item&&ITEM_CATALOG[item.kind];
       const validSlot=slot==='hand'
         ?def?.category==='tool'&&def?.equipSlot==='hand'
-        :['WEAPON','ARMOR','ACCESSORY'].includes(slot)&&def?.category==='gear'&&def?.equipSlot===slot&&Number.isSafeInteger(item?.upgradeLevel)&&item.upgradeLevel>=0&&item.upgradeLevel<=ADVENTURE_MAX_UPGRADE_LEVEL;
+        :['WEAPON','ARMOR','ACCESSORY'].includes(slot)&&def?.category==='gear'&&def?.equipSlot===slot&&item?.upgradeLevel===0;
       if(!alive.has(q?.agentId)||equippedSlots.has(key)||!item||!validSlot)e.push('Rust equipment');
       equippedSlots.add(key);
     }
