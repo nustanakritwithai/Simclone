@@ -232,7 +232,7 @@ export function command(s,type,data={}){
     const claimed=s.agents.some(other=>other.alive&&other.id!==a.id&&(
       other.task?.adventureHunt?.worldMonsterId===monster.worldMonsterId||
       other.adventureEncounter?.worldMonsterId===monster.worldMonsterId||
-      other.adventureCombat?.worldMonsterId===monster.worldMonsterId
+      (other.adventureCombat?.worldMonsterId===monster.worldMonsterId&&other.adventureCombat.status==='ACTIVE')
     ));
     if(claimed)return {ok:false,reason:'monster-busy',message:'มอนสเตอร์ตัวนี้มีนักผจญภัยกำลังเข้าหาอยู่'};
     const progression=adventureProgressionSnapshot(a);
