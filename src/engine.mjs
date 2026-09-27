@@ -108,6 +108,8 @@ function killAgent(s,a,cause){
   if(!a.alive)return false;
   const deathAge=ageYearsAtTick(s,a,s.tick);
   a.death={status:'recorded',tick:s.tick,cause,ageYears:deathAge};
+  const bound=a.adventureCombat?.worldMonsterId?wildMonsterById(s,a.adventureCombat.worldMonsterId):null;
+  if(bound?.status==='ENGAGED'&&bound.engagedByAgentId===a.id&&bound.hpCurrent>0)releaseWildMonsterEngagement(s,bound.worldMonsterId,a.id);
   a.alive=false;a.hp=0;a.task=null;a.moveTick=0;a.adventureEncounter=null;a.adventureCombat=null;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
   const text=cause==='age'
     ?a.name+' เสียชีวิตตามวัยเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี'
