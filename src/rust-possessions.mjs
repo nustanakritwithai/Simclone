@@ -102,7 +102,7 @@ export function unequipAdventureGear(s,agentId,slot){
 export function equipTool(s,agentId,itemId){
   const p=s.rustPossessions,a=living(s,agentId),item=p?.items.find(i=>i.id===itemId&&i.location?.kind==='bag'&&i.location.agentId===agentId);
   if(!p||!a||!item||ITEM_CATALOG[item.kind]?.category!=='tool'||ITEM_CATALOG[item.kind]?.equipSlot!=='hand')return {ok:false,reason:'item'};
-  p.equipment=p.equipment.filter(e=>e.agentId!==agentId||equipmentSlotOf(e)!=='hand');p.equipment.push({agentId,itemId,slot:'hand'});return {ok:true,itemId,kind:item.kind,slot:'hand'};
+  p.equipment=p.equipment.filter(e=>e.agentId!==agentId||equipmentSlotOf(e)!=='hand');p.equipment.push({agentId,itemId});return {ok:true,itemId,kind:item.kind,slot:'hand'};
 }
 export function unequipTool(s,agentId){
   const p=s.rustPossessions,a=living(s,agentId);
