@@ -19,6 +19,7 @@ import {ADVENTURE_SKILL,ensureAdventureProgressionSkill,inheritedAdventureXp,val
 import {adventureProgressionSnapshot} from './adventure-progression.mjs?v=0.5.0';
 import {findAdventureZoneEntry,createAdventureExpeditionTask,adventureExpeditionTaskValid,completeAdventureExpedition,validateAdventureEncounterState} from './adventure-expedition.mjs?v=0.5.0';
 import {startAdventureCombatSession,resolveAdventureCombatTurnProposal,validateAdventureCombatState} from './adventure-combat-session.mjs?v=0.5.0';
+import {commitVerifiedAdventureCombatReward,validateAdventureCombatRewardState} from './adventure-combat-reward.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
@@ -230,14 +231,20 @@ export function command(s,type,data={}){
     let proposal;
     try{proposal=resolveAdventureCombatTurnProposal(s,a,session,{action:'BASIC_ATTACK'});}
     catch(error){return {ok:false,reason:error.message,message:'resolve combat ไม่ได้'};}
+    let reward={changed:false,evidence:'OUTCOME_UNKNOWN',xpAward:0,session:proposal.session};
+    if(proposal.session.status!=='ACTIVE'){
+      try{reward=commitVerifiedAdventureCombatReward(a,proposal.session,s.tick);}
+      catch(error){return {ok:false,reason:error.message,message:'verify combat outcome ไม่ได้'};}
+    }
     a.hp=proposal.agentHpAfter;
-    a.adventureCombat=proposal.session;
+    a.adventureCombat=reward.session;
     const state=a.adventureCombat.status;
-    if(state==='VICTORY')event(s,'adventure',a.name+' ชนะ '+a.adventureCombat.monsterId,a.id);
+    if(state==='VICTORY')event(s,'adventure',a.name+' ชนะ '+a.adventureCombat.monsterId+(reward.xpAward?' · +'+reward.xpAward+' Adventure XP':''),a.id);
     else if(state==='DEFEATED')event(s,'adventure',a.name+' พ่ายแพ้ต่อ '+a.adventureCombat.monsterId,a.id);
     return {ok:true,combatId:a.adventureCombat.combatId,turn:a.adventureCombat.turn,status:state,
       agentHp:a.hp,monsterHpCurrent:a.adventureCombat.monsterHpCurrent,monsterHpMax:a.adventureCombat.monsterHpMax,
-      heroDamage:proposal.heroOutcome.damage,counterDamage:proposal.counterOutcome?.damage??0};
+      heroDamage:proposal.heroOutcome.damage,counterDamage:proposal.counterOutcome?.damage??0,
+      outcomeEvidence:reward.evidence,xpAwarded:reward.xpAward};
   }
   if(type==='CLONE'){
     const parent=s.agents.find(a=>a.id===data.parentId&&a.alive);
@@ -588,6 +595,7 @@ export function validate(s){
     for(const e of validateAdventureProgression(a,{required:isIndependent(s)}))bad(e);
     for(const e of validateAdventureEncounterState(s,a))bad(e);
     for(const e of validateAdventureCombatState(s,a))bad(e);
+    for(const e of validateAdventureCombatRewardState(s,a))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {createWorld,command,step,serialize,restore,validate} from '../src/engine.mjs';
 import {recordEarnedSkill} from '../src/skill-provenance.mjs';
 import {adventureXpForLevel} from '../src/adventure-progression.mjs';
@@ -91,17 +92,10 @@ test('I3 combat defeat never writes agent.hp to zero and does not trigger perman
   assert.deepEqual(validate(s),[]);
 });
 
-test('I3 victory is terminal evidence only: no Adventure XP or Rust item reward is committed yet',()=>{
-  const s=createWorld(5105,{mode:'independent',worldProfile:'large',population:1}),a=s.agents[0];
-  makeAdventurer(s,a,60);const xp=a.skills.ADVENTURE;reachEncounter(s,a,'z1');startCombat(s,a);
-  const beforeItems=JSON.stringify(s.rustPossessions?.items??[]);
-  let guard=0;
-  while(a.adventureCombat.status==='ACTIVE'&&guard++<20){
-    const r=command(s,'ADVENTURE_COMBAT_ACTION',{agentId:a.id,action:'BASIC_ATTACK',expectedTurn:a.adventureCombat.turn});
-    assert.equal(r.ok,true);
-  }
-  assert.equal(a.adventureCombat.status,'VICTORY');
-  assert.equal(a.skills.ADVENTURE,xp);
-  assert.equal(JSON.stringify(s.rustPossessions?.items??[]),beforeItems);
-  assert.deepEqual(validate(s),[]);
+test('I3 pure combat-session remains reward-free; I4 engine bridge owns terminal rewards',()=>{
+  const source=fs.readFileSync(new URL('../src/adventure-combat-session.mjs',import.meta.url),'utf8');
+  assert.equal(source.includes('recordEarnedSkill'),false);
+  assert.equal(source.includes('skills.ADVENTURE'),false);
+  assert.equal(source.includes('adventure-combat-reward'),false);
+  assert.equal(source.includes('rustPossessions'),false);
 });
