@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Simclone Adventure UI Prototype</title>
+  <link rel="stylesheet" href="./prototype.css">
+</head>
+<body>
+  <main class="prototype-shell" aria-label="Adventure mode UX prototype">
+    <section class="world-surface" aria-label="World remains the primary surface">
+      <div class="terrain terrain-a"></div>
+      <div class="terrain terrain-b"></div>
+      <div class="terrain terrain-c"></div>
+
+      <header class="top-strip">
+        <button class="identity-chip" data-open="inspector" aria-label="Open Adventurer Inspector">
+          <span class="avatar">C</span>
+          <span>
+            <strong id="clone-name">Loading…</strong>
+            <small><span id="profession">Adventurer</span> · Lv.<span id="clone-level">–</span></small>
+          </span>
+        </button>
+
+        <div class="top-actions">
+          <button class="icon-button" data-open="regions" aria-label="Open region viewer">Map</button>
+          <button class="icon-button" data-open="equipment" aria-label="Open equipment">Gear</button>
+        </div>
+      </header>
+
+      <div class="world-caption">
+        <span class="eyebrow">WORLD PRIMARY</span>
+        <h1 id="expedition-title">Expedition</h1>
+        <p id="expedition-detail">Loading fixture…</p>
+      </div>
+
+      <button class="encounter-marker" data-open="encounter" aria-label="Open encounter prototype">
+        <span class="pulse"></span>
+        <strong>Encounter</strong>
+        <small id="marker-label">Wild monster</small>
+      </button>
+
+      <section class="adventure-hud" aria-label="Adventure HUD">
+        <div class="hud-vitals">
+          <div class="meter-line">
+            <span>HP</span>
+            <div class="meter"><i id="hp-meter"></i></div>
+            <strong id="hp-label">–/–</strong>
+          </div>
+          <div class="meter-line">
+            <span>EXP</span>
+            <div class="meter exp"><i id="exp-meter"></i></div>
+            <strong id="exp-label">–/–</strong>
+          </div>
+        </div>
+
+        <div class="action-grid">
+          <button data-action="attack" class="primary-action">Attack</button>
+          <button data-action="skill1" id="skill-1">Skill 1</button>
+          <button data-action="skill2" id="skill-2">Skill 2</button>
+          <button data-action="skill3" id="skill-3">Skill 3</button>
+          <button data-action="guard">Dodge / Guard</button>
+          <button data-action="retreat" class="danger-action">Retreat</button>
+        </div>
+      </section>
+
+      <div class="fixture-badge">STATIC FIXTURE · NO WORLD WRITES</div>
+    </section>
+
+    <section id="sheet" class="sheet" aria-hidden="true" aria-live="polite">
+      <div class="sheet-handle"></div>
+      <header class="sheet-header">
+        <div>
+          <span id="sheet-kicker" class="eyebrow">ADVENTURE</span>
+          <h2 id="sheet-title">Panel</h2>
+        </div>
+        <button id="close-sheet" class="icon-button" aria-label="Close panel">Close</button>
+      </header>
+      <div id="sheet-content" class="sheet-content"></div>
+    </section>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </main>
+
+  <script type="module" src="./prototype.js"></script>
+</body>
+</html>
