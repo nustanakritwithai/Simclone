@@ -111,6 +111,11 @@ with sync_playwright() as p:
  adv['career']=(adv.get('career') or [])[-7:]+[{'tick':0,'profession':'adventurer'}]
  # SWA4: visible Monster context dispatches a real hunt command without teleport.
  hunt_saved=json.loads(json.dumps(adventure_saved))
+ # Deterministic browser fixture only: Adventure Lv.60 with matching provenance.
+ hunt_actor=hunt_saved['agents'][0];hunt_actor['skills']['ADVENTURE']=69620
+ adv_bucket=hunt_actor['skillProvenance']['bySkill']['ADVENTURE']
+ adv_bucket['initialXP']=0;adv_bucket['inheritedXP']=0;adv_bucket['earnedXP']=69620;adv_bucket['legacyUnattributedXP']=0
+ adv_bucket['evidence']=[{'id':'skill:1:ADVENTURE:work:0:69620','kind':'work','xp':69620,'tick':0,'sourceAgentId':None,'action':'UI_SWA6_FIXTURE','targetId':None}]
  hunt_monster=next(m for m in hunt_saved['wildMonsters']['entities'] if m['zoneId']=='z1')
  huntpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
  boot_with_html(huntpage,independent_html,json.dumps(hunt_saved,ensure_ascii=False),settle_ms=0,freeze_world=True);huntpage.wait_for_timeout(100)
@@ -150,6 +155,34 @@ with sync_playwright() as p:
        combat_after['lastTurn']['monsterHpBefore']==hp_before and
        combat_after['lastTurn']['monsterHpAfter']==world_after['hpCurrent'])
  huntpage.screenshot(path=str(OUT/'mobile-world-monster-combat.png'))
+ # SWA6: finish this bound combat through the real Attack control.
+ for _ in range(100):
+  now=snap(huntpage)['agents'][0]['adventureCombat']
+  if now['status']!='ACTIVE':break
+  huntpage.locator('[data-adv-action="attack"]').tap()
+ terminal=snap(huntpage);terminal_agent=terminal['agents'][0];terminal_combat=terminal_agent['adventureCombat']
+ check('SWA6 deterministic browser fixture reaches verified Victory',terminal_combat['status']=='VICTORY' and terminal_combat['reward']['status']=='COMMITTED')
+ defeated=next(m for m in terminal['wildMonsters']['entities'] if m['worldMonsterId']==hunt_monster['worldMonsterId'])
+ check('SWA6 Victory despawns the physical Monster into DEFEATED',
+       defeated['status']=='DEFEATED' and defeated['hpCurrent']==0 and defeated['engagedByAgentId'] is None and
+       defeated['respawnTick']>defeated['defeatedTick'])
+ old_world_id=defeated['worldMonsterId'];old_epoch=defeated['spawnEpoch'];old_x=defeated['x'];old_y=defeated['y']
+ oldp=huntpage.evaluate('(m)=>simclone.screenPoint(m.x,m.y)',defeated)
+ oldhit=huntpage.evaluate('(v)=>simclone.worldObjectTargetAtScreen(v.x,v.y)',{'x':oldp['x'],'y':oldp['y']-20*huntpage.evaluate('simclone.camera().zoom')})
+ check('SWA6 DEFEATED Monster is absent from renderer hit targets',oldhit is None or not (oldhit.get('type')=='monster' and oldhit.get('id')==old_world_id))
+ huntpage.wait_for_selector('[data-adv-action="finish-result"]')
+ huntpage.locator('[data-adv-action="finish-result"]').tap()
+ check('SWA6 Continue closes terminal combat without reviving old incarnation',snap(huntpage)['agents'][0].get('adventureCombat') is None)
+ huntpage.evaluate("window.__fixtureHidden=false")
+ huntpage.wait_for_function("""q=>simclone.snapshot().wildMonsters.entities.some(m=>
+   m.zoneId===q.zoneId&&m.spawnSlot===q.spawnSlot&&m.spawnEpoch===q.epoch+1&&m.status==='IDLE')""",
+   arg={'zoneId':defeated['zoneId'],'spawnSlot':defeated['spawnSlot'],'epoch':old_epoch},timeout=12000)
+ huntpage.evaluate("window.__fixtureHidden=true");huntpage.wait_for_timeout(100)
+ respawned=next(m for m in snap(huntpage)['wildMonsters']['entities'] if m['zoneId']==defeated['zoneId'] and m['spawnSlot']==defeated['spawnSlot'])
+ check('SWA6 Monster respawns as a new deterministic incarnation',
+       respawned['spawnEpoch']==old_epoch+1 and respawned['worldMonsterId']!=old_world_id and
+       respawned['status']=='IDLE' and respawned['hpCurrent']==respawned['hpMax'])
+ huntpage.screenshot(path=str(OUT/'mobile-world-monster-respawn.png'))
  bounds=adventure_saved['worldBounds'];w=bounds['w'];h=bounds['h']
  z1min=int(w*.55);z1min=z1min if z1min==w*.55 else z1min+1;z1max=int(w*.65)
  target=None
