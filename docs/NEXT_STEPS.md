@@ -1,26 +1,26 @@
 # Current handoff — Same-World Adventure Expansion
 
-> **Current verified override — 2026-09-27**
+> **Current verified override — 2026-09-28**
 >
 > Adventure V1 and Same-World Adventure SWA0–SWA7 are RELEASED.
-> Display D0 + DSP1 + D1 are RELEASED on `main@4c75a098f01c179a425e045617f849683250d13b`.
-> Exact-main Pages #97 = SUCCESS.
+> Display D0 + DSP1 + D1 + D2 + D2.5 are RELEASED on `main@da08ab1131548f8276c40b7188ab6a40ff2a055b`.
+> Exact-main Pages #99 = SUCCESS.
 >
-> Active gate: **D2 — Unified Selection + Deterministic Hit Resolver**.
-> Required D2 closeout order:
-> 1. pure resolver + unit proof
-> 2. one runtime candidate collector / resolver
-> 3. one canonical world `selection={kind,id}`
-> 4. keep `activeAgentId` only for actor/Inspector context
-> 5. browser proof at 1440×1000, 390×844, 320×740, 844×390
-> 6. overlap/tie matrix + real Monster edge/zoom proof
-> 7. exact-head Verify + D2 proof workflow SAT
+> Active gate: **D3 — Adventure Journey Visualization**.
+> D3 closeout order:
+> 1. pure `adventureJourneyVisualSnapshot()` authority projection
+> 2. Hunt target/engagement/path cues
+> 3. READY / ENGAGED / VICTORY / Clone DEFEATED cues
+> 4. Monster DEFEAT and new-incarnation RESPAWN lifecycle cues
+> 5. keep D2 hit targets unchanged and D2.5 strike/damage ownership unique
+> 6. actual deterministic browser flow screenshots on desktop/mobile
+> 7. exact-head Verify + dedicated D3 proof SAT
 > 8. merge → exact-main Pages SAT
 >
-> After D2 public SAT: D3 Adventure Journey Visualization → D4 Renderer Architecture → D5 Asset Layer → D6 Performance/Public Visual Release.
-> Adventure V2 remains deferred until D1–D6 close.
+> After D3 public SAT: D4 Renderer Architecture → D5 Asset Layer → D6 Performance/Public Visual Release.
+> Adventure V2 remains deferred from the Display release line.
 >
-> Product lock: one map, one coordinate system, no teleport scene, no renderer-owned gameplay state.
+> Product lock: one map, one coordinate system, no fake combat/HP/respawn state, no renderer-owned gameplay truth.
 
 
 ## Public source of truth
