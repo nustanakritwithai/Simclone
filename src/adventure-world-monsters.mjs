@@ -1,6 +1,6 @@
-/** SWA2/SWA5 — one authoritative Wild Monster world-state ledger.
- * SWA2 owns deterministic spawn identity. SWA5 adds ENGAGED ownership and the
- * single canonical Monster HP writer. DEFEATED/despawn/respawn remain SWA6.
+/** SWA2/SWA5/SWA6 — one authoritative Wild Monster world-state ledger.
+ * SWA2 owns deterministic spawn identity; SWA5 owns ENGAGED + canonical HP;
+ * SWA6 owns DEFEATED/despawn/result-safe deterministic respawn.
  */
 import {worldBounds} from './world-bounds.mjs?v=0.5.0';
 import {ADVENTURE_ANNEX_ZONES,adventureAnnexZoneAt} from './adventure-annex.mjs?v=0.5.0';
