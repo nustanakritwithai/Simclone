@@ -144,7 +144,7 @@ export function createWorld(seed=230926,options={}){
     const p=scaleLegacyPoint(bounds,lx,ly);s.nodes.push({id:nid++,type,x:p.x,y:p.y,amount:45,max:45});
   }
   const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
-  if(independent){initializeIndependentStart(s,walkable);ensureSettlementState(s);ensureGovernanceState(s);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
+  if(independent){initializeIndependentStart(s,walkable);ensureSettlementState(s);ensureGovernanceState(s);for(const a of s.agents){ensureLeadershipSkill(a,{tick:s.tick});ensureAdventureProgressionSkill(a,{tick:s.tick});}setPlanningPolicy(s,'local');}
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);

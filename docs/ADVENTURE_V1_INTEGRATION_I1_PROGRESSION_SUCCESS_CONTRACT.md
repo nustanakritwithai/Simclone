@@ -31,6 +31,7 @@ Lv.1 begins at XP 0. Lv.60 begins at XP 69,620.
 
 I1 may:
 - add `ADVENTURE` as a non-productive skill authority,
+- initialize the starting Independent population immediately after `initializeIndependentStart`, because those agents are created before the state reports Independent mode,
 - add its provenance bucket,
 - derive Level 1–60 read-only,
 - initialize fresh Independent Clones at XP 0,
