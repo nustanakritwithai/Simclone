@@ -2,17 +2,16 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main: `d4378bae2d707662bd1d614a397538f73495e5ba`.
+> Source main: `4c75a098f01c179a425e045617f849683250d13b`.
 > Adventure V1 is released.
-> SWA0–SWA6 are merged.
-> Display V1 D0 + DSP1 is merged as a read-only world-presentation model.
-> Same-World is 84×52 with visible physical Wild Monsters, real-path Hunt, exact worldMonsterId combat binding, canonical world Monster HP, DEFEATED/despawn/result closeout and deterministic new-incarnation respawn.
+> Same-World Adventure SWA0–SWA7 is released and public proof is SAT.
+> Display V1 D0 + DSP1 + D1 is released; Core / Adventure Annex / z1–z4 readability is public.
 >
-> Active release candidate: **SWA7** on `release/swa7-same-world-closeout`.
-> SWA7 changes release verification only: pre-merge public-proof preflight plus post-deploy GitHub Pages Playwright proof of Monster tap → Hunt → Combat → Victory → hidden → Continue → respawn.
-> Same-World Adventure is not marked RELEASED until the exact-main Pages workflow including this public lifecycle proof succeeds.
+> Active display candidate: **D2 — Unified Selection + Deterministic Hit Resolver**.
+> D2 replaces split runtime hit arbitration with one presentation-only `{kind,id}` selection contract while preserving `activeAgentId` only as actor/Inspector context.
+> D2 must prove desktop/mobile overlap behavior and exact IDs before merge.
 >
-> Sections below predate the current Same-World release line and are retained as historical context where they conflict with this override.
+> Sections below predate the current release line and are retained as historical context where they conflict with this override.
 
 
 ## Public released baseline
