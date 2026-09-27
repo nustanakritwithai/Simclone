@@ -85,7 +85,7 @@ export function validateAdventureCombatState(state,agent){
       entity.hpMax!==c.monsterHpMax||Math.abs(entity.x-agent.x)+Math.abs(entity.y-agent.y)!==1)return bad;
     terminalHp=entity.hpCurrent;
     if(c.status==='ACTIVE'&&(entity.status!=='ENGAGED'||entity.engagedByAgentId!==agent.id||entity.hpCurrent<=0))return bad;
-    if(c.status==='VICTORY'&&(entity.status!=='ENGAGED'||entity.engagedByAgentId!==agent.id||entity.hpCurrent!==0))return bad;
+    if(c.status==='VICTORY'&&(!['DEFEATED','RESPAWNING'].includes(entity.status)||entity.engagedByAgentId!==null||entity.hpCurrent!==0))return bad;
     if(c.status==='DEFEATED'&&(entity.status!=='IDLE'||entity.engagedByAgentId!==null||entity.hpCurrent<=0))return bad;
   }else{
     if(!integer(c.monsterHpCurrent,0)||c.monsterHpCurrent>c.monsterHpMax)return bad;
