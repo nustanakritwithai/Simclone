@@ -4,18 +4,19 @@ from playwright.sync_api import sync_playwright
 import base64,json
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'evidence-ui';OUT.mkdir(exist_ok=True)
-from browser_fixture import HTML
+from browser_fixture import HTML,fixture
 html=HTML
 checks=[];errors=[]
 def check(name,condition=True):
  assert condition,name
  checks.append(name);print('PASS',name,flush=True)
-def boot(page,saved=None):
+def boot_with_html(page,content,saved=None):
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.evaluate("saved=>{const m=new Map(saved?[['simclone:world:v1',saved]]:[]);Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v))}})}",saved)
- page.set_content(html,wait_until='load')
+ page.set_content(content,wait_until='load')
  page.wait_for_function("window.simclone?.uiVersion==='0.5.0'")
  page.wait_for_timeout(400)
+def boot(page,saved=None):boot_with_html(page,html,saved)
 def paused(page):
  if page.locator('#pause').get_attribute('aria-pressed')!='true':page.locator('#pause').click()
 def snap(page):return page.evaluate('simclone.snapshot()')
@@ -55,6 +56,50 @@ with sync_playwright() as p:
  reloadpage=b.new_page(viewport={'width':1440,'height':1000});boot(reloadpage,saved)
  check('old save schema retained and reload works with storage double',len(snap(reloadpage)['agents'])==7)
  check('death history sub-schema persists through reload',snap(reloadpage)['historyVersion']=='0.1.0')
+ # Adventure V1 production UI uses the actual Independent-world schema, then routes commands through engine.
+ independent_html=fixture(default_mode='independent')
+ advseed=b.new_page(viewport={'width':1440,'height':1000});boot_with_html(advseed,independent_html);paused(advseed)
+ check('Adventure launch is visible in Independent world without changing the five-tab mobile dock',advseed.locator('#adventure-launch').is_visible())
+ adventure_saved=snap(advseed);adv=adventure_saved['agents'][0]
+ adv['task']=None;adv['hp']=100;adv['satiety']=100;adv['energy']=100
+ adv['adventurerQualification']={'version':1,'accepted':3,'recent':[
+   {'id':'0:1:1','tick':0,'x':1,'y':1},{'id':'0:1:2','tick':0,'x':1,'y':2},{'id':'0:2:2','tick':0,'x':2,'y':2}
+ ]}
+ adv['profession']='adventurer';adv['professionSinceTick']=0
+ adv['career']=(adv.get('career') or [])[-7:]+[{'tick':0,'profession':'adventurer'}]
+ bounds=adventure_saved['worldBounds'];w=bounds['w'];h=bounds['h']
+ z1min=int(w*.55);z1min=z1min if z1min==w*.55 else z1min+1;z1max=int(w*.65)
+ target=None
+ for yy in range(1,h-1):
+  for xx in range(z1min,z1max+1):
+   if adventure_saved['tiles'][yy*w+xx]!='water':
+    target=(xx,yy);break
+  if target:break
+ assert target is not None
+ adv['x'],adv['y']=target
+ advpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot_with_html(advpage,independent_html,json.dumps(adventure_saved,ensure_ascii=False));paused(advpage)
+ check('Adventure UI fits mobile without adding a sixth mobile-nav tab',advpage.locator('#adventure-launch').is_visible() and advpage.locator('.mobile-nav button').count()==5 and no_overflow(advpage))
+ advpage.locator('#adventure-launch').tap()
+ check('Adventure panel reads canonical profession level qualification and zones',advpage.locator('[data-adv-profile]').count()==1 and 'นักผจญภัย' in advpage.locator('#dialog-body').inner_text() and advpage.locator('[data-adv-action="start-expedition"][data-zone="z1"]').count()==1)
+ before_pos=(snap(advpage)['agents'][0]['x'],snap(advpage)['agents'][0]['y'])
+ advpage.locator('[data-adv-action="start-expedition"][data-zone="z1"]').tap()
+ started=snap(advpage)['agents'][0]
+ check('Adventure start routes through engine and never teleports',started['task']['kind']=='EXPLORE' and started['task'].get('adventureExpedition',{}).get('zoneId')=='z1' and (started['x'],started['y'])==before_pos)
+ check('Adventure HUD appears on the running world during expedition',advpage.locator('#adventure-hud').is_visible() and 'EXPEDITION' in advpage.locator('#adventure-hud').inner_text())
+ # Run the real simulation just long enough to complete the zero-distance expedition work.
+ advpage.locator('[data-speed="5"]').tap()
+ if advpage.locator('#pause').get_attribute('aria-pressed')=='true':advpage.locator('#pause').tap()
+ advpage.wait_for_function("document.querySelector('[data-adv-action=start-combat]')!==null",timeout=8000)
+ paused(advpage)
+ encounter_state=snap(advpage)['agents'][0]
+ check('READY encounter becomes an actionable HUD from canonical state',encounter_state.get('adventureEncounter',{}).get('status')=='READY' and advpage.locator('[data-adv-action="start-combat"]').count()==1)
+ advpage.locator('[data-adv-action="start-combat"]').tap()
+ combat0=snap(advpage)['agents'][0]['adventureCombat']
+ check('Adventure HUD starts canonical combat session',combat0['status']=='ACTIVE' and combat0['turn']==0 and advpage.locator('[data-adv-action="attack"]').count()==1)
+ advpage.locator('[data-adv-action="attack"]').tap()
+ combat1=snap(advpage)['agents'][0]['adventureCombat']
+ check('Attack button routes through engine expectedTurn and advances exactly one combat turn',combat1['turn']==1 and combat1['combatId']==combat0['combatId'])
+ advpage.screenshot(path=str(OUT/'mobile-adventure-combat.png'))
  unknown_saved=json.loads(saved);unknown_event_id=unknown_saved['nextEvent'];unknown_saved['nextEvent']+=1
  unknown_saved['events'].append({'id':unknown_event_id,'tick':0,'type':'build','text':'legacy build without retained placement evidence','agentId':2})
  unknownpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot(unknownpage,json.dumps(unknown_saved,ensure_ascii=False));paused(unknownpage)
