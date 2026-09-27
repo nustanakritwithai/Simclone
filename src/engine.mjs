@@ -41,7 +41,7 @@ import {actionPredictionEvidence} from './action-prediction-evidence.mjs?v=0.5.0
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventure-annex.mjs?v=0.5.0';
-import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement} from './adventure-world-monsters.mjs?v=0.5.0';
+import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement,defeatWildMonster,stepWildMonsterLifecycle,migrateWildMonsterLifecycleState} from './adventure-world-monsters.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -280,7 +280,7 @@ export function command(s,type,data={}){
     try{proposal=resolveAdventureCombatTurnProposal(s,a,session,{action:'BASIC_ATTACK'});}
     catch(error){return {ok:false,reason:error.message,message:'resolve combat ไม่ได้'};}
     const bound=session.worldMonsterId?wildMonsterById(s,session.worldMonsterId):null;
-    const worldBefore=bound?{hpCurrent:bound.hpCurrent,status:bound.status,engagedByAgentId:bound.engagedByAgentId}:null;
+    const worldBefore=bound?{hpCurrent:bound.hpCurrent,status:bound.status,engagedByAgentId:bound.engagedByAgentId,defeatedTick:bound.defeatedTick,respawnTick:bound.respawnTick}:null;
     let reward={changed:false,evidence:'OUTCOME_UNKNOWN',xpAward:0,session:proposal.session};
     try{
       if(bound){
@@ -288,8 +288,9 @@ export function command(s,type,data={}){
         if(proposal.session.status==='DEFEATED')releaseWildMonsterEngagement(s,session.worldMonsterId,a.id);
       }
       if(proposal.session.status!=='ACTIVE')reward=commitVerifiedAdventureCombatReward(a,proposal.session,s.tick);
+      if(bound&&proposal.session.status==='VICTORY')defeatWildMonster(s,session.worldMonsterId,a.id,s.tick);
     }catch(error){
-      if(bound&&worldBefore){bound.hpCurrent=worldBefore.hpCurrent;bound.status=worldBefore.status;bound.engagedByAgentId=worldBefore.engagedByAgentId;}
+      if(bound&&worldBefore){bound.hpCurrent=worldBefore.hpCurrent;bound.status=worldBefore.status;bound.engagedByAgentId=worldBefore.engagedByAgentId;bound.defeatedTick=worldBefore.defeatedTick;bound.respawnTick=worldBefore.respawnTick;}
       return {ok:false,reason:error.message,message:bound?'commit world combat ไม่ได้':'verify combat outcome ไม่ได้'};
     }
     a.hp=proposal.agentHpAfter;
@@ -312,6 +313,18 @@ export function command(s,type,data={}){
     a.adventureCombat=claimed.session;
     if(claimed.changed)event(s,'adventure',a.name+' ได้ loot '+claimed.itemIds.length+' ชิ้น',a.id);
     return {ok:true,changed:claimed.changed,duplicate:claimed.duplicate,claimKey:claimed.claimKey,itemIds:claimed.itemIds,bagged:claimed.bagged,dropped:claimed.dropped};
+  }
+  if(type==='FINISH_ADVENTURE_RESULT'){
+    const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
+    const session=a.adventureCombat;
+    if(!session||!['VICTORY','DEFEATED'].includes(session.status))return {ok:false,reason:'terminal',message:'ยังไม่มีผลการต่อสู้ที่ปิดได้'};
+    if(session.status==='VICTORY'&&session.reward?.evidence!=='VERIFIED')return {ok:false,reason:'reward',message:'หลักฐานรางวัลยังไม่พร้อม'};
+    const skippedLoot=session.status==='VICTORY'&&!session.lootClaim;
+    const worldMonsterId=session.worldMonsterId??null,combatId=session.combatId,status=session.status;
+    a.adventureCombat=null;
+    event(s,'adventure',a.name+' จบผลการต่อสู้ '+status+(skippedLoot?' · ไม่รับ loot':'') ,a.id);
+    return {ok:true,combatId,status,worldMonsterId,skippedLoot};
   }
   if(type==='CLONE'){
     const parent=s.agents.find(a=>a.id===data.parentId&&a.alive);
@@ -599,6 +612,7 @@ export function step(s,count=1,options={}){
       const task=a.task;
       if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
     }
+    stepWildMonsterLifecycle(s);
     const teaching=stepMentorship(s);if(teaching)event(s,'mentor',teaching.message,teaching.mentorId);
     const cultural=stepCulture(s);
     if(cultural)event(s,'knowledge',cultural.message,cultural.agentId);
@@ -784,7 +798,7 @@ function migrateKnowledge(s){
 function migrateSave(s,{sameWorld=false}={}){
   if(!s)return s;
   if(sameWorld)expandLargeWorldToSameWorld(s);
-  if(s?.worldBounds?.profile==='same-world')ensureWildMonsterWorld(s);
+  if(s?.worldBounds?.profile==='same-world'){ensureWildMonsterWorld(s);migrateWildMonsterLifecycleState(s);}
   const sourceVersion=s.version;
   if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);ensureSettlementState(s);ensureGovernanceState(s);return s;} // additive social/settlement/governance state migrates deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
