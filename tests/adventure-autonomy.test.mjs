@@ -150,6 +150,19 @@ test('AUTO-ADV survival gates prevent Hunt selection when HP, satiety or energy 
   }
 });
 
+
+test('AUTO-ADV2 selector skips a Monster already claimed by another Adventurer',()=>{
+  const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:2}),[a,b]=s.agents;
+  makeAdventurer(s,a,60);makeAdventurer(s,b,60);
+  const first=chooseAutonomousAdventureTarget(s,a);
+  assert.ok(first);
+  const claimed=command(s,'START_ADVENTURE_HUNT',{agentId:a.id,worldMonsterId:first.worldMonsterId,control:'autonomous'});
+  assert.equal(claimed.ok,true);
+  const second=chooseAutonomousAdventureTarget(s,b);
+  assert.ok(second);
+  assert.notEqual(second.worldMonsterId,first.worldMonsterId);
+});
+
 test('AUTO-ADV two Adventurers never autonomously claim the same worldMonsterId',()=>{
   const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:2}),[a,b]=s.agents;
   makeAdventurer(s,a,60);makeAdventurer(s,b,60);
