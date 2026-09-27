@@ -13,7 +13,7 @@ export const AUTONOMOUS_ADVENTURE_POLICY=Object.freeze({
   minEnergy:50,
   readyHoldTicks:3,
   attackIntervalTicks:6,
-  resultHoldTicks:12,
+  resultHoldTicks:3,
 });
 
 const livingAdventurer=a=>a?.alive===true&&a.profession==='adventurer';
