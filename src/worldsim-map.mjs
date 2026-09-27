@@ -1,5 +1,5 @@
-import {LEGACY_WORLD_BOUNDS,worldBounds} from './world-bounds.mjs?v=0.5.0';
-import {WORLD_REGION_TYPES,worldRegionAt} from './world-regions.mjs?v=0.5.0';
+import {LEGACY_WORLD_BOUNDS,LARGE_WORLD_BOUNDS,worldBounds} from './world-bounds.mjs?v=0.5.0';
+import {WORLD_REGION_TYPES,worldRegionAtState} from './world-regions.mjs?v=0.5.0';
 /** WM1 presentation only. Reads K6 tiles/resources; never writes simulation state.
  * This is a WorldSim-inspired terrain skin, not the 20.9.4 physics runtime.
  */
@@ -49,11 +49,17 @@ export function createWorldMapView(state){
   const counts=Object.fromEntries(WORLD_TERRAIN.map(t=>[t,0])),
     regionCounts=Object.fromEntries(WORLD_REGION_TYPES.map(t=>[t,0])),cells=[];
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-    const i=y*width+x,gameplayTile=tile(x,y),nearWater=[[0,-1],[1,0],[0,1],[-1,0]].filter(([dx,dy])=>tile(x+dx,y+dy)==='water').length;
-    const regionEvidence=worldRegionAt(state.seed,bounds,x,y);regionCounts[regionEvidence.region]++;
+    const i=y*width+x,gameplayTile=tile(x,y),coreCell=bounds.profile==='same-world'&&x<LARGE_WORLD_BOUNDS.w;
+    const nearWater=[[0,-1],[1,0],[0,1],[-1,0]].filter(([dx,dy])=>{
+      const nx=x+dx,ny=y+dy;
+      if(coreCell&&nx>=LARGE_WORLD_BOUNDS.w)return false;
+      return tile(nx,ny)==='water';
+    }).length;
+    const regionEvidence=worldRegionAtState(state,x,y);regionCounts[regionEvidence.region]++;
     const rawElevation=field(state.seed,x/6,y/6,29),rawMoisture=field(state.seed,x/5,y/5,71);
-    const elevation=bounds.profile==='large'?clamp(rawElevation*.68+regionEvidence.relief*.32):rawElevation;
-    const moisture=bounds.profile==='large'?clamp(rawMoisture*.68+regionEvidence.moisture*.32):rawMoisture;
+    const regional=bounds.profile==='large'||bounds.profile==='same-world';
+    const elevation=regional?clamp(rawElevation*.68+regionEvidence.relief*.32):rawElevation;
+    const moisture=regional?clamp(rawMoisture*.68+regionEvidence.moisture*.32):rawMoisture;
     let terrainType=gameplayTile;
     if(gameplayTile==='water')terrainType=nearWater>=3?'deepWater':'shallowWater';
     else if(gameplayTile==='grass'){
@@ -63,7 +69,7 @@ export function createWorldMapView(state){
       else if(wood>=.5&&wood>=food||moisture>.64&&food<.8)terrainType='forest';
       else if(elevation>.72&&wood<.5&&food<.5)terrainType='rock';
       else terrainType='grass';
-      if(bounds.profile==='large'&&terrainType==='grass'){
+      if((bounds.profile==='large'||bounds.profile==='same-world')&&terrainType==='grass'){
         if(regionEvidence.region==='stone-ridge')terrainType='rock';
         else if(regionEvidence.region==='woodland')terrainType='forest';
         else if(regionEvidence.region==='uplands'&&elevation>.53)terrainType='rock';
@@ -79,6 +85,7 @@ export function createWorldMapView(state){
       elevation:clamp(elevation),moisture:clamp(moisture),detail}));
   }
   return Object.freeze({version:WORLD_MAP_VERSION,seed:state.seed,width,height,
+    coreWidth:bounds.profile==='same-world'?LARGE_WORLD_BOUNDS.w:width,
     authority:MAP_AUTHORITY,cells:Object.freeze(cells),terrainCounts:Object.freeze(counts),regionCounts:Object.freeze(regionCounts)});
 }
 export function visualCellAt(view,x,y){
