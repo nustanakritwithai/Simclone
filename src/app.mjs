@@ -37,6 +37,69 @@ function polygon(c,points,fill,stroke=null){c.beginPath();points.forEach(([x,y],
 function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
 function line(c,points,color,width=1){c.strokeStyle=color;c.lineWidth=width;c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke();}
 function hash(x,y){return ((Math.imul(x+33,374761393)^Math.imul(y+41,668265263))>>>0)/4294967296;}
+const COMBAT_VISUAL_FX_MS=900,combatFxSeen=new Map(),combatFxStarted=new Map();
+
+function combatFeedbackProjection(){
+ const rows=[];
+ for(const agent of state.agents??[]){
+  const combat=agent?.adventureCombat;if(!agent?.alive||!combat?.worldMonsterId)continue;
+  const monster=state.wildMonsters?.entities?.find(m=>m.worldMonsterId===combat.worldMonsterId);if(!monster)continue;
+  const last=combat.lastTurn?{
+   turn:combat.lastTurn.turn,status:combat.lastTurn.status,
+   heroDamage:combat.lastTurn.heroDamage,heroHit:combat.lastTurn.heroHit,heroCritical:combat.lastTurn.heroCritical,
+   counterDamage:combat.lastTurn.counterDamage,counterHit:combat.lastTurn.counterHit,counterCritical:combat.lastTurn.counterCritical,
+   monsterHpBefore:combat.lastTurn.monsterHpBefore,monsterHpAfter:combat.lastTurn.monsterHpAfter,
+   agentHpBefore:combat.lastTurn.agentHpBefore,agentHpAfter:combat.lastTurn.agentHpAfter
+  }:null;
+  rows.push(Object.freeze({
+   combatId:combat.combatId,agentId:agent.id,agentName:agent.name,worldMonsterId:monster.worldMonsterId,
+   monsterId:monster.monsterId,status:combat.status,turn:combat.turn,
+   agentX:agent.x,agentY:agent.y,monsterX:monster.x,monsterY:monster.y,
+   monsterStatus:monster.status,lastTurn:last?Object.freeze(last):null
+  }));
+ }
+ return Object.freeze(rows);
+}
+function drawCombatFeedback(c,time){
+ const rows=combatFeedbackProjection(),activeIds=new Set(rows.map(r=>r.combatId));
+ for(const id of [...combatFxSeen.keys()])if(!activeIds.has(id)){combatFxSeen.delete(id);combatFxStarted.delete(id);}
+ for(const row of rows){
+  const a=proj(row.agentX,row.agentY),m=proj(row.monsterX,row.monsterY),active=row.status==='ACTIVE'&&row.monsterStatus==='ENGAGED';
+  if(active){
+   c.save();c.setLineDash([4,5]);line(c,[[a.x,a.y-17],[m.x,m.y-18]],'#f2ce8299',1.25);c.setLineDash([]);
+   c.strokeStyle='#f1d28aaa';c.lineWidth=1.2;
+   c.beginPath();c.ellipse(a.x,a.y-12,13,8,0,0,Math.PI*2);c.stroke();
+   c.beginPath();c.ellipse(m.x,m.y-17,18,12,0,0,Math.PI*2);c.stroke();
+   const mx=(a.x+m.x)/2,my=(a.y+m.y)/2-25;c.fillStyle='#10261fe8';c.beginPath();c.roundRect(mx-13,my-10,26,20,7);c.fill();
+   c.strokeStyle='#f0cb7a99';c.stroke();c.fillStyle='#f5dfaa';c.font='13px Georgia';c.textAlign='center';c.textBaseline='middle';c.fillText('⚔',mx,my+1);c.restore();
+  }
+  if(!row.lastTurn)continue;
+  const fxKey=row.combatId+':'+row.turn;
+  if(combatFxSeen.get(row.combatId)!==fxKey){combatFxSeen.set(row.combatId,fxKey);combatFxStarted.set(row.combatId,time);}
+  const age=time-(combatFxStarted.get(row.combatId)??time);if(age<0||age>COMBAT_VISUAL_FX_MS)continue;
+  const heroP=Math.min(1,age/520),heroAlpha=Math.max(0,1-age/720);
+  c.save();c.globalAlpha=heroAlpha;
+  if(row.lastTurn.heroHit){
+   const dx=m.x-a.x,dy=(m.y-18)-(a.y-17);
+   c.strokeStyle=row.lastTurn.heroCritical?'#fff2a8':'#f4d48b';c.lineWidth=row.lastTurn.heroCritical?3:2;
+   c.beginPath();c.moveTo(a.x+dx*.28,a.y-17+dy*.28);c.lineTo(a.x+dx*(.55+.35*heroP),a.y-17+dy*(.55+.35*heroP));c.stroke();
+   c.strokeStyle='#fff5c8';c.lineWidth=1.5;c.beginPath();c.moveTo(m.x-10,m.y-31);c.lineTo(m.x+10,m.y-10);c.stroke();
+   c.beginPath();c.moveTo(m.x+8,m.y-32);c.lineTo(m.x-8,m.y-11);c.stroke();
+  }
+  c.fillStyle=row.lastTurn.heroHit?'#ffe2a1':'#e7ece6';c.font='bold 12px system-ui';c.textAlign='center';
+  c.fillText(row.lastTurn.heroHit?'-'+Math.round(row.lastTurn.heroDamage):'MISS',m.x,m.y-55-heroP*16);
+  c.restore();
+
+  if(row.lastTurn.counterDamage>0&&age>=320){
+   const counterAge=age-320,counterP=Math.min(1,counterAge/430),counterAlpha=Math.max(0,1-counterAge/560);
+   c.save();c.globalAlpha=counterAlpha;
+   const dx=a.x-m.x,dy=(a.y-17)-(m.y-18);c.strokeStyle='#e6a18f';c.lineWidth=2;
+   c.beginPath();c.moveTo(m.x+dx*.3,m.y-18+dy*.3);c.lineTo(m.x+dx*(.55+.3*counterP),m.y-18+dy*(.55+.3*counterP));c.stroke();
+   c.strokeStyle='#f5c0b0';c.lineWidth=1.4;c.beginPath();c.moveTo(a.x-8,a.y-29);c.lineTo(a.x+8,a.y-9);c.stroke();
+   c.fillStyle='#ffc0ad';c.font='bold 11px system-ui';c.textAlign='center';c.fillText('-'+Math.round(row.lastTurn.counterDamage),a.x,a.y-48-counterP*13);c.restore();
+  }
+ }
+}
 const MONSTER_TYPE_COLORS=Object.freeze({
  Normal:'#d7d0bd',Fire:'#e77f4f',Water:'#61a8c8',Electric:'#e7cf62',Grass:'#77a95c',Ice:'#a9d6d9',
  Fighting:'#bd765a',Poison:'#9b73ad',Ground:'#b58c58',Flying:'#9fb5cf',Psychic:'#cf7fa7',Bug:'#8ead58',
@@ -412,6 +475,7 @@ function render(time){
  for(const link of recentCommunicationLinks(state))drawCommunicationLink(ctx,link);
  const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...droppedWorldItems(state).map(item=>({kind:'drop-item',data:item,depth:item.x+item.y+.15})),...(state.wildMonsters?.entities??[]).filter(m=>m.status!=='DEFEATED'&&m.status!=='RESPAWNING').map(m=>({kind:'wild-monster',data:m,depth:m.x+m.y+.18})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
  for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else if(o.kind==='drop-item')drawDroppedItem(ctx,o.data);else if(o.kind==='wild-monster')drawWildMonster(ctx,o.data,time);else person(ctx,o.data,time,bubbleMap.get(o.data.id)??null);}
+ drawCombatFeedback(ctx,time);
  for(const pulse of resourceTargetPulses(state,bubbles))drawResourcePulse(ctx,pulse,time);
  for(const signal of bubbles)drawTaskTarget(ctx,signal);
  for(const burst of recentLifeBursts(state))drawLifeBurst(ctx,burst,time);
@@ -610,4 +674,4 @@ setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),worldSize:()=>({...worldBounds(state)}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,activeAgentId),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y),worldSelection:()=>selection?{...selection}:null,activeAgent:()=>activeAgentId,worldTargetAtScreen:(x,y)=>worldTargetAtScreen(x,y),resolveWorldHit:candidates=>resolveWorldHit(candidates),selectedWorldMonster:()=>selection?.kind==='monster'?selection.id:null,openMonsterContext:id=>openMonsterContext(id),personalHomes:()=>individualHouses(state)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),worldSize:()=>({...worldBounds(state)}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,activeAgentId),combatFeedback:()=>combatFeedbackProjection().map(r=>({...r,lastTurn:r.lastTurn?{...r.lastTurn}:null})),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y),worldSelection:()=>selection?{...selection}:null,activeAgent:()=>activeAgentId,worldTargetAtScreen:(x,y)=>worldTargetAtScreen(x,y),resolveWorldHit:candidates=>resolveWorldHit(candidates),selectedWorldMonster:()=>selection?.kind==='monster'?selection.id:null,openMonsterContext:id=>openMonsterContext(id),personalHomes:()=>individualHouses(state)});
