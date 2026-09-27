@@ -109,6 +109,23 @@ with sync_playwright() as p:
  ]}
  adv['profession']='adventurer';adv['professionSinceTick']=0
  adv['career']=(adv.get('career') or [])[-7:]+[{'tick':0,'profession':'adventurer'}]
+ # SWA4: visible Monster context dispatches a real hunt command without teleport.
+ hunt_saved=json.loads(json.dumps(adventure_saved))
+ hunt_monster=next(m for m in hunt_saved['wildMonsters']['entities'] if m['zoneId']=='z1')
+ huntpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
+ boot_with_html(huntpage,independent_html,json.dumps(hunt_saved,ensure_ascii=False),settle_ms=0,freeze_world=True);huntpage.wait_for_timeout(100)
+ before_hunt=snap(huntpage);before_hunt_pos=(before_hunt['agents'][0]['x'],before_hunt['agents'][0]['y'])
+ check('SWA4 Monster context opens for authoritative entity',huntpage.evaluate('(id)=>simclone.openMonsterContext(id)',hunt_monster['worldMonsterId']) is True)
+ huntpage.wait_for_selector('#dialog[open][data-kind="monster"] [data-action="hunt-monster"]')
+ huntpage.locator('[data-action="hunt-monster"]').tap()
+ hunted=snap(huntpage)['agents'][0]
+ check('SWA4 hunt action routes through engine and never teleports',
+       hunted.get('task',{}).get('adventureHunt',{}).get('worldMonsterId')==hunt_monster['worldMonsterId'] and
+       (hunted['x'],hunted['y'])==before_hunt_pos and
+       len(hunted['task']['path'])>0)
+ check('SWA4 hunt target is an engagement cell beside the same physical Monster',
+       abs(hunted['task']['x']-hunt_monster['x'])+abs(hunted['task']['y']-hunt_monster['y'])==1)
+ huntpage.screenshot(path=str(OUT/'mobile-adventure-hunt.png'))
  bounds=adventure_saved['worldBounds'];w=bounds['w'];h=bounds['h']
  z1min=int(w*.55);z1min=z1min if z1min==w*.55 else z1min+1;z1max=int(w*.65)
  target=None
