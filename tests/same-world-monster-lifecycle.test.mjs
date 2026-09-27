@@ -156,3 +156,21 @@ test('SWA6 migrates an SWA5 terminal victory from ENGAGED/0 into DEFEATED lifecy
   assert.equal(lm.respawnTick,lm.defeatedTick+WILD_MONSTER_RESPAWN_TICKS);
   assert.deepEqual(validate(loaded),[]);
 });
+
+
+test('SWA6 owner death releases an ACTIVE engaged Monster instead of leaving a stale lock',()=>{
+  const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
+  makeAdventurer(s,a,60);
+  const m=hunt(s,a);
+  untilEncounter(s,a);
+  assert.equal(command(s,'START_ADVENTURE_COMBAT',{agentId:a.id}).ok,true);
+  assert.equal(m.status,'ENGAGED');
+  a.satiety=0;a.hp=.1;
+  step(s,1);
+  assert.equal(a.alive,false);
+  assert.equal(a.adventureCombat,null);
+  assert.equal(m.status,'IDLE');
+  assert.equal(m.engagedByAgentId,null);
+  assert.ok(m.hpCurrent>0);
+  assert.deepEqual(validateWildMonsterWorld(s),[]);
+});
