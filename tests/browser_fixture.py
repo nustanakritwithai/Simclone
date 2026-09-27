@@ -15,7 +15,7 @@ def fixture(fail_start=False,default_mode='legacy'):
         if name in modules:return name
         modules[name]=None  # cycles resolve through the import map as in ESM
         text=path.read_text()
-        regex=r"(?:from\s*|import\s*|import\(\s*)['\"](\./[^'\"]+)['\"]"
+        regex=r"(?:from\s*|import\s*|import\(\s*)['\"]((?:\.\.?/)[^'\"]+)['\"]"
         def replace(m):
             dependency=(path.parent / m.group(1).split('?')[0]).resolve()
             return m.group(0).replace(m.group(1),module(dependency))

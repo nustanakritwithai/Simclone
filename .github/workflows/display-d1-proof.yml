@@ -1,0 +1,38 @@
+name: Display D1 visual proof
+
+on:
+  push:
+    branches:
+      - "feature/display-d1-world-readability-v2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual-proof:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Capture D1 desktop and mobile evidence
+        run: python tests/display-d1-smoke.py
+
+      - name: Upload D1 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: display-d1-visual-proof
+          path: evidence-display-d1/
+          if-no-files-found: error
