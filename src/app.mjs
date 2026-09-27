@@ -246,7 +246,7 @@ function recentCommunicationLinks(s){
 }
 function agentBubbleSignal(s,a,selectedId=null,communications=recentCommunicationLinks(s)){
  const task=a.task,kind=task?.kind??null,recent=Boolean(task&&Number.isInteger(task.started)&&s.tick>=task.started&&s.tick-task.started<=WORLD_FEEDBACK_TICKS);
- if(a.id===selectedId)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:100,source:'activeAgentId',target:task?{x:task.x,y:task.y,kind}:null};
+ if(a.id===selectedId)return {agentId:a.id,kind:'thought',glyph:TASK_GLYPHS[kind]??'…',label:TASK_SHORT[kind]??'คิด',priority:100,source:'selected',target:task?{x:task.x,y:task.y,kind}:null};
  const comm=communications.find(x=>x.fromId===a.id);
  if(comm)return {agentId:a.id,kind:'speech',glyph:comm.glyph,label:comm.label,priority:90,eventId:comm.eventId,source:'event',recipientId:comm.toId,target:null};
  if(a.satiety<24)return {agentId:a.id,kind:'thought',glyph:'!',label:'หิว',priority:84,source:'need',need:'satiety',target:task?{x:task.x,y:task.y,kind}:null};
