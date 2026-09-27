@@ -63,7 +63,19 @@ with sync_playwright() as p:
     check('SWA7 public exact runtime boots Same-World 84x52',
           world.get('profile')=='same-world' and world.get('w')==84 and world.get('h')==52)
     monsters=initial.get('wildMonsters',{}).get('entities',[])
-    check('SWA7 public runtime owns 12 physical Wild Monsters',len(monsters)==12)
+    check('SWA7 public runtime owns 24 unique physical Wild Monsters',
+          len(monsters)==24 and len({m['worldMonsterId'] for m in monsters})==24)
+    check('SWA7 population keeps 12 existing forms, without new species',
+          len({m['monsterId'] for m in monsters})==12)
+    for zone_id in ('z1','z2','z3','z4'):
+        zone_monsters=[m for m in monsters if m['zoneId']==zone_id]
+        by_form={form:[m for m in zone_monsters if m['monsterId']==form]
+                 for form in {m['monsterId'] for m in zone_monsters}}
+        check(f'SWA7 {zone_id} has three existing forms with two independent copies each',
+              len(zone_monsters)==6 and len(by_form)==3
+              and all(len(pair)==2 and pair[0]['worldMonsterId']!=pair[1]['worldMonsterId']
+                      and pair[0]['level']==pair[1]['level'] and pair[0]['rank']==pair[1]['rank']
+                      for pair in by_form.values()))
     hero=initial['agents'][0]
     check('SWA7 public fixture is a real Adventurer save',
           hero.get('profession')=='adventurer' and hero.get('skills',{}).get('ADVENTURE',0)>0)
