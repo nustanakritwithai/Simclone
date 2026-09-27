@@ -2,16 +2,16 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main: `1e1d5fcf21099fc6f66f409448878f50a8f39093`.
+> Source main: `1f704dcb4df0bc1b5aae7dc718321facac54bb59`.
 > Adventure V1 is released.
-> SWA0–SWA4 are merged.
-> Same-World is 84×52 with visible Wild Monsters that can be selected and reached through real pathfinding.
+> SWA0–SWA5 are merged.
+> Same-World is 84×52; visible Wild Monsters can be selected, hunted through real pathfinding, bound to combat by exact `worldMonsterId`, and use world-entity HP as the single Monster HP authority.
 >
-> Active candidate: SWA5 / `feature/swa5-world-monster-combat`.
-> SWA5 binds a hunted READY encounter to the exact `worldMonsterId`, transitions that entity to ENGAGED, and makes the world entity the single Monster HP authority for combat turns. World-bound combat sessions do not store a duplicate `monsterHpCurrent`.
-> Victory leaves the zero-HP Monster ENGAGED for SWA6; Adventurer defeat releases a surviving Monster back to IDLE without healing.
+> Next gameplay gate: **SWA6 — DEFEATED / despawn / deterministic respawn lifecycle**.
+> Parallel display candidate: **Display V1 D0 + DSP1** on `feature/display-d0-dsp1-world-presentation`.
+> DSP1 is a pure read model over existing simulation authorities; it does not replace the current renderer, hit testing, selection, or gameplay commands.
 >
-> Sections below predate the Same-World release line and are retained as historical context where they conflict with this override.
+> Sections below predate the current Same-World release line and are retained as historical context where they conflict with this override.
 
 
 ## Public released baseline

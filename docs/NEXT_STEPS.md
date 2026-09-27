@@ -3,18 +3,22 @@
 > **Current verified override — 2026-09-27**
 >
 > Adventure V1 is released.
-> SWA0–SWA4 are merged on `main@1e1d5fcf21099fc6f66f409448878f50a8f39093`.
+> SWA0–SWA5 are merged on `main@1f704dcb4df0bc1b5aae7dc718321facac54bb59`.
 >
-> Active branch: `feature/swa5-world-monster-combat`
-> Active gate: **SWA5 — World-Monster Combat Binding**
+> Gameplay next gate: **SWA6 — Victory → DEFEATED → despawn → deterministic respawn**.
+> Then SWA7 closes browser/mobile/public proof.
 >
-> SWA5 may merge only after exact-head Verify is SAT.
+> Parallel Display V1 candidate: `feature/display-d0-dsp1-world-presentation`.
+> Current display gate: **D0 Source Sync + DSP1 World Presentation Read Model**.
+> Required display order after DSP1 SAT:
+> 1. D1 — World Readability: Core / Adventure Annex / z1–z4 and entity silhouettes
+> 2. D2 — unified `{kind,id}` selection + deterministic hit resolution
+> 3. D3 — authority-driven Adventure visualization; SWA6 truth is required before defeat/respawn visuals
+> 4. D4 — render registry + viewport culling + LOD
+> 5. D5 — visualKey asset resolver; PR #139 is donor assets only
+> 6. D6 — desktop/mobile/public visual proof
 >
-> Required order after SWA5 SAT:
-> 1. SWA6 — Victory → DEFEATED → despawn → deterministic respawn; close/release terminal combat lifecycle
-> 2. SWA7 — browser/mobile/public proof and release closeout
->
-> Product lock: one map, one coordinate system, no teleport scene, no encounter-only fake monster in the visible-monster path.
+> Product lock: one map, one coordinate system, no teleport scene, no encounter-only fake Monster, and no renderer-owned gameplay state.
 >
 > The older Adventure V1 release-gate notes below are retained as historical context only.
 
