@@ -7,6 +7,8 @@ export const RUST_POSSESSION_LIMITS=Object.freeze({bag:4,items:128,orders:12});
 export const createRustPossessions=()=>({version:RUST_POSSESSIONS_VERSION,nextItem:1,nextOrder:1,items:[],equipment:[],orders:[]});
 const living=(s,id)=>s.agents?.find(a=>a.id===id&&a.alive);
 const bag=(p,id)=>p.items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===id);
+export const RUST_EQUIPMENT_SLOTS=Object.freeze(['hand','WEAPON','ARMOR','ACCESSORY']);
+export const equipmentSlotOf=e=>e?.slot??'hand';
 export function queueCraft(s,{agentId,recipeId,stationId=null}={}){
   const p=s.rustPossessions,a=living(s,agentId),r=RECIPE_CATALOG[recipeId];
   if(isIndependent(s)&&a&&!canPerformProductiveWork(s,a))return {ok:false,reason:'stage'};
@@ -66,17 +68,48 @@ export function grantAdventureLoot(s,{agentId,claimKey,items}={}){
   }
   return {ok:true,duplicate:false,claimKey,itemIds:created,bagged,dropped};
 }
+export function mintAdventureGear(s,{agentId,gearId,sourceKey}={}){
+  const p=s.rustPossessions,a=living(s,agentId),def=ITEM_CATALOG[gearId];
+  if(!p||!a||def?.category!=='gear'||typeof sourceKey!=='string'||sourceKey.length===0)return {ok:false,reason:'gear-input'};
+  const existing=p.items.find(i=>i.sourceGearKey===sourceKey);
+  if(existing){
+    if(existing.kind!==gearId||existing.createdBy!==agentId)return {ok:false,reason:'gear-source-conflict'};
+    return {ok:true,duplicate:true,itemId:existing.id,kind:existing.kind,slot:def.equipSlot};
+  }
+  if(p.items.length>=RUST_POSSESSION_LIMITS.items||bag(p,agentId).length>=RUST_POSSESSION_LIMITS.bag||p.nextItem>=Number.MAX_SAFE_INTEGER)return {ok:false,reason:'capacity'};
+  const itemId=p.nextItem++;
+  p.items.push({id:itemId,kind:gearId,createdBy:agentId,createdTick:s.tick,sourceGearKey:sourceKey,upgradeLevel:0,location:{kind:'bag',agentId}});
+  return {ok:true,duplicate:false,itemId,kind:gearId,slot:def.equipSlot};
+}
+export function equipAdventureGear(s,agentId,itemId){
+  const p=s.rustPossessions,a=living(s,agentId),item=p?.items.find(i=>i.id===itemId&&i.location?.kind==='bag'&&i.location.agentId===agentId),def=item&&ITEM_CATALOG[item.kind];
+  if(!p||!a||!item||def?.category!=='gear'||!RUST_EQUIPMENT_SLOTS.includes(def.equipSlot)||def.equipSlot==='hand')return {ok:false,reason:'item'};
+  if(a.adventureCombat?.status==='ACTIVE')return {ok:false,reason:'combat-active'};
+  const slot=def.equipSlot;
+  p.equipment=p.equipment.filter(e=>e.agentId!==agentId||equipmentSlotOf(e)!==slot);
+  p.equipment.push({agentId,itemId,slot});
+  return {ok:true,itemId,kind:item.kind,slot};
+}
+export function unequipAdventureGear(s,agentId,slot){
+  const p=s.rustPossessions,a=living(s,agentId);
+  if(!p||!a||!['WEAPON','ARMOR','ACCESSORY'].includes(slot))return {ok:false,reason:'gear-slot'};
+  if(a.adventureCombat?.status==='ACTIVE')return {ok:false,reason:'combat-active'};
+  const equipped=p.equipment.find(e=>e.agentId===agentId&&equipmentSlotOf(e)===slot);
+  if(!equipped)return {ok:true,changed:false,itemId:null,slot};
+  p.equipment=p.equipment.filter(e=>!(e.agentId===agentId&&equipmentSlotOf(e)===slot));
+  return {ok:true,changed:true,itemId:equipped.itemId,slot};
+}
 export function equipTool(s,agentId,itemId){
   const p=s.rustPossessions,a=living(s,agentId),item=p?.items.find(i=>i.id===itemId&&i.location?.kind==='bag'&&i.location.agentId===agentId);
   if(!p||!a||!item||ITEM_CATALOG[item.kind]?.category!=='tool'||ITEM_CATALOG[item.kind]?.equipSlot!=='hand')return {ok:false,reason:'item'};
-  p.equipment=p.equipment.filter(e=>e.agentId!==agentId);p.equipment.push({agentId,itemId});return {ok:true,itemId,kind:item.kind,slot:'hand'};
+  p.equipment=p.equipment.filter(e=>e.agentId!==agentId||equipmentSlotOf(e)!=='hand');p.equipment.push({agentId,itemId,slot:'hand'});return {ok:true,itemId,kind:item.kind,slot:'hand'};
 }
 export function unequipTool(s,agentId){
   const p=s.rustPossessions,a=living(s,agentId);
   if(!p||!a)return {ok:false,reason:'item'};
-  const equipped=p.equipment.find(e=>e.agentId===agentId);
+  const equipped=p.equipment.find(e=>e.agentId===agentId&&equipmentSlotOf(e)==='hand');
   if(!equipped)return {ok:true,changed:false,itemId:null,slot:'hand'};
-  p.equipment=p.equipment.filter(e=>e.agentId!==agentId);
+  p.equipment=p.equipment.filter(e=>e.agentId!==agentId||equipmentSlotOf(e)!=='hand');
   return {ok:true,changed:true,itemId:equipped.itemId,slot:'hand'};
 }
 export function pickupDroppedItem(s,agentId,itemId){
@@ -87,7 +120,7 @@ export function pickupDroppedItem(s,agentId,itemId){
   item.location={kind:'bag',agentId};return {ok:true,itemId,kind:item.kind};
 }
 export function toolMultiplier(s,agentId,action){
-  const p=s.rustPossessions,e=p?.equipment.find(e=>e.agentId===agentId),item=e&&p.items.find(i=>i.id===e.itemId&&i.location?.kind==='bag'&&i.location.agentId===agentId),def=item&&ITEM_CATALOG[item.kind];
+  const p=s.rustPossessions,e=p?.equipment.find(e=>e.agentId===agentId&&equipmentSlotOf(e)==='hand'),item=e&&p.items.find(i=>i.id===e.itemId&&i.location?.kind==='bag'&&i.location.agentId===agentId),def=item&&ITEM_CATALOG[item.kind];
   return def?.workAction===action?(Number(def.workMultiplier)||1):1;
 }
 export function releaseRustPossessionsOnDeath(s,agentId){
@@ -100,6 +133,7 @@ export function releaseRustPossessionsOnDeath(s,agentId){
   return {ok:true,dropped,cancelled};
 }
 export const rustPossessionsSnapshot=(s,agentId)=>{
-  const equippedItemId=s.rustPossessions?.equipment.find(e=>e.agentId===agentId)?.itemId??null;
-  return JSON.parse(JSON.stringify({bag:bag(s.rustPossessions,agentId),capacity:RUST_POSSESSION_LIMITS.bag,equippedItemId,equipment:{hand:equippedItemId},order:s.rustPossessions?.orders.find(o=>o.agentId===agentId)??null}));
+  const equipment={hand:null,WEAPON:null,ARMOR:null,ACCESSORY:null};
+  for(const e of s.rustPossessions?.equipment??[])if(e.agentId===agentId&&Object.hasOwn(equipment,equipmentSlotOf(e)))equipment[equipmentSlotOf(e)]=e.itemId;
+  return JSON.parse(JSON.stringify({bag:bag(s.rustPossessions,agentId),capacity:RUST_POSSESSION_LIMITS.bag,equippedItemId:equipment.hand,equipment,order:s.rustPossessions?.orders.find(o=>o.agentId===agentId)??null}));
 };

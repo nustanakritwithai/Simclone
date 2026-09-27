@@ -15,14 +15,16 @@ function adjacentFree(s,a){
   throw new Error('no adjacent station cell');
 }
 
-test('RS1 catalog remains bounded, preserves all nine craft/build items, and admits only the three I5 loot materials',()=>{
+test('RS1 catalog stays bounded: nine craft/build items + three I5 loot materials + three I6 donor gear items',()=>{
   assert.deepEqual(validateCraftingCatalog(),[]);
   const original=['STONE_AXE','STONE_PICKAXE','HAMMER','CRAFTING_TABLE_LV1','FURNACE','WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF'];
   const loot=['FIRE_CORE','HIDE','EMBER_SHARD'];
-  assert.deepEqual(Object.keys(RECIPE_CATALOG).sort(),[...original].sort());
-  assert.deepEqual(Object.keys(ITEM_CATALOG).sort(),[...original,...loot].sort());
+  const gear=['EMBER_BLADE','HIDE_ARMOR','EMBER_CHARM'];
+  assert.deepEqual(Object.keys(RECIPE_CATALOG).sort(),[...original].sort(),'I6 adds no invented gear recipe');
+  assert.deepEqual(Object.keys(ITEM_CATALOG).sort(),[...original,...loot,...gear].sort());
   assert.ok(original.every(id=>ITEM_CATALOG[id]));
   assert.deepEqual(loot.filter(id=>ITEM_CATALOG[id]?.adventureLoot).sort(),[...loot].sort());
+  assert.deepEqual(gear.filter(id=>ITEM_CATALOG[id]?.category==='gear').sort(),[...gear].sort());
   assert.equal(RECIPE_CATALOG.HAMMER.station,'CRAFTING_TABLE_LV1');
   assert.equal(RECIPE_CATALOG.FURNACE.station,'HAND');
 });

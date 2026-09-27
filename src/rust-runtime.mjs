@@ -1,9 +1,10 @@
 import {ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
-import {createRustPossessions,queueCraft,advanceCraft,equipTool,unequipTool,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,grantAdventureLoot,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
+import {createRustPossessions,queueCraft,advanceCraft,equipTool,unequipTool,equipAdventureGear,unequipAdventureGear,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,grantAdventureLoot,equipmentSlotOf,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
 import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS,stationLimit} from './rust-stations.mjs?v=0.5.0';
 import {completedHouseIds} from './housing.mjs?v=0.5.0';
 import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
 import {activateHouseholdStore,isIndependent} from './individual-resources.mjs?v=0.5.0';
+import {ADVENTURE_MAX_UPGRADE_LEVEL} from './adventure-upgrade.mjs?v=0.5.0';
 export const RUST_RUNTIME_VERSION='RS1-RS4-integrated-0.2';
 export function ensureRustState(s){
   if(s.rustPossessions===undefined)s.rustPossessions=createRustPossessions();
@@ -20,13 +21,15 @@ const msg=r=>({
   'socket-required':'ชิ้นส่วนนี้ต้องระบุช่องหรือขอบที่จะวาง','socket-shape':'ช่อง/ขอบที่ระบุไม่ตรงกับชนิดชิ้นส่วน','socket-occupied':'ตำแหน่งนี้มีชิ้นส่วนอยู่แล้ว',
   'support-foundation':'ผนังและกรอบประตูต้องอยู่บนขอบของฐานไม้','support-roof':'หลังคาต้องอยู่บนฐานไม้ที่มีผนังอย่างน้อยหนึ่งด้าน',position:'ตำแหน่งอยู่นอกแผนที่',
   'placement-id':'คำสั่งวางต้องมีรหัสคำสั่ง','placement-id-conflict':'รหัสคำสั่งนี้ถูกใช้กับการวางอื่นแล้ว','duplicate-item':'ของชิ้นนี้ถูกวางไปแล้ว',
-  'busy-or-capacity':'คนนี้มีงานแปรรูปค้างอยู่หรือคิวเต็ม','not-authoritative':'กระบวนการนี้ยังไม่เปิด authority'
+  'busy-or-capacity':'คนนี้มีงานแปรรูปค้างอยู่หรือคิวเต็ม','not-authoritative':'กระบวนการนี้ยังไม่เปิด authority','combat-active':'เปลี่ยนอุปกรณ์ระหว่าง combat ไม่ได้','gear-slot':'ช่องอุปกรณ์ไม่ถูกต้อง'
 }[r.reason]??'คำสั่ง Rust Survival ใช้ไม่ได้');
 export function rustCommand(s,type,data={},isWalkable){
   ensureRustState(s);let r=null;
   if(type==='CRAFT_ITEM')r=queueCraft(s,data);
   else if(type==='EQUIP_ITEM')r=equipTool(s,data.agentId,data.itemId);
   else if(type==='UNEQUIP_ITEM')r=unequipTool(s,data.agentId);
+  else if(type==='EQUIP_ADVENTURE_GEAR')r=equipAdventureGear(s,data.agentId,data.itemId);
+  else if(type==='UNEQUIP_ADVENTURE_GEAR')r=unequipAdventureGear(s,data.agentId,data.slot);
   else if(type==='PICKUP_ITEM')r=pickupDroppedItem(s,data.agentId,data.itemId);
   else if(type==='PLACE_STATION'){
     const before=completedHouseIds(s);r=placeStationFromItem(s,data,isWalkable);
@@ -86,7 +89,8 @@ export function validateRustState(s){
   const p=s.rustPossessions,rs=s.rustStations,m=s.rustMaterials,people=new Set([...(s.agents??[]),...(s.archive??[])].map(a=>a.id)),alive=new Set((s.agents??[]).filter(a=>a.alive).map(a=>a.id));
   if(!p||p.version!==RUST_POSSESSIONS_VERSION||!Number.isSafeInteger(p.nextItem)||!Number.isSafeInteger(p.nextOrder)||!Array.isArray(p.items)||p.items.length>RUST_POSSESSION_LIMITS.items||!Array.isArray(p.orders)||p.orders.length>RUST_POSSESSION_LIMITS.orders||!Array.isArray(p.equipment))e.push('Rust possessions');
   else{
-    const ids=new Set();for(const i of p.items){if(!i||!Number.isSafeInteger(i.id)||ids.has(i.id)||!ITEM_CATALOG[i.kind]||!people.has(i.createdBy)||!i.location)e.push('Rust item');ids.add(i?.id);
+    const ids=new Set();for(const i of p.items){const def=ITEM_CATALOG[i?.kind];if(!i||!Number.isSafeInteger(i.id)||ids.has(i.id)||!def||!people.has(i.createdBy)||!i.location)e.push('Rust item');ids.add(i?.id);
+      if(def?.category==='gear'&&(!Number.isSafeInteger(i.upgradeLevel)||i.upgradeLevel<0||i.upgradeLevel>ADVENTURE_MAX_UPGRADE_LEVEL))e.push('Rust gear');
       if(i?.location?.kind==='bag'&&!alive.has(i.location.agentId))e.push('Rust bag');
       if(i?.location?.kind==='drop'&&(!Number.isInteger(i.location.x)||!Number.isInteger(i.location.y)))e.push('Rust drop');
       if(!['bag','drop'].includes(i?.location?.kind))e.push('Rust item location');
@@ -94,7 +98,14 @@ export function validateRustState(s){
     const bagCounts=new Map();for(const i of p.items.filter(i=>i.location?.kind==='bag'))bagCounts.set(i.location.agentId,(bagCounts.get(i.location.agentId)??0)+1);
     if([...bagCounts.values()].some(n=>n>RUST_POSSESSION_LIMITS.bag))e.push('Rust bag capacity');
     for(const o of p.orders)if(!o||!alive.has(o.agentId)||!RECIPE_CATALOG[o.recipe]||!Number.isFinite(o.work)||o.work<0||!Number.isFinite(o.required)||o.required<1||!o.reserved)e.push('Rust craft order');
-    const equippedAgents=new Set();for(const q of p.equipment){if(!alive.has(q.agentId)||equippedAgents.has(q.agentId)||!p.items.some(i=>i.id===q.itemId&&i.location?.kind==='bag'&&i.location.agentId===q.agentId&&ITEM_CATALOG[i.kind]?.category==='tool'&&ITEM_CATALOG[i.kind]?.equipSlot==='hand'))e.push('Rust equipment');equippedAgents.add(q.agentId);}
+    const equippedSlots=new Set();for(const q of p.equipment){
+      const slot=equipmentSlotOf(q),key=q?.agentId+':'+slot,item=p.items.find(i=>i.id===q?.itemId&&i.location?.kind==='bag'&&i.location.agentId===q?.agentId),def=item&&ITEM_CATALOG[item.kind];
+      const validSlot=slot==='hand'
+        ?def?.category==='tool'&&def?.equipSlot==='hand'
+        :['WEAPON','ARMOR','ACCESSORY'].includes(slot)&&def?.category==='gear'&&def?.equipSlot===slot&&Number.isSafeInteger(item?.upgradeLevel)&&item.upgradeLevel>=0&&item.upgradeLevel<=ADVENTURE_MAX_UPGRADE_LEVEL;
+      if(!alive.has(q?.agentId)||equippedSlots.has(key)||!item||!validSlot)e.push('Rust equipment');
+      equippedSlots.add(key);
+    }
   }
   if(!rs||rs.version!==RUST_STATIONS_VERSION||!Number.isSafeInteger(rs.nextStation)||!Array.isArray(rs.stations)||rs.stations.length>stationLimit(s))e.push('Rust stations');
   else{
