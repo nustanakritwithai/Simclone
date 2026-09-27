@@ -3,19 +3,18 @@
 > **Current verified override — 2026-09-27**
 >
 > Adventure V1 is released.
-> SWA0–SWA3 are merged on `main@3733b1f8b4053d09c94102037755c1d4247de976`.
+> SWA0–SWA4 are merged on `main@1e1d5fcf21099fc6f66f409448878f50a8f39093`.
 >
-> Active branch: `feature/swa4-monster-hunt-path`
-> Active gate: **SWA4 — Real-Path Monster Hunt**
+> Active branch: `feature/swa5-world-monster-combat`
+> Active gate: **SWA5 — World-Monster Combat Binding**
 >
-> SWA4 may merge only after exact-head Verify is SAT.
+> SWA5 may merge only after exact-head Verify is SAT.
 >
-> Required order after SWA4 SAT:
-> 1. SWA5 — bind combat + ENGAGED lifecycle to `worldMonsterId`
-> 2. SWA6 — defeat/despawn/respawn lifecycle
-> 3. SWA7 — browser/mobile/public proof
+> Required order after SWA5 SAT:
+> 1. SWA6 — Victory → DEFEATED → despawn → deterministic respawn; close/release terminal combat lifecycle
+> 2. SWA7 — browser/mobile/public proof and release closeout
 >
-> Product lock: one map, one coordinate system, no teleport scene, no encounter-only fake monster.
+> Product lock: one map, one coordinate system, no teleport scene, no encounter-only fake monster in the visible-monster path.
 >
 > The older Adventure V1 release-gate notes below are retained as historical context only.
 
