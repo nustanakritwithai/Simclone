@@ -2,15 +2,15 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main: `941835c6ce1249a5a28225af1bb72f5b70c9f20e`.
-> PR #138 (Adventure V1 I0–I8 playable MMORPG loop) is merged and Adventure V1 is released.
-> SWA0 PR #140 is merged: `large=60×52` is frozen as the Core compatibility/reference profile.
+> Source main: `dd3fa43c3e8057a36534cf5e1b731c95da73ac1d`.
+> Adventure V1 is released.
+> SWA0 PR #140 and SWA1 PR #141 are merged.
+> Same-World now has one physical `84×52` map with Core x0–59 and Adventure Annex x60–83.
 >
-> Active candidate: PR #141 / `feature/swa1-adventure-annex`.
-> SWA1 adds one physical `same-world=84×52` map, appends the 24×52 Adventure Annex at x60–83, migrates released Large saves row-by-row, keeps ordinary autonomy Core-bounded, and routes Adventure zone entry into the Annex.
-> Wild Monster entities are not part of SWA1; they begin at SWA2.
+> Active candidate: SWA2 / `feature/swa2-wild-monster-authority`.
+> SWA2 adds one saveable Wild Monster world-state ledger with 12 deterministic physical entities: 3 each in z1-z4. It reuses Adventure V1 monster definitions and stat projection and adds no renderer/UI authority.
 >
-> Sections below predate the Adventure V1 merge and are retained as historical context where they conflict with this override.
+> Sections below predate the Same-World release line and are retained as historical context where they conflict with this override.
 
 
 ## Public released baseline
