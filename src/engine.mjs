@@ -245,7 +245,7 @@ export function command(s,type,data={}){
     catch(error){return {ok:false,reason:error.message,message:'เดินไปหามอนสเตอร์ไม่ได้'};}
     const path=pathTo(s,a,engagement);
     if(!path)return {ok:false,reason:'no-path',message:'ไม่มีเส้นทางเดินไปหามอนสเตอร์'};
-    a.task=createAdventureHuntTask(s,a,monster.worldMonsterId,progression.level,engagement,path);
+    a.task=createAdventureHuntTask(s,a,monster.worldMonsterId,progression.level,engagement,path,{control:data.control==='autonomous'?'autonomous':null});
     a.moveTick=0;
     event(s,'adventure',a.name+' ออกล่า '+monster.monsterId+' ที่ '+monster.zoneId,a.id);
     return {ok:true,agentId:a.id,worldMonsterId:monster.worldMonsterId,zoneId:monster.zoneId,target:{x:engagement.x,y:engagement.y},monster:{x:monster.x,y:monster.y},pathLength:path.length};
@@ -482,7 +482,7 @@ function stepAutonomousAdventure(s,a){
   if(intent.type==='wait-combat'||intent.type==='wait-encounter'||intent.type==='wait-result')return true;
 
   if(intent.type==='start-hunt'){
-    const r=command(s,'START_ADVENTURE_HUNT',{agentId:a.id,worldMonsterId:intent.worldMonsterId});
+    const r=command(s,'START_ADVENTURE_HUNT',{agentId:a.id,worldMonsterId:intent.worldMonsterId,control:'autonomous'});
     return r.ok;
   }
   if(intent.type==='start-combat'){
