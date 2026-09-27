@@ -3,19 +3,26 @@
 > **Current verified override — 2026-09-27**
 >
 > Adventure V1 is released.
-> SWA0–SWA5 are merged on `main@1f704dcb4df0bc1b5aae7dc718321facac54bb59`.
+> SWA0–SWA5 are merged.
+> Display V1 D0 + DSP1 is merged on `main@250285d4a6d381751c60791bd9897fd7ab92a70f`.
 >
-> Gameplay next gate: **SWA6 — Victory → DEFEATED → despawn → deterministic respawn**.
-> Then SWA7 closes browser/mobile/public proof.
+> Active gameplay branch: `integration/swa6-after-display-v1`
+> Active gameplay gate: **SWA6 — Victory → DEFEATED → despawn → deterministic respawn**
 >
-> Parallel Display V1 candidate: `feature/display-d0-dsp1-world-presentation`.
-> Current display gate: **D0 Source Sync + DSP1 World Presentation Read Model**.
-> Required display order after DSP1 SAT:
+> SWA6 may merge only after exact-head Verify is SAT on the integration branch.
+>
+> After SWA6 SAT:
+> 1. SWA7 — exact-main CI/Pages
+> 2. public-byte identity
+> 3. browser/mobile proof of visible Monster → Hunt → Combat → Victory → disappear → Continue → respawn
+> 4. close Same-World Adventure release line
+>
+> Display next line after DSP1:
 > 1. D1 — World Readability: Core / Adventure Annex / z1–z4 and entity silhouettes
 > 2. D2 — unified `{kind,id}` selection + deterministic hit resolution
-> 3. D3 — authority-driven Adventure visualization; SWA6 truth is required before defeat/respawn visuals
+> 3. D3 — authority-driven Adventure visualization using merged SWA6 lifecycle truth
 > 4. D4 — render registry + viewport culling + LOD
-> 5. D5 — visualKey asset resolver; PR #139 is donor assets only
+> 5. D5 — visualKey asset resolver; PR #139 remains donor assets only
 > 6. D6 — desktop/mobile/public visual proof
 >
 > Product lock: one map, one coordinate system, no teleport scene, no encounter-only fake Monster, and no renderer-owned gameplay state.
