@@ -41,6 +41,7 @@ import {actionPredictionEvidence} from './action-prediction-evidence.mjs?v=0.5.0
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventure-annex.mjs?v=0.5.0';
+import {ensureWildMonsterWorld,validateWildMonsterWorld} from './adventure-world-monsters.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -122,6 +123,7 @@ export function createWorld(seed=230926,options={}){
     boundsForProfile(profile);
     const core=createWorld(seed,{...options,worldProfile:'large'});
     expandLargeWorldToSameWorld(core);
+    ensureWildMonsterWorld(core);
     return core;
   }
   const bounds=boundsForProfile(profile),large=profile==='large';
@@ -583,6 +585,7 @@ export function validate(s){
   const boundsErrors=validateWorldBoundsState(s);if(boundsErrors.length)return boundsErrors;
   const bounds=worldBounds(s),cellCount=worldCellCount(s);
   errors.push(...validateAdventureAnnexState(s));
+  errors.push(...validateWildMonsterWorld(s));
   errors.push(...validateIndependentWorld(s));
   errors.push(...validateSettlementState(s,{required:isIndependent(s)}));
   errors.push(...validateGovernanceState(s,{required:isIndependent(s)}));
@@ -730,6 +733,7 @@ function migrateKnowledge(s){
 function migrateSave(s,{sameWorld=false}={}){
   if(!s)return s;
   if(sameWorld)expandLargeWorldToSameWorld(s);
+  if(s?.worldBounds?.profile==='same-world')ensureWildMonsterWorld(s);
   const sourceVersion=s.version;
   if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);ensureSettlementState(s);ensureGovernanceState(s);return s;} // additive social/settlement/governance state migrates deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.

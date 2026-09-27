@@ -2,21 +2,20 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Adventure V1 is released. SWA0 is merged on `main@941835c6ce1249a5a28225af1bb72f5b70c9f20e`.
+> Adventure V1 is released.
+> SWA0 and SWA1 are merged on `main@dd3fa43c3e8057a36534cf5e1b731c95da73ac1d`.
 >
-> Active branch: `feature/swa1-adventure-annex`
-> Active PR: #141
-> Active gate: **SWA1 — Adventure Annex Terrain + Safe Migration**
+> Active branch: `feature/swa2-wild-monster-authority`
+> Active gate: **SWA2 — Wild Monster World Authority**
 >
-> SWA1 may merge only after exact-head Verify is SAT.
+> SWA2 may merge only after exact-head Verify is SAT.
 >
-> Required order after SWA1 SAT:
-> 1. SWA2 — deterministic Wild Monster World Authority (12 initial entities, 3 per zone)
-> 2. SWA3 — visible/tappable monsters in the existing object list
-> 3. SWA4 — real-path monster-target expedition
-> 4. SWA5 — bind combat to `worldMonsterId`
-> 5. SWA6 — defeat/despawn/respawn lifecycle
-> 6. SWA7 — browser/mobile/public proof
+> Required order after SWA2 SAT:
+> 1. SWA3 — visible/tappable monsters in the existing object list
+> 2. SWA4 — real-path monster-target expedition
+> 3. SWA5 — bind combat to `worldMonsterId`
+> 4. SWA6 — defeat/despawn/respawn lifecycle
+> 5. SWA7 — browser/mobile/public proof
 >
 > Product lock: one map, one coordinate system, no teleport scene, no encounter-only fake monster.
 >
