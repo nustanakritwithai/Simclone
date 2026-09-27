@@ -1,7 +1,7 @@
 import {
   assertAdventureMonsterInZone,
   assertAdventureZoneAccess
-} from './adventure-zones.mjs';
+} from './adventure-zones.mjs?v=0.5.0';
 
 export const ADVENTURE_ENCOUNTER_VERSION = 'ADV5-0.1';
 
