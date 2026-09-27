@@ -10,6 +10,7 @@ import {VERSION,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,
 import {evaluateModularHouses} from './housing.mjs?v=0.5.0';
 import {drawPiece,structureDrawInfo,structureDepth,roofNeighbours} from './building-visuals.mjs?v=0.5.0';
 import {installAdventureUI} from './adventure-ui.mjs?v=0.5.0';
+import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,independentUI=null,adventureUI=null,nav=null,worldMapView=null;
@@ -34,6 +35,53 @@ function polygon(c,points,fill,stroke=null){c.beginPath();points.forEach(([x,y],
 function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
 function line(c,points,color,width=1){c.strokeStyle=color;c.lineWidth=width;c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke();}
 function hash(x,y){return ((Math.imul(x+33,374761393)^Math.imul(y+41,668265263))>>>0)/4294967296;}
+let selectedWorldMonsterId=null;
+const MONSTER_TYPE_COLORS=Object.freeze({
+ Normal:'#d7d0bd',Fire:'#e77f4f',Water:'#61a8c8',Electric:'#e7cf62',Grass:'#77a95c',Ice:'#a9d6d9',
+ Fighting:'#bd765a',Poison:'#9b73ad',Ground:'#b58c58',Flying:'#9fb5cf',Psychic:'#cf7fa7',Bug:'#8ead58',
+ Rock:'#a79468',Ghost:'#82739d',Dragon:'#8e78c9',Dark:'#665e71',Steel:'#a5b2b3',Fairy:'#d99ab8'
+});
+function wildMonsterDef(m){return monsterDefinition(m?.monsterId);}
+function wildMonsterType(m){return wildMonsterDef(m)?.types?.[0]??'Normal';}
+function drawWildMonster(c,m,time){
+ const def=wildMonsterDef(m),type=wildMonsterType(m),fill=MONSTER_TYPE_COLORS[type]??MONSTER_TYPE_COLORS.Normal;
+ const p=proj(m.x,m.y),selected=m.worldMonsterId===selectedWorldMonsterId,elite=m.rank==='elite',pulse=(Math.sin(time*.006+m.spawnSlot)+1)/2;
+ c.save();c.translate(p.x,p.y);
+ ellipse(c,0,5,17,6,'#132a254f');
+ if(selected){c.strokeStyle='#f1d59d';c.lineWidth=2;c.beginPath();c.ellipse(0,-12,22+pulse*2,15+pulse,0,0,Math.PI*2);c.stroke();}
+ c.fillStyle=fill;c.strokeStyle=elite?'#f4cf79':'#263c35';c.lineWidth=elite?2:1.2;
+ c.beginPath();c.ellipse(0,-18,13,11,0,0,Math.PI*2);c.fill();c.stroke();
+ // Strong silhouette: ears/horns + eyes remain readable when zoomed out.
+ polygon(c,[[-10,-25],[-6,-38],[-1,-27]],fill,'#263c35');
+ polygon(c,[[10,-25],[6,-38],[1,-27]],fill,'#263c35');
+ ellipse(c,-4,-19,1.5,1.8,'#15251f');ellipse(c,4,-19,1.5,1.8,'#15251f');
+ c.fillStyle='#162a23';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(type.slice(0,2).toUpperCase(),0,-7);
+ c.font='bold 9px system-ui';const label='Lv.'+m.level,w=c.measureText(label).width+10;
+ c.fillStyle='#11251fe8';c.beginPath();c.roundRect(-w/2,-53,w,15,5);c.fill();c.fillStyle='#f2e3bd';c.fillText(label,0,-42);
+ if(selected){
+   const hp=Math.max(0,Math.min(1,m.hpCurrent/Math.max(1,m.hpMax)));
+   c.fillStyle='#0b1c17d9';c.fillRect(-18,-34,36,4);c.fillStyle='#a9cf8a';c.fillRect(-18,-34,36*hp,4);
+ }
+ c.restore();
+}
+function monsterTargetAtScreen(sx,sy){
+ const rows=(state.wildMonsters?.entities??[]).filter(m=>m.status!=='DEFEATED'&&m.status!=='RESPAWNING').map(m=>{
+  const p=screenPoint(m.x,m.y);return {type:'monster',id:m.worldMonsterId,d:Math.hypot(sx-p.x,sy-(p.y-20*zoom))};
+ });
+ return rows.sort((a,b)=>a.d-b.d||String(a.id).localeCompare(String(b.id))).find(r=>r.d<Math.max(24,38*zoom))??null;
+}
+function openMonsterContext(worldMonsterId){
+ const m=state.wildMonsters?.entities?.find(x=>x.worldMonsterId===worldMonsterId);if(!m)return false;
+ selectedWorldMonsterId=m.worldMonsterId;
+ const def=wildMonsterDef(m),type=wildMonsterType(m),hp=Math.max(0,Math.min(100,Math.round(m.hpCurrent/Math.max(1,m.hpMax)*100)));
+ openDialog(def?.speciesId??m.monsterId,'WILD MONSTER',
+  '<div data-world-monster="'+esc(m.worldMonsterId)+'">'+
+  '<p><b>'+esc(m.monsterId)+'</b> · '+esc(type)+' · Lv.'+m.level+' · '+esc(m.rank)+'</p>'+
+  '<p>เขต '+esc(m.zoneId.toUpperCase())+' · '+esc(m.status)+' · HP '+m.hpCurrent+' / '+m.hpMax+'</p>'+
+  '<div class="meter" aria-label="Monster HP"><i style="width:'+hp+'%"></i></div>'+
+  '<p class="source-note">World entity '+esc(m.worldMonsterId)+' · อ่านจาก simulation state โดยตรง</p></div>');
+ dialog.dataset.kind='monster';return true;
+}
 function makeGround(){
  worldMapView=createWorldMapView(state);const b=worldBounds(state);
  ground=document.createElement('canvas');ground.width=(b.w+b.h)*hw+120;ground.height=(b.w+b.h)*hh+110;
@@ -337,8 +385,8 @@ function render(time){
  const structureCtx=structureRenderContext(),bubbles=worldBubbleSignals(state,selected,innerWidth<=700?3:5),bubbleMap=new Map(bubbles.map(x=>[x.agentId,x]));
  for(const link of selectedRelationshipLinks(state,selected))drawRelationshipLink(ctx,link);
  for(const link of recentCommunicationLinks(state))drawCommunicationLink(ctx,link);
- const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...droppedWorldItems(state).map(item=>({kind:'drop-item',data:item,depth:item.x+item.y+.15})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
- for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else if(o.kind==='drop-item')drawDroppedItem(ctx,o.data);else person(ctx,o.data,time,bubbleMap.get(o.data.id)??null);}
+ const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...droppedWorldItems(state).map(item=>({kind:'drop-item',data:item,depth:item.x+item.y+.15})),...(state.wildMonsters?.entities??[]).filter(m=>m.status!=='DEFEATED'&&m.status!=='RESPAWNING').map(m=>({kind:'wild-monster',data:m,depth:m.x+m.y+.18})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
+ for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else if(o.kind==='drop-item')drawDroppedItem(ctx,o.data);else if(o.kind==='wild-monster')drawWildMonster(ctx,o.data,time);else person(ctx,o.data,time,bubbleMap.get(o.data.id)??null);}
  for(const pulse of resourceTargetPulses(state,bubbles))drawResourcePulse(ctx,pulse,time);
  for(const signal of bubbles)drawTaskTarget(ctx,signal);
  for(const burst of recentLifeBursts(state))drawLifeBurst(ctx,burst,time);
@@ -446,8 +494,9 @@ function worldObjectTargetAtScreen(sx,sy){
  const rows=[];
  for(const n of state.nodes){const p=screenPoint(n.x,n.y),oy=n.type==='wood'&&n.amount>0?42:8;rows.push({type:'resource',id:n.id,d:Math.hypot(sx-p.x,sy-(p.y-oy*zoom))});}
  for(const i of droppedWorldItems(state)){const p=screenPoint(i.x,i.y);rows.push({type:'drop',id:i.itemId,d:Math.hypot(sx-p.x,sy-(p.y-7*zoom))});}
+ const monster=monsterTargetAtScreen(sx,sy);if(monster)rows.push(monster);
  for(const e of [...recentLifeBursts(state),...recentAchievementBursts(state)]){const p=screenPoint(e.x,e.y);rows.push({type:'event',id:e.eventId,d:Math.hypot(sx-p.x,sy-(p.y-30*zoom))});}
- return rows.sort((a,b)=>a.d-b.d||a.type.localeCompare(b.type)||a.id-b.id).find(r=>r.d<Math.max(18,30*zoom))??null;
+ return rows.sort((a,b)=>a.d-b.d||a.type.localeCompare(b.type)||String(a.id).localeCompare(String(b.id))).find(r=>r.d<Math.max(18,38*zoom))??null;
 }
 function openStructureContext(target){if(!independentUI?.openStructure(target))ux?.openStructure(target);}
 const pointers=new Map();let drag=null,pinch=0,multiTouch=false;
@@ -503,4 +552,4 @@ setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),worldSize:()=>({...worldBounds(state)}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y),personalHomes:()=>individualHouses(state)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),worldSize:()=>({...worldBounds(state)}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y),selectedWorldMonster:()=>selectedWorldMonsterId,openMonsterContext:id=>openMonsterContext(id),personalHomes:()=>individualHouses(state)});
