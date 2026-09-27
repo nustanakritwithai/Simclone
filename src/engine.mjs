@@ -3,7 +3,7 @@ import {INDEPENDENT_SAVE_VERSION,addPersonalStore,validateIndependentWorld} from
 import {initializeIndependentStart,independentSpawn} from './independent-start.mjs?v=0.5.0';
 import {survivalHome,homeOf,individualHouses} from './individual-housing.mjs?v=0.5.0';
 import {cultureCommand,stepCulture,validateCulture} from './cultural-archive.mjs?v=0.5.0';
-import {setPlanningPolicy,personalResourceCandidates,personalExplorationTarget,rememberPlanSelection,finishPersonalExploration,recordPlanProduction,validatePersonalPlanning} from './personal-planning.mjs?v=0.5.0';
+import {setPlanningPolicy,personalResourceCandidates,personalExplorationTarget,rememberPlanSelection,recordPredictionReceipt,finishPersonalExploration,recordPlanProduction,validatePersonalPlanning} from './personal-planning.mjs?v=0.5.0';
 import {verifyResourceKnowledge,ageKnowledge} from './knowledge-revision.mjs?v=0.5.0';
 /** Simclone 0.5.0 — evidence-backed personal knowledge over skill provenance. */
 import {RULES,RESOURCE_ACTIONS,tileAt,walkable,pathTo,routeField,routeTo,routeDistance,
@@ -31,6 +31,7 @@ import {ensureSettlementState,stepSettlementAuthority,validateSettlementState,al
 import {ensureGovernanceState,stepGovernanceAuthority,validateGovernanceState} from './governance-authority.mjs?v=0.5.0';
 import {stepGovernancePolicy,governorPolicySignal} from './governance-policy.mjs?v=0.5.0';
 import {outcomeLearningSignal} from './outcome-learning-authority.mjs?v=0.5.0';
+import {actionPredictionEvidence} from './action-prediction-evidence.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -315,7 +316,9 @@ function decide(s,a,book){
     rememberPlanSelection(s,a,c);
     const career=adoptProfession(a,c.kind,s.tick);
     if(career.changed&&s.tick-(a.lastCareerEventTick??-999)>=60){event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);a.lastCareerEventTick=s.tick;}
-    c.status='selected';a.moveTick=0;return;
+    c.status='selected';
+    recordPredictionReceipt(s,a,actionPredictionEvidence(a,a.task,c));
+    a.moveTick=0;return;
   }
 }
 function gain(s,a,key,targetId=null){
