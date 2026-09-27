@@ -3,19 +3,18 @@
 > **Current verified override — 2026-09-27**
 >
 > Adventure V1 is released.
-> SWA0 and SWA1 are merged on `main@dd3fa43c3e8057a36534cf5e1b731c95da73ac1d`.
+> SWA0–SWA2 are merged on `main@e82637081d9c2dab053d840340326ec94fdf143a`.
 >
-> Active branch: `feature/swa2-wild-monster-authority`
-> Active gate: **SWA2 — Wild Monster World Authority**
+> Active branch: `feature/swa3-visible-monsters`
+> Active gate: **SWA3 — Visible + Tappable Wild Monsters**
 >
-> SWA2 may merge only after exact-head Verify is SAT.
+> SWA3 may merge only after exact-head Verify is SAT.
 >
-> Required order after SWA2 SAT:
-> 1. SWA3 — visible/tappable monsters in the existing object list
-> 2. SWA4 — real-path monster-target expedition
-> 3. SWA5 — bind combat to `worldMonsterId`
-> 4. SWA6 — defeat/despawn/respawn lifecycle
-> 5. SWA7 — browser/mobile/public proof
+> Required order after SWA3 SAT:
+> 1. SWA4 — real-path monster-target expedition
+> 2. SWA5 — bind combat to `worldMonsterId`
+> 3. SWA6 — defeat/despawn/respawn lifecycle
+> 4. SWA7 — browser/mobile/public proof
 >
 > Product lock: one map, one coordinate system, no teleport scene, no encounter-only fake monster.
 >
