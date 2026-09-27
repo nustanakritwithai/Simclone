@@ -10,9 +10,14 @@ checks=[];errors=[]
 def check(name,condition=True):
  assert condition,name
  checks.append(name);print('PASS',name,flush=True)
-def boot_with_html(page,content,saved=None,settle_ms=400):
+def boot_with_html(page,content,saved=None,settle_ms=400,freeze_world=False):
  page.on('pageerror',lambda e:errors.append(str(e)))
- page.evaluate("saved=>{const m=new Map(saved?[['simclone:world:v1',saved]]:[]);Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v))}})}",saved)
+ page.evaluate("""options=>{
+   const m=new Map(options.saved?[['simclone:world:v1',options.saved]]:[]);
+   Object.defineProperty(window,'localStorage',{configurable:true,value:{getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,String(v))}});
+   window.__fixtureHidden=Boolean(options.freezeWorld);
+   if(options.freezeWorld)Object.defineProperty(document,'hidden',{configurable:true,get:()=>window.__fixtureHidden});
+ }""",{'saved':saved,'freezeWorld':freeze_world})
  page.set_content(content,wait_until='load')
  page.wait_for_function("window.simclone?.uiVersion==='0.5.0'")
  if settle_ms:page.wait_for_timeout(settle_ms)
@@ -77,7 +82,7 @@ with sync_playwright() as p:
   if target:break
  assert target is not None
  adv['x'],adv['y']=target
- advpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot_with_html(advpage,independent_html,json.dumps(adventure_saved,ensure_ascii=False),settle_ms=0);paused(advpage);advpage.wait_for_timeout(100)
+ advpage=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True);boot_with_html(advpage,independent_html,json.dumps(adventure_saved,ensure_ascii=False),settle_ms=0,freeze_world=True);advpage.wait_for_timeout(100)
  check('Adventure UI fits mobile without adding a sixth mobile-nav tab',advpage.locator('#adventure-launch').is_visible() and advpage.locator('.mobile-nav button').count()==5 and no_overflow(advpage))
  advpage.locator('#adventure-launch').tap()
  check('Adventure panel reads canonical profession level qualification and zones',advpage.locator('[data-adv-profile]').count()==1 and 'นักผจญภัย' in advpage.locator('#dialog-body').inner_text() and advpage.locator('[data-adv-action="start-expedition"][data-zone="z1"]').count()==1)
@@ -90,9 +95,10 @@ with sync_playwright() as p:
  check('Adventure HUD appears on the running world during expedition',advpage.locator('#adventure-hud').is_visible() and 'EXPEDITION' in advpage.locator('#adventure-hud').inner_text())
  # Run the real simulation just long enough to complete the zero-distance expedition work.
  advpage.locator('[data-speed="5"]').tap()
- if advpage.locator('#pause').get_attribute('aria-pressed')=='true':advpage.locator('#pause').tap()
+ advpage.evaluate("window.__fixtureHidden=false")
  advpage.wait_for_function("document.querySelector('[data-adv-action=start-combat]')!==null",timeout=8000)
- paused(advpage)
+ advpage.evaluate("window.__fixtureHidden=true")
+ advpage.wait_for_timeout(100)
  encounter_state=snap(advpage)['agents'][0]
  check('READY encounter becomes an actionable HUD from canonical state',encounter_state.get('adventureEncounter',{}).get('status')=='READY' and advpage.locator('[data-adv-action="start-combat"]').count()==1)
  advpage.locator('[data-adv-action="start-combat"]').tap()
