@@ -1,0 +1,38 @@
+name: Display D2 interaction proof
+
+on:
+  push:
+    branches:
+      - "feature/display-d2-unified-selection-v2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  interaction-proof:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Verify D2 unified interaction matrix
+        run: python tests/display-d2-smoke.py
+
+      - name: Upload D2 browser evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: display-d2-interaction-proof
+          path: evidence-display-d2/
+          if-no-files-found: error
