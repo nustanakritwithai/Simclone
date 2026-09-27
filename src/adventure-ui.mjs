@@ -39,7 +39,7 @@ function activeAgent(state,selected){
   const living=(state.agents??[]).filter(a=>a.alive);
   const selectedAgent=living.find(a=>a.id===selected);
   return living.find(a=>a.adventureCombat)||living.find(a=>a.adventureEncounter)||
-    living.find(a=>a.task?.adventureExpedition)||selectedAgent?.profession==='adventurer'&&selectedAgent||
+    living.find(a=>a.task?.adventureHunt)||living.find(a=>a.task?.adventureExpedition)||selectedAgent?.profession==='adventurer'&&selectedAgent||
     living.find(a=>a.profession==='adventurer')||selectedAgent||living[0]||null;
 }
 function monsterLabel(monsterId){
@@ -84,7 +84,7 @@ export function installAdventureUI({read,openDialog,closeDialog,execute,select,c
       return '<button type="button" class="adv-zone-card '+(unlocked?'unlocked':'locked')+'" data-adv-action="start-expedition" data-agent="'+agent.id+'" data-zone="'+zone.zoneId+'" '+(disabled?'disabled':'')+'>'+
         '<span>'+esc(zone.zoneId.toUpperCase())+'</span><b>'+esc(zone.name)+'</b><small>Lv.'+zone.minLevel+'–'+zone.maxLevel+(unlocked?' · เข้าได้':' · ยังล็อก')+'</small></button>';
     }).join('');
-    const status=agent.adventureCombat?'Combat · '+agent.adventureCombat.status:agent.adventureEncounter?'Encounter พร้อมต่อสู้':agent.task?.adventureExpedition?'กำลังเดินทาง '+agent.task.adventureExpedition.zoneId:(busy?'กำลังทำ '+esc(agent.task?.kind??'งาน'):'พร้อม');
+    const status=agent.adventureCombat?'Combat · '+agent.adventureCombat.status:agent.adventureEncounter?'Encounter พร้อมต่อสู้':agent.task?.adventureHunt?'กำลังล่า '+agent.task.adventureHunt.worldMonsterId:agent.task?.adventureExpedition?'กำลังเดินทาง '+agent.task.adventureExpedition.zoneId:(busy?'กำลังทำ '+esc(agent.task?.kind??'งาน'):'พร้อม');
     return '<article class="adv-profile" data-adv-profile="'+agent.id+'">'+
       '<div class="adv-profile-head"><div><span class="adv-kicker">'+esc(professionLabel(agent.profession))+'</span><h2>'+esc(agent.name)+'</h2><small>'+esc(status)+'</small></div><div class="adv-level"><small>LEVEL</small><b>'+(p?.level??1)+'</b></div></div>'+
       '<div class="adv-stats"><span><small>HP</small><b>'+Math.round(agent.hp)+'</b></span><span><small>XP</small><b>'+(p?.xp??0)+'</b></span><span><small>EXPLORE</small><b>'+q+'/3</b></span></div>'+
@@ -132,11 +132,16 @@ export function installAdventureUI({read,openDialog,closeDialog,execute,select,c
     if(action==='unequip-gear'){run('UNEQUIP_ADVENTURE_GEAR',{agentId,slot:button.dataset.slot},{success:()=> 'ถอดอุปกรณ์แล้ว'});open(agentId);return;}
   }
   function renderHud(){
-    const {state,selected}=read(),agent=activeAgent(state,selected),task=agent?.task?.adventureExpedition,encounter=agent?.adventureEncounter,combat=agent?.adventureCombat;
-    const active=Boolean(agent&&(task||encounter||combat));
+    const {state,selected}=read(),agent=activeAgent(state,selected),task=agent?.task?.adventureExpedition,hunt=agent?.task?.adventureHunt,encounter=agent?.adventureEncounter,combat=agent?.adventureCombat;
+    const active=Boolean(agent&&(task||hunt||encounter||combat));
     hud.hidden=!active;if(!active){hud.innerHTML='';return;}
     let body='';
-    if(task){
+    if(hunt){
+      const target=state.wildMonsters?.entities?.find(m=>m.worldMonsterId===hunt.worldMonsterId),def=target&&monsterDefinition(target.monsterId);
+      body='<div class="adv-hud-title"><span>HUNT</span><b>'+esc(def?.speciesId??target?.monsterId??hunt.worldMonsterId)+'</b></div>'+ 
+        '<p>'+esc(agent.name)+' กำลังเดินไปหา '+esc(hunt.worldMonsterId)+' · เหลือ '+agent.task.path.length+' ช่อง</p>'+ 
+        '<div class="adv-mini-row"><span>HP '+Math.round(agent.hp)+'</span><span>'+esc(hunt.zoneId.toUpperCase())+'</span></div>';
+    }else if(task){
       const zone=adventureZoneById(task.zoneId);
       body='<div class="adv-hud-title"><span>EXPEDITION</span><b>'+esc(zone.name)+'</b></div>'+
         '<p>'+esc(agent.name)+' กำลังเดินทาง · เหลือ '+agent.task.path.length+' ช่อง</p>'+
