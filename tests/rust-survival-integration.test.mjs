@@ -15,10 +15,14 @@ function adjacentFree(s,a){
   throw new Error('no adjacent station cell');
 }
 
-test('RS1 catalog is bounded and keeps station progression',()=>{
+test('RS1 catalog remains bounded, preserves all nine craft/build items, and admits only the three I5 loot materials',()=>{
   assert.deepEqual(validateCraftingCatalog(),[]);
-  assert.equal(Object.keys(ITEM_CATALOG).length,9);
-  assert.equal(Object.keys(RECIPE_CATALOG).length,9);
+  const original=['STONE_AXE','STONE_PICKAXE','HAMMER','CRAFTING_TABLE_LV1','FURNACE','WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF'];
+  const loot=['FIRE_CORE','HIDE','EMBER_SHARD'];
+  assert.deepEqual(Object.keys(RECIPE_CATALOG).sort(),[...original].sort());
+  assert.deepEqual(Object.keys(ITEM_CATALOG).sort(),[...original,...loot].sort());
+  assert.ok(original.every(id=>ITEM_CATALOG[id]));
+  assert.deepEqual(loot.filter(id=>ITEM_CATALOG[id]?.adventureLoot).sort(),[...loot].sort());
   assert.equal(RECIPE_CATALOG.HAMMER.station,'CRAFTING_TABLE_LV1');
   assert.equal(RECIPE_CATALOG.FURNACE.station,'HAND');
 });
