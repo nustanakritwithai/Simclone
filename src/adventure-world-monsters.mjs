@@ -134,6 +134,24 @@ export function releaseWildMonsterEngagement(state,worldMonsterId,agentId){
   return monster;
 }
 
+export function migrateWildMonsterLifecycleState(state){
+  if(worldBounds(state).profile!=='same-world'||!state.wildMonsters)return {changed:false};
+  let changed=false;
+  for(const monster of state.wildMonsters.entities??[]){
+    if(monster.status!=='ENGAGED'||monster.hpCurrent!==0)continue;
+    const owner=(state.agents??[]).find(a=>a.id===monster.engagedByAgentId);
+    const session=owner?.adventureCombat;
+    if(!session||session.worldMonsterId!==monster.worldMonsterId||session.status!=='VICTORY')continue;
+    const defeatedTick=Number.isSafeInteger(session.reward?.committedTick)?session.reward.committedTick:state.tick;
+    monster.status=state.tick>=defeatedTick+WILD_MONSTER_RESPAWN_TICKS?'RESPAWNING':'DEFEATED';
+    monster.engagedByAgentId=null;
+    monster.defeatedTick=defeatedTick;
+    monster.respawnTick=defeatedTick+WILD_MONSTER_RESPAWN_TICKS;
+    changed=true;
+  }
+  return {changed};
+}
+
 export function defeatWildMonster(state,worldMonsterId,agentId,tick=state.tick){
   const monster=wildMonsterById(state,worldMonsterId);
   if(!monster||monster.status!=='ENGAGED'||monster.engagedByAgentId!==agentId)throw new Error('monster_defeat_binding');
@@ -219,9 +237,12 @@ export function validateWildMonsterWorld(state){
     if(!['normal','elite'].includes(m.rank)||!WILD_MONSTER_STATUSES.includes(m.status))return ['Wild monsters'];
     if(!Number.isInteger(m.x)||!Number.isInteger(m.y)||adventureAnnexZoneAt(m.x,m.y)?.zoneId!==m.zoneId||
       state.tiles?.[m.y*bounds.w+m.x]==='water')return ['Wild monsters'];
+    const present=m.status==='IDLE'||m.status==='ENGAGED';
     const pkey=key(m.x,m.y);
-    if(positions.has(pkey)||occupied.has(pkey))return ['Wild monsters'];
-    positions.add(pkey);
+    if(present){
+      if(positions.has(pkey)||occupied.has(pkey))return ['Wild monsters'];
+      positions.add(pkey);
+    }
     const stats=monsterStatsAtLevel(m.monsterId,m.level);
     if(!stats.ok||m.hpMax!==stats.stats.hp||!Number.isSafeInteger(m.hpCurrent)||m.hpCurrent<0||m.hpCurrent>m.hpMax)return ['Wild monsters'];
     if(!Number.isInteger(m.spawnedTick)||m.spawnedTick<0||m.spawnedTick>state.tick)return ['Wild monsters'];
