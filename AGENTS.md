@@ -2,17 +2,17 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main is `250285d4a6d381751c60791bd9897fd7ab92a70f` after merged Display V1 PR #146.
+> Source main is `d4378bae2d707662bd1d614a397538f73495e5ba` after merged SWA6 integration PR #149.
 > Adventure V1 is released.
-> Same-World Adventure has SWA0–SWA5 merged; SWA6 is active on `integration/swa6-after-display-v1`.
+> Same-World Adventure has SWA0–SWA6 merged; SWA7 is active on `release/swa7-same-world-closeout`.
 > SWA1 owns the 84×52 Same-World map.
 > SWA2 owns Wild Monster world state.
 > SWA3 owns visible/tappable projection.
 > SWA4 owns explicit worldMonsterId hunt paths.
 > SWA5 owns ENGAGED binding and canonical world-Monster HP commits.
 > SWA6 owns DEFEATED/despawn/result closeout/deterministic respawn.
-> Display V1 D0 + DSP1 is merged on main and remains read-only presentation authority only.
-> Display code must not add gameplay writers or mutate simulation truth.
+> SWA7 owns exact-main Pages, public-byte identity and public browser/mobile lifecycle proof only.
+> Display V1 D0 + DSP1 is merged and remains read-only presentation authority.
 > The older baseline notes below are retained as history where they conflict with this override.
 
 
