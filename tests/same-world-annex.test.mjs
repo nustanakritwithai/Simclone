@@ -54,7 +54,7 @@ test('SWA1 migrates released Large saves row-by-row without relocating Core',()=
     const reference=createWorld(seed,{mode:'independent',worldProfile:'large'});
     step(reference,40);
     const oldRows=Array.from({length:52},(_,y)=>reference.tiles.slice(y*60,y*60+60));
-    const migrated=restore(serialize(reference));
+    const migrated=restore(serialize(reference),{sameWorld:true});
     assert.deepEqual(worldBounds(migrated),SAME_WORLD_BOUNDS);
     for(let y=0;y<52;y++)assert.deepEqual(migrated.tiles.slice(y*84,y*84+60),oldRows[y]);
     assert.deepEqual(coreProjection(migrated),coreProjection(reference));
@@ -64,7 +64,7 @@ test('SWA1 migrates released Large saves row-by-row without relocating Core',()=
 
 test('SWA1 migration is idempotent and Same-World continuation is deterministic',()=>{
   const a=restore(serialize(createWorld(230926,{mode:'independent',worldProfile:'large'})));
-  const once=serialize(a),b=restore(once);
+  const once=serialize(a),b=restore(once,{sameWorld:true});
   assert.equal(serialize(b),once);
   step(a,120);step(b,120);
   assert.equal(serialize(b),serialize(a));
@@ -132,7 +132,7 @@ test('SWA1 migration cancels stale pre-Annex travel/READY targets but preserves 
   const state=createWorld(230926,{mode:'independent',worldProfile:'large'}),a=state.agents[0];
   a.task={kind:'EXPLORE',path:[],work:0,started:0,score:0,policy:'test',adventureExpedition:{version:'legacy-proof'}};
   a.adventureEncounter={status:'READY'};
-  const migrated=restore(serialize(state));
+  const migrated=restore(serialize(state),{sameWorld:true});
   const ma=migrated.agents.find(x=>x.id===a.id);
   assert.equal(ma.task,null);
   assert.equal(ma.adventureEncounter,null);
