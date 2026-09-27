@@ -1,5 +1,16 @@
 # Simclone — current implementation status
 
+> **Current verified override — 2026-09-27**
+>
+> Public/released main: `a97fcfdec4c9bcd5586eafe479f6ac618cf70fc3`.
+> PR #138 (Adventure V1 I0–I8 playable MMORPG loop) is merged.
+> Adventure V1 is released. The active next line is Same-World Adventure: preserve the existing 60×52 Core, append a 24×52 Adventure Annex in the same coordinate system, and make wild monsters physical world entities.
+>
+> SWA0 draft PR #140 is contract/proof only. It freezes `large=60×52` as the Core compatibility/reference profile and forbids naive 84-wide normalization because released WorldSim/region logic depends on bounds.
+>
+> Sections below predate the Adventure V1 merge and are retained as historical context where they conflict with this override.
+
+
 ## Public released baseline
 
 Current public `main`:
