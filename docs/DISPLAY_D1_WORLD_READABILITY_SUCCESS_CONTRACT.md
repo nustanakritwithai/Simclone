@@ -77,11 +77,11 @@ Zone coordinates and level ranges must not be duplicated in app.mjs.
 10. No new persistent HUD/dashboard is introduced.
 11. Existing Monster/Clone/building/resource rendering remains authoritative.
 12. Desktop and mobile screenshot proof is required before D1 is SAT.
-13. Runtime cache pins must be refreshed only after the SWA6 integration race is resolved.
+13. Runtime cache pins must recursively cover every `src/**/*.mjs` runtime module, including DSP1 read-model dependencies.
 14. UNKNOWN is never PASS.
 
 ## Integration note
 
 SWA6 PR #147 currently touches index.html and tests/ui-smoke.py.
 
-This D1 candidate intentionally avoids those files. Until SWA6 merges and D1 rebases/pins exact runtime assets, full release verification remains UNKNOWN even if focused Node tests pass.
+D1 now updates `index.html` only as required by the recursive runtime cache-pin contract. Because SWA6 PR #147 also changes `index.html`, D1 must re-read/reconcile current main after SWA6 before merge. The offline Chromium fixture must resolve both `./` and `../` local ESM imports so nested read-model modules are exercised through the normal browser boot gate.
