@@ -60,6 +60,7 @@ export function startAdventureCombatSession(state,agent,encounter){
     adventureLevel:encounter.adventureLevel,x:encounter.x,y:encounter.y,startedTick:state.tick,turn:0,
     monsterHpMax:monster.stats.hp,
     loadout,lastTurn:null,
+    ...(encounter.control==='autonomous'?{control:'autonomous'}:{}),
   };
   if(worldMonster)return freeze({...base,worldMonsterId:worldMonster.worldMonsterId});
   return freeze({...base,monsterHpCurrent:monster.stats.hp});
@@ -70,7 +71,8 @@ export function validateAdventureCombatState(state,agent){
   if(c===undefined||c===null)return [];
   const bad=['Adventure combat'];
   if(!c||c.version!==ADVENTURE_COMBAT_SESSION_VERSION||!ADVENTURE_COMBAT_SESSION_STATUSES.includes(c.status))return bad;
-  if(typeof c.combatId!=='string'||typeof c.encounterId!=='string'||typeof c.expeditionId!=='string')return bad;
+  if(typeof c.combatId!=='string'||typeof c.encounterId!=='string'||typeof c.expeditionId!=='string'||
+    (c.control!==undefined&&c.control!=='autonomous'))return bad;
   if(!integer(c.startedTick,0)||c.startedTick>state.tick||!integer(c.turn,0))return bad;
   if(!integer(c.adventureLevel,1)||c.adventureLevel>60||!integer(c.monsterLevel,1)||c.monsterLevel>60)return bad;
   if(!integer(c.x,0)||!integer(c.y,0)||agent.x!==c.x||agent.y!==c.y)return bad;
