@@ -209,10 +209,6 @@ export function command(s,type,data={}){
     if(a.energy<RULES.exhausted)return {ok:false,reason:'exhausted',message:'เหนื่อยเกินไปสำหรับการออกผจญภัย'};
     const progression=adventureProgressionSnapshot(a);
     if(!progression)return {ok:false,reason:'progression',message:'Adventure progression ไม่ถูกต้อง'};
-    if(data.control==='autonomous'){
-      const expected=chooseAutonomousAdventureTarget(s,a);
-      if(!expected||expected.worldMonsterId!==monster.worldMonsterId)return {ok:false,reason:'target-policy',message:'AI ต้องเลือกมอนสเตอร์ตามระดับ Adventure ก่อน'};
-    }
     let entry;
     try{entry=findAdventureZoneEntry(s,a,data.zoneId,progression.level,{walkable,routeField,routeDistance});}
     catch(error){return {ok:false,reason:error.message,message:'เข้าเขตผจญภัยไม่ได้'};}
@@ -244,6 +240,10 @@ export function command(s,type,data={}){
     if(claimed)return {ok:false,reason:'monster-busy',message:'มอนสเตอร์ตัวนี้มีนักผจญภัยกำลังเข้าหาอยู่'};
     const progression=adventureProgressionSnapshot(a);
     if(!progression)return {ok:false,reason:'progression',message:'Adventure progression ไม่ถูกต้อง'};
+    if(data.control==='autonomous'){
+      const expected=chooseAutonomousAdventureTarget(s,a);
+      if(!expected||expected.worldMonsterId!==monster.worldMonsterId)return {ok:false,reason:'target-policy',message:'AI ต้องเลือกมอนสเตอร์ตามระดับ Adventure ก่อน'};
+    }
     let engagement;
     try{engagement=findAdventureMonsterEngagement(s,a,monster.worldMonsterId,progression.level,{walkable,routeField,routeDistance});}
     catch(error){return {ok:false,reason:error.message,message:'เดินไปหามอนสเตอร์ไม่ได้'};}
