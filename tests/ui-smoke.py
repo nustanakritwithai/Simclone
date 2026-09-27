@@ -43,21 +43,30 @@ with sync_playwright() as p:
  check('SWA3 Same-World exposes 12 physical Wild Monsters',len(monsters)==12)
  monster=monsters[0]
  mp=desktop.evaluate('(m)=>simclone.screenPoint(m.x,m.y)',monster)
- # Pan the canvas so the Annex target is visible, using normal pointer drag only.
+ # Pan into the navigation-owned safe playfield rather than an arbitrary viewport point.
  box=desktop.locator('#world').bounding_box()
- dx=box['x']+box['width']*.55-(box['x']+mp['x'])
- dy=box['y']+box['height']*.52-(box['y']+mp['y'])
- desktop.mouse.move(box['x']+box['width']*.5,box['y']+box['height']*.5)
+ safe=desktop.evaluate('simclone.safeFrame()')
+ target_x=(safe['left']+safe['right'])/2
+ target_y=(safe['top']+safe['bottom'])/2
+ monster_y=mp['y']-20*desktop.evaluate('simclone.camera().zoom')
+ dx=target_x-mp['x']
+ dy=target_y-monster_y
+ start_x=(safe['left']+safe['right'])/2
+ start_y=(safe['top']+safe['bottom'])/2
+ desktop.mouse.move(box['x']+start_x,box['y']+start_y)
  desktop.mouse.down()
- desktop.mouse.move(box['x']+box['width']*.5+dx,box['y']+box['height']*.5+dy,steps=8)
+ desktop.mouse.move(box['x']+start_x+dx,box['y']+start_y+dy,steps=8)
  desktop.mouse.up()
  desktop.wait_for_timeout(120)
  mp2=desktop.evaluate('(m)=>simclone.screenPoint(m.x,m.y)',monster)
- hit=desktop.evaluate('(q)=>simclone.worldObjectTargetAtScreen(q.x,q.y)',{'x':mp2['x'],'y':mp2['y']-20*desktop.evaluate('simclone.camera().zoom')})
+ tap_y=mp2['y']-20*desktop.evaluate('simclone.camera().zoom')
+ hit=desktop.evaluate('(q)=>simclone.worldObjectTargetAtScreen(q.x,q.y)',{'x':mp2['x'],'y':tap_y})
  check('SWA3 monster canvas hit target resolves exact worldMonsterId',hit is not None and hit['type']=='monster' and hit['id']==monster['worldMonsterId'])
+ check('SWA3 target is inside the unobstructed canvas playfield',
+       desktop.evaluate('(q)=>document.elementFromPoint(q.x,q.y)?.id==="world"',{'x':box['x']+mp2['x'],'y':box['y']+tap_y}))
  paused(desktop)
  before_monster_tap=snap(desktop)
- desktop.mouse.click(box['x']+mp2['x'],box['y']+mp2['y']-20*desktop.evaluate('simclone.camera().zoom'))
+ desktop.mouse.click(box['x']+mp2['x'],box['y']+tap_y)
  desktop.wait_for_selector('#dialog[open][data-kind="monster"] [data-world-monster]')
  check('SWA3 tapping visible monster opens read-only world entity card',
        desktop.locator('[data-world-monster]').get_attribute('data-world-monster')==monster['worldMonsterId'] and
