@@ -40,6 +40,7 @@ test('AUTO-ADV safe Adventurer selects a physical Monster and starts a real Hunt
   const before={x:a.x,y:a.y};
   step(s,1);
   assert.equal(a.task?.adventureHunt?.worldMonsterId,expected.worldMonsterId);
+  assert.equal(a.task?.adventureHunt?.control,'autonomous');
   assert.deepEqual({x:a.x,y:a.y},before);
   assert.ok(a.task.path.length>0);
   assert.equal(Math.abs(a.task.x-a.task.adventureHunt.monsterX)+Math.abs(a.task.y-a.task.adventureHunt.monsterY),1);
@@ -54,10 +55,12 @@ test('AUTO-ADV Hunt progresses through READY, ENGAGED and autonomous BASIC_ATTAC
 
   runUntil(s,()=>a.adventureEncounter?.worldMonsterId===targetId);
   assert.equal(a.adventureEncounter.status,'READY');
+  assert.equal(a.adventureEncounter.control,'autonomous');
 
   runUntil(s,()=>a.adventureCombat?.worldMonsterId===targetId);
   const m=s.wildMonsters.entities.find(x=>x.worldMonsterId===targetId);
   assert.equal(a.adventureCombat.status,'ACTIVE');
+  assert.equal(a.adventureCombat.control,'autonomous');
   assert.equal(m.status,'ENGAGED');
   assert.equal(m.engagedByAgentId,a.id);
 
@@ -118,4 +121,22 @@ test('AUTO-ADV save/load during autonomous Hunt remains deterministic',()=>{
   assert.equal(serialize(loaded),serialize(s));
   assert.equal(b.profession,'adventurer');
   assert.deepEqual(validate(loaded),[]);
+});
+
+
+test('AUTO-ADV never advances a manual READY or terminal Combat chain',()=>{
+  const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
+  makeAdventurer(s,a,60);
+  const target=chooseAutonomousAdventureTarget(s,a);
+  assert.ok(target);
+  const hunt=command(s,'START_ADVENTURE_HUNT',{agentId:a.id,worldMonsterId:target.worldMonsterId});
+  assert.equal(hunt.ok,true);
+  assert.equal(a.task.adventureHunt.control,undefined);
+  runUntil(s,()=>a.adventureEncounter?.worldMonsterId===target.worldMonsterId);
+  assert.equal(a.adventureEncounter.control,undefined);
+  const heldTick=s.tick;
+  step(s,AUTONOMOUS_ADVENTURE_POLICY.readyHoldTicks+2);
+  assert.equal(a.adventureCombat,null);
+  assert.equal(a.adventureEncounter.status,'READY');
+  assert.ok(s.tick>heldTick);
 });
