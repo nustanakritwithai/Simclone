@@ -2,14 +2,14 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main: `e82637081d9c2dab053d840340326ec94fdf143a`.
+> Source main: `3733b1f8b4053d09c94102037755c1d4247de976`.
 > Adventure V1 is released.
-> SWA0, SWA1 and SWA2 are merged.
-> Same-World is 84×52 and now owns 12 deterministic Wild Monster world entities across z1-z4.
+> SWA0–SWA3 are merged.
+> Same-World is 84×52 with 12 visible/tappable Wild Monster entities across z1-z4.
 >
-> Active candidate: SWA3 / `feature/swa3-visible-monsters`.
-> SWA3 renders those authoritative entities in the existing canvas depth list, gives them type/level/elite cues, and exposes read-only tappable context by exact `worldMonsterId`.
-> Hunt/path/combat state is not part of SWA3.
+> Active candidate: SWA4 / `feature/swa4-monster-hunt-path`.
+> SWA4 adds `START_ADVENTURE_HUNT`: selecting a visible Monster locks its `worldMonsterId`, chooses a reachable adjacent engagement cell, walks through existing Simclone pathfinding, and creates a READY encounter from that exact entity without rerolling a new encounter.
+> Monster ENGAGED/combat binding remains SWA5.
 >
 > Sections below predate the Same-World release line and are retained as historical context where they conflict with this override.
 
