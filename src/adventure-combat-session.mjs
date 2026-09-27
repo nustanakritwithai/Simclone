@@ -77,10 +77,10 @@ export function validateAdventureCombatState(state,agent){
   const monster=monsterStatsAtLevel(c.monsterId,c.monsterLevel);if(!monster.ok)return bad;
   if(c.monsterHpMax!==monster.stats.hp)return bad;
   const worldBound=typeof c.worldMonsterId==='string';
-  let terminalHp=null;
+  let terminalHp=null,boundEntity=null;
   if(worldBound){
     if(Object.prototype.hasOwnProperty.call(c,'monsterHpCurrent'))return bad;
-    const entity=wildMonsterById(state,c.worldMonsterId);
+    const entity=wildMonsterById(state,c.worldMonsterId);boundEntity=entity;
     if(!entity||entity.monsterId!==c.monsterId||entity.zoneId!==c.zoneId||entity.level!==c.monsterLevel||entity.rank!==c.rank||
       entity.hpMax!==c.monsterHpMax||Math.abs(entity.x-agent.x)+Math.abs(entity.y-agent.y)!==1)return bad;
     terminalHp=entity.hpCurrent;
@@ -98,6 +98,7 @@ export function validateAdventureCombatState(state,agent){
   if(c.lastTurn!==null){
     if(!c.lastTurn||!integer(c.lastTurn.turn,0)||c.lastTurn.turn!==c.turn-1)return bad;
     if(!['ACTIVE','VICTORY','DEFEATED'].includes(c.lastTurn.status))return bad;
+    if(worldBound&&(!integer(c.lastTurn.monsterHpBefore,1)||!integer(c.lastTurn.monsterHpAfter,0)||c.lastTurn.monsterHpAfter!==boundEntity?.hpCurrent))return bad;
   }
   return [];
 }
