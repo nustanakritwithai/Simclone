@@ -1,31 +1,71 @@
 # Simclone — active agent guide
 
-Read `GAME_PLAN.md`, `docs/STATUS.md`, `docs/NEXT_STEPS.md` and the exact current branch/PR before changing code. A plan is not proof of implementation.
+Always read `GAME_PLAN.md`, `docs/STATUS.md`, `docs/NEXT_STEPS.md`, current `main`, open PRs and the exact Success Contract before changing code.
 
-## Active work
+A handoff or old PR is never source of truth over the current repository.
 
-- Continue PR #88 / `feature/independent-clone-world-ic2-main`; do not open replacement PRs for ordinary repairs.
-- Current rules: `docs/IC3_INDEPENDENT_START_SUCCESS_CONTRACT.md`. Work/evidence: `docs/IC3_WORK_STATE.md`.
-- Independent saves use 0.6.0 plus explicit world-mode and personal-material versions. The legacy engine/import family remains 0.5.0. Never silently convert or discard an old world.
-- New public bootstrap selects the independent profile. Legacy browser fixtures explicitly select legacy mode. Test both; never relabel a legacy fixture as independent gameplay proof.
+## Current released baseline
+
+Released main:
+
+`3ab58da6289a28dbdde3656ce5d8285f1656ad8f`
+
+Governor v1 GOV0–GOV6 is released and Pages #79 passed on that exact SHA.
+
+Current separate in-flight work:
+- PR #123 — Khet Sila rules
+- PR #124 — VAL4 outcome verification shadow
+
+Do not overwrite, force-push, rebase away or silently duplicate those branches.
 
 ## Authority and safety
 
-- Engine simulation is deterministic: no DOM, Date/time, Math.random, per-tick LLM calls or external APIs.
-- UI is observation plus validated `command` dispatch. Preview uses a copy and spends nothing. Do not rewrite the engine to fix UI.
-- Rust commands/order acceptance commit materials once. Existing scheduler, task-derived reservations and PLACE_STATION remain the executors. No duplicate item, material, ownership or reproduction ledger.
-- Skills retain exact floor(parent XP × 0.35) inheritance. Teaching/reading grants no XP; only real productive output records earned XP.
-- Personal cognition consumes owned/observed evidence, never arbitrary hidden World Truth. Preserve bounded history, lineage, death facts, appearance and provenance through migration/archive.
-- Independent balances live in the existing Rust material extension; shared stock is zero. World totals are read-only. Home ownership derives from the founding Foundation, not an extra UI record.
-- Preserve corrupt-save recovery and explicit reset/import confirmation, mobile canvas/touch, inspector close controls and old saves.
-- Re-read heads before writes. No force push, overwriting another agent branch or changing workflow gates to evade failures.
+- Engine simulation is deterministic: no DOM, wall-clock Date/time, Math.random as a simulation rule, per-tick LLM calls or external APIs.
+- UI reads state and dispatches validated commands. UI is never simulation truth.
+- Existing scheduler / task reservations / executors remain authoritative.
+- Do not create duplicate resource, item, household, relationship, settlement, governance or task writers.
+- Skills and knowledge keep provenance.
+- Personal cognition uses owned/observed evidence, not hidden World Truth.
+- Home ownership derives from authoritative construction provenance.
+- Governor is an office, not a productive profession and not a property owner.
+- Settlement and Governance are separate authorities.
+- VACANT Governor office is a valid state.
+- Preserve old-save compatibility and corrupt-save recovery.
 
-## Verification and CI handoff
+## Verification method
 
-- Define Success Contract, verification plan and SAT / VIOL / UNKNOWN. UNKNOWN is never PASS.
-- Run unit/targeted browser checks; regenerate hashes with `node scripts/pin-assets.mjs` after runtime changes.
-- After pushing, obtain the new Actions run URL once and send it immediately. **Do not poll, wait for completion, or create a CI watcher.** The user reports results or explicitly asks for a check before further diagnosis.
-- Exact candidate checks, exact-main Pages deploy and public-release checks are separate gates. Local success or merge alone is not release proof.
-- Offline Chromium uses an explicit Storage double; native HTTP/storage, public Pages, physical Android and GPU/performance are separate evidence scopes. Never bypass an administrator block or infer unavailable proof.
+Use VIP / VRR:
 
-Historical contracts, provenance and earlier release guidance remain in `docs/AGENTS_LEGACY_REFERENCE.md`. They still apply to unchanged legacy systems; explicit independent-mode differences are owned by the current IC3 contract.
+`Success Contract → Candidate(s) → Evidence / Verification → SAT / VIOL / UNKNOWN → Repair / Reselect → Prove → Execute → Post-verify`
+
+UNKNOWN is never PASS.
+
+## CI and release handoff
+
+Routine PR verification:
+- `npm test`
+- active Chromium UI smoke
+- Independent desktop smoke
+
+Exact-main Pages:
+- active regressions
+- Independent native desktop smoke
+- deployment
+- exact public-byte check
+
+Manual `Full Regression Proofs` owns:
+- 120-year continuity
+- full browser matrices
+- archived heavy regression suites
+
+Do not move a failing proof out of a gate merely to make CI green. A proof may be moved only when the evidence scope remains explicitly available elsewhere and the release contract still protects publication.
+
+After pushing a candidate, provide its Actions URL once and stop polling. Re-check only when the user asks.
+
+## Branch discipline
+
+- Re-read branch heads before writes.
+- Never force push.
+- Never overwrite another agent branch.
+- Rebuild stale work on current main instead of merging obsolete stacked branches.
+- Runtime changes require refreshed browser import-map pins.
