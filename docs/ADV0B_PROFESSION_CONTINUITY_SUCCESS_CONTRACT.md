@@ -62,4 +62,4 @@ Leaving `adventurer` for one of the four is not given a threshold here. No such 
 
 ## Not SAT
 
-The edit is present only in the PR #130 candidate. Behavior proof remains UNKNOWN until exact candidate CI succeeds.
+The edit is present only in the PR #130 candidate. Pre-repair head `b04fb2c251f6e358e7f11834f024dbbf3ae594b5` passed Verify run #1376; after any repair push, the new exact head remains UNKNOWN until its own Verify result exists.
