@@ -37,6 +37,8 @@ try:
     page=browser.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
     seed_literal=json.dumps(saved)
     page.add_init_script(
+      "window.__autoHidden=true;"
+      "Object.defineProperty(document,'hidden',{configurable:true,get:()=>window.__autoHidden});"
       "localStorage.clear();localStorage.setItem('simclone:world:v1',"+seed_literal+");"
     )
     page.goto(url,wait_until='load')
@@ -49,6 +51,7 @@ try:
           hero.get('adventureEncounter') is None and hero.get('adventureCombat') is None)
 
     page.locator('[data-speed="5"]').tap()
+    page.evaluate("window.__autoHidden=false")
 
     page.wait_for_function(
       "()=>Boolean(simclone.snapshot().agents[0].task?.adventureHunt?.worldMonsterId)",
