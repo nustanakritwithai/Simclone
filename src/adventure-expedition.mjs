@@ -1,5 +1,6 @@
 import {worldBounds} from './world-bounds.mjs?v=0.5.0';
 import {assertAdventureZoneAccess,adventureZoneById,assertAdventureMonsterInZone} from './adventure-zones.mjs?v=0.5.0';
+import {adventureAnnexZoneBounds} from './adventure-annex.mjs?v=0.5.0';
 import {resolveAdventureEncounter} from './adventure-encounter.mjs?v=0.5.0';
 
 export const ADVENTURE_EXPEDITION_VERSION='adventure-expedition/v1';
@@ -17,7 +18,9 @@ const integer=(n,min=Number.MIN_SAFE_INTEGER)=>Number.isSafeInteger(n)&&n>=min;
 export function adventureZoneSpatialBounds(state,zoneId){
   const ratio=ZONE_SPATIAL_RATIOS[zoneId];
   if(!ratio)throw new Error('unknown_zone');
-  const bounds=worldBounds(state),innerMax=Math.max(1,bounds.w-2);
+  const bounds=worldBounds(state);
+  if(bounds.profile==='same-world')return adventureAnnexZoneBounds(zoneId);
+  const innerMax=Math.max(1,bounds.w-2);
   let minX=Math.max(1,Math.min(innerMax,Math.ceil(bounds.w*ratio[0])));
   let maxX=Math.max(minX,Math.min(innerMax,Math.floor(bounds.w*ratio[1])));
   return Object.freeze({zoneId,minX,maxX,minY:1,maxY:Math.max(1,bounds.h-2)});

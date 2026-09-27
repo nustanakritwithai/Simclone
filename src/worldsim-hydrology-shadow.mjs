@@ -16,6 +16,7 @@ function cardinalNeighbors(view,cell){
   for(const [dx,dy] of [[0,-1],[-1,0],[1,0],[0,1]]){
     const x=cell.x+dx,y=cell.y+dy;
     if(x<0||y<0||x>=view.width||y>=view.height)continue;
+    if(Number.isInteger(view.coreWidth)&&cell.x<view.coreWidth&&x>=view.coreWidth)continue;
     out.push(view.cells[y*view.width+x]);
   }
   return out;

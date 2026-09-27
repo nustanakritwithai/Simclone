@@ -5,7 +5,7 @@ import {installUX,UI_VERSION} from './ux.mjs?v=0.5.0';
 import {createWorldStore,saveLabel} from './storage.mjs?v=0.5.0';
 import {installNavigation} from './navigation.mjs?v=0.5.0';
 import {createWorldMapView,WORLD_MAP_VERSION,MAP_AUTHORITY} from './worldsim-map.mjs?v=0.5.0';
-import {worldBounds} from './world-bounds.mjs?v=0.5.0';
+import {coreWorldBounds,worldBounds} from './world-bounds.mjs?v=0.5.0';
 import {VERSION,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
 import {evaluateModularHouses} from './housing.mjs?v=0.5.0';
 import {drawPiece,structureDrawInfo,structureDepth,roofNeighbours} from './building-visuals.mjs?v=0.5.0';
@@ -13,9 +13,11 @@ import {installAdventureUI} from './adventure-ui.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,independentUI=null,adventureUI=null,nav=null,worldMapView=null;
-const store=createWorldStore({getStorage:()=>localStorage,serialize,restore});
-const defaultFocusFor=s=>{const b=worldBounds(s);return {x:Math.round((b.w-1)*11/29),y:Math.round((b.h-1)*12/25)};};
-let state=createWorld(230926,{mode:document.documentElement.dataset.defaultWorld??'legacy',worldProfile:document.documentElement.dataset.worldProfile??'legacy'}),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
+const publicWorldProfile=document.documentElement.dataset.worldProfile??'legacy';
+const restoreForPublic=text=>restore(text,{sameWorld:publicWorldProfile==='same-world'});
+const store=createWorldStore({getStorage:()=>localStorage,serialize,restore:restoreForPublic});
+const defaultFocusFor=s=>{const b=coreWorldBounds(s);return {x:Math.round((b.w-1)*11/29),y:Math.round((b.h-1)*12/25)};};
+let state=createWorld(230926,{mode:document.documentElement.dataset.defaultWorld??'legacy',worldProfile:publicWorldProfile}),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
 let toastTimer,ground,cw=0,ch=0,dpr=1,zoom=innerWidth<700?1.12:1.25,pan={x:0,y:0};
 let focus=defaultFocusFor(state),follow=false,positions=new Map(),lastUi=0,lastFrame=0,accumulator=0;
 const hw=27,hh=13.5;
@@ -25,7 +27,7 @@ const loaded=store.load();if(loaded)state=loaded;
 if(store.status().kind==='protected')toast('เซฟเดิมมีปัญหา จึงยังไม่เขียนทับ · สำรองไฟล์เดิมได้ในเมนู');
 else if(store.status().kind==='unavailable')toast('เบราว์เซอร์ไม่ให้เข้าถึงบันทึก · ส่งออกไฟล์เพื่อเก็บโลกไว้');
 else if(loaded)toast('กลับสู่โลกเดิม · วันที่ '+day(state));
-if(isIndependent(state)){selected=null;const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=b.profile==='large'?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}
+if(isIndependent(state)){selected=null;const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=['large','same-world'].includes(b.profile)?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}
 function save(manual=false){const result=store.save(state);nav?.update();if(manual)toast(result.ok?'บันทึกโลกในเบราว์เซอร์นี้แล้ว':result.reason==='protected'?'ยังไม่เขียนทับเซฟเดิม · สำรองไฟล์ก่อนเริ่มโลกใหม่':'บันทึกไม่ได้ · ใช้ส่งออกไฟล์เพื่อเก็บโลกไว้');return result;}
 function portrait(a){const p=a.appearance;return `<svg class="portrait" viewBox="0 0 60 68" aria-label="${esc(a.name)}"><rect width="60" height="68" fill="#3b5747"/><circle cx="30" cy="31" r="27" fill="#667954" opacity=".35"/><path d="M7 69Q7 46 30 46Q53 46 53 69" fill="${p.coat}"/><path d="M25 43h10v10l-5 5-5-5" fill="${p.skin}"/><path d="M16 28Q12 10 30 9Q47 9 45 31L43 49H17Z" fill="${p.hair}"/><ellipse cx="30" cy="32" rx="12" ry="16" fill="${p.skin}"/><path d="${p.style===0?'M17 29Q13 9 31 10Q49 13 43 28L36 19 23 22Z':p.style===1?'M17 29Q12 12 30 10Q48 11 44 31L37 16 29 24Z':'M16 28Q12 8 31 9Q49 12 44 29L41 17 32 14 21 22Z'}" fill="${p.hair}"/><path d="M22 30h5m7 0h5" stroke="#4c392e" stroke-width="1.4"/><circle cx="25" cy="33" r="1.3" fill="#24352d"/><circle cx="36" cy="33" r="1.3" fill="#24352d"/><path d="M30 34v5h2M26 43q4 3 8 0" fill="none" stroke="#a66c54" stroke-width="1"/><path d="M19 52l11 7 11-7M30 59v10" stroke="#eee4ba88" stroke-width="1" fill="none"/></svg>`;}
 function polygon(c,points,fill,stroke=null){c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fillStyle=fill;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=.7;c.stroke();}}
@@ -413,13 +415,14 @@ $('dialog-body').addEventListener('click',e=>{
  if(action==='reset'){openDialog('เริ่มโลกใหม่','NEW WORLD',`<p>โลกปัจจุบันในเบราว์เซอร์จะถูกแทนที่ ควรส่งออกไฟล์ก่อน กรอก seed เดิมเพื่อเริ่มด้วยแผนที่และตัวละครตั้งต้นเหมือนเดิม</p><label for="world-mode">รูปแบบโลก</label><select id="world-mode" class="seed-input"><option value="independent">ชีวิตอิสระ — แยกเริ่มชีวิตและสร้างบ้านตัวเอง</option><option value="legacy">หมู่บ้านแบบเดิม (สำหรับเซฟเก่า)</option></select><label for="seed-input">World seed</label><input id="seed-input" class="seed-input" type="number" min="0" max="4294967295" value="${state.seed}"><div class="dialog-actions"><button class="primary" data-action="confirm-reset">เริ่มใหม่และแทนที่บันทึก</button><button class="secondary" data-action="export">ส่งออกโลกปัจจุบัน</button></div>`);return;}
  if(action==='confirm-reset'){
   const seed=Number($('seed-input').value);if(!Number.isInteger(seed)||seed<0||seed>4294967295){toast('กรอก seed เป็นจำนวนเต็ม 0–4294967295');return;}
-  state=createWorld(seed,{mode:$('world-mode').value});store.allowReplacement();paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus={x:11,y:12};pan={x:0,y:0};if(isIndependent(state)){selected=null;focus={x:14,y:12};zoom=innerWidth<700?.55:.95;}makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
+  const worldMode=$('world-mode').value;
+  state=createWorld(seed,{mode:worldMode,worldProfile:worldMode==='independent'?publicWorldProfile:'legacy'});store.allowReplacement();paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus=defaultFocusFor(state);pan={x:0,y:0};if(isIndependent(state)){selected=null;const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=['large','same-world'].includes(b.profile)?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
  }
  if(action==='help')openDialog('ดูโลกที่กำลังคิดและสร้างเอง','HOW TO PLAY',`<p><b>1. แตะสิ่งที่อยู่ในโลก</b><br>Clone เปิด Inspector · Camp เปิด Cultural Archive · Crafting Table เปิดสูตรโต๊ะ · Furnace เปิด Charcoal · บ้านเปิด Housing status</p><p><b>2. เมนูรวมใช้ดูภาพรวม</b><br>Survival / Systems / Items แยกหน้าที่ชัดเจน และไม่ถือ action ของสิ่งปลูกสร้างแทนตัวสิ่งปลูกสร้าง</p><p><b>3. ปล่อยให้ AI ดำเนินโลก</b><br>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การสร้าง Clone แบบ manual ยังทำได้จาก Inspector แต่ไม่ใช่แกนหลัก</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">LIVE คือ authority จริง · READY คือระบบพร้อมแต่ policy เต็มยังไม่เปิด · SHADOW คือการคำนวณเพื่อสังเกตโดยยังไม่เขียนผลจริง</div>`);
 });
-$('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>HISTORY_LIMITS.maxSaveCharacters*3)throw new Error('ไฟล์ใหญ่เกินงบการนำเข้า');const candidate=restore(await file.text());
+$('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>HISTORY_LIMITS.maxSaveCharacters*3)throw new Error('ไฟล์ใหญ่เกินงบการนำเข้า');const candidate=restoreForPublic(await file.text());
  openDialog('นำเข้าโลกที่บันทึกไว้','IMPORT WORLD',`<p>วันที่ ${day(candidate)} · ประชากร ${living(candidate).length} คน<br>การนำเข้าจะแทนที่โลกปัจจุบันในเบราว์เซอร์</p><div class="dialog-actions"><button id="confirm-import" class="primary">ยืนยันนำเข้า</button><button class="secondary" data-action="cancel">ยกเลิก</button></div>`);
- $('confirm-import').onclick=()=>{state=candidate;store.allowReplacement();selected=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus={x:11,y:12};pan={x:0,y:0};makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
+ $('confirm-import').onclick=()=>{state=candidate;store.allowReplacement();selected=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus=defaultFocusFor(state);pan={x:0,y:0};if(isIndependent(state)){const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=['large','same-world'].includes(b.profile)?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
  }catch(error){toast('นำเข้าไม่ได้: '+error.message);}});
 $('inspector').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.ui==='close'){selected=null;follow=false;}else if(b.dataset.tab){tab=b.dataset.tab;frameSelected();}else if(b.dataset.ui==='follow'){follow=!follow;const a=state.agents.find(a=>a.id===selected);if(a){focus={x:a.x,y:a.y};pan={x:0,y:0};}}updateUI();});
 $('pause').onclick=()=>{paused=!paused;accumulator=0;updateUI();};
@@ -430,7 +433,7 @@ $('observe').onclick=observe;
 $('recent-events').onclick=e=>{const id=e.target.closest('[data-event]')?.dataset.event;if(!id)return;const ev=state.events.find(e=>e.id===Number(id));if(ev?.agentId)selectAgent(ev.agentId,true);else history();};
 for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===b));const n=b.dataset.nav;if(n==='people')roster();else if(n==='systems')systems();else if(n==='rust')ux?.openRust();else if(n==='history')history();else{selected=null;follow=false;observe();}};
 $('recenter').onclick=()=>{const a=state.agents.find(a=>a.alive);focus=a?{x:a.x,y:a.y}:defaultFocusFor(state);pan={x:0,y:0};follow=false;};
-const setZoom=z=>{const min=worldBounds(state).profile==='large'?.3:.5;zoom=Math.max(min,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
+const setZoom=z=>{const min=['large','same-world'].includes(worldBounds(state).profile)?.3:.5;zoom=Math.max(min,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
 canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
 function structureTargetAtScreen(sx,sy){
  const rows=[];

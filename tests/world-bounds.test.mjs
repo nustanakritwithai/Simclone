@@ -9,6 +9,7 @@ import {
   WORLD_BOUNDS_VERSION,
   LEGACY_WORLD_BOUNDS,
   LARGE_WORLD_BOUNDS,
+  SAME_WORLD_BOUNDS,
   boundsForProfile,
   worldBounds,
   worldCellCount
@@ -46,13 +47,15 @@ test('MX1 large world generation is byte-deterministic for the same seed and pro
   assert.equal(serialize(a),serialize(b));
 });
 
-test('MX1 large save/load preserves explicit bounds and deterministic continuation',()=>{
+test('SWA1 restore accepts released Large saves and upgrades them to one Same-World map',()=>{
   const a=createWorld(99,{mode:'independent',worldProfile:'large'});
-  step(a,40);const text=serialize(a),b=restore(text);
-  assert.deepEqual(worldBounds(b),LARGE_WORLD_BOUNDS);
-  assert.equal(serialize(b),text);
-  step(a,80);step(b,80);
-  assert.equal(serialize(a),serialize(b));
+  step(a,40);const b=restore(serialize(a),{sameWorld:true});
+  assert.deepEqual(worldBounds(b),SAME_WORLD_BOUNDS);
+  assert.equal(b.tiles.length,84*52);
+  const text=serialize(b),c=restore(text,{sameWorld:true});
+  assert.equal(serialize(c),text);
+  step(b,80);step(c,80);
+  assert.equal(serialize(b),serialize(c));
 });
 
 test('WorldSim map and WM4.8 zones cover all 3120 large-world cells',()=>{

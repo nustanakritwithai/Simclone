@@ -7,7 +7,7 @@ import {isIndependent,guardianOf} from './individual-resources.mjs?v=0.5.0';
  */
 import {evaluateModularHouses,nextHousePiece} from './housing.mjs?v=0.5.0';
 import {canPlaceStation,foundationAt} from './rust-stations.mjs?v=0.5.0';
-import {worldBounds} from './world-bounds.mjs?v=0.5.0';
+import {coreWorldBounds,worldBounds} from './world-bounds.mjs?v=0.5.0';
 import {chooseSmartHomeSite} from './home-site-scoring.mjs?v=0.5.0';
 
 export const INDIVIDUAL_HOME_VERSION='IC1-0.1';
@@ -53,7 +53,7 @@ function hasAdjacentFoundation(s,x,y){
  * risk and private spatial knowledge belong to later IC slices.
  */
 function reachableCells(s,a,isWalkable){
- const bounds=worldBounds(s),seen=new Set(),queue=[];
+ const bounds=coreWorldBounds(s),seen=new Set(),queue=[];
  if(!isWalkable(s,a.x,a.y))return seen;
  seen.add(a.x+':'+a.y);queue.push({x:a.x,y:a.y});
  for(let i=0;i<queue.length;i++)for(const [dx,dy] of DELTA){
@@ -74,7 +74,7 @@ export function personalHomeSite(s,a,isWalkable=()=>true){
   return canPlaceStation(s,{pieceKind:'WOOD_FOUNDATION',socket:{type:'cell',x,y}},isWalkable,{actor:false}).ok;
  };
  if(isIndependent(s)&&a.homePlan&&legal(a.homePlan.x,a.homePlan.y))return {houseId:null,origin:{x:a.homePlan.x,y:a.homePlan.y},existing:false};
- const smart=isIndependent(s)&&worldBounds(s).profile==='large',candidates=[];
+ const smart=isIndependent(s)&&['large','same-world'].includes(worldBounds(s).profile),candidates=[];
  for(let r=INDIVIDUAL_HOME_RULES.siteMinRadius;r<=INDIVIDUAL_HOME_RULES.siteMaxRadius;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
   if(Math.abs(dx)!==r&&Math.abs(dy)!==r)continue;
   const x=a.x+dx,y=a.y+dy;if(!legal(x,y))continue;

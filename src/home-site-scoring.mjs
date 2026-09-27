@@ -3,8 +3,8 @@
  * already knows. It must not inspect remote hidden resource amounts or social
  * state owned by the in-flight IC7 authority.
  */
-import {worldBounds} from './world-bounds.mjs?v=0.5.0';
-import {worldRegionAt} from './world-regions.mjs?v=0.5.0';
+import {coreWorldBounds,worldBounds} from './world-bounds.mjs?v=0.5.0';
+import {worldRegionAtState} from './world-regions.mjs?v=0.5.0';
 import {KNOWLEDGE_REVISION_RULES} from './knowledge-revision.mjs?v=0.5.0';
 import {BELIEF_STATUS} from './knowledge.mjs?v=0.5.0';
 
@@ -43,25 +43,25 @@ function knownResources(state,agent){
 }
 
 function adjacentWater(state,site){
-  const bounds=worldBounds(state);
+  const physical=worldBounds(state),bounds=coreWorldBounds(state);
   let n=0;
   for(const [dx,dy] of [[0,-1],[1,0],[0,1],[-1,0]]){
     const x=site.x+dx,y=site.y+dy;
     if(x<0||y<0||x>=bounds.w||y>=bounds.h)continue;
-    if(state.tiles[y*bounds.w+x]==='water')n++;
+    if(state.tiles[y*physical.w+x]==='water')n++;
   }
   return n;
 }
 
 export function smartHomeSiteEvidence(state,agent,site){
-  const bounds=worldBounds(state);
-  if(bounds.profile!=='large')return Object.freeze({version:SMART_HOME_SITE_VERSION,eligible:false,reason:'legacy-profile',score:0});
+  const physical=worldBounds(state),bounds=coreWorldBounds(state);
+  if(!['large','same-world'].includes(physical.profile))return Object.freeze({version:SMART_HOME_SITE_VERSION,eligible:false,reason:'legacy-profile',score:0});
   if(!agent?.alive||!Number.isInteger(site?.x)||!Number.isInteger(site?.y)||
     site.x<0||site.y<0||site.x>=bounds.w||site.y>=bounds.h)
     return Object.freeze({version:SMART_HOME_SITE_VERSION,eligible:false,reason:'input',score:-Infinity});
 
   const known=knownResources(state,agent),travel=distance(agent,site),local=travel<=KNOWLEDGE_REVISION_RULES.observationRange;
-  const region=local?worldRegionAt(state.seed,bounds,site.x,site.y).region:null;
+  const region=local?worldRegionAtState(state,site.x,site.y).region:null;
   const water=local?adjacentWater(state,site):0;
   const nearest={};let resourceScore=0;
   for(const type of TYPES){
