@@ -4,6 +4,7 @@ import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
 import {resolveAdventureCombat} from './adventure-combat.mjs?v=0.5.0';
 import {agentHpFromCombatRatio} from './adventure-combat-stats.mjs?v=0.5.0';
 import {adventureCombatLoadoutSnapshot,validateAdventureCombatLoadoutSnapshot} from './adventure-equipment-bridge.mjs?v=0.5.0';
+import {wildMonsterById} from './adventure-world-monsters.mjs?v=0.5.0';
 
 export const ADVENTURE_COMBAT_SESSION_VERSION='adventure-combat-session/v1';
 export const ADVENTURE_COMBAT_SESSION_STATUSES=Object.freeze(['ACTIVE','VICTORY','DEFEATED']);
@@ -23,7 +24,8 @@ const freeze=value=>{
   Object.freeze(value);for(const child of Object.values(value))freeze(child);return value;
 };
 
-function monsterProfile(session,hpCurrent=session.monsterHpCurrent){
+function monsterProfile(session,hpCurrent){
+  if(hpCurrent===undefined)hpCurrent=session.monsterHpCurrent;
   const stats=monsterStatsAtLevel(session.monsterId,session.monsterLevel);
   const def=monsterDefinition(session.monsterId);
   if(!stats.ok||!def)throw new Error('monster_profile');
@@ -41,17 +43,26 @@ export function startAdventureCombatSession(state,agent,encounter){
   if(!encounter||encounter.status!=='READY'||encounter.x!==agent.x||encounter.y!==agent.y)throw new Error('combat_encounter');
   const monster=monsterStatsAtLevel(encounter.monsterId,encounter.monsterLevel);
   if(!monster.ok)throw new Error('combat_monster');
+  const worldMonster=encounter.worldMonsterId?wildMonsterById(state,encounter.worldMonsterId):null;
+  if(encounter.worldMonsterId){
+    if(!worldMonster||worldMonster.status!=='IDLE'||worldMonster.hpCurrent<=0||
+      worldMonster.monsterId!==encounter.monsterId||worldMonster.zoneId!==encounter.zoneId||
+      worldMonster.level!==encounter.monsterLevel||worldMonster.rank!==encounter.rank||
+      Math.abs(worldMonster.x-agent.x)+Math.abs(worldMonster.y-agent.y)!==1)throw new Error('combat_world_monster');
+  }
   const loadout=adventureCombatLoadoutSnapshot(state,agent.id);
   neutralAdventurerCombatProfile(agent,encounter.adventureLevel,loadout.modifiers);
   const combatId='advcombat:'+encounter.encounterId;
-  return freeze({
+  const base={
     version:ADVENTURE_COMBAT_SESSION_VERSION,
     combatId,encounterId:encounter.encounterId,expeditionId:encounter.expeditionId,
     status:'ACTIVE',zoneId:encounter.zoneId,monsterId:encounter.monsterId,monsterLevel:encounter.monsterLevel,rank:encounter.rank,
     adventureLevel:encounter.adventureLevel,x:encounter.x,y:encounter.y,startedTick:state.tick,turn:0,
-    monsterHpMax:monster.stats.hp,monsterHpCurrent:monster.stats.hp,
+    monsterHpMax:monster.stats.hp,
     loadout,lastTurn:null,
-  });
+  };
+  if(worldMonster)return freeze({...base,worldMonsterId:worldMonster.worldMonsterId});
+  return freeze({...base,monsterHpCurrent:monster.stats.hp});
 }
 
 export function validateAdventureCombatState(state,agent){
@@ -64,9 +75,24 @@ export function validateAdventureCombatState(state,agent){
   if(!integer(c.adventureLevel,1)||c.adventureLevel>60||!integer(c.monsterLevel,1)||c.monsterLevel>60)return bad;
   if(!integer(c.x,0)||!integer(c.y,0)||agent.x!==c.x||agent.y!==c.y)return bad;
   const monster=monsterStatsAtLevel(c.monsterId,c.monsterLevel);if(!monster.ok)return bad;
-  if(c.monsterHpMax!==monster.stats.hp||!integer(c.monsterHpCurrent,0)||c.monsterHpCurrent>c.monsterHpMax)return bad;
-  if(c.status==='ACTIVE'&&c.monsterHpCurrent===0)return bad;
-  if(c.status==='VICTORY'&&c.monsterHpCurrent!==0)return bad;
+  if(c.monsterHpMax!==monster.stats.hp)return bad;
+  const worldBound=typeof c.worldMonsterId==='string';
+  let terminalHp=null;
+  if(worldBound){
+    if(Object.prototype.hasOwnProperty.call(c,'monsterHpCurrent'))return bad;
+    const entity=wildMonsterById(state,c.worldMonsterId);
+    if(!entity||entity.monsterId!==c.monsterId||entity.zoneId!==c.zoneId||entity.level!==c.monsterLevel||entity.rank!==c.rank||
+      entity.hpMax!==c.monsterHpMax||Math.abs(entity.x-agent.x)+Math.abs(entity.y-agent.y)!==1)return bad;
+    terminalHp=entity.hpCurrent;
+    if(c.status==='ACTIVE'&&(entity.status!=='ENGAGED'||entity.engagedByAgentId!==agent.id||entity.hpCurrent<=0))return bad;
+    if(c.status==='VICTORY'&&(entity.status!=='ENGAGED'||entity.engagedByAgentId!==agent.id||entity.hpCurrent!==0))return bad;
+    if(c.status==='DEFEATED'&&(entity.status!=='IDLE'||entity.engagedByAgentId!==null||entity.hpCurrent<=0))return bad;
+  }else{
+    if(!integer(c.monsterHpCurrent,0)||c.monsterHpCurrent>c.monsterHpMax)return bad;
+    terminalHp=c.monsterHpCurrent;
+    if(c.status==='ACTIVE'&&terminalHp===0)return bad;
+    if(c.status==='VICTORY'&&terminalHp!==0)return bad;
+  }
   if(c.status==='DEFEATED'&&agent.hp<=0)return bad;
   if((c.status==='ACTIVE'||c.loadout!==undefined)&&validateAdventureCombatLoadoutSnapshot(c.loadout).length)return bad;
   if(c.lastTurn!==null){
@@ -84,7 +110,9 @@ export function resolveAdventureCombatTurnProposal(state,agent,session,{action}=
   if(!(agent.hp>0))throw new Error('combat_hp');
 
   const hero=neutralAdventurerCombatProfile(agent,session.adventureLevel,session.loadout.modifiers);
-  const monsterBefore=monsterProfile(session);
+  const worldMonster=session.worldMonsterId?wildMonsterById(state,session.worldMonsterId):null;
+  const monsterHpBefore=worldMonster?worldMonster.hpCurrent:session.monsterHpCurrent;
+  const monsterBefore=monsterProfile(session,monsterHpBefore);
   const heroOutcome=resolveAdventureCombat({
     attacker:hero,defender:monsterBefore,action:ADVENTURE_BASIC_ATTACK,
     rng:{seed:state.seed,ticket:session.combatId+':turn:'+session.turn+':hero',sequence:session.turn}
@@ -111,9 +139,11 @@ export function resolveAdventureCombatTurnProposal(state,agent,session,{action}=
     turn:session.turn,status,
     heroDamage:heroOutcome.damage,heroHit:heroOutcome.hit,heroCritical:heroOutcome.critical,
     counterDamage:counterOutcome?.damage??0,counterHit:counterOutcome?.hit??false,counterCritical:counterOutcome?.critical??false,
-    monsterHpBefore:session.monsterHpCurrent,monsterHpAfter,
+    monsterHpBefore,monsterHpAfter,
     agentHpBefore:agent.hp,agentHpAfter,
   });
-  const nextSession=freeze({...session,status,turn:session.turn+1,monsterHpCurrent:monsterHpAfter,lastTurn});
-  return freeze({session:nextSession,agentHpAfter,heroOutcome,counterOutcome});
+  const nextSession=session.worldMonsterId
+    ?freeze({...session,status,turn:session.turn+1,lastTurn})
+    :freeze({...session,status,turn:session.turn+1,monsterHpCurrent:monsterHpAfter,lastTurn});
+  return freeze({session:nextSession,agentHpAfter,monsterHpBefore,monsterHpAfter,heroOutcome,counterOutcome});
 }
