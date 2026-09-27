@@ -10,6 +10,8 @@ import {
   WILD_MONSTER_WORLD_VERSION,
   WILD_MONSTER_INITIAL_COUNT,
   WILD_MONSTER_INITIAL_PER_ZONE,
+  WILD_MONSTER_TYPES_PER_ZONE,
+  WILD_MONSTER_COPIES_PER_TYPE,
   createInitialWildMonsterWorld,
   ensureWildMonsterWorld,
   validateWildMonsterWorld,
@@ -20,26 +22,31 @@ const SEEDS=[230926,42,2026];
 
 function clone(value){return JSON.parse(JSON.stringify(value));}
 
-test('SWA2 fresh Same-World creates exactly 12 deterministic physical monsters',()=>{
+test('SWA2 fresh Same-World creates two physical instances of each existing monster type',()=>{
   for(const seed of SEEDS){
     const a=createWorld(seed,{mode:'independent',worldProfile:'same-world'});
     const b=createWorld(seed,{mode:'independent',worldProfile:'same-world'});
     assert.equal(a.wildMonsters.version,WILD_MONSTER_WORLD_VERSION);
     assert.equal(a.wildMonsters.entities.length,WILD_MONSTER_INITIAL_COUNT);
-    assert.equal(WILD_MONSTER_INITIAL_COUNT,12);
+    assert.equal(WILD_MONSTER_INITIAL_COUNT,24);
     assert.deepEqual(b.wildMonsters,a.wildMonsters);
     assert.equal(validateWildMonsterWorld(a).length,0);
     assert.equal(validate(a).length,0);
 
     const ids=new Set(a.wildMonsters.entities.map(m=>m.worldMonsterId));
     const forms=new Set(a.wildMonsters.entities.map(m=>m.monsterId));
-    assert.equal(ids.size,12);
+    assert.equal(ids.size,24);
     assert.equal(forms.size,12);
 
     for(const zoneId of ['z1','z2','z3','z4']){
       const rows=a.wildMonsters.entities.filter(m=>m.zoneId===zoneId);
       assert.equal(rows.length,WILD_MONSTER_INITIAL_PER_ZONE);
-      assert.equal(new Set(rows.map(m=>m.spawnSlot)).size,3);
+      assert.equal(rows.length,6);
+      assert.equal(new Set(rows.map(m=>m.spawnSlot)).size,6);
+      const byType=new Map();
+      for(const row of rows)byType.set(row.monsterId,(byType.get(row.monsterId)??0)+1);
+      assert.equal(byType.size,WILD_MONSTER_TYPES_PER_ZONE);
+      assert.ok([...byType.values()].every(count=>count===WILD_MONSTER_COPIES_PER_TYPE));
     }
   }
 });
@@ -98,7 +105,7 @@ test('SWA2 public migration adds monsters once to released Large and SWA1 Same-W
   step(large,37);
   const migrated=restore(serialize(large),{sameWorld:true});
   assert.equal(worldBounds(migrated).profile,'same-world');
-  assert.equal(migrated.wildMonsters.entities.length,12);
+  assert.equal(migrated.wildMonsters.entities.length,24);
   assert.ok(migrated.wildMonsters.entities.every(m=>m.spawnedTick===37));
   const once=serialize(migrated),again=restore(once,{sameWorld:true});
   assert.equal(serialize(again),once);
@@ -106,9 +113,47 @@ test('SWA2 public migration adds monsters once to released Large and SWA1 Same-W
   const swa1=clone(migrated);
   delete swa1.wildMonsters;
   const upgraded=restore(JSON.stringify(swa1));
-  assert.equal(upgraded.wildMonsters.entities.length,12);
+  assert.equal(upgraded.wildMonsters.entities.length,24);
   const upgradedText=serialize(upgraded);
   assert.equal(serialize(restore(upgradedText,{sameWorld:true})),upgradedText);
+});
+
+
+test('SWA2 migrates released 12-monster saves to two copies per existing type without changing original IDs',()=>{
+  const fresh=createWorld(230926,{mode:'independent',worldProfile:'same-world'});
+  step(fresh,17);
+  const legacy=clone(fresh);
+  legacy.wildMonsters.version='SWA2-0.1';
+  legacy.wildMonsters.policy='three-per-zone-static-v1';
+  legacy.wildMonsters.entities=legacy.wildMonsters.entities.filter(m=>m.spawnSlot<WILD_MONSTER_TYPES_PER_ZONE);
+  assert.equal(legacy.wildMonsters.entities.length,12);
+  const originals=legacy.wildMonsters.entities.map(m=>({
+    worldMonsterId:m.worldMonsterId,monsterId:m.monsterId,zoneId:m.zoneId,level:m.level,rank:m.rank,spawnSlot:m.spawnSlot
+  }));
+
+  const upgraded=restore(JSON.stringify(legacy));
+  assert.equal(upgraded.wildMonsters.version,WILD_MONSTER_WORLD_VERSION);
+  assert.equal(upgraded.wildMonsters.policy,'two-per-existing-type-v1');
+  assert.equal(upgraded.wildMonsters.entities.length,24);
+  for(const before of originals){
+    const after=upgraded.wildMonsters.entities.find(m=>m.worldMonsterId===before.worldMonsterId);
+    assert.ok(after);
+    assert.equal(after.monsterId,before.monsterId);
+    assert.equal(after.zoneId,before.zoneId);
+    assert.equal(after.level,before.level);
+    assert.equal(after.rank,before.rank);
+    assert.equal(after.spawnSlot,before.spawnSlot);
+  }
+  for(const zoneId of ['z1','z2','z3','z4']){
+    const rows=upgraded.wildMonsters.entities.filter(m=>m.zoneId===zoneId);
+    const byType=new Map();
+    for(const row of rows)byType.set(row.monsterId,(byType.get(row.monsterId)??0)+1);
+    assert.equal(byType.size,3);
+    assert.ok([...byType.values()].every(count=>count===2));
+  }
+  assert.deepEqual(validate(upgraded),[]);
+  const once=serialize(upgraded);
+  assert.equal(serialize(restore(once)),once);
 });
 
 test('SWA2 ensure is idempotent and direct creation is deterministic',()=>{
