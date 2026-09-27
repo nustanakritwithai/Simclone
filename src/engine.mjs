@@ -17,7 +17,7 @@ import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,re
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession,noteExploreCompletion,validateAdventurerQualification} from './kingdom-utility.mjs?v=0.5.0';
 import {ADVENTURE_SKILL,ensureAdventureProgressionSkill,inheritedAdventureXp,validateAdventureProgression} from './adventure-progression.mjs?v=0.5.0';
 import {adventureProgressionSnapshot} from './adventure-progression.mjs?v=0.5.0';
-import {findAdventureZoneEntry,createAdventureExpeditionTask,adventureExpeditionTaskValid,completeAdventureExpedition,findAdventureMonsterEngagement,createAdventureHuntTask,completeAdventureHunt,validateAdventureEncounterState} from './adventure-expedition.mjs?v=0.5.0';
+import {findAdventureZoneEntry,createAdventureExpeditionTask,adventureExpeditionTaskValid,completeAdventureExpedition,findAdventureMonsterEngagement,createAdventureHuntTask,completeAdventureHunt,validateAdventureEncounterState,ADVENTURE_HUNT_AUTONOMOUS_POLICY} from './adventure-expedition.mjs?v=0.5.0';
 import {startAdventureCombatSession,resolveAdventureCombatTurnProposal,validateAdventureCombatState} from './adventure-combat-session.mjs?v=0.5.0';
 import {commitVerifiedAdventureCombatReward,validateAdventureCombatRewardState} from './adventure-combat-reward.mjs?v=0.5.0';
 import {claimVerifiedAdventureLoot,validateAdventureLootClaimState} from './adventure-loot-commit.mjs?v=0.5.0';
@@ -42,7 +42,7 @@ import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,wo
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventure-annex.mjs?v=0.5.0';
 import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement,defeatWildMonster,stepWildMonsterLifecycle,migrateWildMonsterLifecycleState} from './adventure-world-monsters.mjs?v=0.5.0';
-import {autonomousAdventureIntent} from './adventure-autonomy.mjs?v=0.5.0';
+import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adventure-autonomy.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -240,12 +240,16 @@ export function command(s,type,data={}){
     if(claimed)return {ok:false,reason:'monster-busy',message:'มอนสเตอร์ตัวนี้มีนักผจญภัยกำลังเข้าหาอยู่'};
     const progression=adventureProgressionSnapshot(a);
     if(!progression)return {ok:false,reason:'progression',message:'Adventure progression ไม่ถูกต้อง'};
+    if(data.control==='autonomous'){
+      const expected=chooseAutonomousAdventureTarget(s,a);
+      if(!expected||expected.worldMonsterId!==monster.worldMonsterId)return {ok:false,reason:'target-policy',message:'AI ต้องเลือกมอนสเตอร์ตามระดับ Adventure ก่อน'};
+    }
     let engagement;
     try{engagement=findAdventureMonsterEngagement(s,a,monster.worldMonsterId,progression.level,{walkable,routeField,routeDistance});}
     catch(error){return {ok:false,reason:error.message,message:'เดินไปหามอนสเตอร์ไม่ได้'};}
     const path=pathTo(s,a,engagement);
     if(!path)return {ok:false,reason:'no-path',message:'ไม่มีเส้นทางเดินไปหามอนสเตอร์'};
-    a.task=createAdventureHuntTask(s,a,monster.worldMonsterId,progression.level,engagement,path,{control:data.control==='autonomous'?'autonomous':null});
+    a.task=createAdventureHuntTask(s,a,monster.worldMonsterId,progression.level,engagement,path,{control:data.control==='autonomous'?'autonomous':null,targetPolicy:data.control==='autonomous'?ADVENTURE_HUNT_AUTONOMOUS_POLICY:null});
     a.moveTick=0;
     event(s,'adventure',a.name+' ออกล่า '+monster.monsterId+' ที่ '+monster.zoneId,a.id);
     return {ok:true,agentId:a.id,worldMonsterId:monster.worldMonsterId,zoneId:monster.zoneId,target:{x:engagement.x,y:engagement.y},monster:{x:monster.x,y:monster.y},pathLength:path.length};
@@ -824,10 +828,22 @@ function migrateKnowledge(s){
   for(const a of allPeople(s))if(!a.knowledgeState)a.knowledgeState=createKnowledgeState();
   return s;
 }
+function migrateAutonomousAdventurePolicy(s){
+  for(const a of s?.agents??[]){
+    if(a.task?.adventureHunt?.control==='autonomous'&&a.task.adventureHunt.targetPolicy!==ADVENTURE_HUNT_AUTONOMOUS_POLICY){
+      a.task=null;a.moveTick=0;
+    }
+    if(a.adventureEncounter?.control==='autonomous'&&a.adventureEncounter.targetPolicy!==ADVENTURE_HUNT_AUTONOMOUS_POLICY){
+      a.adventureEncounter=null;
+    }
+  }
+  return s;
+}
 function migrateSave(s,{sameWorld=false}={}){
   if(!s)return s;
   if(sameWorld)expandLargeWorldToSameWorld(s);
   if(s?.worldBounds?.profile==='same-world'){ensureWildMonsterWorld(s);migrateWildMonsterLifecycleState(s);}
+  migrateAutonomousAdventurePolicy(s);
   const sourceVersion=s.version;
   if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);ensureSettlementState(s);ensureGovernanceState(s);return s;} // additive social/settlement/governance state migrates deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.

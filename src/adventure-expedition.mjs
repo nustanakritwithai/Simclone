@@ -7,6 +7,7 @@ import {wildMonsterById} from './adventure-world-monsters.mjs?v=0.5.0';
 export const ADVENTURE_EXPEDITION_VERSION='adventure-expedition/v1';
 export const ADVENTURE_ENCOUNTER_STATE_VERSION='adventure-encounter-state/v1';
 export const ADVENTURE_HUNT_VERSION='adventure-hunt/v1';
+export const ADVENTURE_HUNT_AUTONOMOUS_POLICY='level-grinding/v1';
 
 const ZONE_SPATIAL_RATIOS=Object.freeze({
   z1:Object.freeze([.55,.65]),
@@ -87,7 +88,8 @@ export function adventureHuntId(agentId,started,worldMonsterId,x,y){
   return 'advhunt:'+agentId+':'+started+':'+worldMonsterId+':'+x+':'+y;
 }
 
-export function createAdventureHuntTask(state,agent,worldMonsterId,adventureLevel,engagement,path,{control=null}={}){
+export function createAdventureHuntTask(state,agent,worldMonsterId,adventureLevel,engagement,path,{control=null,targetPolicy=null}={}){
+  if(control==='autonomous'&&targetPolicy!==ADVENTURE_HUNT_AUTONOMOUS_POLICY)throw new Error('autonomous_hunt_policy');
   const monster=wildMonsterById(state,worldMonsterId);
   if(!monster||monster.status!=='IDLE'||monster.zoneId!==engagement?.zoneId)throw new Error('monster_unavailable');
   assertAdventureZoneAccess(monster.zoneId,adventureLevel);
@@ -101,7 +103,7 @@ export function createAdventureHuntTask(state,agent,worldMonsterId,adventureLeve
     adventureHunt:Object.freeze({
       version:ADVENTURE_HUNT_VERSION,id,worldMonsterId,zoneId:monster.zoneId,adventureLevel,
       monsterX:monster.x,monsterY:monster.y,targetX:engagement.x,targetY:engagement.y,
-      ...(control==='autonomous'?{control:'autonomous'}:{})
+      ...(control==='autonomous'?{control:'autonomous',targetPolicy}: {})
     })
   };
 }
@@ -110,7 +112,9 @@ function adventureHuntTaskValid(state,agent,task,{walkable}={}){
   const h=task?.adventureHunt;if(!h)return true;
   if(task.adventureExpedition||task.kind!=='EXPLORE'||!agent?.alive||agent.profession!=='adventurer'||agent.adventureEncounter)return false;
   if(h.version!==ADVENTURE_HUNT_VERSION||typeof h.worldMonsterId!=='string'||typeof h.zoneId!=='string'||!integer(h.adventureLevel,1)||
-    (h.control!==undefined&&h.control!=='autonomous'))return false;
+    (h.control!==undefined&&h.control!=='autonomous')||
+    (h.control==='autonomous'&&h.targetPolicy!==ADVENTURE_HUNT_AUTONOMOUS_POLICY)||
+    (h.control===undefined&&h.targetPolicy!==undefined))return false;
   if(!integer(task.started,0)||h.id!==adventureHuntId(agent.id,task.started,h.worldMonsterId,task.x,task.y))return false;
   const monster=wildMonsterById(state,h.worldMonsterId);
   if(!monster||monster.status!=='IDLE'||monster.hpCurrent<=0||monster.zoneId!==h.zoneId||
@@ -139,7 +143,7 @@ export function completeAdventureHunt(state,agent,task){
     encounterId:id,expeditionId:h.id,status:'READY',worldMonsterId:monster.worldMonsterId,
     zoneId:monster.zoneId,monsterId:monster.monsterId,monsterLevel:monster.level,rank:monster.rank,
     adventureLevel:h.adventureLevel,startedTick:task.started,encounterTick:state.tick,x:agent.x,y:agent.y,
-    ...(h.control==='autonomous'?{control:'autonomous'}:{})
+    ...(h.control==='autonomous'?{control:'autonomous',targetPolicy:h.targetPolicy}:{})
   });
 }
 
@@ -194,7 +198,9 @@ export function validateAdventureEncounterState(state,agent){
   if(e===undefined||e===null)return [];
   const bad=['Adventure encounter'];
   if(!e||e.version!==ADVENTURE_ENCOUNTER_STATE_VERSION||e.status!=='READY'||typeof e.encounterId!=='string'||typeof e.expeditionId!=='string'||
-    (e.control!==undefined&&e.control!=='autonomous'))return bad;
+    (e.control!==undefined&&e.control!=='autonomous')||
+    (e.control==='autonomous'&&e.targetPolicy!==ADVENTURE_HUNT_AUTONOMOUS_POLICY)||
+    (e.control===undefined&&e.targetPolicy!==undefined))return bad;
   if(!integer(e.startedTick,0)||!integer(e.encounterTick,e.startedTick)||e.encounterTick>state.tick)return bad;
   if(!integer(e.adventureLevel,1)||!integer(e.monsterLevel,1)||!integer(e.x,0)||!integer(e.y,0))return bad;
   if(agent.x!==e.x||agent.y!==e.y||!isAdventureZoneCell(state,e.zoneId,e.x,e.y))return bad;
