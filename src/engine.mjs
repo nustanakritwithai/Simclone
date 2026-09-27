@@ -15,6 +15,7 @@ import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenan
 import {ensureLeadershipSkill,LEADERSHIP_SKILL,leadershipProfile} from './leadership.mjs?v=0.5.0';
 import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,recordResourceDiscovery,shareKnowledge,withinKnowledgeRange,validateKnowledgeState,activeKnowledge} from './knowledge.mjs?v=0.5.0';
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession,noteExploreCompletion,validateAdventurerQualification} from './kingdom-utility.mjs?v=0.5.0';
+import {ADVENTURE_SKILL,ensureAdventureProgressionSkill,inheritedAdventureXp,validateAdventureProgression} from './adventure-progression.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
@@ -54,7 +55,8 @@ export const SIZE = { w: LEGACY_WORLD_BOUNDS.w, h: LEGACY_WORLD_BOUNDS.h };
 export const DAY_TICKS = LIFE.ticksPerYear;
 export const SKILLS = ['FORAGE', 'WOODCUT', 'MINE', 'BUILD'];
 export const SOCIAL_SKILLS = [LEADERSHIP_SKILL];
-export const ALL_SKILLS = [...SKILLS,...SOCIAL_SKILLS];
+export const ADVENTURE_SKILLS = [ADVENTURE_SKILL];
+export const ALL_SKILLS = [...SKILLS,...SOCIAL_SKILLS,...ADVENTURE_SKILLS];
 export const LABELS = { FORAGE:'หาอาหาร', WOODCUT:'ตัดไม้', MINE:'ขุดหิน', BUILD:'สร้างบ้าน', CRAFT:'คราฟต์', PROCESS:'แปรรูป', EAT:'กินอาหาร', REST:'พักผ่อน', EXPLORE:'สำรวจ', IDLE:'พักรอ' };
 export const clamp = (n, lo=0, hi=100) => Math.max(lo, Math.min(hi, n));
 export const level = skillLevel;
@@ -72,6 +74,7 @@ function createAgent(s,parent,initial=false,mode='manual'){
   const start=scaleLegacyPoint(bounds,9+k%4,11+Math.floor(k/4)%3);
   const skills=Object.fromEntries(SKILLS.map(key=>[key,parent?Math.floor(parent.skills[key]*.35):60]));
   if(isIndependent(s))skills[LEADERSHIP_SKILL]=parent?Math.floor(Number(parent.skills?.[LEADERSHIP_SKILL]??0)*.35):0;
+  if(isIndependent(s))skills[ADVENTURE_SKILL]=parent?inheritedAdventureXp(parent):0;
   const preference=SKILLS[k%4],profession=professionForAction(preference);
   const skillProvenance=createSkillProvenance(id,skills,{kind:parent?'inheritance':'initial',sourceAgentId:parent?.id??null,tick:s.tick});
   const a={id,name:names[k%names.length]+(k>=names.length?' '+id:''),parentId:parent?.id??null,generation:parent?parent.generation+1:0,
@@ -515,6 +518,7 @@ export function validate(s){
     if(a.career!==undefined&&(!Array.isArray(a.career)||a.career.length>8||a.career.some(c=>!c||!Number.isInteger(c.tick)||c.tick<0||c.tick>s.tick||!isKingdomProfession(c.profession))))bad('Career');
     for(const e of validateAdventurerQualification(a,s.tick))bad(e);
     for(const e of validateSkillProvenance(a,requiredSkills))bad(e);
+    for(const e of validateAdventureProgression(a,{required:isIndependent(s)}))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
@@ -602,7 +606,7 @@ function migrateHistory(s,sourceVersion){
 function migrateSkillProvenance(s){
   for(const a of allPeople(s)){
     if(!a.skillProvenance)a.skillProvenance=createLegacySkillProvenance(a.skills);
-    if(isIndependent(s))ensureLeadershipSkill(a,{tick:0});
+    if(isIndependent(s)){ensureLeadershipSkill(a,{tick:0});ensureAdventureProgressionSkill(a,{tick:0});}
   }
   return s;
 }
