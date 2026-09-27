@@ -176,7 +176,7 @@ with sync_playwright() as p:
  huntpage.evaluate("window.__fixtureHidden=false")
  huntpage.wait_for_function("""q=>simclone.snapshot().wildMonsters.entities.some(m=>
    m.zoneId===q.zoneId&&m.spawnSlot===q.spawnSlot&&m.spawnEpoch===q.epoch+1&&m.status==='IDLE')""",
-   {'zoneId':defeated['zoneId'],'spawnSlot':defeated['spawnSlot'],'epoch':old_epoch},timeout=12000)
+   arg={'zoneId':defeated['zoneId'],'spawnSlot':defeated['spawnSlot'],'epoch':old_epoch},timeout=12000)
  huntpage.evaluate("window.__fixtureHidden=true");huntpage.wait_for_timeout(100)
  respawned=next(m for m in snap(huntpage)['wildMonsters']['entities'] if m['zoneId']==defeated['zoneId'] and m['spawnSlot']==defeated['spawnSlot'])
  check('SWA6 Monster respawns as a new deterministic incarnation',
