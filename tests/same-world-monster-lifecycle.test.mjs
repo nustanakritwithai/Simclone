@@ -85,6 +85,25 @@ test('SWA6 terminal result can close without undoing committed XP or Rust state'
   assert.deepEqual(validate(s),[]);
 });
 
+
+test('SWA6 fast respawn is exactly five simulation ticks after a closed victory',()=>{
+  assert.equal(WILD_MONSTER_RESPAWN_TICKS,5);
+  const {s,a,m}=preparedVictory(230926);
+  const oldId=m.worldMonsterId,oldEpoch=m.spawnEpoch,defeated=m.defeatedTick;
+  assert.equal(command(s,'FINISH_ADVENTURE_RESULT',{agentId:a.id}).ok,true);
+  step(s,4);
+  assert.equal(s.tick,defeated+4);
+  assert.equal(m.status,'DEFEATED');
+  assert.equal(m.worldMonsterId,oldId);
+  step(s,1);
+  assert.equal(s.tick,defeated+5);
+  assert.equal(m.status,'IDLE');
+  assert.equal(m.spawnEpoch,oldEpoch+1);
+  assert.notEqual(m.worldMonsterId,oldId);
+  assert.equal(m.hpCurrent,m.hpMax);
+  assert.deepEqual(validate(s),[]);
+});
+
 test('SWA6 respawn waits while terminal combat still references the defeated incarnation',()=>{
   const {s,a,m}=preparedVictory(230926);
   const oldId=m.worldMonsterId,oldEpoch=m.spawnEpoch,due=m.respawnTick;
