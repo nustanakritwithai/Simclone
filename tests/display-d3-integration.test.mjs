@@ -37,8 +37,11 @@ test('D3 overlay helpers are presentation-only and do not dispatch gameplay comm
     source.slice(journeyStart,lifecycleStart),
     source.slice(lifecycleStart,renderStart)
   ];
-  for(const overlay of overlays)for(const forbidden of ['command(','state.','step(','save(','wildMonsters.entities.push','hpCurrent=']){
-    assert.equal(overlay.includes(forbidden),false,forbidden);
+  for(const overlay of overlays){
+    for(const forbidden of ['command(','state.','step(','wildMonsters.entities.push','hpCurrent=']){
+      assert.equal(overlay.includes(forbidden),false,forbidden);
+    }
+    assert.equal(/(^|[^.\\w])save\\(/m.test(overlay),false,'gameplay save(');
   }
 });
 
