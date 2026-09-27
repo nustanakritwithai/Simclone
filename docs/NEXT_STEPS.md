@@ -1,26 +1,35 @@
 # Current handoff — Same-World Adventure Expansion
 
-> **Current verified override — 2026-09-27**
+> **Current verified override — 2026-09-28**
 >
-> Adventure V1 and Same-World Adventure SWA0–SWA7 are RELEASED.
-> Display D0 + DSP1 + D1 are RELEASED on `main@4c75a098f01c179a425e045617f849683250d13b`.
-> Exact-main Pages #97 = SUCCESS.
+> Adventure V1 + Same-World Adventure SWA0–SWA7 are RELEASED.
+> Display D0 + DSP1 + D1 + D2 are RELEASED on `main@b7983c1334a55b70a94d2ee46fcb9ffd9217e950`.
+> Exact-main Pages #98 = SUCCESS.
 >
-> Active gate: **D2 — Unified Selection + Deterministic Hit Resolver**.
-> Required D2 closeout order:
-> 1. pure resolver + unit proof
-> 2. one runtime candidate collector / resolver
-> 3. one canonical world `selection={kind,id}`
-> 4. keep `activeAgentId` only for actor/Inspector context
-> 5. browser proof at 1440×1000, 390×844, 320×740, 844×390
-> 6. overlap/tie matrix + real Monster edge/zoom proof
-> 7. exact-head Verify + D2 proof workflow SAT
-> 8. merge → exact-main Pages SAT
+> User-visible gameplay gap: Adventurer profession exists, but released autonomy never starts Hunt/Combat/Attack by itself.
 >
-> After D2 public SAT: D3 Adventure Journey Visualization → D4 Renderer Architecture → D5 Asset Layer → D6 Performance/Public Visual Release.
-> Adventure V2 remains deferred until D1–D6 close.
+> Active gameplay gate: **Autonomous Adventurer Hunt Loop V1**
+> - safe idle Adventurer selects deterministic reachable physical Monster
+> - uses START_ADVENTURE_HUNT
+> - real Simclone path
+> - READY → START_ADVENTURE_COMBAT
+> - deterministic BASIC_ATTACK cadence
+> - existing reward/loot/result authorities only
+> - survival gates remain above hunting
 >
-> Product lock: one map, one coordinate system, no teleport scene, no renderer-owned gameplay state.
+> Parallel display gate: **D3 Adventure Journey Visualization** on `feature/display-d3-adventure-journey`.
+> D3 may add target/path/combat/damage/defeat/respawn cues, but only as read-only presentation of released gameplay state.
+>
+> Closeout order for the gameplay gap:
+> 1. exact-head Auto Adventure Verify SAT
+> 2. merge without overwriting D3
+> 3. exact-main Pages SAT
+> 4. observe public world with Adventurer autonomously entering the Monster loop
+> 5. D3 consumes that truth for visible attack feedback
+>
+> After this: continue D3 → D4 Renderer Architecture → D5 Asset Layer → D6 Performance/Public Visual Release.
+>
+> Product lock: one map, one coordinate system, no teleport scene, no duplicate HP/inventory/path authority, no renderer-owned gameplay state.
 
 
 ## Public source of truth

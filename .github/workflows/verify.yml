@@ -42,5 +42,16 @@ jobs:
       - name: Verify active observation UI
         run: python tests/ui-smoke.py
 
+      - name: Verify autonomous Adventurer Hunt and Combat
+        run: python tests/adventure-autonomy-smoke.py
+
+      - name: Upload autonomous Adventure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autonomous-adventure-evidence-${{ github.sha }}
+          path: evidence-ui/autonomous-adventure/
+          if-no-files-found: warn
+
       - name: Verify Independent gameplay desktop smoke
         run: python tests/independent-ui-smoke.py --width 1440
