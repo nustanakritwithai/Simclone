@@ -7,6 +7,8 @@ import {productiveOutcomeEvidenceSnapshot} from '../outcome-learning-evidence.mj
 export const OUTCOME_LEARNING_SHADOW_VERSION='VAL5-0.1';
 export const PREDICTION_HISTORY_EVIDENCE='NOT_RETAINED';
 
+const freeze=x=>Object.freeze(x);
+
 function livePredictionContext(view){
   if(!view)return null;
   return freeze({
