@@ -105,7 +105,7 @@ test('SWA2 public migration adds monsters once to released Large and SWA1 Same-W
 
   const swa1=clone(migrated);
   delete swa1.wildMonsters;
-  const upgraded=restore(JSON.stringify(swa1),{sameWorld:true});
+  const upgraded=restore(JSON.stringify(swa1));
   assert.equal(upgraded.wildMonsters.entities.length,12);
   const upgradedText=serialize(upgraded);
   assert.equal(serialize(restore(upgradedText,{sameWorld:true})),upgradedText);
