@@ -30,6 +30,13 @@ def check(name,condition=True):
 def snap(page):
     return page.evaluate('simclone.snapshot()')
 
+def population(snapshot):
+    # Read the actual public snapshot; the proof never regenerates or repairs it.
+    return json.loads(subprocess.check_output(
+        ['node','scripts/swa7-population-proof.mjs','--stdin'],
+        cwd=ROOT,input=json.dumps(snapshot),text=True
+    ))
+
 def paused(page):
     if page.locator('#pause').inner_text()!='▶':
         page.locator('#pause').click()
@@ -63,7 +70,9 @@ with sync_playwright() as p:
     check('SWA7 public exact runtime boots Same-World 84x52',
           world.get('profile')=='same-world' and world.get('w')==84 and world.get('h')==52)
     monsters=initial.get('wildMonsters',{}).get('entities',[])
-    check('SWA7 public runtime owns 12 physical Wild Monsters',len(monsters)==12)
+    population_before=population(initial)
+    check('SWA7 public runtime owns 24 instances / 12 types / 3 types per zone / 2 copies',
+          population_before['physicalInstances']==24 and population_before['distinctMonsterIds']==12)
     hero=initial['agents'][0]
     check('SWA7 public fixture is a real Adventurer save',
           hero.get('profession')=='adventurer' and hero.get('skills',{}).get('ADVENTURE',0)>0)
@@ -201,6 +210,8 @@ with sync_playwright() as p:
           and respawned['worldMonsterId']!=old_id
           and respawned['status']=='IDLE'
           and respawned['hpCurrent']==respawned['hpMax'])
+    population_after=population(final)
+    check('SWA7 public respawn preserves the two-per-type population',population_after==population_before)
     page.screenshot(path=str(OUT/'04-public-respawn.png'),full_page=True)
 
     check('SWA7 public browser has no JavaScript page errors',not errors)
@@ -211,6 +222,8 @@ with sync_playwright() as p:
         'checks':checks,
         'count':len(checks),
         'pageErrors':errors,
+        'populationBefore':population_before,
+        'populationAfter':population_after,
         'oldWorldMonsterId':old_id,
         'newWorldMonsterId':respawned['worldMonsterId'],
         'spawnEpoch':respawned['spawnEpoch'],
