@@ -71,6 +71,11 @@ test('AUTO-ADV Hunt progresses through READY, ENGAGED and autonomous BASIC_ATTAC
   assert.deepEqual(validate(s),[]);
 });
 
+
+test('AUTO-ADV releases terminal result before the five-tick respawn boundary',()=>{
+  assert.ok(AUTONOMOUS_ADVENTURE_POLICY.resultHoldTicks<5);
+});
+
 test('AUTO-ADV completes a world-bound fight and clears terminal result automatically',()=>{
   const s=createWorld(42,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
   makeAdventurer(s,a,60);
