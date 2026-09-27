@@ -35,7 +35,8 @@ export function verifyAdventureCombatTerminalEvidence(session){
   if(session.status==='VICTORY'){
     const monster=monsterDefinition(session.monsterId);
     if(!monster||!integer(monster.baseExpYield,1))return conflict('missing-monster-exp-yield');
-    if(session.monsterHpCurrent!==0||last.monsterHpAfter!==0||!integer(last.monsterHpBefore,1))return conflict('victory-hp-conflict');
+    const terminalHp=session.worldMonsterId!==undefined?last.monsterHpAfter:session.monsterHpCurrent;
+    if(terminalHp!==0||last.monsterHpAfter!==0||!integer(last.monsterHpBefore,1))return conflict('victory-hp-conflict');
     if(last.heroDamage!==last.monsterHpBefore||last.counterDamage!==0)return conflict('victory-damage-conflict');
     return freeze({
       evidence:ADVENTURE_COMBAT_OUTCOME_EVIDENCE.VERIFIED,
@@ -47,7 +48,8 @@ export function verifyAdventureCombatTerminalEvidence(session){
     });
   }
 
-  if(!integer(session.monsterHpCurrent,1)||last.monsterHpAfter!==session.monsterHpCurrent||last.agentHpAfter!==1||last.counterDamage<=0)
+  const terminalHp=session.worldMonsterId!==undefined?last.monsterHpAfter:session.monsterHpCurrent;
+  if(!integer(terminalHp,1)||last.monsterHpAfter!==terminalHp||last.agentHpAfter!==1||last.counterDamage<=0)
     return conflict('defeat-evidence-conflict');
   return freeze({
     evidence:ADVENTURE_COMBAT_OUTCOME_EVIDENCE.VERIFIED,

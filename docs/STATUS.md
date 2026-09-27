@@ -2,14 +2,14 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main: `3733b1f8b4053d09c94102037755c1d4247de976`.
+> Source main: `1e1d5fcf21099fc6f66f409448878f50a8f39093`.
 > Adventure V1 is released.
-> SWA0–SWA3 are merged.
-> Same-World is 84×52 with 12 visible/tappable Wild Monster entities across z1-z4.
+> SWA0–SWA4 are merged.
+> Same-World is 84×52 with visible Wild Monsters that can be selected and reached through real pathfinding.
 >
-> Active candidate: SWA4 / `feature/swa4-monster-hunt-path`.
-> SWA4 adds `START_ADVENTURE_HUNT`: selecting a visible Monster locks its `worldMonsterId`, chooses a reachable adjacent engagement cell, walks through existing Simclone pathfinding, and creates a READY encounter from that exact entity without rerolling a new encounter.
-> Monster ENGAGED/combat binding remains SWA5.
+> Active candidate: SWA5 / `feature/swa5-world-monster-combat`.
+> SWA5 binds a hunted READY encounter to the exact `worldMonsterId`, transitions that entity to ENGAGED, and makes the world entity the single Monster HP authority for combat turns. World-bound combat sessions do not store a duplicate `monsterHpCurrent`.
+> Victory leaves the zero-HP Monster ENGAGED for SWA6; Adventurer defeat releases a surviving Monster back to IDLE without healing.
 >
 > Sections below predate the Same-World release line and are retained as historical context where they conflict with this override.
 

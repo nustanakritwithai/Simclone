@@ -76,9 +76,10 @@ function openMonsterContext(worldMonsterId){
  selectedWorldMonsterId=m.worldMonsterId;
  const def=wildMonsterDef(m),type=wildMonsterType(m),hp=Math.max(0,Math.min(100,Math.round(m.hpCurrent/Math.max(1,m.hpMax)*100)));
  const hunter=state.agents.find(a=>a.alive&&a.id===selected&&a.profession==='adventurer')??state.agents.find(a=>a.alive&&a.profession==='adventurer')??null;
- const huntAction=hunter
-  ?'<div class="dialog-actions"><button class="primary" data-action="hunt-monster" data-agent="'+hunter.id+'" data-monster="'+esc(m.worldMonsterId)+'">เดินไปหา · '+esc(hunter.name)+'</button></div>'
-  :'<p class="source-note">ยังไม่มี Adventurer ที่พร้อมเลือกเป้าหมายนี้</p>';
+ const huntAction=m.status==='IDLE'&&m.hpCurrent>0
+  ?(hunter?'<div class="dialog-actions"><button class="primary" data-action="hunt-monster" data-agent="'+hunter.id+'" data-monster="'+esc(m.worldMonsterId)+'">เดินไปหา · '+esc(hunter.name)+'</button></div>'
+    :'<p class="source-note">ยังไม่มี Adventurer ที่พร้อมเลือกเป้าหมายนี้</p>')
+  :'<p class="source-note">'+(m.status==='ENGAGED'?'กำลังต่อสู้กับ Adventurer #'+esc(m.engagedByAgentId):'มอนสเตอร์ตัวนี้ยังเลือกเป็นเป้าหมายไม่ได้')+'</p>';
  openDialog(def?.speciesId??m.monsterId,'WILD MONSTER',
   '<div data-world-monster="'+esc(m.worldMonsterId)+'">'+
   '<p><b>'+esc(m.monsterId)+'</b> · '+esc(type)+' · Lv.'+m.level+' · '+esc(m.rank)+'</p>'+

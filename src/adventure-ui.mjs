@@ -152,10 +152,12 @@ export function installAdventureUI({read,openDialog,closeDialog,execute,select,c
         '<p>'+esc(def?.types?.join('/')??'Wild')+' · Lv.'+encounter.monsterLevel+' · '+esc(encounter.rank)+'</p>'+
         '<button type="button" class="adv-primary" data-adv-action="start-combat" data-agent="'+agent.id+'">เริ่มต่อสู้</button>';
     }else if(combat?.status==='ACTIVE'){
-      const monsterPct=pct(combat.monsterHpCurrent,combat.monsterHpMax);
+      const entity=combat.worldMonsterId?state.wildMonsters?.entities?.find(m=>m.worldMonsterId===combat.worldMonsterId):null;
+      const monsterHpCurrent=entity?.hpCurrent??combat.monsterHpCurrent,monsterHpMax=entity?.hpMax??combat.monsterHpMax;
+      const monsterPct=pct(monsterHpCurrent,monsterHpMax);
       body='<div class="adv-hud-title"><span>COMBAT · TURN '+combat.turn+'</span><b>'+esc(monsterLabel(combat.monsterId))+'</b></div>'+
         '<div class="adv-health"><label>Clone HP <b>'+Math.round(agent.hp)+'</b></label><i><em style="width:'+pct(agent.hp,100)+'%"></em></i></div>'+
-        '<div class="adv-health monster"><label>Monster HP <b>'+combat.monsterHpCurrent+' / '+combat.monsterHpMax+'</b></label><i><em style="width:'+monsterPct+'%"></em></i></div>'+
+        '<div class="adv-health monster"><label>Monster HP <b>'+monsterHpCurrent+' / '+monsterHpMax+'</b></label><i><em style="width:'+monsterPct+'%"></em></i></div>'+
         '<button type="button" class="adv-primary" data-adv-action="attack" data-agent="'+agent.id+'">Attack</button>';
     }else if(combat?.status==='VICTORY'){
       const def=monsterDefinition(combat.monsterId),fire=def?.types?.[0]==='Fire',claim=combat.lootClaim;

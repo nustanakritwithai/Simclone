@@ -126,6 +126,30 @@ with sync_playwright() as p:
  check('SWA4 hunt target is an engagement cell beside the same physical Monster',
        abs(hunted['task']['x']-hunt_monster['x'])+abs(hunted['task']['y']-hunt_monster['y'])==1)
  huntpage.screenshot(path=str(OUT/'mobile-adventure-hunt.png'))
+ # SWA5: let the real hunt finish, then bind Combat to the same physical Monster.
+ huntpage.locator('[data-speed="5"]').tap()
+ huntpage.evaluate("window.__fixtureHidden=false")
+ huntpage.wait_for_function("document.querySelector('[data-adv-action=start-combat]')!==null",timeout=12000)
+ huntpage.evaluate("window.__fixtureHidden=true")
+ huntpage.wait_for_timeout(100)
+ ready=snap(huntpage)['agents'][0]['adventureEncounter']
+ check('SWA5 READY encounter keeps the exact hunted worldMonsterId',ready.get('worldMonsterId')==hunt_monster['worldMonsterId'])
+ huntpage.locator('[data-adv-action="start-combat"]').tap()
+ combat_state=snap(huntpage);combat_agent=combat_state['agents'][0];combat=combat_agent['adventureCombat']
+ combat_monster=next(m for m in combat_state['wildMonsters']['entities'] if m['worldMonsterId']==hunt_monster['worldMonsterId'])
+ check('SWA5 combat binds session to ENGAGED world Monster with no duplicate HP ledger',
+       combat.get('worldMonsterId')==hunt_monster['worldMonsterId'] and
+       'monsterHpCurrent' not in combat and
+       combat_monster['status']=='ENGAGED' and combat_monster['engagedByAgentId']==combat_agent['id'])
+ hp_before=combat_monster['hpCurrent']
+ huntpage.locator('[data-adv-action="attack"]').tap()
+ attacked=snap(huntpage);combat_after=attacked['agents'][0]['adventureCombat']
+ world_after=next(m for m in attacked['wildMonsters']['entities'] if m['worldMonsterId']==hunt_monster['worldMonsterId'])
+ check('SWA5 Attack commits Monster HP through world entity authority',
+       'monsterHpCurrent' not in combat_after and
+       combat_after['lastTurn']['monsterHpBefore']==hp_before and
+       combat_after['lastTurn']['monsterHpAfter']==world_after['hpCurrent'])
+ huntpage.screenshot(path=str(OUT/'mobile-world-monster-combat.png'))
  bounds=adventure_saved['worldBounds'];w=bounds['w'];h=bounds['h']
  z1min=int(w*.55);z1min=z1min if z1min==w*.55 else z1min+1;z1max=int(w*.65)
  target=None
