@@ -17,7 +17,7 @@ import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,re
 import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession,noteExploreCompletion,validateAdventurerQualification} from './kingdom-utility.mjs?v=0.5.0';
 import {ADVENTURE_SKILL,ensureAdventureProgressionSkill,inheritedAdventureXp,validateAdventureProgression} from './adventure-progression.mjs?v=0.5.0';
 import {adventureProgressionSnapshot} from './adventure-progression.mjs?v=0.5.0';
-import {findAdventureZoneEntry,createAdventureExpeditionTask,adventureExpeditionTaskValid,completeAdventureExpedition,validateAdventureEncounterState} from './adventure-expedition.mjs?v=0.5.0';
+import {findAdventureZoneEntry,createAdventureExpeditionTask,adventureExpeditionTaskValid,completeAdventureExpedition,findAdventureMonsterEngagement,createAdventureHuntTask,completeAdventureHunt,validateAdventureEncounterState} from './adventure-expedition.mjs?v=0.5.0';
 import {startAdventureCombatSession,resolveAdventureCombatTurnProposal,validateAdventureCombatState} from './adventure-combat-session.mjs?v=0.5.0';
 import {commitVerifiedAdventureCombatReward,validateAdventureCombatRewardState} from './adventure-combat-reward.mjs?v=0.5.0';
 import {claimVerifiedAdventureLoot,validateAdventureLootClaimState} from './adventure-loot-commit.mjs?v=0.5.0';
@@ -41,7 +41,7 @@ import {actionPredictionEvidence} from './action-prediction-evidence.mjs?v=0.5.0
 import {LEGACY_WORLD_BOUNDS,boundsForProfile,persistedWorldBounds,worldBounds,worldCellCount,scaleLegacyPoint,scaleLegacyX,scaleLegacyY,validateWorldBoundsState} from './world-bounds.mjs?v=0.5.0';
 import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?v=0.5.0';
 import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventure-annex.mjs?v=0.5.0';
-import {ensureWildMonsterWorld,validateWildMonsterWorld} from './adventure-world-monsters.mjs?v=0.5.0';
+import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById} from './adventure-world-monsters.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -215,6 +215,37 @@ export function command(s,type,data={}){
     a.moveTick=0;
     event(s,'adventure',a.name+' ออกเดินทางสู่ '+data.zoneId,a.id);
     return {ok:true,agentId:a.id,zoneId:data.zoneId,target:{x:entry.x,y:entry.y},pathLength:path.length};
+  }
+  if(type==='START_ADVENTURE_HUNT'){
+    if(!isIndependent(s))return {ok:false,reason:'mode',message:'Adventure hunt requires Independent world'};
+    const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
+    if(a.profession!=='adventurer')return {ok:false,reason:'profession',message:'ต้องเป็นนักผจญภัยก่อน'};
+    if(!canPerformProductiveWork(s,a))return {ok:false,reason:'stage',message:'ยังออกล่ามอนสเตอร์ไม่ได้'};
+    if(a.task)return {ok:false,reason:'busy',message:'Clone กำลังทำงานอื่นอยู่'};
+    if(a.adventureEncounter)return {ok:false,reason:'encounter-pending',message:'มี encounter ที่ยังไม่จบ'};
+    if(a.adventureCombat)return {ok:false,reason:'combat-pending',message:'มี combat ที่ยังไม่จบ'};
+    if(a.satiety<RULES.hungry)return {ok:false,reason:'hungry',message:'หิวเกินไปสำหรับการล่า'};
+    if(a.energy<RULES.exhausted)return {ok:false,reason:'exhausted',message:'เหนื่อยเกินไปสำหรับการล่า'};
+    const monster=wildMonsterById(s,data.worldMonsterId);
+    if(!monster||monster.status!=='IDLE'||monster.hpCurrent<=0)return {ok:false,reason:'monster-unavailable',message:'มอนสเตอร์ตัวนี้ไม่พร้อม'};
+    const claimed=s.agents.some(other=>other.alive&&other.id!==a.id&&(
+      other.task?.adventureHunt?.worldMonsterId===monster.worldMonsterId||
+      other.adventureEncounter?.worldMonsterId===monster.worldMonsterId||
+      other.adventureCombat?.worldMonsterId===monster.worldMonsterId
+    ));
+    if(claimed)return {ok:false,reason:'monster-busy',message:'มอนสเตอร์ตัวนี้มีนักผจญภัยกำลังเข้าหาอยู่'};
+    const progression=adventureProgressionSnapshot(a);
+    if(!progression)return {ok:false,reason:'progression',message:'Adventure progression ไม่ถูกต้อง'};
+    let engagement;
+    try{engagement=findAdventureMonsterEngagement(s,a,monster.worldMonsterId,progression.level,{walkable,routeField,routeDistance});}
+    catch(error){return {ok:false,reason:error.message,message:'เดินไปหามอนสเตอร์ไม่ได้'};}
+    const path=pathTo(s,a,engagement);
+    if(!path)return {ok:false,reason:'no-path',message:'ไม่มีเส้นทางเดินไปหามอนสเตอร์'};
+    a.task=createAdventureHuntTask(s,a,monster.worldMonsterId,progression.level,engagement,path);
+    a.moveTick=0;
+    event(s,'adventure',a.name+' ออกล่า '+monster.monsterId+' ที่ '+monster.zoneId,a.id);
+    return {ok:true,agentId:a.id,worldMonsterId:monster.worldMonsterId,zoneId:monster.zoneId,target:{x:engagement.x,y:engagement.y},monster:{x:monster.x,y:monster.y},pathLength:path.length};
   }
   if(type==='START_ADVENTURE_COMBAT'){
     if(!isIndependent(s))return {ok:false,reason:'mode',message:'Adventure combat requires Independent world'};
@@ -493,6 +524,11 @@ function execute(s,a){
       }
       a.task=null;
     }
+  }else if(t.adventureHunt&&t.work>=6){
+    const encounter=completeAdventureHunt(s,a,t);
+    a.adventureEncounter=encounter;
+    event(s,'adventure',a.name+' เข้าถึง '+encounter.monsterId+' Lv.'+encounter.monsterLevel+' ที่ '+encounter.zoneId,a.id);
+    a.task=null;
   }else if(t.work>=6){
     finishPersonalExploration(s,a,t);
     const belief=t.knowledgeKey?a.knowledgeState?.beliefs?.find(b=>b.key===t.knowledgeKey):null;
@@ -642,6 +678,7 @@ export function validate(s){
       }
     }
     if(a.task&&(!LABELS[a.task.kind]||!finite(a.task.work)||!Array.isArray(a.task.path)||a.task.path.length>cellCount||a.task.path.some(p=>!walkable(s,p.x,p.y))))bad('Task');
+    if(a.task&&!adventureExpeditionTaskValid(s,a,a.task,{walkable}))bad('Adventure task');
   }
   const byId=new Map(people.map(a=>[a.id,a]));
   for(const a of people){
