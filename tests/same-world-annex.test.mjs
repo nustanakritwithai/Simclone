@@ -63,7 +63,7 @@ test('SWA1 migrates released Large saves row-by-row without relocating Core',()=
 });
 
 test('SWA1 migration is idempotent and Same-World continuation is deterministic',()=>{
-  const a=restore(serialize(createWorld(230926,{mode:'independent',worldProfile:'large'})));
+  const a=restore(serialize(createWorld(230926,{mode:'independent',worldProfile:'large'})),{sameWorld:true});
   const once=serialize(a),b=restore(once,{sameWorld:true});
   assert.equal(serialize(b),once);
   step(a,120);step(b,120);
