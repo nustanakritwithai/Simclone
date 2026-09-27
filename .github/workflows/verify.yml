@@ -28,6 +28,12 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Verify SWA7 public proof fixture and syntax
+        run: |
+          node scripts/swa7-public-fixture.mjs > /tmp/swa7-public-save.json
+          python -m py_compile tests/public-swa7-smoke.py
+          test -s /tmp/swa7-public-save.json
+
       - name: Install Playwright Chromium
         run: |
           python -m pip install playwright
