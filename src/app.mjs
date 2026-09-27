@@ -75,12 +75,17 @@ function openMonsterContext(worldMonsterId){
  const m=state.wildMonsters?.entities?.find(x=>x.worldMonsterId===worldMonsterId);if(!m)return false;
  selectedWorldMonsterId=m.worldMonsterId;
  const def=wildMonsterDef(m),type=wildMonsterType(m),hp=Math.max(0,Math.min(100,Math.round(m.hpCurrent/Math.max(1,m.hpMax)*100)));
+ const hunter=state.agents.find(a=>a.alive&&a.id===selected&&a.profession==='adventurer')??state.agents.find(a=>a.alive&&a.profession==='adventurer')??null;
+ const huntAction=hunter
+  ?'<div class="dialog-actions"><button class="primary" data-action="hunt-monster" data-agent="'+hunter.id+'" data-monster="'+esc(m.worldMonsterId)+'">เดินไปหา · '+esc(hunter.name)+'</button></div>'
+  :'<p class="source-note">ยังไม่มี Adventurer ที่พร้อมเลือกเป้าหมายนี้</p>';
  openDialog(def?.speciesId??m.monsterId,'WILD MONSTER',
   '<div data-world-monster="'+esc(m.worldMonsterId)+'">'+
   '<p><b>'+esc(m.monsterId)+'</b> · '+esc(type)+' · Lv.'+m.level+' · '+esc(m.rank)+'</p>'+
   '<p>เขต '+esc(m.zoneId.toUpperCase())+' · '+esc(m.status)+' · HP '+m.hpCurrent+' / '+m.hpMax+'</p>'+
   '<div class="meter" aria-label="Monster HP"><i style="width:'+hp+'%"></i></div>'+
-  '<p class="source-note">World entity '+esc(m.worldMonsterId)+' · อ่านจาก simulation state โดยตรง</p></div>');
+  '<p class="source-note">World entity '+esc(m.worldMonsterId)+' · อ่านจาก simulation state โดยตรง</p>'+
+  huntAction+'</div>');
  dialog.dataset.kind='monster';return true;
 }
 function makeGround(){
@@ -456,6 +461,14 @@ $('dialog-body').addEventListener('click',e=>{
  const action=b.dataset.action;
  if(action==='systems'){ux.openSystems();return;}
  if(action==='survival'){ux.openSurvival();return;}
+ if(action==='hunt-monster'){
+  const agentId=Number(b.dataset.agent),worldMonsterId=b.dataset.monster;
+  const result=command(state,'START_ADVENTURE_HUNT',{agentId,worldMonsterId});
+  toast(result.ok?'กำลังเดินไปหา '+worldMonsterId:(result.message??result.reason??'เริ่มล่าไม่ได้'));
+  if(result.ok){dialog.close();selectedWorldMonsterId=worldMonsterId;selectAgent(agentId,true);save();}
+  else updateUI();
+  return;
+ }
  if(action==='cancel'){dialog.close();return;}
  if(action==='confirm-clone'){const result=command(state,'CLONE',{parentId:selected});toast(result.message);if(result.ok){dialog.close();selectAgent(result.agentId,true);save();}return;}
  if(action==='export-original'){const text=store.originalText();if(text!==null){const url=URL.createObjectURL(new Blob([text],{type:'text/plain'})),a=document.createElement('a');a.href=url;a.download='simclone-recovery-original.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกเซฟเดิมโดยไม่แก้ไขแล้ว');}return;}

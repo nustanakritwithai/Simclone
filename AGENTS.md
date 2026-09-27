@@ -2,13 +2,14 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main is `e82637081d9c2dab053d840340326ec94fdf143a` after merged SWA2 PR #142.
+> Source main is `3733b1f8b4053d09c94102037755c1d4247de976` after merged SWA3 PR #143.
 > Adventure V1 is released.
-> Same-World Adventure is active; SWA3 is on `feature/swa3-visible-monsters`.
+> Same-World Adventure is active; SWA4 is on `feature/swa4-monster-hunt-path`.
 > SWA1 owns the one 84×52 physical map + Annex migration.
-> SWA2 owns the saveable Wild Monster world-state ledger with 12 deterministic entities.
-> SWA3 owns renderer + hit-target projection only; hunt/combat authority remains SWA4+.
-> Donor/history PRs must not be merged again.
+> SWA2 owns the Wild Monster world ledger.
+> SWA3 owns visible/tappable projection.
+> SWA4 owns explicit worldMonsterId hunt tasks through existing Simclone path authority.
+> Combat binding remains SWA5.
 > The older baseline notes below are retained as history where they conflict with this override.
 
 
