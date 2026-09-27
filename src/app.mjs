@@ -13,9 +13,10 @@ import {installAdventureUI} from './adventure-ui.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,independentUI=null,adventureUI=null,nav=null,worldMapView=null;
-const store=createWorldStore({getStorage:()=>localStorage,serialize,restore});
-const defaultFocusFor=s=>{const b=coreWorldBounds(s);return {x:Math.round((b.w-1)*11/29),y:Math.round((b.h-1)*12/25)};};
 const publicWorldProfile=document.documentElement.dataset.worldProfile??'legacy';
+const restoreForPublic=text=>restore(text,{sameWorld:publicWorldProfile==='same-world'});
+const store=createWorldStore({getStorage:()=>localStorage,serialize,restore:restoreForPublic});
+const defaultFocusFor=s=>{const b=coreWorldBounds(s);return {x:Math.round((b.w-1)*11/29),y:Math.round((b.h-1)*12/25)};};
 let state=createWorld(230926,{mode:document.documentElement.dataset.defaultWorld??'legacy',worldProfile:publicWorldProfile}),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
 let toastTimer,ground,cw=0,ch=0,dpr=1,zoom=innerWidth<700?1.12:1.25,pan={x:0,y:0};
 let focus=defaultFocusFor(state),follow=false,positions=new Map(),lastUi=0,lastFrame=0,accumulator=0;
@@ -419,7 +420,7 @@ $('dialog-body').addEventListener('click',e=>{
  }
  if(action==='help')openDialog('ดูโลกที่กำลังคิดและสร้างเอง','HOW TO PLAY',`<p><b>1. แตะสิ่งที่อยู่ในโลก</b><br>Clone เปิด Inspector · Camp เปิด Cultural Archive · Crafting Table เปิดสูตรโต๊ะ · Furnace เปิด Charcoal · บ้านเปิด Housing status</p><p><b>2. เมนูรวมใช้ดูภาพรวม</b><br>Survival / Systems / Items แยกหน้าที่ชัดเจน และไม่ถือ action ของสิ่งปลูกสร้างแทนตัวสิ่งปลูกสร้าง</p><p><b>3. ปล่อยให้ AI ดำเนินโลก</b><br>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การสร้าง Clone แบบ manual ยังทำได้จาก Inspector แต่ไม่ใช่แกนหลัก</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">LIVE คือ authority จริง · READY คือระบบพร้อมแต่ policy เต็มยังไม่เปิด · SHADOW คือการคำนวณเพื่อสังเกตโดยยังไม่เขียนผลจริง</div>`);
 });
-$('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>HISTORY_LIMITS.maxSaveCharacters*3)throw new Error('ไฟล์ใหญ่เกินงบการนำเข้า');const candidate=restore(await file.text());
+$('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>HISTORY_LIMITS.maxSaveCharacters*3)throw new Error('ไฟล์ใหญ่เกินงบการนำเข้า');const candidate=restoreForPublic(await file.text());
  openDialog('นำเข้าโลกที่บันทึกไว้','IMPORT WORLD',`<p>วันที่ ${day(candidate)} · ประชากร ${living(candidate).length} คน<br>การนำเข้าจะแทนที่โลกปัจจุบันในเบราว์เซอร์</p><div class="dialog-actions"><button id="confirm-import" class="primary">ยืนยันนำเข้า</button><button class="secondary" data-action="cancel">ยกเลิก</button></div>`);
  $('confirm-import').onclick=()=>{state=candidate;store.allowReplacement();selected=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus=defaultFocusFor(state);pan={x:0,y:0};if(isIndependent(state)){const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=['large','same-world'].includes(b.profile)?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
  }catch(error){toast('นำเข้าไม่ได้: '+error.message);}});
