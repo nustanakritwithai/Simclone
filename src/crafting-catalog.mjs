@@ -6,9 +6,15 @@ const deepFreeze=value=>{
 };
 export const RUST_CRAFTING_VERSION='RS1-0.3';
 export const CRAFT_STATIONS=deepFreeze({HAND:'HAND',CRAFTING_TABLE_LV1:'CRAFTING_TABLE_LV1',FURNACE:'FURNACE'});
-export const CRAFT_CATEGORIES=deepFreeze({TOOL:'tool',BUILD:'build'});
+export const CRAFT_CATEGORIES=deepFreeze({TOOL:'tool',BUILD:'build',MATERIAL:'material',GEAR:'gear'});
 export const PLACEABLE_KINDS=deepFreeze(['CRAFTING_TABLE_LV1','FURNACE','WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF']);
 export const ITEM_CATALOG=deepFreeze({
+  FIRE_CORE:{id:'FIRE_CORE',name:'แกนไฟ',category:'material',rarity:'UNCOMMON',adventureLoot:true,donorId:'fire_core'},
+  HIDE:{id:'HIDE',name:'หนังมอนสเตอร์',category:'material',rarity:'COMMON',adventureLoot:true,donorId:'hide'},
+  EMBER_SHARD:{id:'EMBER_SHARD',name:'เศษเถ้าเพลิง',category:'material',rarity:'RARE',adventureLoot:true,donorId:'ember_shard'},
+  EMBER_BLADE:{id:'EMBER_BLADE',name:'ดาบเพลิง',category:'gear',equipSlot:'WEAPON',rarity:'RARE',adventureGearId:'EMBER_BLADE'},
+  HIDE_ARMOR:{id:'HIDE_ARMOR',name:'เกราะหนัง',category:'gear',equipSlot:'ARMOR',rarity:'COMMON',adventureGearId:'HIDE_ARMOR'},
+  EMBER_CHARM:{id:'EMBER_CHARM',name:'เครื่องรางเพลิง',category:'gear',equipSlot:'ACCESSORY',rarity:'UNCOMMON',adventureGearId:'EMBER_CHARM'},
   STONE_AXE:{id:'STONE_AXE',name:'ขวานหิน',category:'tool',equipSlot:'hand',workAction:'WOODCUT',workMultiplier:1.25,donorId:'stone_axe'},
   STONE_PICKAXE:{id:'STONE_PICKAXE',name:'อีเต้อหิน',category:'tool',equipSlot:'hand',workAction:'MINE',workMultiplier:1.25,donorId:'stone_pick'},
   HAMMER:{id:'HAMMER',name:'ค้อน',category:'tool',equipSlot:'hand',workAction:'BUILD',workMultiplier:1,donorId:'hammer'},
@@ -33,10 +39,11 @@ export const RECIPE_CATALOG=deepFreeze({
 export const recipeById=id=>RECIPE_CATALOG[id]??null;
 export const itemById=id=>ITEM_CATALOG[id]??null;
 export function validateCraftingCatalog(){
-  const errors=[],stations=new Set(Object.values(CRAFT_STATIONS)),placeables=new Set(PLACEABLE_KINDS),cats=new Set(Object.values(CRAFT_CATEGORIES));
+  const errors=[],stations=new Set(Object.values(CRAFT_STATIONS)),placeables=new Set(PLACEABLE_KINDS),cats=new Set(Object.values(CRAFT_CATEGORIES)),gearSlots=new Set(['WEAPON','ARMOR','ACCESSORY']);
   for(const [id,item] of Object.entries(ITEM_CATALOG)){
     if(item.id!==id||!cats.has(item.category))errors.push('item:'+id);
     if(item.stationProvided&&!placeables.has(item.stationProvided))errors.push('item-placeable:'+id);
+    if(item.category==='gear'&&(!gearSlots.has(item.equipSlot)||item.adventureGearId!==id))errors.push('item-gear:'+id);
   }
   for(const [id,r] of Object.entries(RECIPE_CATALOG)){
     if(r.id!==id||!ITEM_CATALOG[r.output]||!stations.has(r.station)||!cats.has(r.category)||!Number.isInteger(r.work)||r.work<1)errors.push('recipe:'+id);

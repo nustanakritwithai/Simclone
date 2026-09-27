@@ -1,67 +1,104 @@
-# Current handoff — post Governor v1 closeout
+# Current handoff — Adventure V1 release gate
 
-Released baseline:
+## Public source of truth
 
-`main@3ab58da6289a28dbdde3656ce5d8285f1656ad8f`
+Current public baseline:
 
-Pages #79 = SUCCESS on the exact same SHA.
+`main@65bfcfb241e1971a4cb06b8e7c7ac32110f7d1da`
 
-Governor v1 GOV0–GOV6 is closed and released. Do not reopen it during ordinary cleanup unless a regression is proven.
+Exact-main Pages run:
+- `36305878183`
+- SUCCESS
 
-## Work currently in flight
+Adventure V1 is not public until I8 closes.
 
-Two independent agent workstreams are open:
+## Adventure V1 candidate
 
-1. PR #123 — `feat(khet): add separated adventurer rules`
-2. PR #124 — `VAL4: add deterministic productive outcome verification shadow`
+PR #138:
+`Adventure V1 I0–I7: playable production Adventure UI`
 
-Before any new feature work:
-- re-read current `main`
-- inspect those PRs and their changed files
-- do not overwrite their branches
-- do not copy their authority into a parallel implementation
+Last SAT gameplay/UI candidate:
+`5a7f16d1afd1af29d892b0e6079c6ba48e90ae6b`
 
-## Next product gates after active PRs settle
+Verify:
+- #1450
+- run `36318537486`
+- SUCCESS
 
-Re-audit the current main before choosing the next gate.
+I0–I7 are closed as SAT.
 
-Candidate directions:
+## Immediate next gate — I8 Release
 
-- Governance v2: council / collective decisions / later government forms
-- Physical household trade rebuilt from current released main
-- logistics and physical delivery
-- property / inheritance v2
-- richer settlement governance evidence
+Do not add more gameplay features before release.
 
-Do not start tax, treasury, elections, diplomacy or war until their underlying economy / organization authorities are ready.
+I8 sequence:
+
+1. sync release metadata/docs on the current PR
+2. run exact-head Verify on the final candidate SHA
+3. UNKNOWN/FAIL must not merge
+4. mark PR #138 ready only after exact-head SUCCESS
+5. re-check current `main` immediately before merge
+6. merge PR #138 without force-push
+7. capture exact merged-main SHA
+8. require exact-main CI/Pages SUCCESS
+9. verify public HTTP and exact deployed bytes
+10. browser proof that public page exposes Adventure launch/runtime
+11. only then label Adventure V1 RELEASED
+
+## Public proof checklist
+
+The released page must demonstrate at minimum:
+
+- Adventure launch is present
+- mobile dock remains five tabs
+- no boot/runtime error
+- production UI loads from the exact merged SHA
+- public runtime pins match source
+- Independent world remains playable
+- existing Rust/World/VAL/CV UI does not regress
+
+The full gameplay flow is already proven in exact-head Chromium candidate tests. Public proof does not replace those tests; it proves deployment identity and browser reachability.
+
+## After Adventure V1 release
+
+Do not mix these into I8.
+
+Next planned gates may include:
+
+1. Upgrade Authority
+   - atomically consume HIDE / FIRE_CORE / EMBER_SHARD
+   - then permit +1..+10 gear
+2. Specialization
+   - Ranger / Guardian / Ritual as Adventurer specializations, not professions
+3. Defeat / Return
+   - recovery and return-to-home/camp behavior
+4. Adventure AI
+   - autonomous expedition policy under survival/household priority
+5. Content expansion
+   - non-Fire loot profiles across remaining types
+6. Combat actions
+   - Skills 1–3 / Dodge / Guard / Retreat
+7. Quests / party / boss / dungeon
+
+## PR #123 rule
+
+PR #123 remains donor/history only.
+
+Do not merge it.
+Do not import its local character/save/XP/inventory authority.
+Do not use it to bypass Adventure V1 authority locks.
 
 ## CI discipline
 
-Routine PR gate:
-- `npm test`
+Routine PR:
+- npm test
 - active UI smoke
 - Independent desktop smoke
 
-Pages gate:
-- active regressions
-- native desktop release smoke
-- deploy
-- exact public bytes
+Release:
+- exact candidate Verify
+- merge
+- exact-main Pages
+- public byte/browser proof
 
-Manual Full Regression:
-- 120-year continuity
-- full browser matrices
-- archived heavy proofs
-
-This split is deliberate: heavy proof remains available without blocking every PR.
-
-## Stale/reference PR warning
-
-Older non-current PRs must not be merged as-is merely because they remain open.
-
-Notably:
-- #102 physical household trade is based on an obsolete IC7A branch; rebuild on current main if resumed.
-- #84 UX V1.0 is stale against the current UI line.
-- #74 housing fix and #73 BM1 predate later world/social/governance releases; re-audit before reuse.
-
-Draft/reference branches are evidence/history, not current source of truth.
+UNKNOWN is never PASS.

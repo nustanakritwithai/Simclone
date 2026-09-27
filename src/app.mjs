@@ -9,9 +9,10 @@ import {worldBounds} from './world-bounds.mjs?v=0.5.0';
 import {VERSION,SKILLS,LABELS,createWorld,step,command,living,capacity,day,hour,level,serialize,restore,tileAt,findPerson,HISTORY_LIMITS} from './engine.mjs?v=0.5.0';
 import {evaluateModularHouses} from './housing.mjs?v=0.5.0';
 import {drawPiece,structureDrawInfo,structureDepth,roofNeighbours} from './building-visuals.mjs?v=0.5.0';
+import {installAdventureUI} from './adventure-ui.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let ux=null,independentUI=null,nav=null,worldMapView=null;
+let ux=null,independentUI=null,adventureUI=null,nav=null,worldMapView=null;
 const store=createWorldStore({getStorage:()=>localStorage,serialize,restore});
 const defaultFocusFor=s=>{const b=worldBounds(s);return {x:Math.round((b.w-1)*11/29),y:Math.round((b.h-1)*12/25)};};
 let state=createWorld(230926,{mode:document.documentElement.dataset.defaultWorld??'legacy',worldProfile:document.documentElement.dataset.worldProfile??'legacy'}),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
@@ -369,7 +370,7 @@ function updateUI(){
  $('world-status').textContent=paused||dialog.open?'หยุดเวลา · โลกยังอยู่ตรงนี้':'โลกกำลังดำเนินไปด้วยตัวเอง';
  $('seed-label').textContent='SEED '+state.seed;
  $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip diegetic-event-chip" data-event="${e.id}" aria-label="${esc(e.text)}"><b aria-hidden="true">${EVENT_GLYPHS[e.type]??'•'}</b><small>D${1+Math.floor(e.tick/360)}</small></button>`).join('');
- inspect();ux?.renderHUD();nav?.update();independentUI?.update();
+ inspect();ux?.renderHUD();nav?.update();independentUI?.update();adventureUI?.update();
 }
 function selectAgent(id,center=false){if(isIndependent(state)&&center)zoom=Math.max(zoom,1.12);follow=false;selected=id;tab='about';mode='observe';$('mode-hint').hidden=true;$('observe').classList.add('active');const a=findPerson(state,id);if(a&&(center||innerWidth<=700)){focus={x:a.x,y:a.y};pan={x:0,y:0};}updateUI();}
 function openDialog(title,kicker,body){$('dialog').dataset.kind='other';$('dialog-title').textContent=title;$('dialog-kicker').textContent=kicker;$('dialog-body').innerHTML=body;if(!dialog.open)dialog.showModal();updateUI();}
@@ -492,6 +493,7 @@ ux=installUX({
 });
 independentUI=installIndependentUI({read:()=>({state,selected}),center:centerCamera,openDialog,closeDialog:()=>dialog.close(),openEvent:id=>ux.openEvent(id),toast,save,
  preview:(type,data)=>command(JSON.parse(serialize(state)),type,data),execute:(type,data)=>{const r=command(state,type,data);updateUI();return r;}});
+adventureUI=installAdventureUI({read:()=>({state,selected}),openDialog,closeDialog:()=>dialog.close(),toast,save,select:selectAgent,center:centerCamera,execute:(type,data)=>{const r=command(state,type,data);updateUI();return r;}});
 nav=installNavigation({mapView:()=>worldMapView,read:()=>({state,selected,follow,mode,paused}),menu,center:centerCamera,worldPoint,focus:()=>({...focus}),zoom:()=>zoom,storageStatus:store.status,layoutChanged:()=>{const a=state.agents.find(a=>a.id===selected&&a.alive);if(a)focus={x:a.x,y:a.y};}});
 updateUI();
 setInterval(()=>{if(!document.hidden)save();},10000);

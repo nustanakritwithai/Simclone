@@ -1,0 +1,197 @@
+{
+  "meta": {
+    "fixtureVersion": "adv-ui-v0.1",
+    "readOnly": true,
+    "canonical": false,
+    "note": "Illustrative UX fixture only. Runtime/gameplay authorities must replace these values."
+  },
+  "adventurer": {
+    "id": "clone-fixture-07",
+    "name": "Mira-07",
+    "profession": "Adventurer",
+    "specialization": "Vanguard Scout",
+    "level": 18,
+    "exp": {
+      "current": 1420,
+      "nextLevel": 2000
+    },
+    "hp": {
+      "current": 176,
+      "max": 220
+    },
+    "stats": {
+      "ATK": 64,
+      "DEF": 51,
+      "SPATK": 38,
+      "SPDEF": 44,
+      "SPD": 57
+    },
+    "knownZones": [
+      "z1",
+      "z2"
+    ],
+    "currentExpedition": {
+      "zoneId": "z2",
+      "label": "Khet Sila · Outer Ridge",
+      "objective": "Survey marked encounter trail",
+      "progressLabel": "2 / 4 landmarks observed",
+      "status": "active"
+    }
+  },
+  "hud": {
+    "skills": [
+      {
+        "slot": 1,
+        "label": "Piercing Cut",
+        "availability": "ready"
+      },
+      {
+        "slot": 2,
+        "label": "Brace",
+        "availability": "ready"
+      },
+      {
+        "slot": 3,
+        "label": "Trail Step",
+        "availability": "ready"
+      }
+    ]
+  },
+  "encounter": {
+    "encounterId": "enc-fixture-0021",
+    "cloneId": "clone-fixture-07",
+    "monster": {
+      "monsterId": "wild-fire-stage2-fixture",
+      "name": "Ashfang",
+      "types": [
+        "Fire"
+      ],
+      "level": 18,
+      "rank": "normal",
+      "hp": {
+        "current": 82,
+        "max": 164
+      }
+    },
+    "feedback": [
+      {
+        "label": "Clone hit",
+        "detail": "Physical damage snapshot",
+        "value": "−31 HP"
+      },
+      {
+        "label": "Monster hit",
+        "detail": "Fire damage snapshot",
+        "value": "−22 HP"
+      },
+      {
+        "label": "Status",
+        "detail": "Resistance feedback",
+        "value": "Burn resisted"
+      }
+    ]
+  },
+  "loot": {
+    "sourceMonsterId": "wild-fire-stage2-fixture",
+    "outcomeId": "verified-outcome-fixture-0021",
+    "items": [
+      {
+        "itemKind": "Fire Core",
+        "quantity": 1,
+        "rarity": "Rare"
+      },
+      {
+        "itemKind": "Hide",
+        "quantity": 2,
+        "rarity": "Common"
+      },
+      {
+        "itemKind": "Ember Shard",
+        "quantity": 1,
+        "rarity": "Uncommon"
+      }
+    ],
+    "canContinue": true
+  },
+  "equipment": {
+    "slots": {
+      "weapon": {
+        "itemId": "gear-fixture-blade-01",
+        "name": "Ridgeblade",
+        "levelLabel": "+2"
+      },
+      "armor": {
+        "itemId": "gear-fixture-mail-01",
+        "name": "Scout Mail",
+        "levelLabel": "+1"
+      },
+      "accessory": {
+        "itemId": "gear-fixture-charm-01",
+        "name": "Trail Charm",
+        "levelLabel": "+0"
+      }
+    },
+    "candidate": {
+      "itemId": "gear-fixture-blade-02",
+      "slot": "weapon",
+      "name": "Emberedge"
+    },
+    "compare": {
+      "before": {
+        "ATK": 64,
+        "DEF": 51,
+        "SPATK": 38,
+        "SPDEF": 44,
+        "SPD": 57
+      },
+      "after": {
+        "ATK": 71,
+        "DEF": 51,
+        "SPATK": 40,
+        "SPDEF": 44,
+        "SPD": 55
+      }
+    },
+    "upgradePreview": {
+      "itemName": "Ridgeblade",
+      "fromLabel": "+2",
+      "toLabel": "+3",
+      "costLabel": "2 Ember Shard · 40 upgrade units (fixture)",
+      "statPreview": "ATK +3 (fixture)"
+    }
+  },
+  "regions": [
+    {
+      "zoneId": "z1",
+      "name": "Greenreach",
+      "minLevel": 1,
+      "maxLevel": 15,
+      "known": true,
+      "summary": "starter expedition range"
+    },
+    {
+      "zoneId": "z2",
+      "name": "Khet Sila",
+      "minLevel": 16,
+      "maxLevel": 30,
+      "known": true,
+      "summary": "current known expedition range"
+    },
+    {
+      "zoneId": "z3",
+      "name": null,
+      "minLevel": 31,
+      "maxLevel": 45,
+      "known": false,
+      "summary": null
+    },
+    {
+      "zoneId": "z4",
+      "name": null,
+      "minLevel": 46,
+      "maxLevel": 60,
+      "known": false,
+      "summary": null
+    }
+  ]
+}

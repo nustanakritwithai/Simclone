@@ -14,10 +14,16 @@ import {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,retent
 import {SKILL_PROVENANCE_VERSION,createSkillProvenance,createLegacySkillProvenance,recordEarnedSkill,validateSkillProvenance} from './skill-provenance.mjs?v=0.5.0';
 import {ensureLeadershipSkill,LEADERSHIP_SKILL,leadershipProfile} from './leadership.mjs?v=0.5.0';
 import {KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,createKnowledgeState,recordResourceDiscovery,shareKnowledge,withinKnowledgeRange,validateKnowledgeState,activeKnowledge} from './knowledge.mjs?v=0.5.0';
-import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
+import {professionForAction,professionLabel,ensureProfession,isKingdomProfession,kingdomWorkFactors,adoptProfession,noteExploreCompletion,validateAdventurerQualification} from './kingdom-utility.mjs?v=0.5.0';
+import {ADVENTURE_SKILL,ensureAdventureProgressionSkill,inheritedAdventureXp,validateAdventureProgression} from './adventure-progression.mjs?v=0.5.0';
+import {adventureProgressionSnapshot} from './adventure-progression.mjs?v=0.5.0';
+import {findAdventureZoneEntry,createAdventureExpeditionTask,adventureExpeditionTaskValid,completeAdventureExpedition,validateAdventureEncounterState} from './adventure-expedition.mjs?v=0.5.0';
+import {startAdventureCombatSession,resolveAdventureCombatTurnProposal,validateAdventureCombatState} from './adventure-combat-session.mjs?v=0.5.0';
+import {commitVerifiedAdventureCombatReward,validateAdventureCombatRewardState} from './adventure-combat-reward.mjs?v=0.5.0';
+import {claimVerifiedAdventureLoot,validateAdventureLootClaimState} from './adventure-loot-commit.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
-import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
+import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,rustGrantAdventureLoot,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
 import {housingCapacity,unfinishedHousing,evaluateModularHouses,pendingPlacements} from './housing.mjs?v=0.5.0';
 import {pendingPersonalPlacements} from './individual-housing.mjs?v=0.5.0';
 import {placementIdFor} from './rust-stations.mjs?v=0.5.0';
@@ -54,7 +60,8 @@ export const SIZE = { w: LEGACY_WORLD_BOUNDS.w, h: LEGACY_WORLD_BOUNDS.h };
 export const DAY_TICKS = LIFE.ticksPerYear;
 export const SKILLS = ['FORAGE', 'WOODCUT', 'MINE', 'BUILD'];
 export const SOCIAL_SKILLS = [LEADERSHIP_SKILL];
-export const ALL_SKILLS = [...SKILLS,...SOCIAL_SKILLS];
+export const ADVENTURE_SKILLS = [ADVENTURE_SKILL];
+export const ALL_SKILLS = [...SKILLS,...SOCIAL_SKILLS,...ADVENTURE_SKILLS];
 export const LABELS = { FORAGE:'หาอาหาร', WOODCUT:'ตัดไม้', MINE:'ขุดหิน', BUILD:'สร้างบ้าน', CRAFT:'คราฟต์', PROCESS:'แปรรูป', EAT:'กินอาหาร', REST:'พักผ่อน', EXPLORE:'สำรวจ', IDLE:'พักรอ' };
 export const clamp = (n, lo=0, hi=100) => Math.max(lo, Math.min(hi, n));
 export const level = skillLevel;
@@ -72,6 +79,7 @@ function createAgent(s,parent,initial=false,mode='manual'){
   const start=scaleLegacyPoint(bounds,9+k%4,11+Math.floor(k/4)%3);
   const skills=Object.fromEntries(SKILLS.map(key=>[key,parent?Math.floor(parent.skills[key]*.35):60]));
   if(isIndependent(s))skills[LEADERSHIP_SKILL]=parent?Math.floor(Number(parent.skills?.[LEADERSHIP_SKILL]??0)*.35):0;
+  if(isIndependent(s))skills[ADVENTURE_SKILL]=parent?inheritedAdventureXp(parent):0;
   const preference=SKILLS[k%4],profession=professionForAction(preference);
   const skillProvenance=createSkillProvenance(id,skills,{kind:parent?'inheritance':'initial',sourceAgentId:parent?.id??null,tick:s.tick});
   const a={id,name:names[k%names.length]+(k>=names.length?' '+id:''),parentId:parent?.id??null,generation:parent?parent.generation+1:0,
@@ -98,7 +106,7 @@ function killAgent(s,a,cause){
   if(!a.alive)return false;
   const deathAge=ageYearsAtTick(s,a,s.tick);
   a.death={status:'recorded',tick:s.tick,cause,ageYears:deathAge};
-  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
+  a.alive=false;a.hp=0;a.task=null;a.moveTick=0;a.adventureEncounter=null;a.adventureCombat=null;releaseRustOnDeath(s,a);endMentorshipsForAgent(s,a.id,'death');endResidencesForAgent(s,a.id,'death');
   const text=cause==='age'
     ?a.name+' เสียชีวิตตามวัยเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี'
     :a.name+' เสียชีวิตจากการขาดอาหารเมื่ออายุ '+(deathAge??'ไม่ทราบ')+' ปี';
@@ -141,7 +149,7 @@ export function createWorld(seed=230926,options={}){
     const p=scaleLegacyPoint(bounds,lx,ly);s.nodes.push({id:nid++,type,x:p.x,y:p.y,amount:45,max:45});
   }
   const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
-  if(independent){initializeIndependentStart(s,walkable);ensureSettlementState(s);ensureGovernanceState(s);for(const a of s.agents)ensureLeadershipSkill(a,{tick:s.tick});setPlanningPolicy(s,'local');}
+  if(independent){initializeIndependentStart(s,walkable);ensureSettlementState(s);ensureGovernanceState(s);for(const a of s.agents){ensureLeadershipSkill(a,{tick:s.tick});ensureAdventureProgressionSkill(a,{tick:s.tick});}setPlanningPolicy(s,'local');}
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
@@ -175,6 +183,81 @@ export function command(s,type,data={}){
   }
   const cultural=cultureCommand(s,type,data);if(cultural)return cultural;
   if(type==='SET_PLANNING_POLICY')return setPlanningPolicy(s,data.policy);
+  if(type==='START_ADVENTURE_EXPEDITION'){
+    if(!isIndependent(s))return {ok:false,reason:'mode',message:'Adventure expedition requires Independent world'};
+    const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
+    if(a.profession!=='adventurer')return {ok:false,reason:'profession',message:'ต้องเป็นนักผจญภัยก่อน'};
+    if(!canPerformProductiveWork(s,a))return {ok:false,reason:'stage',message:'ยังออกผจญภัยไม่ได้'};
+    if(a.task)return {ok:false,reason:'busy',message:'Clone กำลังทำงานอื่นอยู่'};
+    if(a.adventureEncounter)return {ok:false,reason:'encounter-pending',message:'มี encounter ที่ยังไม่จบ'};
+    if(a.adventureCombat)return {ok:false,reason:'combat-pending',message:'มี combat ที่ยังไม่จบ'};
+    if(a.satiety<RULES.hungry)return {ok:false,reason:'hungry',message:'หิวเกินไปสำหรับการออกผจญภัย'};
+    if(a.energy<RULES.exhausted)return {ok:false,reason:'exhausted',message:'เหนื่อยเกินไปสำหรับการออกผจญภัย'};
+    const progression=adventureProgressionSnapshot(a);
+    if(!progression)return {ok:false,reason:'progression',message:'Adventure progression ไม่ถูกต้อง'};
+    let entry;
+    try{entry=findAdventureZoneEntry(s,a,data.zoneId,progression.level,{walkable,routeField,routeDistance});}
+    catch(error){return {ok:false,reason:error.message,message:'เข้าเขตผจญภัยไม่ได้'};}
+    const path=pathTo(s,a,entry);
+    if(!path)return {ok:false,reason:'no-path',message:'ไม่มีเส้นทางเดินไปเขตศิลา'};
+    a.task=createAdventureExpeditionTask(s,a,data.zoneId,progression.level,entry,path);
+    a.moveTick=0;
+    event(s,'adventure',a.name+' ออกเดินทางสู่ '+data.zoneId,a.id);
+    return {ok:true,agentId:a.id,zoneId:data.zoneId,target:{x:entry.x,y:entry.y},pathLength:path.length};
+  }
+  if(type==='START_ADVENTURE_COMBAT'){
+    if(!isIndependent(s))return {ok:false,reason:'mode',message:'Adventure combat requires Independent world'};
+    const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
+    if(a.profession!=='adventurer')return {ok:false,reason:'profession',message:'ต้องเป็นนักผจญภัยก่อน'};
+    if(a.task)return {ok:false,reason:'busy',message:'Clone ยังมี task อยู่'};
+    if(a.adventureCombat)return {ok:false,reason:'combat-pending',message:'มี combat ที่ยังไม่จบ'};
+    if(a.adventureEncounter?.status!=='READY')return {ok:false,reason:'encounter',message:'ยังไม่มี encounter พร้อมต่อสู้'};
+    let session;
+    try{session=startAdventureCombatSession(s,a,a.adventureEncounter);}
+    catch(error){return {ok:false,reason:error.message,message:'เริ่ม combat ไม่ได้'};}
+    a.adventureCombat=session;
+    a.adventureEncounter=null;
+    event(s,'adventure',a.name+' เริ่มต่อสู้กับ '+session.monsterId+' Lv.'+session.monsterLevel,a.id);
+    return {ok:true,combatId:session.combatId,turn:session.turn,status:session.status,monsterHpCurrent:session.monsterHpCurrent,monsterHpMax:session.monsterHpMax};
+  }
+  if(type==='ADVENTURE_COMBAT_ACTION'){
+    const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
+    const session=a.adventureCombat;
+    if(!session||session.status!=='ACTIVE')return {ok:false,reason:'combat',message:'ไม่มี combat ที่กำลังดำเนินอยู่'};
+    if(data.action!=='BASIC_ATTACK')return {ok:false,reason:'action',message:'I3 รองรับ BASIC_ATTACK เท่านั้น'};
+    if(!Number.isSafeInteger(data.expectedTurn)||data.expectedTurn!==session.turn)return {ok:false,reason:'stale-turn',message:'combat turn ไม่ตรงกับ state ปัจจุบัน'};
+    let proposal;
+    try{proposal=resolveAdventureCombatTurnProposal(s,a,session,{action:'BASIC_ATTACK'});}
+    catch(error){return {ok:false,reason:error.message,message:'resolve combat ไม่ได้'};}
+    let reward={changed:false,evidence:'OUTCOME_UNKNOWN',xpAward:0,session:proposal.session};
+    if(proposal.session.status!=='ACTIVE'){
+      try{reward=commitVerifiedAdventureCombatReward(a,proposal.session,s.tick);}
+      catch(error){return {ok:false,reason:error.message,message:'verify combat outcome ไม่ได้'};}
+    }
+    a.hp=proposal.agentHpAfter;
+    a.adventureCombat=reward.session;
+    const state=a.adventureCombat.status;
+    if(state==='VICTORY')event(s,'adventure',a.name+' ชนะ '+a.adventureCombat.monsterId+(reward.xpAward?' · +'+reward.xpAward+' Adventure XP':''),a.id);
+    else if(state==='DEFEATED')event(s,'adventure',a.name+' พ่ายแพ้ต่อ '+a.adventureCombat.monsterId,a.id);
+    return {ok:true,combatId:a.adventureCombat.combatId,turn:a.adventureCombat.turn,status:state,
+      agentHp:a.hp,monsterHpCurrent:a.adventureCombat.monsterHpCurrent,monsterHpMax:a.adventureCombat.monsterHpMax,
+      heroDamage:proposal.heroOutcome.damage,counterDamage:proposal.counterOutcome?.damage??0,
+      outcomeEvidence:reward.evidence,xpAwarded:reward.xpAward};
+  }
+  if(type==='CLAIM_ADVENTURE_LOOT'){
+    const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
+    if(a.adventureCombat?.status!=='VICTORY')return {ok:false,reason:'victory',message:'ต้องชนะ combat ก่อน'};
+    let claimed;
+    try{claimed=claimVerifiedAdventureLoot(s,a,a.adventureCombat,{grantRust:rustGrantAdventureLoot});}
+    catch(error){return {ok:false,reason:error.message,message:'รับ loot ไม่ได้'};}
+    a.adventureCombat=claimed.session;
+    if(claimed.changed)event(s,'adventure',a.name+' ได้ loot '+claimed.itemIds.length+' ชิ้น',a.id);
+    return {ok:true,changed:claimed.changed,duplicate:claimed.duplicate,claimKey:claimed.claimKey,itemIds:claimed.itemIds,bagged:claimed.bagged,dropped:claimed.dropped};
+  }
   if(type==='CLONE'){
     const parent=s.agents.find(a=>a.id===data.parentId&&a.alive);
     if(!parent)return {ok:false,message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
@@ -303,6 +386,7 @@ function candidates(s,a,book,field){
   return out.sort((x,y)=>y.score-x.score||(x.kind<y.kind?-1:x.kind>y.kind?1:0)||(x.targetId??0)-(y.targetId??0));
 }
 function decide(s,a,book){
+  if(a.adventureEncounter?.status==='READY'||a.adventureCombat)return;
   const field=routeField(s,a),choices=candidates(s,a,book,field);
   a.trace=choices;
   for(const c of choices){
@@ -399,10 +483,28 @@ function execute(s,a){
       }
       a.task=null;
     }
-  }else if(t.work>=6){finishPersonalExploration(s,a,t);a.task=null;}
+  }else if(t.work>=6){
+    finishPersonalExploration(s,a,t);
+    const belief=t.knowledgeKey?a.knowledgeState?.beliefs?.find(b=>b.key===t.knowledgeKey):null;
+    const qualification=noteExploreCompletion(a,{
+      kind:t.kind,tick:s.tick,x:a.x,y:a.y,started:t.started,
+      alive:a.alive===true,productive:canPerformProductiveWork(s,a),
+      knowledge:t.knowledgeKey?(belief?.status??'UNKNOWN'):'none'
+    });
+    if(qualification.career?.changed&&s.tick-(a.lastCareerEventTick??-999)>=60){
+      event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);
+      a.lastCareerEventTick=s.tick;
+    }
+    if(t.adventureExpedition){
+      const encounter=completeAdventureExpedition(s,a,t);
+      a.adventureEncounter=encounter;
+      event(s,'adventure',a.name+' พบ '+encounter.monsterId+' Lv.'+encounter.monsterLevel+' ที่ '+encounter.zoneId,a.id);
+    }
+    a.task=null;
+  }
 }
 function interrupt(s,a){
-  const t=a.task;if(!taskValid(s,a))return true;
+  const t=a.task;if(!taskValid(s,a)||!adventureExpeditionTaskValid(s,a,t,{walkable}))return true;
   if(s.tick%12!==0)return false;
   // Hunger wins over tiredness; avoid oscillating between rest and foraging.
   if(a.satiety<RULES.hungry&&!['EAT','FORAGE'].includes(t.kind))return true;
@@ -432,7 +534,7 @@ export function step(s,count=1,options={}){
     const order=agents.map((a,index)=>({a,order:(index+rotation)%agents.length})).sort((x,y)=>
       priority(x.a)-priority(y.a)||(priority(x.a)===0?x.a.satiety-y.a.satiety:priority(x.a)===1?x.a.energy-y.a.energy:0)||x.order-y.order);
     for(const {a} of order){
-      if(a.task&&!taskValid(s,a)){release(book,a,a.task);a.task=null;}
+      if(a.task&&(!taskValid(s,a)||!adventureExpeditionTaskValid(s,a,a.task,{walkable}))){release(book,a,a.task);a.task=null;}
       if(!a.task)decide(s,a,book);
       const task=a.task;
       if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
@@ -500,7 +602,13 @@ export function validate(s){
     if(a.profession!==undefined&&!isKingdomProfession(a.profession))bad('Profession');
     if(a.professionSinceTick!==undefined&&(!Number.isInteger(a.professionSinceTick)||a.professionSinceTick<0||a.professionSinceTick>s.tick))bad('Profession');
     if(a.career!==undefined&&(!Array.isArray(a.career)||a.career.length>8||a.career.some(c=>!c||!Number.isInteger(c.tick)||c.tick<0||c.tick>s.tick||!isKingdomProfession(c.profession))))bad('Career');
+    for(const e of validateAdventurerQualification(a,s.tick))bad(e);
     for(const e of validateSkillProvenance(a,requiredSkills))bad(e);
+    for(const e of validateAdventureProgression(a,{required:isIndependent(s)}))bad(e);
+    for(const e of validateAdventureEncounterState(s,a))bad(e);
+    for(const e of validateAdventureCombatState(s,a))bad(e);
+    for(const e of validateAdventureCombatRewardState(s,a))bad(e);
+    for(const e of validateAdventureLootClaimState(s,a))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
@@ -588,7 +696,7 @@ function migrateHistory(s,sourceVersion){
 function migrateSkillProvenance(s){
   for(const a of allPeople(s)){
     if(!a.skillProvenance)a.skillProvenance=createLegacySkillProvenance(a.skills);
-    if(isIndependent(s))ensureLeadershipSkill(a,{tick:0});
+    if(isIndependent(s)){ensureLeadershipSkill(a,{tick:0});ensureAdventureProgressionSkill(a,{tick:0});}
   }
   return s;
 }
