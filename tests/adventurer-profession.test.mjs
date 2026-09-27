@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createWorld,step,serialize,restore,validate,childLife,walkable} from '../src/engine.mjs';
 import {RULES} from '../src/survival.mjs';
-import {adoptProfession,ensureProfession,noteExploreCompletion,professionForAction} from '../src/kingdom-utility.mjs';
+import {adoptProfession,ensureProfession,noteExploreCompletion,professionForAction,validateAdventurerQualification} from '../src/kingdom-utility.mjs';
 
 function adult(seed=11){
   const s=createWorld(seed),a=s.agents[0];
@@ -50,6 +50,51 @@ test('the third distinct explore completion adopts adventurer and a replay does 
   assert.deepEqual(validate(s),[]);
 });
 
+test('qualification audit tail keeps the latest eight while accepted saturates at three',()=>{
+  const a={preference:'FORAGE',skills:{FORAGE:4,WOODCUT:1,MINE:1,BUILD:1},profession:'forager',professionSinceTick:0,career:[{tick:0,profession:'forager'}]};
+  for(let i=0;i<10;i++){
+    const noted=noteExploreCompletion(a,{kind:'EXPLORE',tick:i+1,x:i,y:1,started:i,alive:true,productive:true,knowledge:'none'});
+    assert.equal(noted.counted,true);
+  }
+  assert.equal(a.profession,'adventurer');
+  assert.equal(a.adventurerQualification.accepted,3);
+  assert.equal(a.adventurerQualification.recent.length,8);
+  assert.equal(a.adventurerQualification.recent[0].id,'2:2:1');
+  assert.equal(a.adventurerQualification.recent.at(-1).id,'9:9:1');
+  assert.equal(a.career.filter(row=>row.profession==='adventurer').length,1);
+  assert.deepEqual(validateAdventurerQualification(a,10),[]);
+  const before=JSON.stringify(a.adventurerQualification);
+  const duplicate=noteExploreCompletion(a,{kind:'EXPLORE',tick:10,x:9,y:1,started:9,alive:true,productive:true,knowledge:'none'});
+  assert.equal(duplicate.counted,false);
+  assert.equal(JSON.stringify(a.adventurerQualification),before);
+});
+
+test('qualification validator rejects accepted counts unsupported by retained evidence',()=>{
+  const bad={adventurerQualification:{version:1,accepted:3,recent:[{id:'0:1:1',tick:1,x:1,y:1}]}};
+  assert.deepEqual(validateAdventurerQualification(bad,3),['Adventurer qualification']);
+});
+
+test('the four legacy professions still replace one another and invalid explore-3 writes nothing',()=>{
+  const worker={preference:'FORAGE',skills:{FORAGE:1,WOODCUT:1,MINE:1,BUILD:1},profession:'forager',professionSinceTick:0,career:[{tick:0,profession:'forager'}]};
+  for(const [kind,profession] of [['WOODCUT','woodcutter'],['MINE','miner'],['BUILD','builder'],['FORAGE','forager']]){
+    const changed=adoptProfession(worker,kind,worker.career.at(-1).tick+1);
+    assert.equal(changed.changed,true);
+    assert.equal(worker.profession,profession);
+  }
+  const candidate={
+    preference:'MINE',skills:{FORAGE:1,WOODCUT:1,MINE:9,BUILD:1},
+    adventurerQualification:{version:1,accepted:3,recent:[
+      {id:'0:1:1',tick:0,x:1,y:1},
+      {id:'1:1:2',tick:1,x:1,y:2},
+      {id:'2:2:2',tick:2,x:2,y:2},
+    ]},
+  };
+  const before=JSON.stringify(candidate);
+  const rejected=adoptProfession(candidate,'EXPLORE',2,{qualifiedProfession:'miner',qualification:'explore-3'});
+  assert.equal(rejected.changed,false);
+  assert.equal(JSON.stringify(candidate),before);
+});
+
 test('failed, unknown, walking, child and dead explores do not count',()=>{
   const failed=adult(23);
   failed.s.tick=11;
@@ -95,7 +140,7 @@ test('qualification save and load is deterministic and the explicit transition i
   assert.equal(again.agents.find(agent=>agent.id===a.id).profession,'adventurer');
   assert.deepEqual(validate(again),[]);
 
-  const forager={profession:'forager',professionSinceTick:0,career:[{tick:0,profession:'forager'}],adventurerQualification:{version:1,accepted:3,recent:[{id:'0:1:1',tick:1,x:1,y:1}]}};
+  const forager={profession:'forager',professionSinceTick:0,career:[{tick:0,profession:'forager'}],adventurerQualification:{version:1,accepted:3,recent:[{id:'0:1:1',tick:0,x:1,y:1},{id:'1:1:2',tick:1,x:1,y:2},{id:'2:2:2',tick:2,x:2,y:2}]}};
   adoptProfession(forager,'EXPLORE',2,{qualifiedProfession:'miner',qualification:'explore-3'});
   adoptProfession(forager,'EXPLORE',2,{qualifiedProfession:'adventurer',qualification:'explore-3',extra:true});
   adoptProfession(forager,'FORAGE',2,{qualifiedProfession:'adventurer',qualification:'explore-3'});
