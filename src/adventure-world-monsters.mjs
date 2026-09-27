@@ -12,6 +12,7 @@ export const WILD_MONSTER_WORLD_VERSION='SWA2-0.1';
 export const WILD_MONSTER_INITIAL_PER_ZONE=3;
 export const WILD_MONSTER_INITIAL_COUNT=12;
 export const WILD_MONSTER_INITIAL_STATUS='IDLE';
+export const WILD_MONSTER_COMBAT_STATUSES=Object.freeze(['IDLE','ENGAGED']);
 
 function mix(seed,a,b,salt=0){
   let n=(seed^Math.imul((a|0)+101+salt,374761393)^Math.imul((b|0)+313+salt,668265263))>>>0;
@@ -103,6 +104,35 @@ export function wildMonsterById(state,worldMonsterId){
   return state?.wildMonsters?.entities?.find(m=>m.worldMonsterId===worldMonsterId)??null;
 }
 
+export function engageWildMonster(state,worldMonsterId,agentId,encounter){
+  const monster=wildMonsterById(state,worldMonsterId);
+  const agent=(state.agents??[]).find(a=>a.id===agentId&&a.alive);
+  if(!monster||monster.status!=='IDLE'||monster.hpCurrent<=0)throw new Error('monster_unavailable');
+  if(!agent||agent.profession!=='adventurer')throw new Error('monster_engage_actor');
+  if(!encounter||encounter.worldMonsterId!==monster.worldMonsterId||encounter.monsterId!==monster.monsterId||
+    encounter.zoneId!==monster.zoneId||encounter.monsterLevel!==monster.level||encounter.rank!==monster.rank)throw new Error('monster_engage_encounter');
+  if(Math.abs(agent.x-monster.x)+Math.abs(agent.y-monster.y)!==1)throw new Error('monster_engage_range');
+  monster.status='ENGAGED';monster.engagedByAgentId=agent.id;
+  return monster;
+}
+
+export function commitWildMonsterCombatHp(state,worldMonsterId,agentId,{expectedBefore,hpAfter}={}){
+  const monster=wildMonsterById(state,worldMonsterId);
+  if(!monster||monster.status!=='ENGAGED'||monster.engagedByAgentId!==agentId)throw new Error('monster_combat_binding');
+  if(!Number.isSafeInteger(expectedBefore)||expectedBefore!==monster.hpCurrent)throw new Error('monster_hp_stale');
+  if(!Number.isSafeInteger(hpAfter)||hpAfter<0||hpAfter>expectedBefore||hpAfter>monster.hpMax)throw new Error('monster_hp_commit');
+  monster.hpCurrent=hpAfter;
+  return monster;
+}
+
+export function releaseWildMonsterEngagement(state,worldMonsterId,agentId){
+  const monster=wildMonsterById(state,worldMonsterId);
+  if(!monster||monster.status!=='ENGAGED'||monster.engagedByAgentId!==agentId)throw new Error('monster_combat_binding');
+  if(monster.hpCurrent<=0)throw new Error('monster_release_defeated');
+  monster.status='IDLE';monster.engagedByAgentId=null;
+  return monster;
+}
+
 export function validateWildMonsterWorld(state){
   const same=worldBounds(state).profile==='same-world',world=state?.wildMonsters;
   if(!same)return world===undefined||world===null?[]:['Wild monsters'];
@@ -122,16 +152,27 @@ export function validateWildMonsterWorld(state){
     const zone=ADVENTURE_ANNEX_ZONES.find(z=>z.zoneId===m.zoneId);
     if(!zone||!Number.isInteger(m.level)||m.level<zone.minLevel||m.level>zone.maxLevel)return ['Wild monsters'];
     try{assertAdventureMonsterInZone(m.zoneId,m.monsterId);}catch{return ['Wild monsters'];}
-    if(!['normal','elite'].includes(m.rank)||m.status!==WILD_MONSTER_INITIAL_STATUS)return ['Wild monsters'];
+    if(!['normal','elite'].includes(m.rank)||!WILD_MONSTER_COMBAT_STATUSES.includes(m.status))return ['Wild monsters'];
     if(!Number.isInteger(m.x)||!Number.isInteger(m.y)||adventureAnnexZoneAt(m.x,m.y)?.zoneId!==m.zoneId||
       state.tiles?.[m.y*bounds.w+m.x]==='water')return ['Wild monsters'];
     const pkey=key(m.x,m.y);
     if(positions.has(pkey)||occupied.has(pkey))return ['Wild monsters'];
     positions.add(pkey);
     const stats=monsterStatsAtLevel(m.monsterId,m.level);
-    if(!stats.ok||m.hpMax!==stats.stats.hp||m.hpCurrent!==m.hpMax)return ['Wild monsters'];
+    if(!stats.ok||m.hpMax!==stats.stats.hp||!Number.isSafeInteger(m.hpCurrent)||m.hpCurrent<0||m.hpCurrent>m.hpMax)return ['Wild monsters'];
+    if(m.status==='IDLE'&&(m.hpCurrent<=0||m.engagedByAgentId!==null))return ['Wild monsters'];
+    if(m.status==='ENGAGED'){
+      if(!Number.isSafeInteger(m.engagedByAgentId)||m.engagedByAgentId<1)return ['Wild monsters'];
+      const owner=(state.agents??[]).find(a=>a.id===m.engagedByAgentId&&a.alive);
+      if(!owner||owner.profession!=='adventurer')return ['Wild monsters'];
+      const session=owner.adventureCombat;
+      if(!session||session.worldMonsterId!==m.worldMonsterId)return ['Wild monsters'];
+      if(session.status==='ACTIVE'&&m.hpCurrent<=0)return ['Wild monsters'];
+      if(session.status==='VICTORY'&&m.hpCurrent!==0)return ['Wild monsters'];
+      if(session.status==='DEFEATED')return ['Wild monsters'];
+    }
     if(!Number.isInteger(m.spawnedTick)||m.spawnedTick<0||m.spawnedTick>state.tick||
-      m.defeatedTick!==null||m.respawnTick!==null||m.engagedByAgentId!==null)return ['Wild monsters'];
+      m.defeatedTick!==null||m.respawnTick!==null)return ['Wild monsters'];
     counts.set(m.zoneId,(counts.get(m.zoneId)??0)+1);
   }
   for(const zone of ADVENTURE_ANNEX_ZONES)if(counts.get(zone.zoneId)!==WILD_MONSTER_INITIAL_PER_ZONE)return ['Wild monsters'];
