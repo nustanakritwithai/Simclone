@@ -4,10 +4,20 @@ import {actionPredictionSnapshot} from './action-prediction.mjs';
 import {actionOutcomeVerificationSnapshot} from './action-outcome-verification.mjs';
 import {productiveOutcomeEvidenceSnapshot} from '../outcome-learning-evidence.mjs?v=0.5.0';
 
-export const OUTCOME_LEARNING_SHADOW_VERSION='VAL5-0.1';
-export const PREDICTION_HISTORY_EVIDENCE='NOT_RETAINED';
+export const OUTCOME_LEARNING_SHADOW_VERSION='VAL5-0.2';
+export const PREDICTION_HISTORY_EVIDENCE='RETAINED_VAL9';
 
 const freeze=x=>Object.freeze(x);
+
+function retainedPredictionContext(agent){
+  const rows=Array.isArray(agent?.planning?.predictions)?agent.planning.predictions:[];
+  const latest=rows.at(-1)??null;
+  return freeze({
+    count:rows.length,
+    latestReceiptId:latest?.receiptId??null,
+    latestTick:Number.isSafeInteger(latest?.tick)?latest.tick:null
+  });
+}
 
 function livePredictionContext(view){
   if(!view)return null;
@@ -50,6 +60,7 @@ export function outcomeLearningShadowSnapshot(state,agentId){
     agentId:agent.id,
     evidence,
     predictionHistory:PREDICTION_HISTORY_EVIDENCE,
+    predictionReceipts:retainedPredictionContext(agent),
     livePrediction:livePredictionContext(prediction),
     currentOutcome:currentOutcomeContext(verification),
     outcomes:samples,

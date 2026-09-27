@@ -1,7 +1,7 @@
 # ADV0B — Profession continuity
 
 Status: CANDIDATE IMPLEMENTED ON PR #130. MERGE NOT APPROVED.  
-Base: `main@5ddb4e00062100f025847ad0cbd0d14e01c421ff` (VAL7–VAL10 cognition completion). Pages SAT: [run 36302102186](https://github.com/nustanakritwithai/Simclone/actions/runs/36302102186).  
+Base: `main@65bfcfb241e1971a4cb06b8e7c7ac32110f7d1da` (CV0–CV2 calibration baseline). Pages SAT: [run 36302102186](https://github.com/nustanakritwithai/Simclone/actions/runs/36302102186).  
 Depends on [ADV0](ADV0_ADVENTURER_PROFESSION_SUCCESS_CONTRACT.md). This file does not implement it.
 
 ## Goal

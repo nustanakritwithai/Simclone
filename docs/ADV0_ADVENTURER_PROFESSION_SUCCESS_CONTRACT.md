@@ -1,7 +1,7 @@
 # ADV0 — Adventurer profession
 
 Status: CANDIDATE IMPLEMENTED ON PR #130. MERGE NOT APPROVED.  
-Base: `main@5ddb4e00062100f025847ad0cbd0d14e01c421ff` (VAL7–VAL10 cognition completion).  
+Base: `main@65bfcfb241e1971a4cb06b8e7c7ac32110f7d1da` (CV0–CV2 calibration baseline).  
 Prior candidate `b04fb2c251f6e358e7f11834f024dbbf3ae594b5` passed Verify run [#1376](https://github.com/nustanakritwithai/Simclone/actions/runs/36305292636). The bounded-history repair after that head requires its own exact-head CI; until then that newer head is UNKNOWN, never PASS.
 
 This file is the source of truth for the direction change. PR #130 now carries the candidate implementation on the current base. Exact candidate CI is still required; PR descriptions and the stale side-game branch are not authority.
