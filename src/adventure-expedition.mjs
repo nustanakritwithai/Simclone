@@ -113,6 +113,13 @@ function adventureHuntTaskValid(state,agent,task,{walkable}={}){
   const monster=wildMonsterById(state,h.worldMonsterId);
   if(!monster||monster.status!=='IDLE'||monster.hpCurrent<=0||monster.zoneId!==h.zoneId||
     monster.x!==h.monsterX||monster.y!==h.monsterY)return false;
+  const taskClaims=(state.agents??[]).filter(other=>other.alive&&other.task?.adventureHunt?.worldMonsterId===h.worldMonsterId)
+    .sort((a,b)=>(a.task.started-b.task.started)||a.id-b.id);
+  if(taskClaims[0]?.id!==agent.id)return false;
+  if((state.agents??[]).some(other=>other.alive&&other.id!==agent.id&&(
+    other.adventureEncounter?.worldMonsterId===h.worldMonsterId||
+    other.adventureCombat?.worldMonsterId===h.worldMonsterId
+  )))return false;
   try{assertAdventureZoneAccess(h.zoneId,h.adventureLevel);assertAdventureMonsterInZone(h.zoneId,monster.monsterId);}catch{return false;}
   if(h.targetX!==task.x||h.targetY!==task.y||!isAdventureZoneCell(state,h.zoneId,task.x,task.y))return false;
   if(Math.abs(task.x-monster.x)+Math.abs(task.y-monster.y)!==1)return false;
