@@ -105,3 +105,23 @@ Future implementation is expected to touch the candidate scoring path, so curren
 4. Repair only from evidence if VIOL.
 5. Merge only after candidate SAT.
 6. Run exact-main Pages/public gate.
+
+
+## Repair evidence — candidate CI
+
+Verify #1335 failed in npm test with two concrete defects:
+- synthetic VAL6 test lessons used ticks greater than state.tick; validator correctly rejected the fixture
+- new authority imported read-model modules without the repository runtime version suffix
+
+Those were repaired without changing VAL6 scoring semantics.
+
+Verify #1339 then passed all Node tests (572/572) but failed active Chromium boot. Root cause: the offline browser fixture rewrites top-level `./...` module dependencies into data URLs; pulling `src/read-models/*` into the hot runtime introduced nested `../...` relative imports that cannot resolve from a data URL.
+
+Repair:
+- extracted shared pure retained evidence into `src/outcome-learning-evidence.mjs`
+- VAL6 authority now imports only top-level runtime modules
+- VAL5 read model consumes the same shared helper
+- no browser-fixture weakening or gate removal
+- runtime pins refreshed
+
+Scoring formula and cap remain unchanged.
