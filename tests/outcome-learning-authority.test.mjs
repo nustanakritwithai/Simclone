@@ -6,7 +6,7 @@ import {outcomeLearningSignal,MAX_OUTCOME_LEARNING_BONUS} from '../src/outcome-l
 function independent(){return createWorld(230926,{mode:'independent'});}
 function setLessons(a,kind,outcomes){
   a.planning.lessons=outcomes.map((outcome,i)=>({
-    tick:i,
+    tick:0,
     kind,
     targetId:100+i,
     outcome,
