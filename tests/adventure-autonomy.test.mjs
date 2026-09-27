@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {createWorld,step,serialize,restore,validate} from '../src/engine.mjs';
+import {createWorld,step,serialize,restore,validate,command} from '../src/engine.mjs';
 import {recordEarnedSkill} from '../src/skill-provenance.mjs';
 import {adventureXpForLevel} from '../src/adventure-progression.mjs';
 import {adoptProfession} from '../src/kingdom-utility.mjs';
