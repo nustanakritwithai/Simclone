@@ -1,0 +1,38 @@
+name: Display D3 journey proof
+
+on:
+  push:
+    branches:
+      - "integration/display-d3-after-d2-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  journey-proof:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Verify D3 authoritative journey visuals
+        run: python tests/display-d3-smoke.py
+
+      - name: Upload D3 visual evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: display-d3-journey-proof
+          path: evidence-display-d3/
+          if-no-files-found: error
