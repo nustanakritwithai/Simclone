@@ -7,9 +7,11 @@ import {ADVENTURE_ANNEX_ZONES,adventureAnnexZoneAt} from './adventure-annex.mjs?
 import {adventureZoneById,assertAdventureMonsterInZone} from './adventure-zones.mjs?v=0.5.0';
 import {monsterStatsAtLevel} from './adventure-monster-stats.mjs?v=0.5.0';
 
-export const WILD_MONSTER_WORLD_VERSION='SWA2-0.1';
-export const WILD_MONSTER_INITIAL_PER_ZONE=3;
-export const WILD_MONSTER_INITIAL_COUNT=12;
+export const WILD_MONSTER_WORLD_VERSION='SWA2-0.2';
+export const WILD_MONSTER_TYPES_PER_ZONE=3;
+export const WILD_MONSTER_COPIES_PER_TYPE=2;
+export const WILD_MONSTER_INITIAL_PER_ZONE=WILD_MONSTER_TYPES_PER_ZONE*WILD_MONSTER_COPIES_PER_TYPE;
+export const WILD_MONSTER_INITIAL_COUNT=ADVENTURE_ANNEX_ZONES.length*WILD_MONSTER_INITIAL_PER_ZONE;
 export const WILD_MONSTER_INITIAL_STATUS='IDLE';
 export const WILD_MONSTER_RESPAWN_TICKS=5;
 export const WILD_MONSTER_STATUSES=Object.freeze(['IDLE','ENGAGED','DEFEATED','RESPAWNING']);
@@ -39,7 +41,7 @@ function rankedMonsterIds(seed,zone,zoneIndex){
   const roster=adventureZoneById(zone.zoneId).rosterIds;
   return roster.map((monsterId,index)=>({monsterId,index,rank:mix(seed,zoneIndex,index,1201)}))
     .sort((a,b)=>a.rank-b.rank||a.index-b.index)
-    .slice(0,WILD_MONSTER_INITIAL_PER_ZONE)
+    .slice(0,WILD_MONSTER_TYPES_PER_ZONE)
     .map(row=>row.monsterId);
 }
 
@@ -71,7 +73,8 @@ export function createInitialWildMonsterWorld(state){
   for(const [zoneIndex,zone] of ADVENTURE_ANNEX_ZONES.entries()){
     const ids=rankedMonsterIds(state.seed,zone,zoneIndex);
     for(let slot=0;slot<WILD_MONSTER_INITIAL_PER_ZONE;slot++){
-      const monsterId=ids[slot],level=monsterLevel(state.seed,zone,zoneIndex,slot);
+      const typeIndex=slot%WILD_MONSTER_TYPES_PER_ZONE;
+      const monsterId=ids[typeIndex],level=monsterLevel(state.seed,zone,zoneIndex,typeIndex);
       const stats=monsterStatsAtLevel(monsterId,level);
       if(!stats.ok)throw new Error('wild_monster_stats');
       const pos=spawnCell(state,zone,zoneIndex,slot,occupied,0);
@@ -79,7 +82,7 @@ export function createInitialWildMonsterWorld(state){
       const spawnEpoch=0;
       entities.push({
         worldMonsterId:`wm:${zone.zoneId}:${slot}:${spawnEpoch}`,
-        monsterId,zoneId:zone.zoneId,level,rank:monsterRank(state.seed,zoneIndex,slot),
+        monsterId,zoneId:zone.zoneId,level,rank:monsterRank(state.seed,zoneIndex,typeIndex),
         x:pos.x,y:pos.y,hpMax:stats.stats.hp,hpCurrent:stats.stats.hp,
         status:WILD_MONSTER_INITIAL_STATUS,spawnSlot:slot,spawnEpoch,
         spawnedTick:state.tick,defeatedTick:null,respawnTick:null,engagedByAgentId:null
@@ -88,7 +91,7 @@ export function createInitialWildMonsterWorld(state){
   }
   return {
     version:WILD_MONSTER_WORLD_VERSION,
-    policy:'three-per-zone-static-v1',
+    policy:'two-per-existing-type-v1',
     entities
   };
 }
@@ -134,9 +137,41 @@ export function releaseWildMonsterEngagement(state,worldMonsterId,agentId){
   return monster;
 }
 
+function migrateWildMonsterPopulationState(state){
+  const world=state.wildMonsters;
+  if(!world)return false;
+  if(world.version===WILD_MONSTER_WORLD_VERSION&&world.policy==='two-per-existing-type-v1')return false;
+  if(world.version!=='SWA2-0.1'||world.policy!=='three-per-zone-static-v1'||!Array.isArray(world.entities)||world.entities.length!==12)return false;
+
+  const occupied=respawnOccupiedCells(state,null);
+  const additions=[];
+  for(const [zoneIndex,zone] of ADVENTURE_ANNEX_ZONES.entries()){
+    const originals=world.entities.filter(m=>m.zoneId===zone.zoneId).sort((a,b)=>a.spawnSlot-b.spawnSlot);
+    if(originals.length!==WILD_MONSTER_TYPES_PER_ZONE||originals.some((m,i)=>m.spawnSlot!==i))return false;
+    for(const original of originals){
+      const spawnSlot=WILD_MONSTER_TYPES_PER_ZONE+original.spawnSlot;
+      const stats=monsterStatsAtLevel(original.monsterId,original.level);
+      if(!stats.ok)throw new Error('wild_monster_migration_stats');
+      const pos=spawnCell(state,zone,zoneIndex,spawnSlot,occupied,0);
+      occupied.add(key(pos.x,pos.y));
+      additions.push({
+        worldMonsterId:`wm:${zone.zoneId}:${spawnSlot}:0`,
+        monsterId:original.monsterId,zoneId:zone.zoneId,level:original.level,rank:original.rank,
+        x:pos.x,y:pos.y,hpMax:stats.stats.hp,hpCurrent:stats.stats.hp,
+        status:WILD_MONSTER_INITIAL_STATUS,spawnSlot,spawnEpoch:0,
+        spawnedTick:state.tick,defeatedTick:null,respawnTick:null,engagedByAgentId:null
+      });
+    }
+  }
+  world.entities.push(...additions);
+  world.version=WILD_MONSTER_WORLD_VERSION;
+  world.policy='two-per-existing-type-v1';
+  return true;
+}
+
 export function migrateWildMonsterLifecycleState(state){
   if(worldBounds(state).profile!=='same-world'||!state.wildMonsters)return {changed:false};
-  let changed=false;
+  let changed=migrateWildMonsterPopulationState(state);
   for(const monster of state.wildMonsters.entities??[]){
     if(monster.status!=='ENGAGED'||monster.hpCurrent!==0)continue;
     const owner=(state.agents??[]).find(a=>a.id===monster.engagedByAgentId);
@@ -218,17 +253,16 @@ export function stepWildMonsterLifecycle(state){
 export function validateWildMonsterWorld(state){
   const same=worldBounds(state).profile==='same-world',world=state?.wildMonsters;
   if(!same)return world===undefined||world===null?[]:['Wild monsters'];
-  if(!world||world.version!==WILD_MONSTER_WORLD_VERSION||world.policy!=='three-per-zone-static-v1'||
+  if(!world||world.version!==WILD_MONSTER_WORLD_VERSION||world.policy!=='two-per-existing-type-v1'||
     !Array.isArray(world.entities)||world.entities.length!==WILD_MONSTER_INITIAL_COUNT)return ['Wild monsters'];
 
-  const ids=new Set(),monsterIds=new Set(),positions=new Set(),counts=new Map();
+  const ids=new Set(),positions=new Set(),counts=new Map(),typeSlots=new Map();
   const occupied=occupiedCells(state),bounds=worldBounds(state);
   for(const m of world.entities){
     if(!m||typeof m!=='object'||Array.isArray(m))return ['Wild monsters'];
     if(typeof m.worldMonsterId!=='string'||ids.has(m.worldMonsterId))return ['Wild monsters'];
     ids.add(m.worldMonsterId);
-    if(typeof m.monsterId!=='string'||monsterIds.has(m.monsterId))return ['Wild monsters'];
-    monsterIds.add(m.monsterId);
+    if(typeof m.monsterId!=='string')return ['Wild monsters'];
     if(!Number.isInteger(m.spawnSlot)||m.spawnSlot<0||m.spawnSlot>=WILD_MONSTER_INITIAL_PER_ZONE||!Number.isSafeInteger(m.spawnEpoch)||m.spawnEpoch<0||
       m.worldMonsterId!==`wm:${m.zoneId}:${m.spawnSlot}:${m.spawnEpoch}`)return ['Wild monsters'];
     const zone=ADVENTURE_ANNEX_ZONES.find(z=>z.zoneId===m.zoneId);
@@ -261,7 +295,17 @@ export function validateWildMonsterWorld(state){
       if(m.status==='RESPAWNING'&&state.tick<m.respawnTick)return ['Wild monsters'];
     }
     counts.set(m.zoneId,(counts.get(m.zoneId)??0)+1);
+    const typeKey=m.zoneId+':'+m.monsterId;
+    const slots=typeSlots.get(typeKey)??[];slots.push(m.spawnSlot);typeSlots.set(typeKey,slots);
   }
-  for(const zone of ADVENTURE_ANNEX_ZONES)if(counts.get(zone.zoneId)!==WILD_MONSTER_INITIAL_PER_ZONE)return ['Wild monsters'];
+  for(const zone of ADVENTURE_ANNEX_ZONES){
+    if(counts.get(zone.zoneId)!==WILD_MONSTER_INITIAL_PER_ZONE)return ['Wild monsters'];
+    const pairs=[...typeSlots.entries()].filter(([k])=>k.startsWith(zone.zoneId+':'));
+    if(pairs.length!==WILD_MONSTER_TYPES_PER_ZONE)return ['Wild monsters'];
+    for(const [,slots] of pairs){
+      slots.sort((a,b)=>a-b);
+      if(slots.length!==WILD_MONSTER_COPIES_PER_TYPE||slots[0]<0||slots[0]>=WILD_MONSTER_TYPES_PER_ZONE||slots[1]!==slots[0]+WILD_MONSTER_TYPES_PER_ZONE)return ['Wild monsters'];
+    }
+  }
   return [];
 }
