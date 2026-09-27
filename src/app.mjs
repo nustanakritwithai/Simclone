@@ -410,11 +410,6 @@ function drawAdventureJourney(c,j,time){
  if(!j?.actor)return;
  const actor=proj(j.actor.x,j.actor.y),target=j.target?proj(j.target.x,j.target.y):null,pulse=(Math.sin(time*.008+j.agentId)+1)/2;
  if(j.phase==='HUNT'){
-  if(j.path?.length>1){
-   c.save();c.setLineDash([6,5]);
-   const pts=j.path.map(p=>{const q=proj(p.x,p.y);return [q.x,q.y];});
-   line(c,pts,'#e9c872cc',1.7);c.setLineDash([]);c.restore();
-  }
   if(j.engagement){
    const q=proj(j.engagement.x,j.engagement.y);
    c.save();c.strokeStyle='#f0d58bcc';c.lineWidth=1.3;c.beginPath();c.arc(q.x,q.y,7+pulse*2,0,Math.PI*2);c.stroke();c.restore();
