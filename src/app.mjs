@@ -517,9 +517,12 @@ canvas.addEventListener('pointerup',e=>{
   for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}
   if(object?.type==='event'&&object.d<Math.max(12,18*zoom))independentUI?.openWorldObject(object);
   else{const st=structureTargetAtScreen(sx,sy),target=st&&object?(st.d<=object.d?st:object):(st??object);
-   if(hit&&(!target||best<=target.d))selectAgent(hit.id);
-   else if(target){if(['building','station'].includes(target.type))openStructureContext(target);else independentUI?.openWorldObject(target);}
-   else{selected=null;follow=false;updateUI();}
+   if(hit&&(!target||best<=target.d)){selectedWorldMonsterId=null;selectAgent(hit.id);}
+   else if(target){
+    if(['building','station'].includes(target.type))openStructureContext(target);
+    else if(target.type==='monster')openMonsterContext(target.id);
+    else independentUI?.openWorldObject(target);
+   }else{selectedWorldMonsterId=null;selected=null;follow=false;updateUI();}
   }
  }
  drag=null;
