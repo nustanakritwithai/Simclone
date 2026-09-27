@@ -3,10 +3,10 @@ type: success-contract
 project: Simclone
 domain: display-system
 feature: D1 World Readability
-status: implementation-candidate
+status: released
 canonical: true
 owner: Project Brain + Display Integration
-validation: UNKNOWN
+validation: SAT
 last_reviewed: 2026-09-27
 ---
 
@@ -82,4 +82,4 @@ Zone coordinates and level ranges must not be duplicated in app.mjs.
 
 ## Integration note
 
-D1 v2 is reconciled onto released `main@b397936fdf583619e6723b2919f76aba9f8969d2` after SWA7 hotfix PR #152. D1 must still require exact-head Verify and visual proof before merge. The offline Chromium fixture resolves both `./` and `../` local ESM imports so nested read-model modules are exercised through the normal browser boot gate.
+D1 merged through PR #151 and is released on `main@4c75a098f01c179a425e045617f849683250d13b`. Exact-head Verify, Visual Proof #4 and exact-main Pages #97 are SAT. The offline Chromium fixture resolves both `./` and `../` local ESM imports so nested read-model modules are exercised through the normal browser boot gate.

@@ -2,17 +2,13 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main is `d4378bae2d707662bd1d614a397538f73495e5ba` after merged SWA6 integration PR #149.
-> Adventure V1 is released.
-> Same-World Adventure has SWA0–SWA6 merged; SWA7 is active on `release/swa7-same-world-closeout`.
-> SWA1 owns the 84×52 Same-World map.
-> SWA2 owns Wild Monster world state.
-> SWA3 owns visible/tappable projection.
-> SWA4 owns explicit worldMonsterId hunt paths.
-> SWA5 owns ENGAGED binding and canonical world-Monster HP commits.
-> SWA6 owns DEFEATED/despawn/result closeout/deterministic respawn.
-> SWA7 owns exact-main Pages, public-byte identity and public browser/mobile lifecycle proof only.
-> Display V1 D0 + DSP1 is merged and remains read-only presentation authority.
+> Source main is `4c75a098f01c179a425e045617f849683250d13b` after merged Display D1 PR #151.
+> Adventure V1 and Same-World Adventure SWA0–SWA7 are released.
+> Exact-main Pages #97 is SUCCESS, including public lifecycle proof.
+> Display V1 D0 + DSP1 + D1 are merged/released.
+> Active display candidate: D2 Unified Selection + Deterministic Hit Resolver on `feature/display-d2-unified-selection-v2`.
+> D2 owns presentation/input arbitration only. Simulation/gameplay authorities remain unchanged.
+> PR #84 is stale UX history/donor only and must not be merged into D2.
 > The older baseline notes below are retained as history where they conflict with this override.
 
 

@@ -12,6 +12,7 @@ import {drawPiece,structureDrawInfo,structureDepth,roofNeighbours} from './build
 import {installAdventureUI} from './adventure-ui.mjs?v=0.5.0';
 import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
 import {worldReadabilityRegions} from './display-world-readability.mjs?v=0.5.0';
+import {worldHitCandidate,resolveWorldHit,worldSelection,selectionFromWorldHit} from './read-models/world-hit-resolver.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,independentUI=null,adventureUI=null,nav=null,worldMapView=null;
@@ -19,7 +20,7 @@ const publicWorldProfile=document.documentElement.dataset.worldProfile??'legacy'
 const restoreForPublic=text=>restore(text,{sameWorld:publicWorldProfile==='same-world'});
 const store=createWorldStore({getStorage:()=>localStorage,serialize,restore:restoreForPublic});
 const defaultFocusFor=s=>{const b=coreWorldBounds(s);return {x:Math.round((b.w-1)*11/29),y:Math.round((b.h-1)*12/25)};};
-let state=createWorld(230926,{mode:document.documentElement.dataset.defaultWorld??'legacy',worldProfile:publicWorldProfile}),paused=false,speed=1,selected=innerWidth>700?2:null,tab='about',mode='observe';
+let state=createWorld(230926,{mode:document.documentElement.dataset.defaultWorld??'legacy',worldProfile:publicWorldProfile}),paused=false,speed=1,activeAgentId=innerWidth>700?2:null,selection=activeAgentId?worldSelection('agent',activeAgentId):null,tab='about',mode='observe';
 let toastTimer,ground,cw=0,ch=0,dpr=1,zoom=innerWidth<700?1.12:1.25,pan={x:0,y:0};
 let focus=defaultFocusFor(state),follow=false,positions=new Map(),lastUi=0,lastFrame=0,accumulator=0;
 const hw=27,hh=13.5;
@@ -29,14 +30,13 @@ const loaded=store.load();if(loaded)state=loaded;
 if(store.status().kind==='protected')toast('เซฟเดิมมีปัญหา จึงยังไม่เขียนทับ · สำรองไฟล์เดิมได้ในเมนู');
 else if(store.status().kind==='unavailable')toast('เบราว์เซอร์ไม่ให้เข้าถึงบันทึก · ส่งออกไฟล์เพื่อเก็บโลกไว้');
 else if(loaded)toast('กลับสู่โลกเดิม · วันที่ '+day(state));
-if(isIndependent(state)){selected=null;const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=['large','same-world'].includes(b.profile)?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}
+if(isIndependent(state)){activeAgentId=null;selection=null;const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=['large','same-world'].includes(b.profile)?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}
 function save(manual=false){const result=store.save(state);nav?.update();if(manual)toast(result.ok?'บันทึกโลกในเบราว์เซอร์นี้แล้ว':result.reason==='protected'?'ยังไม่เขียนทับเซฟเดิม · สำรองไฟล์ก่อนเริ่มโลกใหม่':'บันทึกไม่ได้ · ใช้ส่งออกไฟล์เพื่อเก็บโลกไว้');return result;}
 function portrait(a){const p=a.appearance;return `<svg class="portrait" viewBox="0 0 60 68" aria-label="${esc(a.name)}"><rect width="60" height="68" fill="#3b5747"/><circle cx="30" cy="31" r="27" fill="#667954" opacity=".35"/><path d="M7 69Q7 46 30 46Q53 46 53 69" fill="${p.coat}"/><path d="M25 43h10v10l-5 5-5-5" fill="${p.skin}"/><path d="M16 28Q12 10 30 9Q47 9 45 31L43 49H17Z" fill="${p.hair}"/><ellipse cx="30" cy="32" rx="12" ry="16" fill="${p.skin}"/><path d="${p.style===0?'M17 29Q13 9 31 10Q49 13 43 28L36 19 23 22Z':p.style===1?'M17 29Q12 12 30 10Q48 11 44 31L37 16 29 24Z':'M16 28Q12 8 31 9Q49 12 44 29L41 17 32 14 21 22Z'}" fill="${p.hair}"/><path d="M22 30h5m7 0h5" stroke="#4c392e" stroke-width="1.4"/><circle cx="25" cy="33" r="1.3" fill="#24352d"/><circle cx="36" cy="33" r="1.3" fill="#24352d"/><path d="M30 34v5h2M26 43q4 3 8 0" fill="none" stroke="#a66c54" stroke-width="1"/><path d="M19 52l11 7 11-7M30 59v10" stroke="#eee4ba88" stroke-width="1" fill="none"/></svg>`;}
 function polygon(c,points,fill,stroke=null){c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fillStyle=fill;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=.7;c.stroke();}}
 function ellipse(c,x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill();}
 function line(c,points,color,width=1){c.strokeStyle=color;c.lineWidth=width;c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke();}
 function hash(x,y){return ((Math.imul(x+33,374761393)^Math.imul(y+41,668265263))>>>0)/4294967296;}
-let selectedWorldMonsterId=null;
 const MONSTER_TYPE_COLORS=Object.freeze({
  Normal:'#d7d0bd',Fire:'#e77f4f',Water:'#61a8c8',Electric:'#e7cf62',Grass:'#77a95c',Ice:'#a9d6d9',
  Fighting:'#bd765a',Poison:'#9b73ad',Ground:'#b58c58',Flying:'#9fb5cf',Psychic:'#cf7fa7',Bug:'#8ead58',
@@ -46,11 +46,11 @@ function wildMonsterDef(m){return monsterDefinition(m?.monsterId);}
 function wildMonsterType(m){return wildMonsterDef(m)?.types?.[0]??'Normal';}
 function drawWildMonster(c,m,time){
  const def=wildMonsterDef(m),type=wildMonsterType(m),fill=MONSTER_TYPE_COLORS[type]??MONSTER_TYPE_COLORS.Normal;
- const p=proj(m.x,m.y),selected=m.worldMonsterId===selectedWorldMonsterId,elite=m.rank==='elite',pulse=(Math.sin(time*.006+m.spawnSlot)+1)/2;
+ const p=proj(m.x,m.y),isSelected=selection?.kind==='monster'&&String(selection.id)===String(m.worldMonsterId),elite=m.rank==='elite',pulse=(Math.sin(time*.006+m.spawnSlot)+1)/2;
  const markerScale=Math.max(1,.85/Math.max(.01,zoom));
  c.save();c.translate(p.x,p.y);c.scale(markerScale,markerScale);
  ellipse(c,0,5,17,6,'#132a254f');
- if(selected){c.strokeStyle='#f1d59d';c.lineWidth=2;c.beginPath();c.ellipse(0,-12,22+pulse*2,15+pulse,0,0,Math.PI*2);c.stroke();}
+ if(isSelected){c.strokeStyle='#f1d59d';c.lineWidth=2;c.beginPath();c.ellipse(0,-12,22+pulse*2,15+pulse,0,0,Math.PI*2);c.stroke();}
  c.fillStyle=fill;c.strokeStyle=elite?'#f4cf79':'#263c35';c.lineWidth=elite?2:1.2;
  c.beginPath();c.ellipse(0,-18,13,11,0,0,Math.PI*2);c.fill();c.stroke();
  // Strong silhouette: ears/horns + eyes remain readable when zoomed out.
@@ -60,23 +60,21 @@ function drawWildMonster(c,m,time){
  c.fillStyle='#162a23';c.font='bold 9px system-ui';c.textAlign='center';c.fillText(type.slice(0,2).toUpperCase(),0,-7);
  c.font='bold 9px system-ui';const label='Lv.'+m.level,w=c.measureText(label).width+10;
  c.fillStyle='#11251fe8';c.beginPath();c.roundRect(-w/2,-53,w,15,5);c.fill();c.fillStyle='#f2e3bd';c.fillText(label,0,-42);
- if(selected){
+ if(isSelected){
    const hp=Math.max(0,Math.min(1,m.hpCurrent/Math.max(1,m.hpMax)));
    c.fillStyle='#0b1c17d9';c.fillRect(-18,-34,36,4);c.fillStyle='#a9cf8a';c.fillRect(-18,-34,36*hp,4);
  }
  c.restore();
 }
 function monsterTargetAtScreen(sx,sy){
- const rows=(state.wildMonsters?.entities??[]).filter(m=>m.status!=='DEFEATED'&&m.status!=='RESPAWNING').map(m=>{
-  const p=screenPoint(m.x,m.y);return {type:'monster',id:m.worldMonsterId,d:Math.hypot(sx-p.x,sy-(p.y-20*zoom))};
- });
- return rows.sort((a,b)=>a.d-b.d||String(a.id).localeCompare(String(b.id))).find(r=>r.d<Math.max(24,38*zoom))??null;
+ const hit=resolveWorldHit(worldHitCandidatesAtScreen(sx,sy).filter(row=>row.kind==='monster'));
+ return legacyWorldHit(hit);
 }
 function openMonsterContext(worldMonsterId){
  const m=state.wildMonsters?.entities?.find(x=>x.worldMonsterId===worldMonsterId);if(!m)return false;
- selectedWorldMonsterId=m.worldMonsterId;
+ selection=worldSelection('monster',m.worldMonsterId);
  const def=wildMonsterDef(m),type=wildMonsterType(m),hp=Math.max(0,Math.min(100,Math.round(m.hpCurrent/Math.max(1,m.hpMax)*100)));
- const hunter=state.agents.find(a=>a.alive&&a.id===selected&&a.profession==='adventurer')??state.agents.find(a=>a.alive&&a.profession==='adventurer')??null;
+ const hunter=state.agents.find(a=>a.alive&&a.id===activeAgentId&&a.profession==='adventurer')??state.agents.find(a=>a.alive&&a.profession==='adventurer')??null;
  const huntAction=m.status==='IDLE'&&m.hpCurrent>0
   ?(hunter?'<div class="dialog-actions"><button class="primary" data-action="hunt-monster" data-agent="'+hunter.id+'" data-monster="'+esc(m.worldMonsterId)+'">เดินไปหา · '+esc(hunter.name)+'</button></div>'
     :'<p class="source-note">ยังไม่มี Adventurer ที่พร้อมเลือกเป้าหมายนี้</p>')
@@ -359,7 +357,7 @@ function person(c,a,time,bubble=null){
  const p=proj(v.x,v.y),ap=a.appearance,moving=a.task?.path.length>0;
  const stride=moving?Math.sin(time*.012+a.id)*3:0;c.save();c.translate(p.x,p.y);
  ellipse(c,1,2,10,4,'#19312755');
- if(a.id===selected){c.strokeStyle='#efd299';c.lineWidth=1.5;c.beginPath();c.ellipse(0,1,15,7,0,0,Math.PI*2);c.stroke();}
+ if(selection?.kind==='agent'&&String(selection.id)===String(a.id)){c.strokeStyle='#efd299';c.lineWidth=1.5;c.beginPath();c.ellipse(0,1,15,7,0,0,Math.PI*2);c.stroke();}
  line(c,[[-3,-9],[-4+stride,0]],'#344439',3);line(c,[[3,-9],[4-stride,0]],'#344439',3);
  polygon(c,[[-6,-20],[5,-20],[7,-7],[-7,-7]],ap.coat);
  line(c,[[-6,-18],[-9-stride*.6,-10]],ap.skin,3);line(c,[[6,-18],[9+stride*.6,-10]],ap.skin,3);
@@ -376,7 +374,7 @@ function person(c,a,time,bubble=null){
  c.restore();
 }
 function cameraOrigin(){return nav?.anchor()??{x:cw/2,y:ch/2};}
-function frameSelected(){const a=state.agents.find(a=>a.id===selected&&a.alive);if(a){focus={x:a.x,y:a.y};pan={x:0,y:0};}}
+function frameSelected(){const a=state.agents.find(a=>a.id===activeAgentId&&a.alive);if(a){focus={x:a.x,y:a.y};pan={x:0,y:0};}}
 function centerCamera(p){focus={...p};pan={x:0,y:0};follow=false;}
 function screenPoint(x,y){const p=proj(x,y),f=proj(focus.x,focus.y);return {x:cameraOrigin().x+pan.x+(p.x-f.x)*zoom,y:cameraOrigin().y+pan.y+(p.y-f.y)*zoom};}
 function worldPoint(x,y){const f=proj(focus.x,focus.y);const px=(x-cameraOrigin().x-pan.x)/zoom+f.x,py=(y-cameraOrigin().y-pan.y)/zoom+f.y;return {x:Math.round((px/hw+py/hh)/2),y:Math.round((py/hh-px/hw)/2)};}
@@ -404,13 +402,13 @@ function structureRenderContext(){
 function render(time){
  ctx.setTransform(dpr,0,0,dpr,0,0);
  const bg=ctx.createLinearGradient(0,0,cw,ch);bg.addColorStop(0,'#4c654b');bg.addColorStop(1,'#314b3d');ctx.fillStyle=bg;ctx.fillRect(0,0,cw,ch);
- if(follow){const a=state.agents.find(a=>a.id===selected&&a.alive);if(a){focus.x+=(a.x-focus.x)*.03;focus.y+=(a.y-focus.y)*.03;}}
+ if(follow){const a=state.agents.find(a=>a.id===activeAgentId&&a.alive);if(a){focus.x+=(a.x-focus.x)*.03;focus.y+=(a.y-focus.y)*.03;}}
  ctx.save();ctx.translate(cameraOrigin().x+pan.x,cameraOrigin().y+pan.y);ctx.scale(zoom,zoom);const f=proj(focus.x,focus.y);ctx.translate(-f.x,-f.y);
  const bounds=worldBounds(state);ctx.drawImage(ground,-bounds.h*hw-60,-32);
- const a=state.agents.find(a=>a.id===selected&&a.alive);
+ const a=state.agents.find(a=>a.id===activeAgentId&&a.alive);
  if(a?.task?.path.length){ctx.setLineDash([3,5]);line(ctx,[[proj(a.x,a.y).x,proj(a.x,a.y).y],...a.task.path.map(v=>{const p=proj(v.x,v.y);return [p.x,p.y];})],'#e9d4a588',1.3);ctx.setLineDash([]);}
- const structureCtx=structureRenderContext(),bubbles=worldBubbleSignals(state,selected,innerWidth<=700?3:5),bubbleMap=new Map(bubbles.map(x=>[x.agentId,x]));
- for(const link of selectedRelationshipLinks(state,selected))drawRelationshipLink(ctx,link);
+ const structureCtx=structureRenderContext(),bubbles=worldBubbleSignals(state,activeAgentId,innerWidth<=700?3:5),bubbleMap=new Map(bubbles.map(x=>[x.agentId,x]));
+ for(const link of selectedRelationshipLinks(state,activeAgentId))drawRelationshipLink(ctx,link);
  for(const link of recentCommunicationLinks(state))drawCommunicationLink(ctx,link);
  const objects=[...state.nodes.map(n=>({kind:'node',data:n,depth:n.x+n.y})),...state.buildings.filter(b=>b.type!=='shelter').map(b=>({kind:'building',data:b,depth:b.x+b.y+.1})),...(state.rustStations?.stations??[]).map(st=>({kind:'rust-station',data:st,depth:structureDepth(st)})),...droppedWorldItems(state).map(item=>({kind:'drop-item',data:item,depth:item.x+item.y+.15})),...(state.wildMonsters?.entities??[]).filter(m=>m.status!=='DEFEATED'&&m.status!=='RESPAWNING').map(m=>({kind:'wild-monster',data:m,depth:m.x+m.y+.18})),...living(state).map(a=>({kind:'agent',data:a,depth:a.x+a.y+.2}))].sort((a,b)=>a.depth-b.depth);
  for(const o of objects){if(o.kind==='node')node(ctx,o.data);else if(o.kind==='building')building(ctx,o.data,time);else if(o.kind==='rust-station')rustStation(ctx,o.data,structureCtx);else if(o.kind==='drop-item')drawDroppedItem(ctx,o.data);else if(o.kind==='wild-monster')drawWildMonster(ctx,o.data,time);else person(ctx,o.data,time,bubbleMap.get(o.data.id)??null);}
@@ -434,7 +432,7 @@ function actionText(a){if(!a.alive)return 'เสียชีวิตแล้�
 function inspect(){ux?.renderInspector();}
 function updateUI(){
  $('day').textContent='วันที่ '+day(state);const h=hour(state),mins=Math.floor(state.tick%15/15*60);$('clock').textContent=String(h).padStart(2,'0')+':'+String(mins).padStart(2,'0')+' · '+(h<6||h>=19?'กลางคืน':h<12?'เช้า':'บ่าย');
- const selectedAgent=state.agents.find(a=>a.id===selected),stock=isIndependent(state)?(selectedAgent?resourceStock(state,selectedAgent):materialTotals(state,{livingOnly:true})):state.stock;
+ const selectedAgent=state.agents.find(a=>a.id===activeAgentId),stock=isIndependent(state)?(selectedAgent?resourceStock(state,selectedAgent):materialTotals(state,{livingOnly:true})):state.stock;
  for(const type of ['food','wood','stone'])$(type).textContent=stock[type];
  if(isIndependent(state)){
   const account=selectedAgent?resourceAccount(state,selectedAgent):null;
@@ -449,7 +447,7 @@ function updateUI(){
  $('recent-events').innerHTML=state.events.slice(-3).reverse().map(e=>`<button class="event-chip diegetic-event-chip" data-event="${e.id}" aria-label="${esc(e.text)}"><b aria-hidden="true">${EVENT_GLYPHS[e.type]??'•'}</b><small>D${1+Math.floor(e.tick/360)}</small></button>`).join('');
  inspect();ux?.renderHUD();nav?.update();independentUI?.update();adventureUI?.update();
 }
-function selectAgent(id,center=false){if(isIndependent(state)&&center)zoom=Math.max(zoom,1.12);follow=false;selected=id;tab='about';mode='observe';$('mode-hint').hidden=true;$('observe').classList.add('active');const a=findPerson(state,id);if(a&&(center||innerWidth<=700)){focus={x:a.x,y:a.y};pan={x:0,y:0};}updateUI();}
+function selectAgent(id,center=false){if(isIndependent(state)&&center)zoom=Math.max(zoom,1.12);follow=false;activeAgentId=id;selection=worldSelection('agent',id);tab='about';mode='observe';$('mode-hint').hidden=true;$('observe').classList.add('active');const a=findPerson(state,id);if(a&&(center||innerWidth<=700)){focus={x:a.x,y:a.y};pan={x:0,y:0};}updateUI();}
 function openDialog(title,kicker,body){$('dialog').dataset.kind='other';$('dialog-title').textContent=title;$('dialog-kicker').textContent=kicker;$('dialog-body').innerHTML=body;if(!dialog.open)dialog.showModal();updateUI();}
 function roster(){ux?.openRoster();}
 function history(){ux?.openHistory();}
@@ -486,12 +484,12 @@ $('dialog-body').addEventListener('click',e=>{
   const agentId=Number(b.dataset.agent),worldMonsterId=b.dataset.monster;
   const result=command(state,'START_ADVENTURE_HUNT',{agentId,worldMonsterId});
   toast(result.ok?'กำลังเดินไปหา '+worldMonsterId:(result.message??result.reason??'เริ่มล่าไม่ได้'));
-  if(result.ok){dialog.close();selectedWorldMonsterId=worldMonsterId;selectAgent(agentId,true);save();}
+  if(result.ok){dialog.close();selectAgent(agentId,true);selection=worldSelection('monster',worldMonsterId);updateUI();save();}
   else updateUI();
   return;
  }
  if(action==='cancel'){dialog.close();return;}
- if(action==='confirm-clone'){const result=command(state,'CLONE',{parentId:selected});toast(result.message);if(result.ok){dialog.close();selectAgent(result.agentId,true);save();}return;}
+ if(action==='confirm-clone'){const result=command(state,'CLONE',{parentId:activeAgentId});toast(result.message);if(result.ok){dialog.close();selectAgent(result.agentId,true);save();}return;}
  if(action==='export-original'){const text=store.originalText();if(text!==null){const url=URL.createObjectURL(new Blob([text],{type:'text/plain'})),a=document.createElement('a');a.href=url;a.download='simclone-recovery-original.txt';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('ส่งออกเซฟเดิมโดยไม่แก้ไขแล้ว');}return;}
  if(action==='save'){save(true);return;}if(action==='export'){download();return;}
  if(action==='import'){$('import-file').click();return;}
@@ -499,39 +497,64 @@ $('dialog-body').addEventListener('click',e=>{
  if(action==='confirm-reset'){
   const seed=Number($('seed-input').value);if(!Number.isInteger(seed)||seed<0||seed>4294967295){toast('กรอก seed เป็นจำนวนเต็ม 0–4294967295');return;}
   const worldMode=$('world-mode').value;
-  state=createWorld(seed,{mode:worldMode,worldProfile:worldMode==='independent'?publicWorldProfile:'legacy'});store.allowReplacement();paused=false;positions.clear();follow=false;selected=innerWidth>700?2:null;mode='observe';$('mode-hint').hidden=true;focus=defaultFocusFor(state);pan={x:0,y:0};if(isIndependent(state)){selected=null;const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=['large','same-world'].includes(b.profile)?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
+  state=createWorld(seed,{mode:worldMode,worldProfile:worldMode==='independent'?publicWorldProfile:'legacy'});store.allowReplacement();paused=false;positions.clear();follow=false;activeAgentId=innerWidth>700?2:null;selection=activeAgentId?worldSelection('agent',activeAgentId):null;mode='observe';$('mode-hint').hidden=true;focus=defaultFocusFor(state);pan={x:0,y:0};if(isIndependent(state)){activeAgentId=null;selection=null;const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=['large','same-world'].includes(b.profile)?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}makeGround();save();dialog.close();updateUI();toast('โลกใหม่พร้อมแล้ว');return;
  }
  if(action==='help')openDialog('ดูโลกที่กำลังคิดและสร้างเอง','HOW TO PLAY',`<p><b>1. แตะสิ่งที่อยู่ในโลก</b><br>Clone เปิด Inspector · Camp เปิด Cultural Archive · Crafting Table เปิดสูตรโต๊ะ · Furnace เปิด Charcoal · บ้านเปิด Housing status</p><p><b>2. เมนูรวมใช้ดูภาพรวม</b><br>Survival / Systems / Items แยกหน้าที่ชัดเจน และไม่ถือ action ของสิ่งปลูกสร้างแทนตัวสิ่งปลูกสร้าง</p><p><b>3. ปล่อยให้ AI ดำเนินโลก</b><br>บ้านและวงจรพื้นฐานเดินอัตโนมัติ การสร้าง Clone แบบ manual ยังทำได้จาก Inspector แต่ไม่ใช่แกนหลัก</p><p><b>ควบคุมเวลา</b><br>Ⅱ หยุด · 1× / 2× / 5× เร่งเวลา · Space หยุด/เล่น<br>เมนูที่เปิดเป็นหน้าต่างจะหยุดเวลาอัตโนมัติ</p><div class="help-block">LIVE คือ authority จริง · READY คือระบบพร้อมแต่ policy เต็มยังไม่เปิด · SHADOW คือการคำนวณเพื่อสังเกตโดยยังไม่เขียนผลจริง</div>`);
 });
 $('import-file').addEventListener('change',async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;try{if(file.size>HISTORY_LIMITS.maxSaveCharacters*3)throw new Error('ไฟล์ใหญ่เกินงบการนำเข้า');const candidate=restoreForPublic(await file.text());
  openDialog('นำเข้าโลกที่บันทึกไว้','IMPORT WORLD',`<p>วันที่ ${day(candidate)} · ประชากร ${living(candidate).length} คน<br>การนำเข้าจะแทนที่โลกปัจจุบันในเบราว์เซอร์</p><div class="dialog-actions"><button id="confirm-import" class="primary">ยืนยันนำเข้า</button><button class="secondary" data-action="cancel">ยกเลิก</button></div>`);
- $('confirm-import').onclick=()=>{state=candidate;store.allowReplacement();selected=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus=defaultFocusFor(state);pan={x:0,y:0};if(isIndependent(state)){const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=['large','same-world'].includes(b.profile)?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
+ $('confirm-import').onclick=()=>{state=candidate;store.allowReplacement();activeAgentId=null;selection=null;follow=false;mode='observe';$('mode-hint').hidden=true;positions.clear();focus=defaultFocusFor(state);pan={x:0,y:0};if(isIndependent(state)){const starter=state.agents.find(a=>a.alive);focus=starter?{x:starter.x,y:starter.y}:defaultFocusFor(state);const b=worldBounds(state);zoom=['large','same-world'].includes(b.profile)?(innerWidth<700?.42:.68):(innerWidth<700?.55:.95);}makeGround();save();dialog.close();updateUI();toast('นำเข้าโลกสำเร็จ');};
  }catch(error){toast('นำเข้าไม่ได้: '+error.message);}});
-$('inspector').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.ui==='close'){selected=null;follow=false;}else if(b.dataset.tab){tab=b.dataset.tab;frameSelected();}else if(b.dataset.ui==='follow'){follow=!follow;const a=state.agents.find(a=>a.id===selected);if(a){focus={x:a.x,y:a.y};pan={x:0,y:0};}}updateUI();});
+$('inspector').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.ui==='close'){activeAgentId=null;selection=null;follow=false;}else if(b.dataset.tab){tab=b.dataset.tab;frameSelected();}else if(b.dataset.ui==='follow'){follow=!follow;const a=state.agents.find(a=>a.id===activeAgentId);if(a){focus={x:a.x,y:a.y};pan={x:0,y:0};}}updateUI();});
 $('pause').onclick=()=>{paused=!paused;accumulator=0;updateUI();};
 for(const b of document.querySelectorAll('[data-speed]'))b.onclick=()=>{speed=Number(b.dataset.speed);document.querySelectorAll('[data-speed]').forEach(x=>x.classList.toggle('active',x===b));};
 $('systems').onclick=systems;$('roster').onclick=roster;$('history').onclick=history;$('open-chronicle').onclick=history;$('menu').onclick=menu;
 function observe(){mode='observe';$('mode-hint').hidden=true;$('observe').classList.add('active');updateUI();}
 $('observe').onclick=observe;
 $('recent-events').onclick=e=>{const id=e.target.closest('[data-event]')?.dataset.event;if(!id)return;const ev=state.events.find(e=>e.id===Number(id));if(ev?.agentId)selectAgent(ev.agentId,true);else history();};
-for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===b));const n=b.dataset.nav;if(n==='people')roster();else if(n==='systems')systems();else if(n==='rust')ux?.openRust();else if(n==='history')history();else{selected=null;follow=false;observe();}};
+for(const b of document.querySelectorAll('[data-nav]'))b.onclick=()=>{document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x===b));const n=b.dataset.nav;if(n==='people')roster();else if(n==='systems')systems();else if(n==='rust')ux?.openRust();else if(n==='history')history();else{activeAgentId=null;selection=null;follow=false;observe();}};
 $('recenter').onclick=()=>{const a=state.agents.find(a=>a.alive);focus=a?{x:a.x,y:a.y}:defaultFocusFor(state);pan={x:0,y:0};follow=false;};
 const setZoom=z=>{const min=['large','same-world'].includes(worldBounds(state).profile)?.3:.5;zoom=Math.max(min,Math.min(2.8,z));};$('zoom-in').onclick=()=>setZoom(zoom*1.2);$('zoom-out').onclick=()=>setZoom(zoom/1.2);
 canvas.addEventListener('wheel',e=>{e.preventDefault();setZoom(zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
-function structureTargetAtScreen(sx,sy){
+const legacyWorldHit=hit=>hit?{type:hit.kind,id:hit.id,d:hit.distance}:null;
+function worldHitCandidatesAtScreen(sx,sy){
  const rows=[];
- for(const b of state.buildings.filter(b=>b.type!=='shelter')){const p=screenPoint(b.x,b.y);rows.push({type:'building',id:b.id,d:Math.hypot(sx-p.x,sy-(p.y-16*zoom))});}
- for(const st of (state.rustStations?.stations??[])){const p=screenPoint(st.x,st.y);rows.push({type:'station',id:st.id,d:Math.hypot(sx-p.x,sy-(p.y-14*zoom))});}
- return rows.sort((a,b)=>a.d-b.d||a.type.localeCompare(b.type)||a.id-b.id).find(x=>x.d<Math.max(24,34*zoom))??null;
+ for(const a of living(state)){
+  const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y);
+  rows.push(worldHitCandidate({kind:'agent',id:a.id,distance:Math.hypot(sx-p.x,sy-(p.y-19*zoom)),hitRadius:34,source:'agent'}));
+ }
+ for(const b of state.buildings.filter(b=>b.type!=='shelter')){
+  const p=screenPoint(b.x,b.y);
+  rows.push(worldHitCandidate({kind:'building',id:b.id,distance:Math.hypot(sx-p.x,sy-(p.y-16*zoom)),hitRadius:Math.max(24,34*zoom),source:'building'}));
+ }
+ for(const st of (state.rustStations?.stations??[])){
+  const p=screenPoint(st.x,st.y);
+  rows.push(worldHitCandidate({kind:'station',id:st.id,distance:Math.hypot(sx-p.x,sy-(p.y-14*zoom)),hitRadius:Math.max(24,34*zoom),source:'station'}));
+ }
+ for(const n of state.nodes){
+  const p=screenPoint(n.x,n.y),oy=n.type==='wood'&&n.amount>0?42:8;
+  rows.push(worldHitCandidate({kind:'resource',id:n.id,distance:Math.hypot(sx-p.x,sy-(p.y-oy*zoom)),hitRadius:Math.max(18,38*zoom),source:'resource'}));
+ }
+ for(const i of droppedWorldItems(state)){
+  const p=screenPoint(i.x,i.y);
+  rows.push(worldHitCandidate({kind:'drop',id:i.itemId,distance:Math.hypot(sx-p.x,sy-(p.y-7*zoom)),hitRadius:Math.max(18,38*zoom),source:'drop'}));
+ }
+ for(const m of (state.wildMonsters?.entities??[]).filter(m=>m.status!=='DEFEATED'&&m.status!=='RESPAWNING')){
+  const p=screenPoint(m.x,m.y);
+  rows.push(worldHitCandidate({kind:'monster',id:m.worldMonsterId,distance:Math.hypot(sx-p.x,sy-(p.y-20*zoom)),hitRadius:Math.max(24,38*zoom),source:'monster'}));
+ }
+ for(const e of [...recentLifeBursts(state),...recentAchievementBursts(state)]){
+  const p=screenPoint(e.x,e.y);
+  rows.push(worldHitCandidate({kind:'event',id:e.eventId,distance:Math.hypot(sx-p.x,sy-(p.y-30*zoom)),hitRadius:Math.max(12,18*zoom),source:'event'}));
+ }
+ return rows.filter(Boolean);
 }
-
+function worldTargetAtScreen(sx,sy){return resolveWorldHit(worldHitCandidatesAtScreen(sx,sy));}
+function structureTargetAtScreen(sx,sy){
+ return legacyWorldHit(resolveWorldHit(worldHitCandidatesAtScreen(sx,sy).filter(row=>row.kind==='building'||row.kind==='station')));
+}
 function worldObjectTargetAtScreen(sx,sy){
- const rows=[];
- for(const n of state.nodes){const p=screenPoint(n.x,n.y),oy=n.type==='wood'&&n.amount>0?42:8;rows.push({type:'resource',id:n.id,d:Math.hypot(sx-p.x,sy-(p.y-oy*zoom))});}
- for(const i of droppedWorldItems(state)){const p=screenPoint(i.x,i.y);rows.push({type:'drop',id:i.itemId,d:Math.hypot(sx-p.x,sy-(p.y-7*zoom))});}
- const monster=monsterTargetAtScreen(sx,sy);if(monster)rows.push(monster);
- for(const e of [...recentLifeBursts(state),...recentAchievementBursts(state)]){const p=screenPoint(e.x,e.y);rows.push({type:'event',id:e.eventId,d:Math.hypot(sx-p.x,sy-(p.y-30*zoom))});}
- return rows.sort((a,b)=>a.d-b.d||a.type.localeCompare(b.type)||String(a.id).localeCompare(String(b.id))).find(r=>r.d<Math.max(18,38*zoom))??null;
+ return legacyWorldHit(resolveWorldHit(worldHitCandidatesAtScreen(sx,sy).filter(row=>['resource','drop','monster','event'].includes(row.kind))));
 }
 function openStructureContext(target){if(!independentUI?.openStructure(target))ux?.openStructure(target);}
 const pointers=new Map();let drag=null,pinch=0,multiTouch=false;
@@ -546,19 +569,16 @@ canvas.addEventListener('pointermove',e=>{
 });
 canvas.addEventListener('pointerup',e=>{
  pointers.delete(e.pointerId);if(!drag||drag.moved||multiTouch){if(!pointers.size){drag=null;multiTouch=false;}return;}
- const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
- {const object=worldObjectTargetAtScreen(sx,sy);let hit=null,best=34;
-  for(const a of living(state)){const v=positions.get(a.id)??a,p=screenPoint(v.x,v.y),d=Math.hypot(sx-p.x,sy-(p.y-19*zoom));if(d<best){hit=a;best=d;}}
-  if(object?.type==='event'&&object.d<Math.max(12,18*zoom))independentUI?.openWorldObject(object);
-  else{const st=structureTargetAtScreen(sx,sy),target=st&&object?(st.d<=object.d?st:object):(st??object);
-   if(hit&&(!target||best<=target.d)){selectedWorldMonsterId=null;selectAgent(hit.id);}
-   else if(target){
-    if(['building','station'].includes(target.type))openStructureContext(target);
-    else if(target.type==='monster')openMonsterContext(target.id);
-    else independentUI?.openWorldObject(target);
-   }else{selectedWorldMonsterId=null;selected=null;follow=false;updateUI();}
-  }
- }
+ const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top,hit=worldTargetAtScreen(sx,sy);
+ if(hit?.kind==='event')independentUI?.openWorldObject(legacyWorldHit(hit));
+ else if(hit){
+  selection=selectionFromWorldHit(hit);
+  const target=legacyWorldHit(hit);
+  if(hit.kind==='agent')selectAgent(hit.id);
+  else if(['building','station'].includes(hit.kind))openStructureContext(target);
+  else if(hit.kind==='monster')openMonsterContext(hit.id);
+  else independentUI?.openWorldObject(target);
+ }else{selection=null;activeAgentId=null;follow=false;updateUI();}
  drag=null;
 });
 canvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);drag=null;multiTouch=false;});
@@ -574,20 +594,20 @@ function frame(time){
 makeGround();resize();
 
 ux=installUX({
- read:()=>({state,selected,tab,mode,paused,follow,canAutosave:!store.status().protected}),
+ read:()=>({state,selected:activeAgentId,tab,mode,paused,follow,canAutosave:!store.status().protected}),
  portrait,actionText,toast,openDialog,closeDialog:()=>dialog.close(),
  select:selectAgent,setTab:value=>{tab=value;frameSelected();updateUI();},observe,
  center:centerCamera,
  preview:(type,data)=>{const copy=JSON.parse(serialize(state)),result=command(copy,type,data);return {...result,agent:type==='CLONE'&&result.ok?copy.agents.at(-1):null};},
  execute:(type,data)=>{const result=command(state,type,data);updateUI();return result;},save
 });
-independentUI=installIndependentUI({read:()=>({state,selected}),center:centerCamera,openDialog,closeDialog:()=>dialog.close(),openEvent:id=>ux.openEvent(id),toast,save,
+independentUI=installIndependentUI({read:()=>({state,selected:activeAgentId}),center:centerCamera,openDialog,closeDialog:()=>dialog.close(),openEvent:id=>ux.openEvent(id),toast,save,
  preview:(type,data)=>command(JSON.parse(serialize(state)),type,data),execute:(type,data)=>{const r=command(state,type,data);updateUI();return r;}});
-adventureUI=installAdventureUI({read:()=>({state,selected}),openDialog,closeDialog:()=>dialog.close(),toast,save,select:selectAgent,center:centerCamera,execute:(type,data)=>{const r=command(state,type,data);updateUI();return r;}});
-nav=installNavigation({mapView:()=>worldMapView,read:()=>({state,selected,follow,mode,paused}),menu,center:centerCamera,worldPoint,focus:()=>({...focus}),zoom:()=>zoom,storageStatus:store.status,layoutChanged:()=>{const a=state.agents.find(a=>a.id===selected&&a.alive);if(a)focus={x:a.x,y:a.y};}});
+adventureUI=installAdventureUI({read:()=>({state,selected:activeAgentId}),openDialog,closeDialog:()=>dialog.close(),toast,save,select:selectAgent,center:centerCamera,execute:(type,data)=>{const r=command(state,type,data);updateUI();return r;}});
+nav=installNavigation({mapView:()=>worldMapView,read:()=>({state,selected:activeAgentId,follow,mode,paused}),menu,center:centerCamera,worldPoint,focus:()=>({...focus}),zoom:()=>zoom,storageStatus:store.status,layoutChanged:()=>{const a=state.agents.find(a=>a.id===activeAgentId&&a.alive);if(a)focus={x:a.x,y:a.y};}});
 updateUI();
 setInterval(()=>{if(!document.hidden)save();},10000);
 requestAnimationFrame(frame);
 
 // Read-only test hook. It returns copies, never mutable simulation state.
-window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),worldSize:()=>({...worldBounds(state)}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,selected),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y),selectedWorldMonster:()=>selectedWorldMonsterId,openMonsterContext:id=>openMonsterContext(id),personalHomes:()=>individualHouses(state)});
+window.simclone=Object.freeze({version:VERSION,uiVersion:UI_VERSION,mapPresentation:()=>({version:WORLD_MAP_VERSION,...MAP_AUTHORITY}),worldSize:()=>({...worldBounds(state)}),snapshot:()=>JSON.parse(serialize(state)),saveStatus:()=>store.status(),safeFrame:()=>nav.frame(),worldFeedback:()=>worldFeedbackSnapshot(state,activeAgentId),camera:()=>({zoom,pan:{...pan},focus:{...focus},cw,ch}),screenPoint:(x,y)=>screenPoint(x,y),structureTargetAtScreen:(x,y)=>structureTargetAtScreen(x,y),worldObjectTargetAtScreen:(x,y)=>worldObjectTargetAtScreen(x,y),worldSelection:()=>selection?{...selection}:null,activeAgent:()=>activeAgentId,worldTargetAtScreen:(x,y)=>worldTargetAtScreen(x,y),resolveWorldHit:candidates=>resolveWorldHit(candidates),selectedWorldMonster:()=>selection?.kind==='monster'?selection.id:null,openMonsterContext:id=>openMonsterContext(id),personalHomes:()=>individualHouses(state)});

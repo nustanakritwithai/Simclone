@@ -2,28 +2,25 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Adventure V1 is released.
-> SWA0–SWA6 are merged on `main@d4378bae2d707662bd1d614a397538f73495e5ba`.
-> Display V1 D0 + DSP1 is also merged.
+> Adventure V1 and Same-World Adventure SWA0–SWA7 are RELEASED.
+> Display D0 + DSP1 + D1 are RELEASED on `main@4c75a098f01c179a425e045617f849683250d13b`.
+> Exact-main Pages #97 = SUCCESS.
 >
-> Active release branch: `release/swa7-same-world-closeout`
-> Active gate: **SWA7 — Public Same-World Adventure Release Closeout**
+> Active gate: **D2 — Unified Selection + Deterministic Hit Resolver**.
+> Required D2 closeout order:
+> 1. pure resolver + unit proof
+> 2. one runtime candidate collector / resolver
+> 3. one canonical world `selection={kind,id}`
+> 4. keep `activeAgentId` only for actor/Inspector context
+> 5. browser proof at 1440×1000, 390×844, 320×740, 844×390
+> 6. overlap/tie matrix + real Monster edge/zoom proof
+> 7. exact-head Verify + D2 proof workflow SAT
+> 8. merge → exact-main Pages SAT
 >
-> SWA7 sequence:
-> 1. exact-head PR Verify must be SAT
-> 2. merge SWA7 release gate
-> 3. exact-main Pages must run npm/UI/native browser regressions
-> 4. Pages must deploy exact main
-> 5. public-byte comparison must match exact release
-> 6. public Playwright must prove visible Monster → Hunt → READY → Combat → Victory → hidden → Continue → deterministic respawn
-> 7. screenshot/result evidence artifact must be uploaded
-> 8. only then mark Same-World Adventure SWA0–SWA7 RELEASED
+> After D2 public SAT: D3 Adventure Journey Visualization → D4 Renderer Architecture → D5 Asset Layer → D6 Performance/Public Visual Release.
+> Adventure V2 remains deferred until D1–D6 close.
 >
-> Display next line after DSP1 remains D1→D6 and must consume merged SWA6 lifecycle truth without becoming gameplay authority.
->
-> Product lock: one map, one coordinate system, no teleport scene, no encounter-only fake Monster, and no renderer-owned gameplay state.
->
-> The older Adventure V1 release-gate notes below are retained as historical context only.
+> Product lock: one map, one coordinate system, no teleport scene, no renderer-owned gameplay state.
 
 
 ## Public source of truth
