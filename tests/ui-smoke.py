@@ -146,6 +146,14 @@ with sync_playwright() as p:
        combat.get('worldMonsterId')==hunt_monster['worldMonsterId'] and
        'monsterHpCurrent' not in combat and
        combat_monster['status']=='ENGAGED' and combat_monster['engagedByAgentId']==combat_agent['id'])
+ combat_feedback_before=snap(huntpage)
+ feedback=huntpage.evaluate('simclone.combatFeedback()')
+ check('D2.5 combat visibility projects exact ENGAGED actor and world Monster read-only',
+       len(feedback)==1 and feedback[0]['agentId']==combat_agent['id'] and
+       feedback[0]['worldMonsterId']==hunt_monster['worldMonsterId'] and feedback[0]['status']=='ACTIVE' and
+       snap(huntpage)==combat_feedback_before)
+ huntpage.wait_for_timeout(120)
+ huntpage.screenshot(path=str(OUT/'mobile-adventure-engaged-visible.png'))
  hp_before=combat_monster['hpCurrent']
  huntpage.locator('[data-adv-action="attack"]').tap()
  attacked=snap(huntpage);combat_after=attacked['agents'][0]['adventureCombat']
@@ -154,6 +162,13 @@ with sync_playwright() as p:
        'monsterHpCurrent' not in combat_after and
        combat_after['lastTurn']['monsterHpBefore']==hp_before and
        combat_after['lastTurn']['monsterHpAfter']==world_after['hpCurrent'])
+ feedback_after=huntpage.evaluate('simclone.combatFeedback()')
+ check('D2.5 combat visibility uses authoritative lastTurn damage evidence',
+       len(feedback_after)==1 and feedback_after[0]['turn']==combat_after['turn'] and
+       feedback_after[0]['lastTurn']['turn']==combat_after['lastTurn']['turn'] and
+       feedback_after[0]['lastTurn']['heroDamage']==combat_after['lastTurn']['heroDamage'] and
+       feedback_after[0]['lastTurn']['counterDamage']==combat_after['lastTurn']['counterDamage'])
+ huntpage.wait_for_timeout(180)
  huntpage.screenshot(path=str(OUT/'mobile-world-monster-combat.png'))
  # SWA6: finish this bound combat through the real Attack control.
  for _ in range(100):
