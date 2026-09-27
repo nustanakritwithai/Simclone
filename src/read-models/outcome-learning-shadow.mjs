@@ -41,6 +41,11 @@ function aggregate(samples){
   return freeze(result);
 }
 
+export function productiveOutcomeEvidenceSnapshot(agent){
+  const outcomes=retainedOutcomes(agent);
+  return freeze({outcomes,byKind:aggregate(outcomes)});
+}
+
 function livePredictionContext(view){
   if(!view)return null;
   return freeze({
@@ -70,7 +75,7 @@ export function outcomeLearningShadowSnapshot(state,agentId){
   const agent=state?.agents?.find(a=>a.id===Number(agentId)&&a.alive);
   if(!agent)return null;
 
-  const samples=retainedOutcomes(agent);
+  const retained=productiveOutcomeEvidenceSnapshot(agent),samples=retained.outcomes;
   const prediction=actionPredictionSnapshot(state,agent.id);
   const verification=actionOutcomeVerificationSnapshot(state,agent.id);
   const evidence=verification?.evidence==='EVIDENCE_CONFLICT'
@@ -85,6 +90,6 @@ export function outcomeLearningShadowSnapshot(state,agentId){
     livePrediction:livePredictionContext(prediction),
     currentOutcome:currentOutcomeContext(verification),
     outcomes:samples,
-    byKind:aggregate(samples)
+    byKind:retained.byKind
   });
 }
