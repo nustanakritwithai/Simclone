@@ -14,9 +14,18 @@ export const AUTONOMOUS_ADVENTURE_POLICY=Object.freeze({
   readyHoldTicks:3,
   attackIntervalTicks:6,
   resultHoldTicks:3,
+  maxTargetLevelAboveSelf:0,
 });
 
 const livingAdventurer=a=>a?.alive===true&&a.profession==='adventurer';
+
+function monsterClaimedByOtherAdventurer(state,agent,worldMonsterId){
+  return (state.agents??[]).some(other=>other.alive&&other.id!==agent.id&&(
+    other.task?.adventureHunt?.worldMonsterId===worldMonsterId||
+    other.adventureEncounter?.worldMonsterId===worldMonsterId||
+    (other.adventureCombat?.worldMonsterId===worldMonsterId&&other.adventureCombat.status==='ACTIVE')
+  ));
+}
 
 export function autonomousAdventureSafety(agent){
   if(!livingAdventurer(agent))return Object.freeze({ok:false,reason:'not-adventurer'});
@@ -33,6 +42,8 @@ export function chooseAutonomousAdventureTarget(state,agent){
   const field=routeField(state,agent),rows=[];
   for(const monster of [...(state.wildMonsters?.entities??[])].sort((a,b)=>String(a.worldMonsterId).localeCompare(String(b.worldMonsterId)))){
     if(monster.status!=='IDLE'||monster.hpCurrent<=0)continue;
+    if(monsterClaimedByOtherAdventurer(state,agent,monster.worldMonsterId))continue;
+    if(!Number.isSafeInteger(monster.level)||monster.level>progression.level+AUTONOMOUS_ADVENTURE_POLICY.maxTargetLevelAboveSelf)continue;
     let engagement;
     try{
       engagement=findAdventureMonsterEngagement(state,agent,monster.worldMonsterId,progression.level,{
@@ -45,10 +56,13 @@ export function chooseAutonomousAdventureTarget(state,agent){
       worldMonsterId:monster.worldMonsterId,
       zoneId:monster.zoneId,
       monsterId:monster.monsterId,
+      monsterLevel:monster.level,
+      adventureLevel:progression.level,
+      levelGap:progression.level-monster.level,
       routeDistance:engagement.routeDistance,
     });
   }
-  rows.sort((a,b)=>a.routeDistance-b.routeDistance||a.zoneId.localeCompare(b.zoneId)||a.worldMonsterId.localeCompare(b.worldMonsterId));
+  rows.sort((a,b)=>a.levelGap-b.levelGap||a.routeDistance-b.routeDistance||a.zoneId.localeCompare(b.zoneId)||a.worldMonsterId.localeCompare(b.worldMonsterId));
   return rows[0]?Object.freeze({...rows[0]}):null;
 }
 
