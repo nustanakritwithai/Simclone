@@ -1,14 +1,14 @@
 # ADV0 — Adventurer profession
 
-Status: CONTRACT FROZEN. RUNTIME CANDIDATE ON VAL6. NOT MERGED.  
-Base contract was `main@388ddaf32f81429edcb24ba6b6f62ef6135734c7`.  
-Integration base: `main@babea1d1e4b0390fc223338a84d60a1309c34139` (VAL6). Every VAL6 `outcomeLearningSignal` line stays. Pages for `babea1d` is UNKNOWN while [run 36303568538](https://github.com/nustanakritwithai/Simclone/actions/runs/36303568538) has not been reported SUCCESS.
+Status: CANDIDATE IMPLEMENTED ON PR #130. MERGE NOT APPROVED.  
+Base: `main@5ddb4e00062100f025847ad0cbd0d14e01c421ff` (VAL7–VAL10 cognition completion).  
+Prior candidate `b04fb2c251f6e358e7f11834f024dbbf3ae594b5` passed Verify run [#1376](https://github.com/nustanakritwithai/Simclone/actions/runs/36305292636). The bounded-history repair after that head requires its own exact-head CI; until then that newer head is UNKNOWN, never PASS.
 
 This file is the source of truth for the direction change. PR #130 now carries the candidate implementation on the current base. Exact candidate CI is still required; PR descriptions and the stale side-game branch are not authority.
 
 ## What was checked
 
-- `main` is the VAL5 merge above. VAL4 is its parent line. `docs/STATUS.md` and `docs/NEXT_STEPS.md` on that tree still describe the Governor closeout. They are behind the merges. This contract follows the tree, not those two files.
+- `main` is the VAL7–VAL10 merge `5ddb4e00062100f025847ad0cbd0d14e01c421ff`. `docs/STATUS.md` and `docs/NEXT_STEPS.md` still describe the older Governor closeout, so this contract follows the current tree and PR base rather than those stale summaries.
 - Draft [PR #123](https://github.com/nustanakritwithai/Simclone/pull/123) `feature/khet-sila-rules` @ `c8eaea7` is CONFLICTING with `main`. Its verify run succeeded for the side module. That is not permission to merge.
 - VAL5 is merged. Its files are `docs/VAL5_OUTCOME_LEARNING_SHADOW_SUCCESS_CONTRACT.md`, `src/read-models/outcome-learning-shadow.mjs`, and `tests/outcome-learning-shadow.test.mjs`. Do not edit them in an Adventurer patch.
 - Other open work that this gate must not touch: PR #102, #84, #74, #73.
@@ -83,7 +83,7 @@ adventurerQualification = {
 
 `id` is `String(task.started) + ':' + x + ':' + y`. Dedup is against every retained id, not only the newest tick and cell. A missing `task.started` does not count. Replaying the same completion does not increment `accepted`.
 
-`accepted` increments by one only for a counted completion and never past 3. It is not skill XP, not spendable, and not a level. `recent` is the bounded audit trail. Dropping an old row must not decrement `accepted`.
+`accepted` increments by one only for a counted completion until it reaches 3, then stays at 3 forever. It is not skill XP, not spendable, and not a level. `recent` continues to record later distinct accepted completion evidence as a bounded audit tail of at most 8 rows; the oldest retained row drops first and dropping it never decrements `accepted`.
 
 A completion counts only when the executor, not the UI, already did all of these:
 
@@ -164,8 +164,8 @@ No combat, เขตศิลา region, loot, specialization, or `EXPLORE` skil
 
 ## Not SAT
 
-- Qualification behavior and the profession write are now implemented only as a PR #130 candidate. They remain UNKNOWN until exact candidate CI succeeds.
+- Qualification behavior and the profession write are implemented only as PR #130 candidate code. The pre-repair head `b04fb2c251f6e358e7f11834f024dbbf3ae594b5` passed Verify run #1376; any newer repair head remains UNKNOWN until its own exact-head Verify result exists.
 - Browser and the public site do not show this flow. The live site is `main`, which has no ศิลา button and no Adventurer profession.
 - PR #123's unit success is not this gate.
-- Candidate verify SUCCESS on `b0c5119` covered the previous wording only.
+- Verify SUCCESS on `b04fb2c251f6e358e7f11834f024dbbf3ae594b5` covered the pre-bounded-history-repair candidate only.
 - The full walk from home through เขตศิลา and back is UNKNOWN until the later gates exist and have their own proof.
