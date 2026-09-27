@@ -88,11 +88,14 @@ test('I6 Rust equipment and loadout survive save/load byte-identically',()=>{
   assert.deepEqual(validate(loaded),[]);
 });
 
-test('I6 rejects forged upgrade levels because upgrade material commit is not authoritative yet',()=>{
+test('I6 rejects forged equipped upgrade levels because upgrade material commit is not authoritative yet',()=>{
   const s=createWorld(8106,{mode:'independent',worldProfile:'large',population:1}),a=s.agents[0];
   const gear=mintAdventureGear(s,{agentId:a.id,gearId:'EMBER_BLADE',sourceKey:'i6:forged'});
   assert.equal(gear.ok,true);
+  assert.equal(command(s,'EQUIP_ADVENTURE_GEAR',{agentId:a.id,itemId:gear.itemId}).ok,true);
+  assert.equal(adventureCombatLoadoutSnapshot(s,a.id).items[0].upgradeLevel,0);
   s.rustPossessions.items.find(i=>i.id===gear.itemId).upgradeLevel=1;
   assert.ok(validate(s).includes('Rust gear'));
+  assert.ok(validate(s).includes('Rust equipment'));
   assert.throws(()=>adventureCombatLoadoutSnapshot(s,a.id),/invalid_adventure_equipment/);
 });
