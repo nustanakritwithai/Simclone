@@ -118,7 +118,7 @@ function adventureHuntTaskValid(state,agent,task,{walkable}={}){
   if(taskClaims[0]?.id!==agent.id)return false;
   if((state.agents??[]).some(other=>other.alive&&other.id!==agent.id&&(
     other.adventureEncounter?.worldMonsterId===h.worldMonsterId||
-    other.adventureCombat?.worldMonsterId===h.worldMonsterId
+    (other.adventureCombat?.worldMonsterId===h.worldMonsterId&&other.adventureCombat.status==='ACTIVE')
   )))return false;
   try{assertAdventureZoneAccess(h.zoneId,h.adventureLevel);assertAdventureMonsterInZone(h.zoneId,monster.monsterId);}catch{return false;}
   if(h.targetX!==task.x||h.targetY!==task.y||!isAdventureZoneCell(state,h.zoneId,task.x,task.y))return false;
