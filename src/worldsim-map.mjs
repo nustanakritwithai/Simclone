@@ -3,7 +3,7 @@ import {WORLD_REGION_TYPES,worldRegionAtState} from './world-regions.mjs?v=0.5.0
 /** WM1 presentation only. Reads K6 tiles/resources; never writes simulation state.
  * This is a WorldSim-inspired terrain skin, not the 20.9.4 physics runtime.
  */
-export const WORLD_MAP_VERSION='wm1-visual-2';
+export const WORLD_MAP_VERSION='wm1-visual-3';
 /** Legacy alias for old fixtures. Runtime uses worldBounds(state). */
 export const MAP_SIZE=Object.freeze({w:LEGACY_WORLD_BOUNDS.w,h:LEGACY_WORLD_BOUNDS.h});
 export const WORLD_TERRAIN=Object.freeze(['deepWater','shallowWater','sand','grass','forest','rock','path','bridge']);
