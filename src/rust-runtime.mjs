@@ -1,5 +1,5 @@
 import {ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
-import {createRustPossessions,queueCraft,advanceCraft,equipTool,unequipTool,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
+import {createRustPossessions,queueCraft,advanceCraft,equipTool,unequipTool,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,grantAdventureLoot,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
 import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS,stationLimit} from './rust-stations.mjs?v=0.5.0';
 import {completedHouseIds} from './housing.mjs?v=0.5.0';
 import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
@@ -73,6 +73,7 @@ export function advanceRustWork(s,a,workRate){
   return pending.kind==='CRAFT'?advanceCraft(s,a.id,{workRate}):advanceProcessing(s,a.id,{workRate});
 }
 export const rustToolMultiplier=(s,a,action)=>toolMultiplier(s,a.id,action);
+export const rustGrantAdventureLoot=(s,data)=>{ensureRustState(s);return grantAdventureLoot(s,data);};
 export function releaseRustOnDeath(s,a){
   ensureRustState(s);return {possessions:releaseRustPossessionsOnDeath(s,a.id),processing:releaseRustProcessingOnDeath(s,a.id)};
 }

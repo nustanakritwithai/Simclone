@@ -38,6 +38,34 @@ export function advanceCraft(s,agentId,{workRate=1}={}){
   p.orders=p.orders.filter(x=>x.id!==o.id);
   return {ok:true,completed:true,orderId:o.id,itemId,kind:r.output};
 }
+export function grantAdventureLoot(s,{agentId,claimKey,items}={}){
+  const p=s.rustPossessions,a=living(s,agentId);
+  if(!p||!a||typeof claimKey!=='string'||claimKey.length===0||!Array.isArray(items)||items.length===0)return {ok:false,reason:'loot-input'};
+  let total=0;
+  const expected=new Map();
+  for(const row of items){
+    if(!row||typeof row.itemKind!=='string'||!ITEM_CATALOG[row.itemKind]?.adventureLoot||!Number.isSafeInteger(row.quantity)||row.quantity<1)return {ok:false,reason:'loot-item'};
+    if(typeof row.rarity!=='string'||ITEM_CATALOG[row.itemKind].rarity!==row.rarity)return {ok:false,reason:'loot-rarity'};
+    total+=row.quantity;if(!Number.isSafeInteger(total))return {ok:false,reason:'capacity'};
+    expected.set(row.itemKind,(expected.get(row.itemKind)??0)+row.quantity);
+  }
+  const existing=p.items.filter(i=>i.sourceClaimKey===claimKey).sort((x,y)=>x.id-y.id);
+  if(existing.length){
+    const actual=new Map();for(const item of existing)actual.set(item.kind,(actual.get(item.kind)??0)+1);
+    if(existing.length!==total||[...expected].some(([kind,n])=>actual.get(kind)!==n))return {ok:false,reason:'loot-claim-conflict'};
+    return {ok:true,duplicate:true,claimKey,itemIds:existing.map(i=>i.id),bagged:existing.filter(i=>i.location?.kind==='bag').length,dropped:existing.filter(i=>i.location?.kind==='drop').length};
+  }
+  if(!Number.isSafeInteger(p.nextItem)||p.items.length+total>RUST_POSSESSION_LIMITS.items||p.nextItem+total>Number.MAX_SAFE_INTEGER)return {ok:false,reason:'capacity'};
+  const bagFree=Math.max(0,RUST_POSSESSION_LIMITS.bag-bag(p,agentId).length);
+  const created=[];let bagged=0,dropped=0,index=0;
+  for(const row of items)for(let q=0;q<row.quantity;q++){
+    const itemId=p.nextItem++,toBag=index<bagFree;
+    const location=toBag?{kind:'bag',agentId}:{kind:'drop',sourceAgentId:agentId,tick:s.tick,x:a.x,y:a.y};
+    p.items.push({id:itemId,kind:row.itemKind,createdBy:agentId,createdTick:s.tick,sourceClaimKey:claimKey,location});
+    created.push(itemId);if(toBag)bagged++;else dropped++;index++;
+  }
+  return {ok:true,duplicate:false,claimKey,itemIds:created,bagged,dropped};
+}
 export function equipTool(s,agentId,itemId){
   const p=s.rustPossessions,a=living(s,agentId),item=p?.items.find(i=>i.id===itemId&&i.location?.kind==='bag'&&i.location.agentId===agentId);
   if(!p||!a||!item||ITEM_CATALOG[item.kind]?.category!=='tool'||ITEM_CATALOG[item.kind]?.equipSlot!=='hand')return {ok:false,reason:'item'};

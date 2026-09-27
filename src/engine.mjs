@@ -20,9 +20,10 @@ import {adventureProgressionSnapshot} from './adventure-progression.mjs?v=0.5.0'
 import {findAdventureZoneEntry,createAdventureExpeditionTask,adventureExpeditionTaskValid,completeAdventureExpedition,validateAdventureEncounterState} from './adventure-expedition.mjs?v=0.5.0';
 import {startAdventureCombatSession,resolveAdventureCombatTurnProposal,validateAdventureCombatState} from './adventure-combat-session.mjs?v=0.5.0';
 import {commitVerifiedAdventureCombatReward,validateAdventureCombatRewardState} from './adventure-combat-reward.mjs?v=0.5.0';
+import {claimVerifiedAdventureLoot,validateAdventureLootClaimState} from './adventure-loot-commit.mjs?v=0.5.0';
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
-import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
+import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,rustGrantAdventureLoot,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
 import {housingCapacity,unfinishedHousing,evaluateModularHouses,pendingPlacements} from './housing.mjs?v=0.5.0';
 import {pendingPersonalPlacements} from './individual-housing.mjs?v=0.5.0';
 import {placementIdFor} from './rust-stations.mjs?v=0.5.0';
@@ -245,6 +246,17 @@ export function command(s,type,data={}){
       agentHp:a.hp,monsterHpCurrent:a.adventureCombat.monsterHpCurrent,monsterHpMax:a.adventureCombat.monsterHpMax,
       heroDamage:proposal.heroOutcome.damage,counterDamage:proposal.counterOutcome?.damage??0,
       outcomeEvidence:reward.evidence,xpAwarded:reward.xpAward};
+  }
+  if(type==='CLAIM_ADVENTURE_LOOT'){
+    const a=s.agents.find(a=>a.id===data.agentId&&a.alive);
+    if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
+    if(a.adventureCombat?.status!=='VICTORY')return {ok:false,reason:'victory',message:'ต้องชนะ combat ก่อน'};
+    let claimed;
+    try{claimed=claimVerifiedAdventureLoot(s,a,a.adventureCombat,{grantRust:rustGrantAdventureLoot});}
+    catch(error){return {ok:false,reason:error.message,message:'รับ loot ไม่ได้'};}
+    a.adventureCombat=claimed.session;
+    if(claimed.changed)event(s,'adventure',a.name+' ได้ loot '+claimed.itemIds.length+' ชิ้น',a.id);
+    return {ok:true,changed:claimed.changed,duplicate:claimed.duplicate,claimKey:claimed.claimKey,itemIds:claimed.itemIds,bagged:claimed.bagged,dropped:claimed.dropped};
   }
   if(type==='CLONE'){
     const parent=s.agents.find(a=>a.id===data.parentId&&a.alive);
@@ -596,6 +608,7 @@ export function validate(s){
     for(const e of validateAdventureEncounterState(s,a))bad(e);
     for(const e of validateAdventureCombatState(s,a))bad(e);
     for(const e of validateAdventureCombatRewardState(s,a))bad(e);
+    for(const e of validateAdventureLootClaimState(s,a))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');

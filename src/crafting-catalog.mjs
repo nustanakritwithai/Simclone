@@ -6,9 +6,12 @@ const deepFreeze=value=>{
 };
 export const RUST_CRAFTING_VERSION='RS1-0.3';
 export const CRAFT_STATIONS=deepFreeze({HAND:'HAND',CRAFTING_TABLE_LV1:'CRAFTING_TABLE_LV1',FURNACE:'FURNACE'});
-export const CRAFT_CATEGORIES=deepFreeze({TOOL:'tool',BUILD:'build'});
+export const CRAFT_CATEGORIES=deepFreeze({TOOL:'tool',BUILD:'build',MATERIAL:'material'});
 export const PLACEABLE_KINDS=deepFreeze(['CRAFTING_TABLE_LV1','FURNACE','WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF']);
 export const ITEM_CATALOG=deepFreeze({
+  FIRE_CORE:{id:'FIRE_CORE',name:'แกนไฟ',category:'material',rarity:'UNCOMMON',adventureLoot:true,donorId:'fire_core'},
+  HIDE:{id:'HIDE',name:'หนังมอนสเตอร์',category:'material',rarity:'COMMON',adventureLoot:true,donorId:'hide'},
+  EMBER_SHARD:{id:'EMBER_SHARD',name:'เศษเถ้าเพลิง',category:'material',rarity:'RARE',adventureLoot:true,donorId:'ember_shard'},
   STONE_AXE:{id:'STONE_AXE',name:'ขวานหิน',category:'tool',equipSlot:'hand',workAction:'WOODCUT',workMultiplier:1.25,donorId:'stone_axe'},
   STONE_PICKAXE:{id:'STONE_PICKAXE',name:'อีเต้อหิน',category:'tool',equipSlot:'hand',workAction:'MINE',workMultiplier:1.25,donorId:'stone_pick'},
   HAMMER:{id:'HAMMER',name:'ค้อน',category:'tool',equipSlot:'hand',workAction:'BUILD',workMultiplier:1,donorId:'hammer'},
