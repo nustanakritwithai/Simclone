@@ -2,12 +2,13 @@
 
 > **Current verified override — 2026-09-27**
 >
-> Source main is `dd3fa43c3e8057a36534cf5e1b731c95da73ac1d` after merged SWA1 PR #141.
-> Adventure V1 I0–I8 is released.
-> Same-World Adventure is active; SWA2 is on `feature/swa2-wild-monster-authority`.
-> SWA1 owns the one 84×52 physical map + 24×52 Annex migration.
-> SWA2 owns Wild Monster world-state identity/spawn only; renderer/hit targets remain SWA3.
-> PRs #130/#132/#133/#134/#135/#136/#137 and PR #123 are donor/history only and must not be merged into main again.
+> Source main is `e82637081d9c2dab053d840340326ec94fdf143a` after merged SWA2 PR #142.
+> Adventure V1 is released.
+> Same-World Adventure is active; SWA3 is on `feature/swa3-visible-monsters`.
+> SWA1 owns the one 84×52 physical map + Annex migration.
+> SWA2 owns the saveable Wild Monster world-state ledger with 12 deterministic entities.
+> SWA3 owns renderer + hit-target projection only; hunt/combat authority remains SWA4+.
+> Donor/history PRs must not be merged again.
 > The older baseline notes below are retained as history where they conflict with this override.
 
 
