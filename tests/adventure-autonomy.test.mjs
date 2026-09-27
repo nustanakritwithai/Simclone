@@ -6,6 +6,8 @@ import {recordEarnedSkill} from '../src/skill-provenance.mjs';
 import {adventureXpForLevel} from '../src/adventure-progression.mjs';
 import {adoptProfession} from '../src/kingdom-utility.mjs';
 import {AUTONOMOUS_ADVENTURE_POLICY,chooseAutonomousAdventureTarget} from '../src/adventure-autonomy.mjs';
+import {ADVENTURE_HUNT_AUTONOMOUS_POLICY,findAdventureMonsterEngagement} from '../src/adventure-expedition.mjs';
+import {routeField,routeDistance,walkable} from '../src/survival.mjs';
 
 function makeAdventurer(s,a,level=60){
   a.adventurerQualification={version:1,accepted:3,recent:[
@@ -73,6 +75,55 @@ test('AUTO-ADV2 leveling up unlocks stronger training targets deterministically'
   assert.equal(next.monsterLevel,high);
 });
 
+
+test('AUTO-ADV2.1 engine rejects a nearer weak Monster when level policy selects a farther stronger safe target',()=>{
+  const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
+  makeAdventurer(s,a,15);
+  const field=routeField(s,a),rows=[];
+  for(const m of s.wildMonsters.entities.filter(m=>m.zoneId==='z1'&&m.status==='IDLE')){
+    try{
+      const e=findAdventureMonsterEngagement(s,a,m.worldMonsterId,15,{walkable,routeField:()=>field,routeDistance});
+      rows.push({m,d:e.routeDistance});
+    }catch{}
+  }
+  rows.sort((x,y)=>x.d-y.d||x.m.worldMonsterId.localeCompare(y.m.worldMonsterId));
+  assert.ok(rows.length>=2);
+  const nearest=rows[0],farther=[...rows].reverse().find(row=>row.d>nearest.d);
+  assert.ok(farther,'fixture needs a farther reachable z1 Monster');
+  for(const row of rows)row.m.level=1;
+  farther.m.level=15;
+
+  const expected=chooseAutonomousAdventureTarget(s,a);
+  assert.ok(expected);
+  assert.equal(expected.worldMonsterId,farther.m.worldMonsterId);
+  assert.ok(expected.routeDistance>nearest.d);
+
+  const denied=command(s,'START_ADVENTURE_HUNT',{agentId:a.id,worldMonsterId:nearest.m.worldMonsterId,control:'autonomous'});
+  assert.equal(denied.ok,false);
+  assert.equal(denied.reason,'target-policy');
+  assert.equal(a.task,null);
+
+  const accepted=command(s,'START_ADVENTURE_HUNT',{agentId:a.id,worldMonsterId:expected.worldMonsterId,control:'autonomous'});
+  assert.equal(accepted.ok,true);
+  assert.equal(a.task.adventureHunt.worldMonsterId,expected.worldMonsterId);
+  assert.equal(a.task.adventureHunt.targetPolicy,ADVENTURE_HUNT_AUTONOMOUS_POLICY);
+});
+
+test('AUTO-ADV2.1 restore drops a pre-policy autonomous Hunt task and reselects under level-grinding policy',()=>{
+  const s=createWorld(42,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
+  makeAdventurer(s,a,60);
+  step(s,1);
+  assert.equal(a.task?.adventureHunt?.targetPolicy,ADVENTURE_HUNT_AUTONOMOUS_POLICY);
+  const legacy=JSON.parse(serialize(s));
+  delete legacy.agents[0].task.adventureHunt.targetPolicy;
+
+  const loaded=restore(JSON.stringify(legacy)),b=loaded.agents[0];
+  assert.equal(b.task,null);
+  step(loaded,1);
+  assert.equal(b.task?.adventureHunt?.control,'autonomous');
+  assert.equal(b.task?.adventureHunt?.targetPolicy,ADVENTURE_HUNT_AUTONOMOUS_POLICY);
+});
+
 test('AUTO-ADV safe Adventurer selects a physical Monster and starts a real Hunt without UI commands',()=>{
   const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
   makeAdventurer(s,a,60);
@@ -82,6 +133,7 @@ test('AUTO-ADV safe Adventurer selects a physical Monster and starts a real Hunt
   step(s,1);
   assert.equal(a.task?.adventureHunt?.worldMonsterId,expected.worldMonsterId);
   assert.equal(a.task?.adventureHunt?.control,'autonomous');
+  assert.equal(a.task?.adventureHunt?.targetPolicy,ADVENTURE_HUNT_AUTONOMOUS_POLICY);
   assert.deepEqual({x:a.x,y:a.y},before);
   assert.ok(a.task.path.length>0);
   assert.equal(Math.abs(a.task.x-a.task.adventureHunt.monsterX)+Math.abs(a.task.y-a.task.adventureHunt.monsterY),1);
