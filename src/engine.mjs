@@ -225,13 +225,13 @@ export function command(s,type,data={}){
     if(!a)return {ok:false,reason:'agent',message:'เลือก Clone ที่ยังมีชีวิตก่อน'};
     if(a.profession!=='adventurer')return {ok:false,reason:'profession',message:'ต้องเป็นนักผจญภัยก่อน'};
     if(!canPerformProductiveWork(s,a))return {ok:false,reason:'stage',message:'ยังออกล่ามอนสเตอร์ไม่ได้'};
+    const monster=wildMonsterById(s,data.worldMonsterId);
+    if(!monster||monster.status!=='IDLE'||monster.hpCurrent<=0)return {ok:false,reason:'monster-unavailable',message:'มอนสเตอร์ตัวนี้ไม่พร้อม'};
     if(a.task)return {ok:false,reason:'busy',message:'Clone กำลังทำงานอื่นอยู่'};
     if(a.adventureEncounter)return {ok:false,reason:'encounter-pending',message:'มี encounter ที่ยังไม่จบ'};
     if(a.adventureCombat)return {ok:false,reason:'combat-pending',message:'มี combat ที่ยังไม่จบ'};
     if(a.satiety<RULES.hungry)return {ok:false,reason:'hungry',message:'หิวเกินไปสำหรับการล่า'};
     if(a.energy<RULES.exhausted)return {ok:false,reason:'exhausted',message:'เหนื่อยเกินไปสำหรับการล่า'};
-    const monster=wildMonsterById(s,data.worldMonsterId);
-    if(!monster||monster.status!=='IDLE'||monster.hpCurrent<=0)return {ok:false,reason:'monster-unavailable',message:'มอนสเตอร์ตัวนี้ไม่พร้อม'};
     const claimed=s.agents.some(other=>other.alive&&other.id!==a.id&&(
       other.task?.adventureHunt?.worldMonsterId===monster.worldMonsterId||
       other.adventureEncounter?.worldMonsterId===monster.worldMonsterId||
