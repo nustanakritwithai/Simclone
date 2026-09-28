@@ -11,7 +11,6 @@ export const MERCHANT_QUALIFICATION_POLICY=Object.freeze({
   minOperatingCapital:1,
   minTradeEvidence:1,
 });
-export const MERCHANT_TRANSACTION_AUDIT_LIMIT=32;
 export const MERCHANT_TRANSACTION_COMPAT=Object.freeze({maxQuantity:128,maxIdLength:80,eventPrefix:'TRADE:'});
 
 const SAT='SAT',VIOL='VIOL',UNKNOWN='UNKNOWN';
@@ -159,17 +158,8 @@ export function validateMerchantProgression(agent){
   const corePresent=agent?.merchantTransactions!==undefined||agent?.merchantExperience!==undefined;
   if(corePresent&&(!Number.isInteger(agent?.merchantTransactions)||agent.merchantTransactions<0||
     !Number.isInteger(agent?.merchantExperience)||agent.merchantExperience<0))return ['Merchant progression'];
-  // Legacy/recent ids may remain as bounded diagnostics only. They are never
-  // consulted for idempotency or progression uniqueness.
-  if(agent?.merchantTransactionReceipts!==undefined){
-    if(!Array.isArray(agent.merchantTransactionReceipts)||agent.merchantTransactionReceipts.length>MERCHANT_TRANSACTION_AUDIT_LIMIT)
-      return ['Merchant audit projection'];
-    const ids=new Set();
-    for(const id of agent.merchantTransactionReceipts){
-      if(!validTransactionRef(id)||ids.has(id))return ['Merchant audit projection'];
-      ids.add(id);
-    }
-  }
+  // Any legacy/recent transaction-id field is deliberately ignored here.
+  // It is not progression state and has zero idempotency authority.
   return [];
 }
 
