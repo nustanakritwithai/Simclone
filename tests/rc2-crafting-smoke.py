@@ -111,6 +111,9 @@ try:
         row=page.locator(f'.rust-bag-grid [data-item-id="{armor["id"]}"]')
         check(f'{width}: gear has creator and exact stored quality',row.locator('[data-craft-quality]').get_attribute('data-craft-quality')==str(armor['craft']['quality']) and 'Original' in row.inner_text())
         check(f'{width}: gear is not placeable',row.locator('[data-ux="place-station"]').count()==0)
+        check(f'{width}: item name is visually rendered',row.locator(':scope > b').is_visible() and row.locator(':scope > b').inner_text()=='เกราะหนัง')
+        check(f'{width}: stored tier is visually rendered',row.locator('.rc2-item-score > b').is_visible() and row.locator('.rc2-item-score > b').inner_text()=='T'+str(armor['craft']['tier']))
+        row.screenshot(path=str(OUT/f'{width}-crafted-gear.png'))
         page.screenshot(path=str(OUT/f'{width}-crafter-inventory.png'))
         row.locator('[data-ux="equip-craft-gear"]').click()
         equipped=snap(page)['rustPossessions']['equipment']
@@ -153,6 +156,7 @@ try:
         select(page,B)
         check(f'{width}: completed practice is visible',page.locator('[data-training-status]').get_attribute('data-training-status')=='COMPLETE')
         check(f'{width}: final modal still fits',no_overflow(page))
+        page.locator('[data-training-status]').scroll_into_view_if_needed()
         page.screenshot(path=str(OUT/f'{width}-practice-complete.png'))
         close(page);page.locator('#menu').click();page.locator('[data-action="save"]').click()
         saved=page.evaluate("localStorage.getItem('simclone:world:v1')")
