@@ -103,6 +103,8 @@ export function installIndependentUI(api){
   const s=api.read().state;if(!isIndependent(s))return false;
   const st=s.rustStations.stations.find(st=>st.id===target.id);
   if(target.type!=='station'||!st)return false;
+  // Furnace UI has one canonical presentation in ux.mjs; delegate so Independent mode uses the same RC3.2 metal controls and personal material account.
+  if(st.kind==='FURNACE')return false;
   if(!st.structurePiece){
    const actor=s.agents.find(a=>a.id===api.read().selected&&a.alive),owner=[...s.agents,...s.archive].find(a=>a.id===st.placedBy),stock=resourceStock(s,actor);
    const actions=st.kind==='FURNACE'?[{type:'PROCESS_CHARCOAL',data:{agentId:actor?.id,stationId:st.id},label:'ไม้ 2 → ถ่าน 1'}]:Object.values(RECIPE_CATALOG).filter(r=>r.station===st.kind).map(r=>({type:'CRAFT_ITEM',data:{agentId:actor?.id,recipeId:r.id,stationId:st.id},label:ITEM_CATALOG[r.output].name}));
