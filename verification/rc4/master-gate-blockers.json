@@ -7,15 +7,15 @@
   "resolved": [
     {
       "id": "R1",
-      "subject": "#179 Pricing/Listing/Ledger current-main compatibility",
+      "subject": "#179 Pricing/Listing/Ledger current-main provenance-boundary repair",
       "state": "SAT_DONOR_PREREQUISITE_ONLY",
-      "head": "da82d2178e605283fabf76b80c91cd731da4ad49",
+      "head": "9b5e63e386f0543f9700237242b2c4f0745a8c2d",
       "evidence": [
-        "Verify #1978 push SUCCESS",
-        "Verify #1979 PR SUCCESS",
+        "Verify #2013 push SUCCESS",
+        "Verify #2015 PR SUCCESS",
         "base = current RC3.2 main"
       ],
-      "note": "P0-04 remains UNKNOWN until the exact assembled integration candidate pins and re-proves these semantics."
+      "note": "Plain receipt + matching caller-supplied tradeReplay is intentionally UNKNOWN. Trusted commit provenance must come from the canonical Trade execution path; assembled integration must re-prove the bridge."
     },
     {
       "id": "R2",
@@ -26,6 +26,18 @@
         "Verify #1990 SUCCESS"
       ],
       "note": "Production UI wiring remains UNKNOWN."
+    },
+    {
+      "id": "R4",
+      "subject": "B4 canonical Reservation authority donor prerequisite",
+      "state": "SAT_DONOR_PREREQUISITE_ONLY",
+      "head": "c4d1b544a1203459aa78ef55b83a28db6077056c",
+      "evidence": [
+        "Verify #2025 push SUCCESS",
+        "Verify #2027 PR SUCCESS",
+        "deterministic ID + global ACTIVE lock + terminal lifecycle + save/load/migration"
+      ],
+      "note": "P0-08 remains UNKNOWN until the exact assembled integration candidate binds #177 to this authority and re-proves global reservation semantics."
     }
   ],
   "blockers": [
@@ -82,7 +94,7 @@
     },
     {
       "id": "B3",
-      "state": "UNKNOWN",
+      "state": "VIOL",
       "subject": "Navigation-owned verified arrival/position evidence",
       "owner": "Navigation authority / #178 integration owner",
       "phase0Rows": [
@@ -96,53 +108,24 @@
         "P6-08"
       ],
       "requiredDeliverables": [
-        "canonical evidence producer owned by Navigation/current-position authority",
-        "agentId + marketId + coordinates/tick provenance contract",
-        "fail-closed stale/mismatched evidence rules",
-        "tests proving forged verified:true cannot satisfy purchase gate",
-        "save/load rule if arrival evidence persists"
+        "canonical Navigation-owned journey/execution provenance that verification can resolve independently of caller-supplied evidence fields",
+        "full-object forgery + recomputed hash attack must fail closed",
+        "real canonical path consumption before evidence",
+        "agent/market/coordinate/tick freshness validation",
+        "exact-head focused tests and repo Verify"
       ],
       "forbiddenWorkarounds": [
         "Integration/AI/UI fabricates verified:true",
         "distance comparison alone is upgraded into canonical arrival evidence",
         "teleport to satisfy arrival"
-      ]
-    },
-    {
-      "id": "B4",
-      "state": "UNKNOWN",
-      "subject": "Canonical Reservation authority",
-      "owner": "Market/Reservation domain owner with #177 compatibility",
-      "phase0Rows": [
-        "P0-08"
       ],
-      "downstreamRows": [
-        "P7-02",
-        "P7-03",
-        "P10-15",
-        "P11-11",
-        "P11-12",
-        "P11-13",
-        "P11-14",
-        "P11-15",
-        "P12-07",
-        "P13-06"
+      "candidateHead": "34055f557d45ca3c9e9adc118d0f77e658b7f5e9",
+      "evidence": [
+        "Verify #2020 push SUCCESS",
+        "Verify #2026 PR SUCCESS",
+        "source audit: verifyNavigationArrivalEvidence recomputes evidenceId solely from caller-supplied object + current world snapshot"
       ],
-      "requiredDeliverables": [
-        "single Reservation writer",
-        "deterministic reservation ID rule",
-        "ACTIVE lifecycle and terminal/release vocabulary",
-        "listingRevision freeze + exact itemIds freeze",
-        "complete global activeReservations projection",
-        "cross-market overlap rejection",
-        "persistence + old-save migration + cleanup/reconciliation",
-        "exact-head adversarial tests and repo Verify"
-      ],
-      "forbiddenWorkarounds": [
-        "test-only reservation object",
-        "AI-created reservation truth",
-        "second reservation ledger inside Trade Kernel/integration"
-      ]
+      "violation": "A caller can fabricate a complete arrival-evidence object for the current position/tick/market and recompute evidenceId; verification is not bound to canonical journey/execution provenance."
     },
     {
       "id": "B5",
@@ -177,8 +160,8 @@
     {
       "id": "B6",
       "state": "UNKNOWN",
-      "subject": "Post-settlement Listing/Reservation semantics inside outer atomic boundary",
-      "owner": "#179 Listing owner + Reservation/#177 integration owner",
+      "subject": "Post-settlement Listing/Reservation/Ledger semantics inside outer atomic boundary",
+      "owner": "#179 Listing/Ledger owner + Reservation/#177 integration owner",
       "phase0Rows": [
         "P0-10",
         "P0-13"
@@ -194,12 +177,17 @@
         "Listing revision/status transition rule after settlement",
         "Reservation terminal/release transition rule",
         "all market postconditions staged before live-root replacement",
-        "failure injection proving live root byte-identical if any postcondition fails"
+        "failure injection proving live root byte-identical if any postcondition fails",
+        "domain-owned provenance-bound Ledger ingestion path that can be invoked only from canonical staged Trade execution",
+        "plain caller-supplied receipt + matching forged tradeReplay + recomputed hashes remains UNKNOWN and cannot mutate Ledger",
+        "Career receives VERIFIED/COMMITTED progression only from the trusted canonical execution projection, never from caller-authored flags"
       ],
       "forbiddenWorkarounds": [
         "commit money/item first then decrement Listing later",
         "cleanup Reservation in a second live mutation",
-        "compensating rollback counted as atomicity"
+        "compensating rollback counted as atomicity",
+        "Integration Lead directly writes Revenue/COGS/Profit to bypass #179 provenance boundary",
+        "caller-supplied verification/commit flags or matching forged tradeReplay treated as trusted provenance"
       ]
     },
     {
@@ -273,7 +261,9 @@
         "full 171-row execution report tied to exact SHA",
         "desktop/mobile real-click browser proof",
         "retained regression evidence",
-        "independent Red Team SAT"
+        "independent Red Team SAT",
+        "bind exact B4 Reservation donor c4d1b544a1203459aa78ef55b83a28db6077056c (or later independently verified head) into #177 market adapter",
+        "trusted canonical Trade execution provenance reaches #179 Ledger and #175 Career without a forgeable plain-object promotion"
       ],
       "forbiddenWorkarounds": [
         "partial integration branches counted as final candidate",
@@ -282,5 +272,17 @@
         "shared runtime edited solely to bypass acceptance"
       ]
     }
-  ]
+  ],
+  "auditUpdate": {
+    "at": "2026-09-29T00:49+07:00",
+    "main": "1b60b13394c11bd7b03d10227919f4bb509b02df",
+    "acceptanceHeadBeforeUpdate": "df2a47f40c80ea166b1696d6310386ba7414a150",
+    "notes": [
+      "Acceptance Verify #2014 SUCCESS.",
+      "#179 drifted to 9b5e63e386f0543f9700237242b2c4f0745a8c2d and passed #2013/#2015.",
+      "B3 exact-head CI is green but source-level provenance attack is VIOL.",
+      "B4 exact-head donor prerequisite is green (#2025/#2027) and moved to resolved donor prerequisites.",
+      "B1/B2, B5/B6 trade/listing candidates still need exact-head/rebase verification as applicable; B7 remains open; B8 not started."
+    ]
+  }
 }
