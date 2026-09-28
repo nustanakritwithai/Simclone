@@ -211,10 +211,10 @@ Not implemented here:
 | stock returns home before listing | physical return travel first | focused test | SAT |
 | `Math.random()` / wall clock absent | source grep | focused static check | SAT |
 | full repository regression | `npm test` on GitHub candidate | not yet observed at document authoring | UNKNOWN |
-| RC4 Trade Kernel integration | exact shared vocabulary + commit idempotency | parallel branch not yet implemented at base pin | UNKNOWN |
-| RC4 HomeMarket integration | open/listing intents wired to canonical market authority | parallel authority not yet implemented at base pin | UNKNOWN |
-| RC4 Pricing/Ledger integration | pricingRequest consumed by pricing authority | parallel authority not yet implemented at base pin | UNKNOWN |
-| RC4 Merchant Career integration | profession authority supplies `merchant` | parallel authority not yet implemented at base pin | UNKNOWN |
+| RC4 Trade Kernel integration | exact shared vocabulary + commit idempotency | PR #177 now defines canonical TradeProposal + reservation gate; policy stops at purchase intent | UNKNOWN |
+| RC4 HomeMarket integration | open/listing intents wired to canonical market authority | PR #176 now defines pure HomeMarket lifecycle; runtime wiring remains separate | UNKNOWN |
+| RC4 Pricing/Ledger integration | pricingRequest consumed by pricing authority | parallel pricing branch exists; no approved integration observed at candidate audit | UNKNOWN |
+| RC4 Merchant Career integration | profession authority supplies `merchant` | PR #175 canonical adoption resolves to lowercase `merchant`, matching this policy | UNKNOWN |
 
 UNKNOWN is not PASS. No merge is authorized by this candidate document.
 
@@ -227,3 +227,15 @@ node --test tests/rc4-merchant-customer-ai.test.mjs
 ```
 
 Candidate result before GitHub push: **25/25 PASS**.
+
+
+## Parallel RC4 contract audit
+
+After the isolated policy candidate was built, the following sibling candidates appeared from the same exact base:
+
+- PR #175 — Merchant Career: canonical adoption routes through existing `adoptProfession(..., 'MERCHANT', ...)` and the resulting canonical runtime profession is lowercase `merchant`. This policy reads that result only; it does not adopt or write profession.
+- PR #176 — Home Market: canonical component owns `marketId/homeId/ownerAgentId/status/listingIds/buyOfferIds/storefrontSocket` and lifecycle only. This policy emits request intents only; it does not mutate HomeMarket state.
+- PR #177 — Trade Kernel: settlement requires a canonical reservation and the full `TradeProposal` including `transactionId` and `reservationId`. Customer AI intentionally stops at `SUBMIT_PURCHASE`; a later integration layer must obtain/reserve the authoritative listing and build the final TradeProposal. The AI does not fabricate a reservation.
+- `feature/rc4-merchant-pricing-ledger` exists in parallel. This policy only emits a bounded `pricingRequest`; actual unit price, ledger, COGS and realized profit remain outside this workstream.
+
+These observations remove no integration gates: sibling candidates are still unmerged and no shared runtime wiring is proven here, so cross-RC4 integration remains **UNKNOWN**, not SAT and not VIOL.
