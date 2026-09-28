@@ -20,8 +20,9 @@ This is a presentation contract, not a new authority schema. Field names should 
     itemDisplayName,
     quantity,
     unitPrice,
+    revision,                 // canonical Listing.revision
     stockAvailable,
-    status
+    status                    // OPEN | CLOSED | CANCELED | FILLED
   }],
   buyOffers: [{
     offerId,
@@ -50,7 +51,9 @@ This is a presentation contract, not a new authority schema. Field names should 
     itemDisplayName,
     quantity,
     totalPrice,
-    verificationStatus
+    verificationStatus,      // VERIFIED
+    commitStatus,            // COMMITTED
+    duplicate                // false
   }
 }
 ```
@@ -61,5 +64,9 @@ This is a presentation contract, not a new authority schema. Field names should 
 - Ledger values are read-only projections from Merchant Ledger authority.
 - Profession is read-only from profession authority.
 - Market status is read-only from Home Market authority.
+- Listing presentation maps canonical Pricing/Listing authority `Listing.id` to display/read-model `listingId`; `revision` is retained unchanged and must accompany a purchase intent.
+- Canonical purchasable Listing state is `OPEN`; UI must not invent an `ACTIVE` status vocabulary.
 - `latestVerifiedTransaction` must not be populated from a local optimistic click result.
+- Transaction success presentation requires `verificationStatus === 'VERIFIED'`, `commitStatus === 'COMMITTED'`, and `duplicate === false`.
+- Quantity and total price shown as committed trade facts must be positive safe integers.
 - Missing or stale evidence maps to `UNKNOWN`; UNKNOWN never enables a purchase action.
