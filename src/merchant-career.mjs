@@ -127,17 +127,16 @@ export function adoptMerchantProfession(agent,snapshot,tick){
 export function merchantProgressionSnapshot(agent){
   return {
     merchantTransactions:Number.isInteger(agent?.merchantTransactions)&&agent.merchantTransactions>=0?agent.merchantTransactions:0,
-    merchantRealizedProfit:typeof agent?.merchantRealizedProfit==='number'&&Number.isFinite(agent.merchantRealizedProfit)?agent.merchantRealizedProfit:0,
     merchantExperience:Number.isInteger(agent?.merchantExperience)&&agent.merchantExperience>=0?agent.merchantExperience:0,
   };
 }
 
 export function validateMerchantProgression(agent){
-  const fields=['merchantTransactions','merchantRealizedProfit','merchantExperience','merchantTransactionReceipts'];
+  if(agent?.merchantRealizedProfit!==undefined)return ['Merchant monetary duplicate'];
+  const fields=['merchantTransactions','merchantExperience','merchantTransactionReceipts'];
   const present=fields.some(key=>agent?.[key]!==undefined);
   if(!present)return [];
   if(!Number.isInteger(agent?.merchantTransactions)||agent.merchantTransactions<0)return ['Merchant progression'];
-  if(typeof agent?.merchantRealizedProfit!=='number'||!Number.isFinite(agent.merchantRealizedProfit))return ['Merchant progression'];
   if(!Number.isInteger(agent?.merchantExperience)||agent.merchantExperience<0)return ['Merchant progression'];
   if(!Array.isArray(agent?.merchantTransactionReceipts)||agent.merchantTransactionReceipts.length>MERCHANT_TRANSACTION_RECEIPT_LIMIT)return ['Merchant progression'];
   const ids=new Set();
@@ -149,8 +148,8 @@ export function validateMerchantProgression(agent){
 }
 
 /**
- * Progression hook only. It consumes already-authoritative transaction facts;
- * it does not settle, price, transfer money/items or decide whether a trade commits.
+ * Progression hook only. It consumes already-authoritative transaction identity;
+ * it does not consume or store Revenue/COGS/Profit and never becomes accounting authority.
  */
 export function noteVerifiedCommittedMerchantTransaction(agent,fact){
   const before=merchantProgressionSnapshot(agent);
@@ -161,19 +160,16 @@ export function noteVerifiedCommittedMerchantTransaction(agent,fact){
   if(fact?.verified!==true)return skip(fact?.verified===false?VIOL:UNKNOWN,'verified');
   if(fact?.committed!==true)return skip(fact?.committed===false?VIOL:UNKNOWN,'committed');
   if(!nonEmptyString(fact?.transactionId))return skip(UNKNOWN,'transaction-id');
-  if(typeof fact?.realizedProfit!=='number'||!Number.isFinite(fact.realizedProfit))return skip(UNKNOWN,'realized-profit');
 
   if(Array.isArray(agent.merchantTransactionReceipts)&&agent.merchantTransactionReceipts.includes(fact.transactionId))
     return skip(SAT,'replay');
 
   if(agent.merchantTransactions===undefined){
     agent.merchantTransactions=0;
-    agent.merchantRealizedProfit=0;
     agent.merchantExperience=0;
     agent.merchantTransactionReceipts=[];
   }
   agent.merchantTransactions+=1;
-  agent.merchantRealizedProfit+=fact.realizedProfit;
   agent.merchantExperience+=1;
   agent.merchantTransactionReceipts.push(fact.transactionId);
   while(agent.merchantTransactionReceipts.length>MERCHANT_TRANSACTION_RECEIPT_LIMIT)agent.merchantTransactionReceipts.shift();
