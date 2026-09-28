@@ -157,7 +157,7 @@ Before settlement RC4 revalidates all of the following against the current state
 12. listing exists, is OPEN and matches market/seller/item/price/quantity;
 13. reservation exists, is ACTIVE and exactly matches proposal + listing revision;
 14. listing is not stale;
-15. a global active-reservation view includes the current reservation and no exact reserved item is held by any other active reservation in any market;
+15. a global active-reservation view contains exactly one current reservation, matches the canonical reservation lookup (market/listing/revision/parties/item/price/quantity/itemIds), has unique active reservation ids, and no exact reserved item is held by any other active reservation in any market;
 16. seller still owns every exact reserved Rust item instance and every instance is tradable;
 17. buyer balance is sufficient;
 18. seller credit cannot overflow.
@@ -203,6 +203,7 @@ Each committed receipt stores:
 
 - `transactionId`
 - deterministic proposal fingerprint
+- deterministic receipt-integrity fingerprint binding the proposal fields + exact sorted `itemIds[]`
 - deterministic `eventId = 'TRADE:' + transactionId`
 - exact `itemInstanceId`
 - market/listing/reservation ids
@@ -215,7 +216,7 @@ Rules:
 
 - exact same `transactionId` + same proposal fingerprint returns the existing receipt with `duplicate:true` and performs zero writes;
 - same `transactionId` + different proposal is `transaction-conflict`;
-- every stored receipt is re-fingerprinted from its own transaction/party/item/price/reference fields before replay is trusted;
+- every stored receipt is re-fingerprinted from its own transaction/party/item/price/reference fields and exact canonical `itemIds[]` before replay is trusted;
 - tampered `eventId`, party, market/listing/reservation, item kind, `itemInstanceId`, price, quantity or `itemIds` makes replay state invalid and fails closed;
 - a committed id is never pruned by this kernel;
 - replay storage is bounded at 512 receipts and fails closed when full rather than evicting old ids and making old replays spendable again;
