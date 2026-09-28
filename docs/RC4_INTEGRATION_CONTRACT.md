@@ -45,6 +45,17 @@ RC3.2 merged-main SHA:
 
     1b60b13394c11bd7b03d10227919f4bb509b02df
 
+RC3.2 Production Gate is SAT according to current release evidence prepared in PR #183:
+
+- candidate Verify #1823 SUCCESS;
+- post-merge exact-main Verify #1965 SUCCESS;
+- workflow run 36448294976 / job `verify` SUCCESS;
+- Pages #112 SUCCESS;
+- workflow run 36446558699 / job `deploy` SUCCESS;
+- evidence is bound to exact released SHA `1b60b133...`.
+
+PR #183 is documentation/release metadata and does not change the released runtime baseline. RC4 must build on top of these released RC3.2 authorities.
+
 RC4 donor ancestry is now mixed:
 
 - #179 exact head `da82d2178e605283fabf76b80c91cd731da4ad49` has been merge-forwarded onto current RC3.2 main. Compare against `1b60b133...` is ahead 25 / behind 0 with merge-base equal to current main.
@@ -78,7 +89,28 @@ The current #179 Success Contract starts with a Repair override that supersedes 
 
 Cross-donor re-audit still finds #178 head 8c6c4ff... using the pre-repair Listing vocabulary (`listingId`, `createdTick` / `snapshotVersion`). This remains a donor compatibility VIOL, not an Integration Lead mapping task.
 
-### 0.3 Governing project locks retained from current main
+### 0.3 Verification support prepared for Integration Lead
+
+PR #182 is a verification-only RC4 acceptance/attack-suite donor.
+
+Exact audited head:
+
+    33ce2a60bc860c705dcc3f85cf463d1c48731a7f
+
+Verify #1996 = SUCCESS.
+
+It is based directly on current RC3.2 main and changes only RC4 acceptance documentation, fixtures/matrices, static preflight and acceptance-suite tests.
+
+Its embedded donor snapshot was prepared before the latest #179/#180 movement and is historical where it conflicts with this Integration Contract. Current truth remains:
+
+- #179 = `da82d217...` + Verify #1979 SUCCESS;
+- #180 = `0aa5a824...` + Verify #1990 SUCCESS.
+
+The harness itself is useful because its Phase-0 Master Gate already checks the same hard dependencies identified here: exact SHA, canonical Listing id/revision, Home Market reference authority, BuyOffer persistence, Reservation authority, market/tradeRange binding, Navigation arrival evidence and deterministic source rules.
+
+PR #182 does not make the Master Gate SAT by itself. Its Phase-0 rows remain UNKNOWN until one exact integrated candidate supplies all missing authorities/bindings.
+
+### 0.4 Governing project locks retained from current main
 
 - deterministic simulation; no Math.random or wall-clock gameplay authority;
 - UI reads state and emits validated commands only;
@@ -1203,7 +1235,27 @@ Required donor-side repairs before progression:
 7. post-settlement Listing/Reservation transition and partial-fill rules must be defined.
 8. production persistence ownership for BuyOffers, Reservations, tradeReplay, Ledgers, and any required AI journal must be explicit.
 
-## 14.3 Required integrated proof after all dependencies are SAT
+## 14.3 Acceptance harness handoff
+
+Use PR #182 as the acceptance harness baseline instead of recreating a weaker suite:
+
+    PR #182
+    exact head 33ce2a60bc860c705dcc3f85cf463d1c48731a7f
+    Verify #1996 SUCCESS
+
+Required artifacts:
+
+- `docs/RC4_MERCHANT_ECONOMY_ACCEPTANCE_SUITE.md`;
+- `tests/rc4-acceptance-suite.test.mjs`;
+- `verification/rc4/merchant-economy-matrix.json`;
+- `verification/rc4/merchant-economy-fixture-contract.json`;
+- `verification/rc4/preflight.mjs`.
+
+Before Master Gate execution, donor SHA metadata in that harness must be re-audited against current selected donors. Historical donor SHA rows in #182 are not authority over current GitHub heads.
+
+The preflight is expected to return UNKNOWN while required bindings are absent. Do not weaken the preflight or turn UNKNOWN into PASS.
+
+## 14.4 Required integrated proof after all dependencies are SAT
 
 The eventual integration candidate must prove at least:
 
@@ -1288,7 +1340,134 @@ Only after integrated exact-head SAT may the normal release process continue to 
 
 ---
 
-# 15. Execution Rule Summary
+# 15. Immediate Repair / Donor Queue
+
+These workstreams may run in parallel. Their outputs return to this Integration Contract for compatibility audit before Integration Step 1 can close.
+
+## A — #178 AI canonical Listing repair — PRIORITY 1 / VIOL
+
+Owner: Merchant / Customer AI donor.
+
+Must repair:
+
+- consume canonical #179 `Listing.id`;
+- consume/retain canonical `Listing.revision`;
+- bind purchase identity to current revision instead of legacy `createdTick/snapshotVersion`;
+- carry current Listing revision in purchase-intent evidence;
+- keep AI proposal-only and `authoritative:false`;
+- do not create Reservation or commit Trade;
+- retain local-knowledge, affordability, real-travel and arrival gates;
+- re-audit/sync against RC3.2 main;
+- exact-head Verify required.
+
+Exit:
+
+    source + tests + Success Contract aligned
+    → exact-head Verify SUCCESS
+    → independent compatibility audit against #179/#177
+
+## B — #176 Home Market reference authority — PRIORITY 1 / UNKNOWN
+
+Current state has `listingIds` / `buyOfferIds` but no canonical attach/detach writer.
+
+Required contract:
+
+- owner-controlled reference mutation;
+- deterministic idempotent add/remove;
+- no duplicate refs;
+- Home Market owns references only, never Listing/BuyOffer payload;
+- no item, money or housing mutation;
+- invalid/archived market behavior explicit;
+- save/load/reference replay proof;
+- post-RC3.2 compatibility proof.
+
+Integrator must never mutate those arrays directly.
+
+## C — Canonical Reservation authority — PRIORITY 1 / HARD STOP
+
+An owner must be explicitly assigned before implementation. The contract must satisfy #177 rather than create a competing reservation model.
+
+Minimum requirements:
+
+- deterministic reservation ID;
+- exact Listing id + listingRevision;
+- buyer/seller/market/item/quantity/unitPrice binding;
+- frozen exact `itemIds[]`;
+- complete global ACTIVE projection;
+- overlap prevention across markets;
+- idempotent create/replay;
+- terminal/release lifecycle;
+- persistence + old-save behavior;
+- cleanup/reconciliation;
+- no wallet/item ownership;
+- no wall-clock expiry rule.
+
+## D — Market binding + Navigation evidence — PRIORITY 1 / HARD STOP
+
+Market binding must source from named authorities:
+
+    id
+    open
+    x
+    y
+    tradeRange
+
+#178's defaultTradeRange is not authority.
+
+Navigation/task authority must be the only producer allowed to assert:
+
+    positionEvidence.verified = true
+    arrivalEvidence.verified = true
+
+Evidence must bind actual agent, coordinates, target/market, simulation tick/evidence identity and real Navigation/task outcome.
+
+#177 still revalidates current distance at settlement.
+
+## E — #179 BuyOffer persistence/procurement bridge — PRIORITY 2 / UNKNOWN
+
+On current SAT #179 head `da82d217...`, Listing has a canonical collection + serialize/restore path, but BuyOffer remains row-level only.
+
+Owner must define:
+
+- canonical BuyOffer collection;
+- create/replay/conflict behavior;
+- serialization/restore/corrupt-state validation;
+- Home Market reference through the #176 API;
+- Producer acceptance/matching path.
+
+Because #177 settles Listing + Reservation, BuyOffer procurement must explicitly reach a canonical seller Listing/Reservation without hidden temporary state.
+
+## F — Post-settlement market state + persistence root — PRIORITY 2 / HARD STOP
+
+Owners: Listing / Reservation / Persistence.
+
+Must freeze:
+
+- full-fill Listing transition;
+- partial-fill quantity/revision;
+- Reservation terminal state;
+- reference cleanup/reconciliation;
+- all required market-state transitions inside the accepted staged outer boundary;
+- production root keys/collections for Home Market, Listings, BuyOffers, Reservations, tradeReplay and Merchant Ledgers;
+- old-save defaults without replay loss.
+
+No compensating live-state rollback is accepted.
+
+## Queue close rule
+
+Every workstream closes only through:
+
+    Success Contract
+    → exact candidate
+    → exact-head Verify
+    → SAT / VIOL / UNKNOWN
+    → independent compatibility audit
+
+Focused/local tests alone never close a workstream.
+
+---
+
+# 16. Execution Rule Summary
 
 The RC4 Integration Lead is an orchestrator, not a new economic authority.
 
