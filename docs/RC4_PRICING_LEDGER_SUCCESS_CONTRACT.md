@@ -1,5 +1,86 @@
 # RC4 Pricing & Merchant Ledger — Success Contract
 
+## Repair override — Trade Kernel #177 direct compatibility (2026-09-28)
+
+This section supersedes any older conflicting Listing / receipt-boundary wording below.
+
+Inspected canonical donor:
+
+- PR #177 exact head: \`73be1764130978f529632aa955bf3a7adf931e29\`
+- Trade Kernel listing adapter consumes \`id\`, not \`listingId\`.
+- Trade Kernel rejects stale reservations unless \`reservation.listingRevision === listing.revision\`.
+- Trade Kernel receipt integrity binds the canonical proposal fingerprint plus exact sorted \`itemIds[]\`.
+
+### Canonical Listing after repair
+
+\`\`\`js
+{
+  id,
+  marketId,
+  sellerId,
+  itemKind,
+  itemInstanceId,
+  quantity,
+  unitPrice,
+  revision,
+  status
+}
+\`\`\`
+
+Rules:
+
+- \`revision\` is a positive safe integer and starts at 1.
+- Any authoritative price / quantity / status mutation increments revision exactly once.
+- No-op / replay mutation does not increment revision.
+- Reservation evidence freezes \`{ listingId: listing.id, listingRevision: listing.revision }\`.
+- A stale listing revision is fail-closed.
+- At collection level, one physical \`itemInstanceId\` may have at most one \`OPEN\` sale Listing.
+- Duplicate create with the same Listing id and physical identity is idempotent and cannot reset revision or status.
+- Reusing the same Listing id for a different physical identity is a conflict.
+- \`CLOSED\` releases the physical-item listing lock and may be reopened only after rechecking the collection lock.
+- \`CANCELED\` and \`FILLED\` are terminal in this slice.
+- Listing save/load validates the same duplicate-open-item invariant; corrupt state is rejected.
+- Listing remains a reference only and never owns the Rust item.
+
+### Committed receipt boundary after repair
+
+Ledger accepts only a successful Trade Kernel result whose receipt passes the #177 canonical integrity vocabulary and whose returned \`state.tradeReplay\` contains exactly the same committed receipt.
+
+Required receipt facts include:
+
+- exact \`transactionId\`, market/listing/reservation ids and parties;
+- exact \`itemKind\`, \`itemInstanceId\`, sorted \`itemIds[]\`, quantity and integer prices;
+- \`eventId === 'TRADE:' + transactionId\`;
+- recomputed canonical \`fingerprint\`;
+- recomputed canonical \`integrityFingerprint = fingerprint + '|ITEMS|' + sorted itemIds\`.
+
+A forged \`{ ok:true, duplicate:false, receipt }\` object without canonical committed replay-state evidence cannot mutate Merchant Ledger. Tampered fingerprint, integrity fingerprint, event id, parties, item ids, quantity or price fail closed. Duplicate replay is a no-op.
+
+Merchant Ledger remains an accounting read model only. It does not settle a transaction, mutate Wallet, mutate Rust Item Authority, create a market, or become profession authority.
+
+### Repair proof added
+
+Focused adversarial suite now covers:
+
+1. canonical Listing vocabulary compatible with #177;
+2. revision starts at >= 1;
+3. authoritative Listing mutation increments revision;
+4. stale reservation revision rejected;
+5. matching reservation revision accepted;
+6. duplicate OPEN Listing for the same physical item rejected;
+7. duplicate create replay idempotent;
+8. CLOSED Listing releases physical listing lock and reopen rechecks it;
+9. save/load preserves revision;
+10. save/load preserves duplicate-item invariant;
+11. forged committed object cannot change Ledger;
+12. tampered fingerprint cannot change Ledger;
+13. tampered integrityFingerprint cannot change Ledger;
+14. duplicate transaction cannot increment accounting;
+15. Revenue / COGS / Realized Profit regressions remain protected.
+
+UNKNOWN remains not PASS. This repair does not authorize merge; RC4 Red Team still owns acceptance.
+
+
 ## Source / candidate boundary
 
 Starting source inspected before implementation:
