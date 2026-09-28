@@ -6,6 +6,136 @@
   "exactIntegrationHead": null,
   "rows": [
     {
+      "id": "P0-01",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "One exact integration head SHA is supplied and equals the checked-out candidate",
+      "evidenceRequired": "full 40-char SHA + git rev-parse HEAD",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-02",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "Integration base equals current audited merged-main or compatibility is explicitly re-audited",
+      "evidenceRequired": "current main SHA + merge-base/compatibility report",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-03",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "Every selected donor head is frozen and has exact-head evidence; stale donor evidence is not reused",
+      "evidenceRequired": "donor board + exact-head workflow results",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-04",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "#179 Listing source/tests/Success Contract agree on canonical id+revision vocabulary and repaired exact head is verified",
+      "evidenceRequired": "exact #179 head source + contract + CI",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-05",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "Home Market has canonical owner-controlled Listing/BuyOffer reference mutation; Integrator does not mutate reference arrays ad hoc",
+      "evidenceRequired": "Home Market API/source + focused proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-06",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "Trade market projection has documented canonical sources for id/open/x/y/tradeRange; tradeRange is not invented by integration",
+      "evidenceRequired": "binding contract + source evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-07",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "Navigation exposes or approves canonical position/arrival evidence consumed by Customer/Merchant AI",
+      "evidenceRequired": "Navigation evidence contract + source/test proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-08",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "Canonical Reservation authority exists with deterministic ID, lifecycle, persistence and complete global ACTIVE view",
+      "evidenceRequired": "reservation contract + writer/source/tests",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-09",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "BuyOffer has canonical persistent collection and defined Producer procurement matching path",
+      "evidenceRequired": "BuyOffer collection/matching contract + tests",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-10",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "Post-settlement Listing quantity/status/revision and Reservation terminal/release semantics are explicitly owned and atomic",
+      "evidenceRequired": "post-settlement contract + tests",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-11",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "Production persistence root ownership is defined for Listings, BuyOffers, Reservations, tradeReplay, Merchant Ledgers and any required AI journal",
+      "evidenceRequired": "persistence schema/migration contract",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-12",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "All integration adapters are explicit documented projections over named canonical authorities; no hidden compatibility adapter exists",
+      "evidenceRequired": "adapter inventory + source audit",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P0-13",
+      "phase": 0,
+      "kind": "master-gate",
+      "objective": "Outer commit path stages every authoritative RC4 mutation and replaces the live root exactly once after all required postconditions",
+      "evidenceRequired": "integration commit-boundary proof",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
       "id": "P1-01",
       "phase": 1,
       "kind": "vertical",
@@ -216,6 +346,36 @@
       "reason": "Master Gate not open / no exact integrated candidate evidence"
     },
     {
+      "id": "P3-08",
+      "phase": 3,
+      "kind": "authority",
+      "objective": "Buy Offer is reference/intention only and holds no money or physical item",
+      "evidenceRequired": "BuyOffer schema/source + wallet/Rust state",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P3-09",
+      "phase": 3,
+      "kind": "cross-reference",
+      "objective": "Home Market buyOfferIds references the canonical Buy Offer exactly once and replay cannot duplicate the reference",
+      "evidenceRequired": "Home Market + BuyOffer snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P3-10",
+      "phase": 3,
+      "kind": "persistence",
+      "objective": "Buy Offer collection/reference survives save/load without duplication or drift",
+      "evidenceRequired": "serialize/restore state",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
       "id": "P4-01",
       "phase": 4,
       "kind": "contract",
@@ -311,6 +471,26 @@
       "kind": "lifecycle",
       "objective": "CLOSED/CANCELED/FILLED release lock exactly once",
       "evidenceRequired": "lifecycle transitions + uniqueness check",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-11",
+      "phase": 4,
+      "kind": "authority",
+      "objective": "Listing is reference/intention only and holds no spendable money or physical item authority",
+      "evidenceRequired": "Listing schema/source + wallet/Rust state",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-12",
+      "phase": 4,
+      "kind": "cross-reference",
+      "objective": "Home Market listingIds references the canonical Listing exactly once and replay cannot duplicate the reference",
+      "evidenceRequired": "Home Market + Listing snapshots",
       "immutableOnFail": false,
       "result": "UNKNOWN",
       "reason": "Master Gate not open / no exact integrated candidate evidence"
@@ -426,6 +606,16 @@
       "reason": "Master Gate not open / no exact integrated candidate evidence"
     },
     {
+      "id": "P6-08",
+      "phase": 6,
+      "kind": "authority",
+      "objective": "Verified position/arrival evidence originates from the approved Navigation evidence producer, not integration/UI/AI fabrication",
+      "evidenceRequired": "evidence provenance + Navigation source/trace",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
       "id": "P7-01",
       "phase": 7,
       "kind": "vertical",
@@ -506,6 +696,26 @@
       "reason": "Master Gate not open / no exact integrated candidate evidence"
     },
     {
+      "id": "P7-09",
+      "phase": 7,
+      "kind": "contract",
+      "objective": "Trade market adapter projects id/open/x/y/tradeRange only from documented canonical sources",
+      "evidenceRequired": "market adapter/binding evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P7-10",
+      "phase": 7,
+      "kind": "atomic-postcondition",
+      "objective": "Successful settlement stages canonical Listing quantity/status/revision and Reservation terminal/release semantics before live root replacement",
+      "evidenceRequired": "staged root + post-settlement snapshots",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
       "id": "P8-01",
       "phase": 8,
       "kind": "accounting",
@@ -551,6 +761,16 @@
       "kind": "attack",
       "objective": "Career cannot write Revenue/COGS/Profit",
       "evidenceRequired": "source audit + mutation attempt",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P8-06",
+      "phase": 8,
+      "kind": "attack",
+      "objective": "Forged successful Trade Kernel-looking result without matching canonical tradeReplay receipt cannot mutate Merchant Ledger",
+      "evidenceRequired": "ledger before/after + forged result",
       "immutableOnFail": true,
       "result": "UNKNOWN",
       "reason": "Master Gate not open / no exact integrated candidate evidence"
@@ -651,6 +871,16 @@
       "kind": "attack",
       "objective": "tampered integrityFingerprint does not progress Career",
       "evidenceRequired": "career before/after byte comparison",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-11",
+      "phase": 9,
+      "kind": "attack",
+      "objective": "Runtime cannot bypass #179 assessment by fabricating a canonical-looking VERIFIED/COMMITTED projection directly for Career",
+      "evidenceRequired": "runtime call-path evidence + Career before/after",
       "immutableOnFail": true,
       "result": "UNKNOWN",
       "reason": "Master Gate not open / no exact integrated candidate evidence"
@@ -826,6 +1056,16 @@
       "reason": "Master Gate not open / no exact integrated candidate evidence"
     },
     {
+      "id": "P10-18",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "Trade replay capacity boundary fails closed without evicting old receipts; oldest committed transaction remains protected",
+      "evidenceRequired": "512-receipt state + 513th attempt + oldest replay",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
       "id": "P11-01",
       "phase": 11,
       "kind": "atomic-failure",
@@ -991,6 +1231,36 @@
       "kind": "atomic-failure",
       "objective": "buyer outside range leaves source authoritative state byte-identical",
       "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-18",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "Ledger validation/projection failure after staged Trade settlement leaves live authoritative root byte-identical",
+      "evidenceRequired": "live root before/after + staged candidate",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-19",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "Career validation/progression failure after staged Trade/Ledger work leaves live authoritative root byte-identical",
+      "evidenceRequired": "live root before/after + staged candidate",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-20",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "Post-settlement Listing/Reservation postcondition failure leaves live authoritative root byte-identical",
+      "evidenceRequired": "live root before/after + staged candidate",
       "immutableOnFail": true,
       "result": "UNKNOWN",
       "reason": "Master Gate not open / no exact integrated candidate evidence"
@@ -1445,5 +1715,10 @@
       "result": "UNKNOWN",
       "reason": "Master Gate not open / no exact integrated candidate evidence"
     }
-  ]
+  ],
+  "masterGate": {
+    "requiredPhase": 0,
+    "rule": "Every P0 row must be SAT before Phase 1 integrated execution is accepted. Any P0 UNKNOWN or VIOL keeps Master Gate closed.",
+    "currentResult": "UNKNOWN"
+  }
 }
