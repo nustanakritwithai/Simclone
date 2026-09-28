@@ -200,7 +200,8 @@
   function acceptTransactionResult(result){
     toast.classList.remove('show');
     const valid = result &&
-      result.verificationStatus === 'VERIFIED' &&
+      result.state === 'SAT' &&
+      result.verification === 'VERIFIED' &&
       result.commitStatus === 'COMMITTED' &&
       result.duplicate === false &&
       typeof result.transactionId === 'string' && result.transactionId.length > 0 &&
@@ -212,7 +213,8 @@
 
     if(!valid){
       appendLog('TRANSACTION_RESULT_REJECTED', {
-        verificationStatus:result?.verificationStatus || 'UNKNOWN',
+        state:result?.state || 'UNKNOWN',
+        verification:result?.verification || 'UNKNOWN',
         commitStatus:result?.commitStatus || 'UNKNOWN',
         duplicate:result?.duplicate ?? 'UNKNOWN'
       });
