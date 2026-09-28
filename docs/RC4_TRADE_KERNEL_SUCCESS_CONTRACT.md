@@ -234,6 +234,16 @@ Forbidden in RC4 gameplay rules:
 
 Freshness is version/revision evidence, not elapsed wall-clock time.
 
+## Repair verification — 2026-09-28
+
+The first exact-head repo gate exposed three violations. This contract now freezes their repairs:
+
+- **Global reservation lock:** the market adapter's `activeReservations(state)` MUST be a complete global active-reservation projection across all markets. The kernel fails closed if the current reservation is omitted, duplicated, malformed, or disagrees with the canonical `reservation()` lookup. An item reserved by any other active reservation in any market is rejected as `item-reserved`.
+- **Replay receipt integrity:** every receipt stores the proposal fingerprint plus an `integrityFingerprint` covering the canonical proposal fields and sorted exact `itemIds`. Replay validation recomputes both, requires `eventId === 'TRADE:' + transactionId`, validates `itemKind` / `itemInstanceId`, and rejects field or item-list tampering before duplicate replay can succeed.
+- **Browser cache pins:** because RC4 adds runtime `.mjs` files and changes `rust-possessions.mjs`, `index.html` import-map pins MUST be regenerated even though shared runtime integration remains out of scope. Pinning makes modules cache-addressable; it does not import or execute the trade kernel from production boot.
+
+These repairs do not create a wallet, market authority, runtime command, AI behavior, UI integration, or second inventory.
+
 ## Required adversarial proof
 
 Tests must cover at least:
