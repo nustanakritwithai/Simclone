@@ -54,6 +54,13 @@ export function transitionBuyOffer(offer,status){
 }
 
 export const createBuyOfferCollection=()=>({version:BUY_OFFER_COLLECTION_VERSION,buyOffers:[]});
+const homeMarketReferenceRequest=offer=>Object.freeze({
+  authority:'HOME_MARKET',
+  writer:'attachHomeMarketBuyOfferReference',
+  marketId:offer.marketId,
+  ownerAgentId:offer.buyerId,
+  referenceId:offer.offerId
+});
 
 export function validateBuyOfferCollection(collection){
   if(!collection||collection.version!==BUY_OFFER_COLLECTION_VERSION||!Array.isArray(collection.buyOffers))return ['buy-offer-collection'];
@@ -73,11 +80,11 @@ export function createBuyOfferInCollection(collection,input={}){
   const made=createBuyOffer({...input,offerId:deterministicId});if(made.state!=='SAT')return {...made,collection:clone(collection)};
   const existing=collection.buyOffers.find(x=>x.offerId===made.offer.offerId);
   if(existing){
-    if(stableText(existing)===stableText(made.offer))return {state:'SAT',duplicate:true,offer:Object.freeze({...existing}),collection:clone(collection)};
+    if(stableText(existing)===stableText(made.offer))return {state:'SAT',duplicate:true,offer:Object.freeze({...existing}),referenceRequest:homeMarketReferenceRequest(existing),collection:clone(collection)};
     return {state:'VIOL',reason:'offer-id-conflict',collection:clone(collection)};
   }
   const next=clone(collection);next.buyOffers.push({...made.offer});next.buyOffers.sort((a,b)=>a.offerId.localeCompare(b.offerId));
-  return {state:'SAT',duplicate:false,offer:made.offer,collection:next};
+  return {state:'SAT',duplicate:false,offer:made.offer,referenceRequest:homeMarketReferenceRequest(made.offer),collection:next};
 }
 
 export function transitionBuyOfferInCollection(collection,offerId,status){
@@ -118,6 +125,13 @@ export function proposeProducerBuyOfferMatch(offer,{producerId,itemInstanceId}={
       buyerId:offer.buyerId,
       exactItemIds:Object.freeze([itemInstanceId]),
       listingSnapshotRequired:true
+    }),
+    homeMarketListingReferenceRequest:Object.freeze({
+      authority:'HOME_MARKET',
+      writer:'attachHomeMarketListingReference',
+      marketId:offer.marketId,
+      ownerAgentId:offer.buyerId,
+      referenceId:listingId
     }),
     tradeProposalOwner:'RC4_TRADE_KERNEL'
   })};
