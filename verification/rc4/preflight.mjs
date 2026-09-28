@@ -50,6 +50,8 @@ if(missing.length){
   add('canonical-rc4-modules-present','SAT',REQUIRED.join(', '));
 
   const listing=read('src/merchant-listing.mjs');
+  const buyOffer=read('src/merchant-buy-offer.mjs');
+  const homeMarket=read('src/home-market.mjs');
   const trade=read('src/trade-kernel.mjs');
 
   const listingHasCanonicalId=/\brow\.id\b|\blisting\.id\b|\{\s*id\s*[,}]/.test(listing);
@@ -63,6 +65,36 @@ if(missing.length){
   }else{
     add('listing-vocabulary','SAT','merchant-listing source exposes canonical id and revision vocabulary');
   }
+
+  const listingCollectionReady=/export\s+function\s+(?:create|validate|serialize|restore)ListingCollection\b/.test(listing)
+    &&/serializeListingCollection\b/.test(listing)&&/restoreListingCollection\b/.test(listing);
+  add(
+    'listing-persistence-collection',
+    listingCollectionReady?'SAT':'UNKNOWN',
+    listingCollectionReady
+      ?'Canonical Listing collection + serialization vocabulary is present.'
+      :'Canonical persistent Listing collection/serialization is not proven on this candidate.'
+  );
+
+  const buyOfferCollectionReady=/BuyOfferCollection\b/.test(buyOffer)
+    &&/serializeBuyOfferCollection\b/.test(buyOffer)&&/restoreBuyOfferCollection\b/.test(buyOffer);
+  add(
+    'buy-offer-persistence-collection',
+    buyOfferCollectionReady?'SAT':'UNKNOWN',
+    buyOfferCollectionReady
+      ?'Canonical BuyOffer collection + serialization vocabulary is present.'
+      :'Canonical persistent BuyOffer collection/serialization is missing or unproven; Master Gate remains closed.'
+  );
+
+  const homeRefWriter=/export\s+(?:const|function)\s+[^\n]*(?:listing|buyOffer|marketReference|MarketReference)[^\n]*/i.test(homeMarket)
+    &&/(?:add|attach|remove|detach|link|unlink|reference)/i.test(homeMarket);
+  add(
+    'home-market-reference-authority',
+    homeRefWriter?'SAT':'UNKNOWN',
+    homeRefWriter
+      ?'Home Market source exposes explicit reference-management vocabulary; integrated behavior still requires tests.'
+      :'No canonical Home Market Listing/BuyOffer reference mutation API is proven; Integrator must not mutate listingIds/buyOfferIds ad hoc.'
+  );
 
   const kernelRequiresId=/\blisting\.id\b/.test(trade);
   const kernelRequiresRevision=/\blisting\.revision\b/.test(trade)&&/\blistingRevision\b/.test(trade);
@@ -98,6 +130,56 @@ if(missing.length){
   else add('single-wallet-name-scan','SAT','No forbidden merchant/shop/customer/market/adventure wallet name found in required RC4 modules.');
 }
 
+const reservationModule=(process.env.RC4_RESERVATION_MODULE??'').trim();
+if(!reservationModule){
+  add('reservation-authority','UNKNOWN','RC4_RESERVATION_MODULE is not supplied; canonical Reservation writer/lifecycle/persistence cannot be proven.');
+}else{
+  const rel=reservationModule.replace(/^\.\//,'');
+  if(!exists(rel))add('reservation-authority','VIOL','Declared reservation module does not exist: '+rel);
+  else{
+    const reservation=read(rel);
+    const hasActive=/activeReservations\b/.test(reservation);
+    const hasPersistence=/(?:serialize|restore).*Reservation|Reservation.*(?:serialize|restore)/i.test(reservation);
+    const hasLifecycle=/(?:ACTIVE|COMMITTED|RELEASED|CANCELED|CANCELLED|FILLED)/.test(reservation);
+    add(
+      'reservation-authority',
+      hasActive&&hasPersistence&&hasLifecycle?'SAT':'UNKNOWN',
+      hasActive&&hasPersistence&&hasLifecycle
+        ?'Declared Reservation module exposes active-view, persistence and lifecycle vocabulary.'
+        :'Declared Reservation module exists but required active-view/persistence/lifecycle evidence is incomplete.'
+    );
+  }
+}
+
+const marketBindingModule=(process.env.RC4_MARKET_BINDING_MODULE??'').trim();
+if(!marketBindingModule){
+  add('market-binding-source','UNKNOWN','RC4_MARKET_BINDING_MODULE is not supplied; canonical id/open/x/y/tradeRange projection cannot be proven.');
+}else{
+  const rel=marketBindingModule.replace(/^\.\//,'');
+  if(!exists(rel))add('market-binding-source','VIOL','Declared market binding module does not exist: '+rel);
+  else{
+    const binding=read(rel);
+    const tokens=['marketId','tradeRange'];
+    const hasProjection=tokens.every(t=>binding.includes(t))&&/status\s*===\s*['"]open['"]|open\s*:/.test(binding);
+    add(
+      'market-binding-source',
+      hasProjection?'SAT':'UNKNOWN',
+      hasProjection
+        ?'Declared market binding contains market identity/open/tradeRange projection vocabulary; runtime provenance still requires integrated proof.'
+        :'Declared market binding lacks required canonical market projection vocabulary.'
+    );
+  }
+}
+
+const arrivalModule=(process.env.RC4_ARRIVAL_EVIDENCE_MODULE??'').trim();
+if(!arrivalModule){
+  add('navigation-arrival-evidence','UNKNOWN','RC4_ARRIVAL_EVIDENCE_MODULE is not supplied; approved Navigation-derived arrival evidence cannot be proven.');
+}else{
+  const rel=arrivalModule.replace(/^\.\//,'');
+  if(!exists(rel))add('navigation-arrival-evidence','VIOL','Declared arrival evidence module does not exist: '+rel);
+  else add('navigation-arrival-evidence','SAT','Declared arrival evidence source exists; exact provenance/behavior remains part of integrated tests: '+rel);
+}
+
 let result='SAT';
 if(checks.some(c=>c.result==='VIOL'))result='VIOL';
 else if(checks.some(c=>c.result==='UNKNOWN'))result='UNKNOWN';
@@ -108,6 +190,7 @@ const report={
   expectedHead:expected||null,
   actualHead,
   preflightResult:result,
+  masterGateResult:checks.some(c=>c.id.startsWith('exact-head')&&c.result==='VIOL')||checks.some(c=>['reservation-authority','market-binding-source','navigation-arrival-evidence','buy-offer-persistence-collection','home-market-reference-authority'].includes(c.id)&&c.result==='VIOL')?'VIOL':checks.some(c=>['reservation-authority','market-binding-source','navigation-arrival-evidence','buy-offer-persistence-collection','home-market-reference-authority'].includes(c.id)&&c.result!=='SAT')?'UNKNOWN':'SAT',
   integrationVerdict:'UNKNOWN',
   integrationVerdictReason:'Preflight can only prove exact-head/static contract readiness. Full vertical, replay, atomicity, persistence, browser, retained-regression and independent Red Team evidence are still mandatory.',
   checks
