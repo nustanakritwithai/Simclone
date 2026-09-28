@@ -2,94 +2,36 @@
 
 ## Source / candidate boundary
 
-Inspected source baseline before work: `main@a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e` (merged RC3.1).
-Candidate branch: `feature/rc4-merchant-pricing-ledger`.
+Starting source inspected before implementation:
 
-At inspection time these parallel RC4 branches existed but were identical to the same main (0 commits):
-- `feature/rc4-trade-kernel`
-- `feature/rc4-merchant-career`
-- `feature/rc4-market-ui-prototype`
+- `main@a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e`
+- merged RC3.1 physical Blueprint release source
+- candidate branch: `feature/rc4-merchant-pricing-ledger`
 
-During implementation `feature/rc4-merchant-career` advanced independently; it does not overlap this branch's files. `feature/rc4-trade-kernel` remained identical to main when this contract was frozen.
+Required repository sources were read before coding:
 
-Therefore the Trade Kernel's eventual committed-receipt field names are **UNKNOWN** at this boundary. This module does not invent or own that receipt. It accepts a small accounting wrapper `{ verification, commitStatus, transaction }`, where `transaction` follows the RC4 canonical TradeProposal vocabulary. The future integrator must adapt the verified Trade Kernel receipt into this wrapper without weakening verification.
+- `AGENTS.md`
+- `GAME_PLAN.md`
+- `docs/STATUS.md`
+- `docs/NEXT_STEPS.md`
+- current open PRs / RC4 branches
+- Rust item/craft provenance
+- existing Kingdom market/trade shadows
+
+This branch owns only Pricing + Merchant accounting. It must not become a Wallet, Inventory, Trade Commit, AI, Housing, Profession or UI authority.
 
 UNKNOWN is never PASS.
 
-## Scope
+## RC4 Trade Kernel vocabulary inspected during implementation
 
-Owned here only:
-- canonical Listing
-- canonical BuyOffer
-- deterministic Pricing V1
-- acquisition cost / cost basis read model
-- Revenue
-- COGS
-- Realized Profit
-- Merchant Ledger
+The parallel `feature/rc4-trade-kernel` branch was initially empty, then published its candidate while this work was in progress. The candidate was re-read before finalizing this slice.
 
-Explicitly out of scope:
-- wallet writer or currency settlement
-- Rust possession / inventory writer
-- trade commit / reservation authority
-- Merchant AI or policy
-- housing / HomeMarket
-- profession adoption
-- production UI
-- engine integration
+Inspected Trade Kernel source blob:
 
-The four production modules are pure. They do not import `engine.mjs`, `rust-possessions.mjs`, housing/profession modules, DOM, wall clock, external APIs or simulation RNG.
+- `src/trade-kernel.mjs`
+- blob `e1f828be7007be7ac5c173ac568d1f6ccb79abc5`
 
-## Existing source evidence
-
-Current Rust item truth is owned by `src/rust-possessions.mjs`.
-
-Craft acceptance records material escrow on the pending order as `reserved` and `reservedItems`. Craft completion creates a final item with `id`, `kind`, `createdBy`, `createdTick` and, for generated items, `craft` provenance containing `orderId` / `recipeId` / deterministic ticket data. The completed craft order is then removed.
-
-Important consequence: current final self-produced items do **not** retain a monetary material cost. `createdBy` or `craft.orderId` is provenance, not a cost basis. RC4 must not turn recipe quantities or global shadow prices into a fabricated acquisition cost.
-
-Current Kingdom market/trade modules are read-only shadows and explicitly do not own money or trade settlement. They are not valid cost authority for RC4 Merchant Ledger.
-
-## Canonical Listing
-
-```js
-{
-  listingId,
-  marketId,
-  sellerId,
-  itemKind,
-  itemInstanceId,
-  quantity,
-  unitPrice,
-  createdTick,
-  status
-}
-```
-
-V1 statuses: `OPEN | CLOSED | CANCELED | FILLED`.
-
-A Listing is a reference/intention only. It does not reserve, move, copy or own a Rust item and does not write a wallet.
-
-## Canonical BuyOffer
-
-```js
-{
-  offerId,
-  marketId,
-  buyerId,
-  itemKind,
-  quantityWanted,
-  unitPrice,
-  createdTick,
-  status
-}
-```
-
-V1 statuses: `OPEN | CLOSED | CANCELED | FILLED`.
-
-A BuyOffer is a reference/intention only. It holds no money and no item.
-
-## Canonical TradeProposal vocabulary consumed by the ledger
+Canonical proposal used by the kernel:
 
 ```js
 {
@@ -107,72 +49,178 @@ A BuyOffer is a reference/intention only. It holds no money and no item.
 }
 ```
 
-Ledger accounting additionally requires external evidence:
+Important kernel boundaries now adopted by this candidate:
+
+- transaction/reference IDs are bounded strings
+- buyer/seller IDs are positive safe integers
+- item instance IDs are positive safe integers
+- quantity is a positive safe integer, max 128
+- `unitPrice` and `totalPrice` are **positive safe integers**
+- fractional currency is rejected
+- `totalPrice === unitPrice * quantity`
+- buyer != seller
+- successful atomic settlement returns `{ ok:true, duplicate:false, receipt, state }`
+- committed receipt contains the exact transferred `itemIds[]`
+- replay returns `{ ok:true, duplicate:true, receipt, state }`
+
+The ledger therefore consumes the **successful settlement result / committed receipt**, not a raw TradeProposal.
+
+A successful non-duplicate kernel result is normalized by the accounting layer as:
+
+```text
+VERIFIED + COMMITTED
+```
+
+because the kernel has already revalidated the proposal, wallet, items, market/listing/reservation, range, replay state and postconditions before emitting the committed receipt.
+
+Raw proposals, failed results, malformed results, UNKNOWN results and duplicate results do not add accounting totals.
+
+## Existing Rust item / cost evidence
+
+Current Rust item authority is `src/rust-possessions.mjs`.
+
+At craft acceptance the pending order retains:
+
+- `reserved` material quantities
+- `reservedItems` item receipts
+- deterministic craft snapshot
+
+At craft completion the final item retains facts including:
+
+- `id`
+- `kind`
+- `createdBy`
+- `createdTick`
+- optional deterministic `craft` provenance such as `orderId` / `recipeId`
+
+Then the completed order is removed.
+
+Therefore current final self-produced items do **not** retain an authoritative monetary material cost.
+
+Consequences:
+
+- `createdBy` is provenance, not money.
+- recipe material quantities are not monetary cost.
+- Kingdom shadow prices are not cost authority.
+- donor recipe `cost` metadata is not RC4 transaction cost.
+- self-produced cost basis is UNKNOWN unless verified production/material cost evidence is supplied for the exact item instance.
+- no cost may be fabricated.
+
+## Existing Kingdom market/trade shadows
+
+`src/kingdom-market.mjs` explicitly owns read-only shadow prices and no money/trade mutation.
+
+`src/kingdom-household-trade.mjs` explicitly owns read-only trade opportunities and no stock reservation/cargo/money mutation.
+
+Neither is an acquisition-cost or settlement authority for RC4 Merchant Ledger.
+
+## Deliverable 1 — Canonical Listing
 
 ```js
 {
-  verification: 'VERIFIED',
-  commitStatus: 'COMMITTED',
-  transaction: TradeProposal
+  listingId,
+  marketId,
+  sellerId,
+  itemKind,
+  itemInstanceId,
+  quantity,
+  unitPrice,
+  createdTick,
+  status
 }
 ```
 
-Anything else is `VIOL` or `UNKNOWN` and must not modify the ledger.
+V1 status vocabulary:
 
-The ledger does not make a proposal committed. It only accounts for a transaction after the authoritative Trade Kernel has already verified and committed it.
+```text
+OPEN | CLOSED | CANCELED | FILLED
+```
 
-## Money representation
+Rules:
 
-V1 public values are JS numbers with at most two decimal places. All arithmetic converts to integer minor units first.
+- Listing is reference/intention only.
+- Listing owns no Rust item.
+- Listing owns no reservation.
+- Listing owns no wallet value.
+- sellerId/itemInstanceId are positive safe integers.
+- quantity is 1..128.
+- unitPrice is a positive safe integer, matching Trade Kernel money.
+- invalid / negative / zero / fractional / NaN / Infinity price is VIOL.
 
-Reject:
-- negative prices
-- `NaN`
-- `Infinity` / `-Infinity`
-- non-canonical sub-cent values
-- unsafe overflow
-- `totalPrice !== unitPrice × quantity`
-- self trade
+## Deliverable 2 — Canonical BuyOffer
 
-Zero is allowed by this accounting layer; business policy may forbid zero-price Listings elsewhere without changing ledger arithmetic.
+```js
+{
+  offerId,
+  marketId,
+  buyerId,
+  itemKind,
+  quantityWanted,
+  unitPrice,
+  createdTick,
+  status
+}
+```
 
-## Pricing V1
+V1 status vocabulary:
+
+```text
+OPEN | CLOSED | CANCELED | FILLED
+```
+
+Rules:
+
+- BuyOffer is reference/intention only.
+- BuyOffer does not reserve or hold money.
+- BuyOffer owns no item.
+- buyerId is a positive safe integer.
+- quantityWanted is 1..128.
+- unitPrice is a positive safe integer.
+
+## Deliverable 3 — Deterministic Pricing V1
 
 Formula:
 
 ```text
 Acquisition Cost
 + Margin
-+ bounded local scarcity adjustment
++ bounded scarcity adjustment
 = Ask Price
 ```
 
-Margin is basis points of acquisition cost.
+Money is integer currency to remain compatible with the RC4 Trade Kernel.
 
-Scarcity adjustment is derived only from merchant-local observations supplied to the pure pricing function:
-- `localStock`
-- `targetStock`
-- `recentDemand`
+Margin:
 
-V1 scarcity adjustment is bounded to `±2500 bps` (±25% of acquisition cost). No world state, hidden inventory, global market average or perfect-market knowledge is read.
+- expressed in basis points
+- deterministic integer rounding
+- bounded by this V1 module
 
-If acquisition cost is not proven, pricing returns `UNKNOWN`; it does not invent a cost.
+Scarcity adjustment reads only merchant-local observations supplied to the pure function:
 
-## Cost basis
+```js
+{
+  localStock,
+  targetStock,
+  recentDemand
+}
+```
 
-### Purchased item
+V1 scarcity adjustment is bounded to ±2500 bps (±25% of acquisition cost).
 
-Use the merchant's earlier `VERIFIED + COMMITTED` purchase transaction for the same `itemInstanceId` / `itemKind`. Its actual purchase `unitPrice` is the acquisition cost. Quantity remaining is persisted in the ledger for replay-safe later sales.
+Forbidden pricing inputs:
 
-### Self-produced item
+- global world inventory
+- hidden inventories
+- Kingdom-wide perfect market price
+- future demand
+- Math.random
+- wall-clock time
+- external API
 
-Use production/material cost only when an upstream authority supplies `VERIFIED` production-cost evidence tied to the exact `itemInstanceId`, with stable evidence references.
+If acquisition cost cannot be proven, Ask Price is UNKNOWN.
 
-Current main does not retain enough monetary production evidence on the completed item to derive this automatically. Therefore absent external verified production-cost evidence, the result is `UNKNOWN` and a sale does not change Revenue/COGS/Profit.
-
-This is deliberate. Recipe material quantities and `createdBy` are not silently converted into money.
-
-## Merchant Ledger
+## Deliverable 4 — Merchant Ledger
 
 Canonical top-level shape:
 
@@ -187,7 +235,7 @@ Canonical top-level shape:
 }
 ```
 
-`purchases` and `sales` are accounting/audit entries used to prove replay handling and cost basis. They do not duplicate wallet or inventory state.
+The purchase/sale arrays are accounting provenance needed to prove item-level cost basis and replay handling. They are not wallet balances and not inventory authority.
 
 Accounting identity:
 
@@ -195,83 +243,241 @@ Accounting identity:
 Realized Profit = Revenue - COGS
 ```
 
-Example:
+Required example:
 
 ```text
-Buy Pickaxe 70
-Sell Pickaxe 100
+Merchant buys Pickaxe at 70
+Merchant sells the same Pickaxe at 100
 
 Revenue = 100
 COGS = 70
 Realized Profit = 30
 ```
 
-A transaction ID already present in purchases/sales is a replay. It returns `SAT + duplicate:true` and changes no totals.
+## Committed receipt gate
 
-## Atomic accounting rule
+The ledger updates only from a successful, non-duplicate Trade Kernel settlement result with a valid committed receipt.
 
-`applyCommittedTransactionToLedger` is pure: input ledger is never mutated.
+Expected success shape:
+
+```js
+{
+  ok: true,
+  duplicate: false,
+  receipt: {
+    transactionId,
+    fingerprint,
+    eventId,
+    marketId,
+    listingId,
+    reservationId,
+    buyerId,
+    sellerId,
+    itemKind,
+    itemIds,
+    quantity,
+    unitPrice,
+    totalPrice
+  }
+}
+```
+
+Accounting rejects or no-ops:
+
+- raw proposal → UNKNOWN / no mutation
+- `ok:false` failed settlement → VIOL / no mutation
+- missing commit result → UNKNOWN / no mutation
+- malformed receipt → VIOL / no mutation
+- replay / `duplicate:true` → SAT no-op
+- same transaction already in ledger → SAT no-op
+- self trade → VIOL
+- invalid price/quantity/total → VIOL
+
+The ledger never calls the kernel settlement function and never writes wallet/inventory state.
+
+## Acquisition cost / cost basis
+
+### Purchased items
+
+A committed purchase receipt records the exact transferred `itemIds[]` and actual `unitPrice`.
+
+Each acquired item instance therefore has a real acquisition cost:
+
+```text
+item acquisition cost = committed purchase unitPrice
+```
+
+The ledger retains `remainingItemIds` for each purchase lot. Selling an item consumes its accounting cost basis from that lot only.
+
+This supports a multi-item purchase without averaging away item identity.
+
+### Self-produced items
+
+For an item with no prior merchant purchase cost basis, production cost requires explicit upstream evidence tied to the exact item instance:
+
+```js
+{
+  verification: 'VERIFIED',
+  evidenceId,
+  itemInstanceId,
+  totalCost,
+  sourceEvidenceIds
+}
+```
+
+Rules:
+
+- itemInstanceId must match the sold item.
+- totalCost must be canonical non-negative integer money.
+- evidence references must exist as supplied provenance references.
+- UNKNOWN evidence does not count.
+- invalid evidence is VIOL.
+- absent evidence is UNKNOWN.
+- UNKNOWN never adds Revenue/COGS/Profit for that sale.
+
+Mixed purchased + produced item batches can compute COGS per item only when every item has SAT cost evidence.
+
+## Atomic accounting behavior
+
+`applyTradeKernelCommitToLedger` is pure with respect to its input ledger.
 
 A new ledger is returned only after:
-1. existing ledger validates,
-2. evidence is `VERIFIED`,
-3. commit status is `COMMITTED`,
-4. canonical transaction validates,
-5. merchant is buyer or seller,
-6. replay check passes,
-7. seller cost basis is `SAT`,
-8. post-update ledger identities validate.
 
-If any required fact is `UNKNOWN`, no partial Revenue/COGS/Profit update occurs.
+1. current ledger validates,
+2. Trade Kernel result is a successful non-duplicate commit,
+3. receipt validates against the inspected kernel vocabulary,
+4. transaction was not already accounted,
+5. merchant is a transaction party,
+6. seller cost basis is SAT for every sold item,
+7. Revenue / COGS / Profit arithmetic remains safe integer,
+8. post-update ledger validates.
 
-## Required verification matrix
+Any VIOL or UNKNOWN returns the original accounting state unchanged.
 
-| Gate | Required | Candidate expectation |
-|---|---|---|
-| Purchase cost from committed acquisition | yes | SAT |
-| Revenue accounting | yes | SAT |
-| COGS accounting | yes | SAT |
-| Realized Profit identity | yes | SAT |
-| Replay cannot increase ledger | yes | SAT |
-| Failed transaction cannot increase ledger | yes | SAT |
-| UNKNOWN cannot increase ledger | yes | SAT |
-| Self trade rejected | yes | SAT |
-| Negative / NaN / Infinity rejected | yes | SAT |
-| `totalPrice` multiplication checked | yes | SAT |
-| Pricing deterministic | yes | SAT |
-| Scarcity bounded and local-only | yes | SAT |
-| Save/load cost basis byte stability | yes | SAT |
-| No wallet/inventory/trade commit writer | yes | SAT |
-| Exact Trade Kernel receipt adapter | integration dependency | UNKNOWN until Trade Kernel publishes a committed receipt contract |
-| Current-main self-produced monetary cost authority | source dependency | UNKNOWN; current item provenance does not retain it |
+## Save/load continuity
 
-## Verification commands
+`serializeMerchantLedger` validates before serializing.
 
-Focused:
+`restoreMerchantLedger` validates after parsing.
+
+Cost basis is retained by item instance identity, so save/load must not:
+
+- reset acquisition cost,
+- restore already-consumed item basis,
+- alter Revenue,
+- alter COGS,
+- alter Realized Profit.
+
+Byte-stable JSON round-trip is tested for a valid ledger.
+
+## Authority locks
+
+These modules do not import or call:
+
+- `engine.mjs`
+- `rust-possessions.mjs`
+- Wallet authority
+- Housing / HomeMarket
+- Profession authority
+- Kingdom market shadow
+- Household trade shadow
+- DOM/browser APIs
+- external services
+
+They do not use:
+
+- `Math.random`
+- `Date.now`
+- `new Date()`
+- simulation RNG
+
+## Parallel integration finding — Merchant Career PR #175
+
+PR #175 currently maintains:
+
+```js
+agent.merchantRealizedProfit += fact.realizedProfit
+```
+
+with only a bounded recent transaction receipt tail.
+
+For RC4 accounting this is an integration **VIOL** if `agent.merchantRealizedProfit` is treated as another authoritative monetary profit ledger.
+
+Repair rule:
+
+- Merchant Ledger `realizedProfit` remains the canonical accounting result.
+- Career may consume a read-only projection of ledger results for qualification/progression/UI.
+- Career may keep non-monetary progression counters.
+- Career must not independently accumulate a second authoritative profit balance.
+- bounded replay history cannot replace long-horizon accounting idempotency.
+
+This pricing/ledger branch does not modify PR #175 because Profession/Career is outside its ownership.
+
+## Verification matrix
+
+| Gate | State |
+|---|---|
+| Current main / branch base checked | SAT |
+| Required project docs read | SAT |
+| Rust item provenance inspected | SAT |
+| Existing monetary production cost retained on final crafted item | UNKNOWN (not present in current main) |
+| TradeProposal vocabulary inspected | SAT |
+| Trade Kernel committed receipt shape inspected | SAT |
+| Listing canonical shape | SAT |
+| BuyOffer canonical shape | SAT |
+| Integer price compatibility with Trade Kernel | SAT |
+| Deterministic pricing | SAT |
+| Local-only bounded scarcity | SAT |
+| Purchase acquisition cost | SAT |
+| Revenue | SAT |
+| COGS | SAT |
+| Realized Profit | SAT |
+| 70 → 100 example = 100 / 70 / 30 | SAT |
+| Replay / duplicate no increment | SAT |
+| Failed settlement no increment | SAT |
+| UNKNOWN no increment | SAT |
+| Self trade rejected | SAT |
+| negative / fractional / NaN / Infinity rejected | SAT |
+| production cost absent → UNKNOWN | SAT |
+| verified production evidence supported | SAT |
+| multi-item item-level cost basis | SAT |
+| save/load cost basis no drift | SAT |
+| forbidden authority imports/writes absent | SAT |
+| focused test suite | SAT — 15/15 |
+| Merchant Career duplicate `merchantRealizedProfit` authority | VIOL at integration boundary |
+| exact-head repository CI / `npm test` | UNKNOWN until Actions finishes |
+
+## Verification command
+
+Focused candidate proof:
 
 ```bash
 node --test tests/rc4-merchant-pricing-ledger.test.mjs
 ```
 
-Routine PR gate remains repository policy:
+Observed result before final push:
+
+```text
+15 tests
+15 pass
+0 fail
+```
+
+Repository routine gate remains:
 
 ```bash
 npm test
 ```
 
-No branch or local focused result is authority to merge. Exact-head CI remains required; failed or unavailable CI is `UNKNOWN/VIOL`, never PASS.
+No focused/local result authorizes merge. Exact-head CI must be SAT before any future integration decision.
 
+## Definition of Done for this isolated slice
 
-## Parallel integration finding — Merchant Career PR #175
-
-After this candidate was implemented, RC4 Merchant Career opened PR #175. Its current `src/merchant-career.mjs` maintains `agent.merchantRealizedProfit` by adding each supplied transaction profit and keeps only a bounded recent transaction-receipt tail.
-
-For the RC4 accounting architecture this is an integration **VIOL** if `agent.merchantRealizedProfit` is treated as a second authoritative profit balance. The canonical accounting authority in this slice is Merchant Ledger `realizedProfit`, derived from persisted Revenue and COGS after VERIFIED + COMMITTED transactions with proven cost basis.
-
-Integration repair requirement:
-- Merchant Career may consume a read-only projection from the canonical Merchant Ledger for qualification/progression/UI, or keep non-monetary progression counters.
-- It must not independently re-accumulate realized profit as another accounting authority.
-- A bounded replay tail cannot establish long-horizon accounting idempotency.
-- Until this is reconciled, Career ↔ Ledger integration status is **VIOL**, not PASS.
-
-This candidate does not modify PR #175 because Profession/Career is explicitly outside this branch's ownership.
+- all six requested deliverable files exist
+- no forbidden subsystem is edited
+- exact branch is based on inspected current main
+- focused proof is SAT
+- exact-head PR is opened
+- CI status is reported SAT / VIOL / UNKNOWN without treating UNKNOWN as PASS
+- cross-branch Career accounting conflict is explicitly recorded
+- PR remains unmerged
