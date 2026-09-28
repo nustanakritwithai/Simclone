@@ -260,3 +260,18 @@ npm test
 ```
 
 No branch or local focused result is authority to merge. Exact-head CI remains required; failed or unavailable CI is `UNKNOWN/VIOL`, never PASS.
+
+
+## Parallel integration finding — Merchant Career PR #175
+
+After this candidate was implemented, RC4 Merchant Career opened PR #175. Its current `src/merchant-career.mjs` maintains `agent.merchantRealizedProfit` by adding each supplied transaction profit and keeps only a bounded recent transaction-receipt tail.
+
+For the RC4 accounting architecture this is an integration **VIOL** if `agent.merchantRealizedProfit` is treated as a second authoritative profit balance. The canonical accounting authority in this slice is Merchant Ledger `realizedProfit`, derived from persisted Revenue and COGS after VERIFIED + COMMITTED transactions with proven cost basis.
+
+Integration repair requirement:
+- Merchant Career may consume a read-only projection from the canonical Merchant Ledger for qualification/progression/UI, or keep non-monetary progression counters.
+- It must not independently re-accumulate realized profit as another accounting authority.
+- A bounded replay tail cannot establish long-horizon accounting idempotency.
+- Until this is reconciled, Career ↔ Ledger integration status is **VIOL**, not PASS.
+
+This candidate does not modify PR #175 because Profession/Career is explicitly outside this branch's ownership.
