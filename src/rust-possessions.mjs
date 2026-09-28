@@ -1,6 +1,7 @@
+import {knowsCraftRecipe,validateRecipeKnowledge,recipeCompletionProposal,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
-import {ITEM_CATALOG,RECIPE_CATALOG,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
+import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
 import {availableStationKinds,stationForRecipe} from './rust-stations.mjs?v=0.5.0';
 export const RUST_POSSESSIONS_VERSION='RS2-0.2';
 export const RUST_POSSESSION_LIMITS=Object.freeze({bag:4,items:128,orders:12});
@@ -13,6 +14,8 @@ export function queueCraft(s,{agentId,recipeId,stationId=null}={}){
   const p=s.rustPossessions,a=living(s,agentId),r=RECIPE_CATALOG[recipeId];
   if(isIndependent(s)&&a&&!canPerformProductiveWork(s,a))return {ok:false,reason:'stage'};
   if(!p||!a||!r)return {ok:false,reason:'actor-or-recipe'};
+  if(validateRecipeKnowledge(s,a).length)return {ok:false,reason:'recipe-knowledge'};
+  if(!knowsCraftRecipe(s,a,recipeId))return {ok:false,reason:'recipe-unknown'};
   if(p.orders.some(o=>o.agentId===agentId))return {ok:false,reason:'craft-busy'};
   if(p.orders.length>=RUST_POSSESSION_LIMITS.orders||p.items.length+p.orders.length>=RUST_POSSESSION_LIMITS.items)return {ok:false,reason:'capacity'};
   if(bag(p,agentId).length+p.orders.filter(o=>o.agentId===agentId).length>=RUST_POSSESSION_LIMITS.bag)return {ok:false,reason:'bag-full'};
@@ -22,7 +25,7 @@ export function queueCraft(s,{agentId,recipeId,stationId=null}={}){
   const check=craftability({stock},recipeId,{stationKinds:availableStationKinds(s)});if(!check.ok)return check;
   // Atomic escrow: remove materials once at acceptance. Completion never spends again.
   for(const [k,n] of Object.entries(r.materials))stock[k]-=n;
-  const order={id:p.nextOrder++,agentId,recipe:recipeId,stationId:station?.id??null,work:0,required:r.work,startedTick:s.tick,lastWorkedTick:s.tick,reserved:{...r.materials}};
+  const order={id:p.nextOrder++,agentId,recipe:recipeId,stationId:station?.id??null,work:0,required:r.work,startedTick:s.tick,lastWorkedTick:s.tick,reserved:{...r.materials},recipeKnowledge:RECIPE_KNOWLEDGE_VERSION};
   p.orders.push(order);
   return {ok:true,orderId:order.id,recipeId,stationId:order.stationId,reserved:{...order.reserved},workRequired:r.work};
 }
@@ -36,9 +39,12 @@ export function advanceCraft(s,agentId,{workRate=1}={}){
   if(!Number.isFinite(workRate)||workRate<=0||workRate>1)return {ok:false,reason:'work-rate'};
   o.lastWorkedTick=s.tick;o.work+=workRate;
   if(o.work<o.required)return {ok:true,completed:false,orderId:o.id,work:o.work,required:o.required};
-  const itemId=p.nextItem++;p.items.push({id:itemId,kind:r.output,createdBy:agentId,createdTick:s.tick,location:{kind:'bag',agentId}});
+  const itemId=p.nextItem;
+  const mastery=recipeCompletionProposal(s,a,o,itemId);
+  p.nextItem++;p.items.push({id:itemId,kind:r.output,createdBy:agentId,createdTick:s.tick,location:{kind:'bag',agentId}});
+  if(mastery)a.knowledgeState.recipes=mastery.book;
   p.orders=p.orders.filter(x=>x.id!==o.id);
-  return {ok:true,completed:true,orderId:o.id,itemId,kind:r.output};
+  return {ok:true,completed:true,orderId:o.id,itemId,kind:r.output,...(mastery?{mastery:mastery.completed,unlockedRecipes:mastery.unlocked}:{})};
 }
 export function grantAdventureLoot(s,{agentId,claimKey,items}={}){
   const p=s.rustPossessions,a=living(s,agentId);

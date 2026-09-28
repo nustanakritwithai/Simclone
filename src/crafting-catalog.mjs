@@ -36,7 +36,22 @@ export const RECIPE_CATALOG=deepFreeze({
   WOOD_DOORWAY:{id:'WOOD_DOORWAY',output:'WOOD_DOORWAY',quantity:1,category:'build',station:'HAND',tier:0,materials:{wood:5},work:14},
   WOOD_ROOF:{id:'WOOD_ROOF',output:'WOOD_ROOF',quantity:1,category:'build',station:'HAND',tier:0,materials:{wood:6},work:16}
 });
-export const recipeById=id=>RECIPE_CATALOG[id]??null;
+/** The released nine recipes remain a compatibility view for survival UI/planners.
+ * All crafting authorities resolve through recipeById / CRAFT_RECIPE_CATALOG. */
+export const STARTER_RECIPE_IDS=deepFreeze(Object.keys(RECIPE_CATALOG));
+const advanced={};
+for(const kind of ['STONE_AXE','STONE_PICKAXE','HAMMER']){
+  const base=RECIPE_CATALOG[kind];
+  for(let tier=base.tier+1;tier<=5;tier++){
+    const id=kind+'_T'+tier,previous=tier===base.tier+1?kind:kind+'_T'+(tier-1);
+    advanced[id]={id,output:kind,quantity:1,category:'tool',station:'CRAFTING_TABLE_LV1',tier,
+      materials:{wood:(base.materials.wood??0)+tier*2,stone:(base.materials.stone??0)+tier},
+      work:base.work+tier*8,unlock:{recipeId:previous,completions:2}};
+  }
+}
+export const ADVANCED_RECIPE_CATALOG=deepFreeze(advanced);
+export const CRAFT_RECIPE_CATALOG=deepFreeze({...RECIPE_CATALOG,...ADVANCED_RECIPE_CATALOG});
+export const recipeById=id=>Object.hasOwn(CRAFT_RECIPE_CATALOG,id)?CRAFT_RECIPE_CATALOG[id]:null;
 export const itemById=id=>ITEM_CATALOG[id]??null;
 export function validateCraftingCatalog(){
   const errors=[],stations=new Set(Object.values(CRAFT_STATIONS)),placeables=new Set(PLACEABLE_KINDS),cats=new Set(Object.values(CRAFT_CATEGORIES)),gearSlots=new Set(['WEAPON','ARMOR','ACCESSORY']);
@@ -45,8 +60,9 @@ export function validateCraftingCatalog(){
     if(item.stationProvided&&!placeables.has(item.stationProvided))errors.push('item-placeable:'+id);
     if(item.category==='gear'&&(!gearSlots.has(item.equipSlot)||item.adventureGearId!==id))errors.push('item-gear:'+id);
   }
-  for(const [id,r] of Object.entries(RECIPE_CATALOG)){
-    if(r.id!==id||!ITEM_CATALOG[r.output]||!stations.has(r.station)||!cats.has(r.category)||!Number.isInteger(r.work)||r.work<1)errors.push('recipe:'+id);
+  for(const [id,r] of Object.entries(CRAFT_RECIPE_CATALOG)){
+    if(r.id!==id||r.quantity!==1||!Number.isInteger(r.tier)||r.tier<0||r.tier>5||!ITEM_CATALOG[r.output]||!stations.has(r.station)||!cats.has(r.category)||!Number.isInteger(r.work)||r.work<1)errors.push('recipe:'+id);
+    if(r.unlock&&(!CRAFT_RECIPE_CATALOG[r.unlock.recipeId]||CRAFT_RECIPE_CATALOG[r.unlock.recipeId].tier>=r.tier||!Number.isSafeInteger(r.unlock.completions)||r.unlock.completions<1))errors.push('unlock:'+id);
     if(!r.materials||Object.entries(r.materials).some(([k,n])=>!['wood','stone'].includes(k)||!Number.isInteger(n)||n<1))errors.push('materials:'+id);
   }
   return errors;
