@@ -645,3 +645,28 @@ No focused/local result authorizes merge. Exact-head CI must be SAT before any f
 - CI status is reported SAT / VIOL / UNKNOWN without treating UNKNOWN as PASS
 - cross-branch Career accounting conflict is explicitly recorded
 - PR remains unmerged
+
+
+## B7 stacked persistence repair — Merchant Ledger collection
+
+Canonical root key: `merchantLedgers`.
+
+The base donor already validates and serializes each Merchant Ledger. This stacked repair adds the canonical collection boundary:
+
+- `createMerchantLedgerCollection()`
+- `validateMerchantLedgerCollection()`
+- `migrateMerchantLedgerCollection(raw)`
+- `serializeMerchantLedgerCollection(collection)`
+- `restoreMerchantLedgerCollection(serialized)`
+
+Rules:
+
+- one Merchant Ledger per merchantId;
+- missing pre-RC4 collection migrates once to the empty canonical collection;
+- migration replay over valid state is a no-op;
+- corrupt/duplicate present collection fails closed and is never reset;
+- Revenue / COGS / Realized Profit and item-level cost basis round-trip unchanged;
+- this does not weaken the hardened non-duplicate commit provenance boundary;
+- production root wiring remains B8-owned.
+
+UNKNOWN is never PASS. Exact-head Verify is required.

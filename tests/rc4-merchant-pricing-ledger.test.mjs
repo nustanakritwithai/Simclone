@@ -11,7 +11,9 @@ import {quoteAskPrice,deriveScarcityAdjustmentBps} from '../src/merchant-pricing
 import {
   createMerchantLedger,applyTradeKernelCommitToLedger,assessTradeKernelResult,validateCommittedTradeReceipt,
   validateMerchantLedger,serializeMerchantLedger,restoreMerchantLedger,tradeReceiptFingerprint,tradeReceiptIntegrityFingerprint,
-  resolveCostBasis,calculateSaleAccounting
+  resolveCostBasis,calculateSaleAccounting,
+  createMerchantLedgerCollection,validateMerchantLedgerCollection,migrateMerchantLedgerCollection,
+  serializeMerchantLedgerCollection,restoreMerchantLedgerCollection
 } from '../src/merchant-ledger.mjs';
 
 function canonicalReceipt(overrides={}){
@@ -252,4 +254,28 @@ test('RC4 pricing/ledger modules stay pure and outside forbidden authorities',()
     for(const token of ['Math.random','Date.now','new Date(','document.','window.','state.rng','s.rng',"from './engine", "from './rust-possessions", "from './individual-housing", "from './profession", "kingdom-market", "kingdom-household", 'wallet.', 'rustPossessions'])
       assert.equal(src.includes(token),false,rel+': '+token);
   }
+});
+
+
+test('RC4 B7: Merchant Ledger collection persists all accounting and migrates missing old-save state once',()=>{
+  const collection=createMerchantLedgerCollection();
+  collection.ledgers.push(ledgerWithPurchase({itemIds:[77],unitPrice:70}));
+  const sold=completedLedger();sold.merchantId=2;collection.ledgers.push(sold);
+  assert.deepEqual(validateMerchantLedgerCollection(collection),[]);
+  const wire=serializeMerchantLedgerCollection(collection),restored=restoreMerchantLedgerCollection(wire);
+  assert.equal(serializeMerchantLedgerCollection(restored),wire);
+  assert.equal(restored.ledgers[1].revenue,100);assert.equal(restored.ledgers[1].costOfGoodsSold,70);assert.equal(restored.ledgers[1].realizedProfit,30);
+  const missing=migrateMerchantLedgerCollection(undefined);
+  assert.equal(missing.state,'SAT');assert.equal(missing.migrated,true);assert.equal(missing.duplicate,false);
+  const again=migrateMerchantLedgerCollection(missing.collection);
+  assert.equal(again.state,'SAT');assert.equal(again.migrated,false);assert.equal(again.duplicate,true);
+});
+
+test('RC4 B7: duplicate merchant ledger or corrupt present collection fails closed',()=>{
+  const a=createMerchantLedger(1),corrupt=createMerchantLedgerCollection();
+  corrupt.ledgers.push(a,structuredClone(a));
+  assert.deepEqual(validateMerchantLedgerCollection(corrupt),['merchant-ledger-collection']);
+  const migrated=migrateMerchantLedgerCollection(corrupt);
+  assert.equal(migrated.state,'VIOL');assert.equal(migrated.collection,null);
+  assert.throws(()=>restoreMerchantLedgerCollection(JSON.stringify(corrupt)),/merchant-ledger-collection-invalid/);
 });
