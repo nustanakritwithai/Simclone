@@ -50,6 +50,10 @@ def click_locator(locator,label):
     b=locator.first;b.scroll_into_view_if_needed();check(label+' visible',b.is_visible());b.click()
 def action(name):
     return page.locator(f'[data-action="{name}"]')
+def world_view(name):
+    close();page.wait_for_timeout(150)
+    page.screenshot(path=str(OUT/name))
+    open_market()
 def no_overflow():
     return page.evaluate('document.documentElement.scrollWidth<=innerWidth+1 && (!document.querySelector("#dialog").open || document.querySelector("#dialog-body").scrollWidth<=document.querySelector("#dialog-body").clientWidth+1)')
 
@@ -100,7 +104,9 @@ try:
         check(f'{width}: Merchant identity visible','merchant' in page.locator('#dialog-body').inner_text().lower())
         click_locator(action('rc4-close-market'),f'{width}: close Home Market')
         check(f'{width}: CLOSED feedback','closed' in page.locator('#dialog-body').inner_text())
+        world_view(f'{width}-world-storefront-closed.png')
         click_locator(action('rc4-open-market'),f'{width}: reopen Home Market')
+        world_view(f'{width}-world-storefront-open.png')
         check(f'{width}: BuyOffer OPEN 70',offer['status']=='OPEN' and offer['unitPrice']==70 and offer['itemKind']=='STONE_PICKAXE')
         check(f'{width}: market dialog fits',no_overflow())
         page.screenshot(path=str(OUT/f'{width}-merchant-open-buyoffer.png'))
