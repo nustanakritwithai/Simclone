@@ -2,7 +2,7 @@ import {createCraftSpec,validateCraftSpec,resolveCraftOutcome,validateCraftedIte
 import {knowsCraftRecipe,validateRecipeKnowledge,recipeCompletionProposal,craftFamilyMastery,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
-import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
+import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,STARTER_RECIPE_IDS,recipeById,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
 import {availableStationKinds,stationForRecipe} from './rust-stations.mjs?v=0.5.0';
 export const RUST_POSSESSIONS_VERSION='RS2-0.2';
 export const RUST_POSSESSION_LIMITS=Object.freeze({bag:4,items:128,orders:12});
@@ -65,29 +65,43 @@ export function queueCraft(s,data={}){
   p.nextOrder++;p.orders.push(order);
   return {ok:true,orderId:id,recipeId:r.id,stationId:order.stationId,reserved:{...order.reserved},ingredientIds:[...consumed],workRequired:r.work};
 }
+/** Pure pending-order check shared by restore and the live executor. */
 export function validateCraftOrder(s,o){
-  const r=RECIPE_CATALOG[o?.recipe];if(!r)return false;
-  // Pre-outcome orders retain their already committed costs and legacy output.
-  if(o.craftSpec===undefined)return o.reservedItems===undefined;
-  if(o.recipeKnowledge!==RECIPE_KNOWLEDGE_VERSION||!integer(o.id,1)||o.id>=s.rustPossessions.nextOrder||
-    !integer(o.startedTick)||!integer(o.lastWorkedTick)||o.startedTick>o.lastWorkedTick||o.lastWorkedTick>s.tick||
-    !Number.isFinite(o.work)||o.work<0||o.work>o.required||o.required!==r.work||!sameMaterials(o.reserved,r.materials)||
-    !validateCraftSpec(o.craftSpec,{worldSeed:s.seed,orderId:o.id,creatorId:o.agentId,recipeId:o.recipe})||
-    !Array.isArray(o.reservedItems)||o.reservedItems.length>4)return false;
+  const p=s?.rustPossessions,a=living(s,o?.agentId),r=recipeById(o?.recipe);
+  if(!p||!a||!r||!Number.isSafeInteger(o?.id)||o.id<1||o.id>=p.nextOrder||
+    p.orders.filter(x=>x?.id===o.id).length!==1||p.orders.filter(x=>x?.agentId===o.agentId).length!==1||
+    !Number.isFinite(o.work)||o.work<0||!Number.isFinite(o.required)||o.required<1||o.work>=o.required||
+    !o.reserved||typeof o.reserved!=='object'||Array.isArray(o.reserved))return ['Rust craft order'];
+  if(o.recipeKnowledge===undefined)return STARTER_RECIPE_IDS.includes(o.recipe)&&o.craftSpec===undefined&&o.reservedItems===undefined?[]:['Rust craft legacy recipe'];
+  if(o.recipeKnowledge!==RECIPE_KNOWLEDGE_VERSION)return ['Rust craft knowledge version'];
+  if(validateRecipeKnowledge(s,a).length||!knowsCraftRecipe(s,a,o.recipe))return ['Rust craft permission'];
+  const receipts=(a.knowledgeState.recipes?.entries??[]).flatMap(e=>[...e.receipts,...(e.retiredThrough?[e.retiredThrough]:[])]);
+  if(receipts.some(done=>done.orderId>=o.id||done.tick>o.startedTick))return ['Rust craft watermark'];
+  if(o.required!==r.work||Object.keys(o.reserved).length!==Object.keys(r.materials).length||
+    Object.entries(r.materials).some(([k,n])=>o.reserved[k]!==n))return ['Rust craft escrow'];
+  if(!Number.isSafeInteger(o.startedTick)||o.startedTick<a.bornTick||o.startedTick>s.tick||
+    !Number.isSafeInteger(o.lastWorkedTick)||o.lastWorkedTick<o.startedTick||o.lastWorkedTick>s.tick||
+    o.work>o.lastWorkedTick-o.startedTick)return ['Rust craft chronology'];
+  if(r.station===CRAFT_STATIONS.HAND){if(o.stationId!==null)return ['Rust craft station'];}
+  else if(!Number.isSafeInteger(o.stationId)||!(s.rustStations?.stations??[]).some(st=>st.id===o.stationId&&st.complete&&st.kind===r.station))return ['Rust craft station'];
+  if(o.craftSpec===undefined)return o.reservedItems===undefined?[]:['Rust craft outcome snapshot'];
+  if(!validateCraftSpec(o.craftSpec,{worldSeed:s.seed,orderId:o.id,creatorId:o.agentId,recipeId:o.recipe})||
+    !Array.isArray(o.reservedItems)||o.reservedItems.length>4)return ['Rust craft outcome snapshot'];
   const counts={},ids=new Set(),people=new Set([...(s.agents??[]),...(s.archive??[])].map(a=>a.id));
   for(const i of o.reservedItems){
-    if(!i||!integer(i.itemId,1)||i.itemId>=s.rustPossessions.nextItem||ids.has(i.itemId)||!people.has(i.createdBy)||
-      !r.itemMaterials?.[i.kind]||s.rustPossessions.items.some(x=>x.id===i.itemId))return false;
+    if(!i||!integer(i.itemId,1)||i.itemId>=p.nextItem||ids.has(i.itemId)||!people.has(i.createdBy)||
+      !r.itemMaterials?.[i.kind]||p.items.some(x=>x.id===i.itemId))return ['Rust craft item escrow'];
     ids.add(i.itemId);counts[i.kind]=(counts[i.kind]??0)+1;
   }
-  return sameMaterials(counts,r.itemMaterials??{});
+  if(!sameMaterials(counts,r.itemMaterials??{}))return ['Rust craft item escrow'];
+  return [];
 }
 export function advanceCraft(s,agentId,{workRate=1}={}){
   const p=s.rustPossessions,a=living(s,agentId),o=p?.orders.find(o=>o.agentId===agentId);
   if(!p||!a||!o)return {ok:false,reason:'order'};
   if(!canPerformProductiveWork(s,a))return {ok:false,reason:'stage'};
   const r=RECIPE_CATALOG[o.recipe];if(!r)return {ok:false,reason:'recipe'};
-  if(!validateCraftOrder(s,o))return {ok:false,reason:'craft-order-invalid'};
+  if(validateCraftOrder(s,o).length)return {ok:false,reason:'craft-order-invalid'};
   const st=stationForRecipe(s,o.recipe,a,o.stationId);
   if(r.station!==CRAFT_STATIONS.HAND&&(!st||a.x!==st.x||a.y!==st.y))return {ok:false,reason:'not-at-station'};
   if(s.tick<=o.lastWorkedTick)return {ok:false,reason:'already-worked'};
