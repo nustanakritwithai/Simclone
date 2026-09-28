@@ -6,7 +6,7 @@ import {
   attachHomeMarketListingReference,attachHomeMarketBuyOfferReference,projectHomeMarketForTrade
 } from './home-market.mjs?v=0.5.0';
 import {
-  migrateListingCollection,validateListingCollection,createListingInCollection,applyListingSettlementInCollection
+  migrateListingCollection,validateListingCollection,createListingInCollection,applyListingSettlementInCollection,listingIdFor
 } from './merchant-listing.mjs?v=0.5.0';
 import {
   migrateBuyOfferCollection,validateBuyOfferCollection,createBuyOfferInCollection,proposeProducerBuyOfferMatch,
@@ -103,6 +103,17 @@ export function validateRc4EconomyState(world){
   e.push(...validateCurrencyWallet(world).map(x=>'Wallet:'+x));
   e.push(...validateTradeReplayState(world).map(x=>'Trade:'+x));
   e.push(...validateMerchantLedgerCollection(world?.merchantLedgers).map(x=>'Ledger:'+x));
+  const marketById=new Map((world?.homeMarkets?.markets??[]).map(m=>[m.marketId,m]));
+  const listingByRef=new Map((world?.merchantListings?.listings??[]).map(l=>[l.id,l]));
+  const offerByRef=new Map((world?.merchantBuyOffers?.buyOffers??[]).map(o=>[o.offerId,o]));
+  for(const m of world?.homeMarkets?.markets??[]){
+    for(const id of m.listingIds??[]){const row=listingByRef.get(id);if(!row||row.marketId!==m.marketId)e.push('HomeMarket:listing-reference');}
+    for(const id of m.buyOfferIds??[]){const row=offerByRef.get(id);if(!row||row.marketId!==m.marketId)e.push('HomeMarket:buy-offer-reference');}
+  }
+  for(const l of world?.merchantListings?.listings??[]){const m=marketById.get(l.marketId);if(!m||!m.listingIds.includes(l.id))e.push('Listing:market-reference');}
+  for(const o of world?.merchantBuyOffers?.buyOffers??[]){const m=marketById.get(o.marketId);if(!m||!m.buyOfferIds.includes(o.offerId))e.push('BuyOffer:market-reference');}
+  const accountIds=new Set((world?.currencyWallet?.accounts??[]).map(a=>a.agentId));
+  for(const a of world?.agents??[])if(a.alive&&!accountIds.has(a.id))e.push('Wallet:missing-live-account');
   const knownPeople=new Set([...(world?.agents??[]),...(world?.archive??[])].map(a=>a.id));
   if((world?.merchantLedgers?.ledgers??[]).some(l=>!knownPeople.has(l.merchantId)))e.push('Ledger:agent');
   for(const a of [...(world?.agents??[]),...(world?.archive??[])])for(const x of validateMerchantProgression(a))e.push('MerchantCareer:'+a.id+':'+x);
@@ -119,7 +130,9 @@ function merchantQualificationSnapshot(world,agent){
   const home=homeOf(world,agent.id,{completeOnly:true});
   const balance=getBalance(world,agent.id);
   const market=ownMarket(world,agent.id);
-  const intentCount=(market?.listingIds?.length??0)+(market?.buyOfferIds?.length??0);
+  const listingEvidence=(market?.listingIds??[]).filter(id=>world.merchantListings?.listings?.some(l=>l.id===id&&l.marketId===market.marketId)).length;
+  const offerEvidence=(market?.buyOfferIds??[]).filter(id=>world.merchantBuyOffers?.buyOffers?.some(o=>o.offerId===id&&o.marketId===market.marketId)).length;
+  const intentCount=listingEvidence+offerEvidence;
   const evidenceId='MERCHANT:'+agent.id+':'+(market?.marketId??'NOMARKET')+':'+intentCount;
   return {
     agentId:agent.id,
@@ -221,10 +234,6 @@ function postSettlementAdapter(){
 function replaceWorldRoot(live,next){
   for(const key of Object.keys(live))delete live[key];
   Object.assign(live,next);
-}
-
-function createListingId(marketId,sellerId,itemId){
-  return deterministicId('L:',{marketId,sellerId,itemId});
 }
 
 function txId(world,{listingId,buyerId,reservationId}){
@@ -345,7 +354,7 @@ export function rc4Command(world,type,data={}){
     if(!validMoney(data.unitPrice))return fail('price','ราคาต้องเป็นจำนวนเต็มบวก');
     const item=world.rustPossessions?.items?.find(i=>i.id===data.itemId);
     if(!item||!tradableRustItemIds(world,{agentId:agent.id,itemKind:item.kind}).includes(item.id))return fail('item','item นี้ลงขายไม่ได้');
-    const id=createListingId(market.marketId,agent.id,item.id);
+    const id=listingIdFor({marketId:market.marketId,sellerId:agent.id,itemInstanceId:item.id});
     const made=createListingInCollection(world.merchantListings,{id,marketId:market.marketId,sellerId:agent.id,itemKind:item.kind,itemInstanceId:item.id,quantity:1,unitPrice:data.unitPrice,status:'OPEN'});
     if(made.state!=='SAT')return fail(made.reason,'สร้าง Listing ไม่ได้');
     const ref=attachHomeMarketListingReference(world,world.homeMarkets,{marketId:market.marketId,ownerAgentId:agent.id,referenceId:id});
