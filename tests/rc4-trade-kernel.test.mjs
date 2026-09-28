@@ -291,3 +291,56 @@ test('RC4 B6: exact replay does not re-run Listing/Reservation transitions',()=>
   assert.equal(second.state.testMarket.listings[0].revision,2);
   assert.equal(second.state.testMarket.reservations[0].status,'COMMITTED');
 });
+
+
+test('RC4 replay capacity 512 fails closed without eviction and oldest receipt stays protected',()=>{
+  const s={
+    tick:1,
+    agents:[{id:1,alive:true,x:0,y:0},{id:2,alive:true,x:0,y:1}],
+    testWallet:{1:10000,2:0},
+    testItems:[],
+    testMarket:{markets:[{id:'MCAP',open:true,x:0,y:0,tradeRange:3}],listings:[],reservations:[]},
+    tradeReplay:createTradeReplayState(),
+  };
+  for(let i=0;i<513;i++){
+    const itemId=1000+i,listingId='LCAP-'+i,reservationId='RCAP-'+i;
+    s.testItems.push({id:itemId,kind:'IRON_SWORD',agentId:2});
+    s.testMarket.listings.push({id:listingId,marketId:'MCAP',status:'OPEN',revision:1,sellerId:2,itemKind:'IRON_SWORD',unitPrice:1,quantity:1});
+    s.testMarket.reservations.push({id:reservationId,status:'ACTIVE',marketId:'MCAP',listingId,listingRevision:1,sellerId:2,buyerId:1,itemKind:'IRON_SWORD',unitPrice:1,quantity:1,itemIds:[itemId]});
+  }
+  const capPost={
+    apply:(state,{receipt})=>{
+      const l=state.testMarket.listings.find(x=>x.id===receipt.listingId);
+      const r=state.testMarket.reservations.find(x=>x.id===receipt.reservationId);
+      if(!l||!r||l.status!=='OPEN'||r.status!=='ACTIVE')return {ok:false};
+      l.quantity=0;l.revision++;l.status='FILLED';r.status='COMMITTED';r.transactionId=receipt.transactionId;
+      return {ok:true};
+    },
+    verify:(state,{receipt})=>{
+      const l=state.testMarket.listings.find(x=>x.id===receipt.listingId);
+      const r=state.testMarket.reservations.find(x=>x.id===receipt.reservationId);
+      return {ok:l?.status==='FILLED'&&l.revision===2&&r?.status==='COMMITTED'&&r.transactionId===receipt.transactionId};
+    }
+  };
+  const capAdapters={wallet,item,market,postSettlement:capPost};
+  let state=s,firstProposal=null;
+  for(let i=0;i<512;i++){
+    const p={transactionId:'TXCAP-'+i,marketId:'MCAP',sellerId:2,buyerId:1,itemKind:'IRON_SWORD',itemInstanceId:1000+i,
+      quantity:1,unitPrice:1,totalPrice:1,listingId:'LCAP-'+i,reservationId:'RCAP-'+i};
+    if(i===0)firstProposal=structuredClone(p);
+    const r=settleTradeAtomic(state,p,capAdapters);
+    assert.equal(r.ok,true,'commit '+i);state=r.state;
+  }
+  assert.equal(state.tradeReplay.receipts.length,512);
+  const before=JSON.stringify(state);
+  const p513={transactionId:'TXCAP-512',marketId:'MCAP',sellerId:2,buyerId:1,itemKind:'IRON_SWORD',itemInstanceId:1512,
+    quantity:1,unitPrice:1,totalPrice:1,listingId:'LCAP-512',reservationId:'RCAP-512'};
+  const rejected=settleTradeAtomic(state,p513,capAdapters);
+  assert.equal(rejected.ok,false);assert.equal(rejected.reason,'replay-capacity');
+  assert.equal(JSON.stringify(state),before,'513th failure must not mutate source or evict receipts');
+  assert.equal(state.tradeReplay.receipts.length,512);
+  assert.equal(state.tradeReplay.receipts[0].transactionId,'TXCAP-0');
+  const oldest=settleTradeAtomic(state,firstProposal,capAdapters);
+  assert.equal(oldest.ok,true);assert.equal(oldest.duplicate,true);assert.equal(oldest.state,state);
+  assert.equal(JSON.stringify(state),before);
+});
