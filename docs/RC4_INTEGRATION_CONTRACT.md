@@ -58,12 +58,14 @@ Therefore an isolated donor Verify SUCCESS is evidence for that donor head only.
 | #175 | Merchant Career | 51f3c9727429ecfb055548c8bf0ffed09a70b0d9 | Verify #1946 SUCCESS; donor comment marks accepted candidate | UNKNOWN post-RC3.2 |
 | #176 | Home Market | 79ae6792063f8c70a9e676028646f2cd05a62d0a | Verify #1861 SUCCESS | UNKNOWN post-RC3.2 |
 | #177 | Trade Kernel | 73be1764130978f529632aa955bf3a7adf931e29 | Verify #1898 SUCCESS | UNKNOWN post-RC3.2 and missing market/reservation bindings |
-| #178 | Merchant / Customer AI | 8c6c4ffb506cd192e2f81558880a7480ccf13932 | Verify #1864 SUCCESS | UNKNOWN integrated authority snapshots |
+| #178 | Merchant / Customer AI | 8c6c4ffb506cd192e2f81558880a7480ccf13932 | Verify #1864 SUCCESS on isolated donor | VIOL vs repaired #179: Customer AI still consumes legacy listingId + createdTick/snapshotVersion and carries no canonical Listing revision |
 | #179 | Pricing / Listing / Buy Offer / Ledger | 964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f | no exact-head workflow observed for this repaired head | VIOL: exact-head Success Contract still documents the pre-repair Listing shape while source/tests use repaired id+revision shape; exact-head CI also UNKNOWN |
 | #180 | Market UI prototype | 1bb01790e9af627588504af226759f5aff79b80c | Verify #1893 SUCCESS | SAT as docs/prototype donor only; production wiring UNKNOWN |
 | #181 | Canonical Wallet | 6d9eb098333eccc72e2352e605e5364d25e97768 | Verify #1959 SUCCESS | UNKNOWN post-RC3.2; donor contract explicitly requires post-RC3.2 re-audit/rebuild |
 
 The old #179 Verify #1907 belongs to an older head and MUST NOT be used as evidence for head 964b14b2....
+
+Cross-donor re-audit also found that #178 head 8c6c4ff... still uses the pre-repair Listing vocabulary (`listingId`, `createdTick` / `snapshotVersion`) while repaired #179 source uses canonical `id` + `revision`. This is a donor compatibility VIOL, not an Integration Lead mapping task.
 
 ### 0.3 Governing project locks retained from current main
 
@@ -172,7 +174,31 @@ Therefore both layers are required:
 1. AI/Command precondition: accepted Navigation-derived arrival/position evidence;
 2. final settlement precondition: #177 current-state distance validation.
 
-Current main audit found no approved arrivalEvidence or positionEvidence schema/export. This dependency is UNKNOWN. The Integrator must not manufacture a verified record from a distance comparison and call it Navigation evidence.
+#178 already defines the **consumer-side** evidence shape in source:
+
+    positionEvidence: {
+      verified: true,
+      agentId,
+      tick,
+      x,
+      y
+    }
+
+    arrivalEvidence: {
+      verified: true,
+      agentId,
+      marketId,
+      tick,
+      x,
+      y,
+      evidenceId? / source?
+    }
+
+#178 rejects evidence when agent identity, coordinates, tick ordering, market identity, or current trade-range position do not match the current snapshot.
+
+What is still missing on current main is the **producer/authority contract** that is allowed to set `verified:true` for those records. That producer must be Navigation/task-derived and must bind the evidence to the actual movement outcome. Until that producer is named and proven, arrival production is UNKNOWN.
+
+The Integrator must not manufacture a verified record from a distance comparison, from the AI's travel intent, or from current coordinates alone and call it Navigation evidence.
 
 ## 2.3 Explicit market projection into #177
 
@@ -198,9 +224,9 @@ An accepted explicit binding may project, without writing new truth:
 - open from status === "open";
 - x/y only from an approved physical market location projection, plausibly the canonical storefront socket if the donor owners approve that interpretation.
 
-But #176 does not define tradeRange. No current donor contract supplies its canonical value/source.
+But #176 does not define tradeRange. #178 contains a policy fallback `defaultTradeRange: 1`, but that is an AI decision fallback, **not** a canonical market authority and cannot satisfy #177.
 
-Result: the market binding is UNKNOWN until a domain owner defines the tradeRange source. The Integrator must not choose a number.
+Result: the market binding is UNKNOWN until a domain owner defines the tradeRange source. Production snapshots MUST supply that accepted canonical range to both #178 and #177. The Integrator must not choose a number and must not promote #178's default into market truth.
 
 ---
 
@@ -483,6 +509,33 @@ Customer proposal path includes travel, wait, purchase submission, wait transact
 Merchant proposal path includes bounded restock, return-home travel, wait materialization, Home Market request, Listing proposal, open-market proposal, and wait.
 
 The AI must not fabricate Reservation, Listing truth, market truth, wallet balance, item ownership, arrival evidence, or transaction result.
+
+### #178 compatibility repair required before integration
+
+At exact head `8c6c4ff...`, Customer AI source/tests still consume:
+
+    listing.listingId
+    listing.createdTick / listing.snapshotVersion
+
+and construct purchase identity/snapshots from those legacy fields.
+
+Repaired #179 canonical Listing source uses:
+
+    listing.id
+    listing.revision
+
+Therefore #178 is currently **VIOL** against the repaired Listing contract.
+
+Required donor repair, owned by #178:
+
+- consume the approved canonical Listing identity/vocabulary from #179;
+- bind purchase intent identity to the canonical Listing revision, not legacy createdTick/snapshotVersion;
+- carry enough current Listing revision evidence for the Command Router to request/create the canonical Reservation;
+- continue to stop before Reservation creation and Trade commit;
+- retain proposal-only `authoritative:false` behavior;
+- rerun exact-head verification after repair.
+
+The Integration Lead must not solve this by projecting `id -> listingId` or `revision -> snapshotVersion` in an undocumented/hidden compatibility adapter.
 
 ## 3.11 UI read model — #180 concept only
 
@@ -864,8 +917,8 @@ The Integration Lead MUST follow this sequence. No later step may begin if a req
 | 7 | Merchant Career | post-RC3.2 #175 compatibility + canonical evidence path | UNKNOWN post-RC3.2 |
 | 8 | Pricing | accepted #179 pure pricing | UNKNOWN post-RC3.2/#179 gate |
 | 9 | Merchant Ledger | exact #177 receipt verification + persistence container | UNKNOWN integrated |
-| 10 | Merchant AI | accepted authority snapshots only | UNKNOWN integrated |
-| 11 | Customer AI | accepted local knowledge + current Listing/Wallet views | UNKNOWN integrated |
+| 10 | Merchant AI | accepted authority snapshots only; #178 exact-head cross-donor repair complete | VIOL until #178 is repaired/reverified |
+| 11 | Customer AI | canonical #179 Listing id+revision + local knowledge/current Wallet + verified arrival | VIOL until #178 is repaired/reverified |
 | 12 | Navigation / arrival | real Navigation-derived evidence producer + final current position check | UNKNOWN — HARD STOP |
 | 13 | Wallet adapter | post-RC3.2 accepted #181 + #177 combined atomic proof | UNKNOWN |
 | 14 | Rust item adapter | post-RC3.2 Rust compatibility; exact IDs/provenance/tradability | UNKNOWN |
@@ -996,12 +1049,13 @@ Contract explicitly requires post-RC3.2 re-audit/rebuild before production integ
 | ID | Finding | State | Required owner/action |
 | --- | --- | --- | --- |
 | U1 | Every RC4 donor audited diverges from RC3.2 main and is behind current main | UNKNOWN | Compatibility Auditor / donor rebuild or reselect |
-| V1 | #179 head 964b14b2 source/tests use repaired Listing id+revision, but exact-head Success Contract still describes legacy listingId+createdTick | VIOL | #179 owner repairs contract, then exact-head Verify |
+| V1 | #179 head 964b14b2 source/tests use repaired Listing id+revision, but exact-head Success Contract still describes legacy listingId+createdTick; the same contract also contains stale sibling-Career text that predates #175 head 51f3c972 | VIOL | #179 owner repairs/freeze-aligns the contract, then exact-head Verify |
+| V2 | #178 head 8c6c4ff Customer AI still consumes legacy listingId + createdTick/snapshotVersion and does not bind purchase intent to canonical #179 revision | VIOL | #178 owner aligns to repaired #179 canonical Listing vocabulary/revision and reruns exact-head Verify |
 | U2 | #179 repaired exact head has no observed exact-head workflow result | UNKNOWN | #179 owner exact-head Verify |
 | U3 | #176 owns listingIds/buyOfferIds but exposes no canonical attach/detach reference mutation API | UNKNOWN | #176 owner |
 | U4 | No canonical Reservation writer/lifecycle/persistence/ID rule is supplied | UNKNOWN | market/reservation owner + #177 contract |
 | U5 | #176 does not define #177-required tradeRange source | UNKNOWN | market/trade contract owner |
-| U6 | current main exposes no audited Navigation arrivalEvidence/positionEvidence contract matching #178 | UNKNOWN | Navigation / #178 integration owner |
+| U6 | #178 defines consumer validation for positionEvidence/arrivalEvidence, but current main has no audited Navigation/task producer authorized to set verified:true for those records | UNKNOWN | Navigation / #178 integration owner defines/proves evidence producer |
 | U7 | BuyOffer is not consumed by #177; BuyOffer -> producer acceptance -> Listing/Reservation mapping is undefined | UNKNOWN | #179 + #177 owner |
 | U8 | post-settlement Listing decrement/FILLED/revision and Reservation COMMITTED/release behavior is undefined | UNKNOWN | #179 + Reservation/#177 owner |
 | U9 | canonical persistent BuyOffer collection is not defined by current source | UNKNOWN | #179 owner |
@@ -1060,21 +1114,22 @@ The Integration Lead stops the current gate immediately when any condition is tr
 3. exact-head CI is missing/failing;
 4. Success Contract and source/schema disagree;
 5. donor is still based on pre-RC3.2 behavior that conflicts with current main;
-6. more than one writer exists for a domain;
-7. a required current snapshot is absent or UNKNOWN;
-8. market position/tradeRange has no canonical source;
-9. arrival evidence is fabricated or unavailable;
-10. Reservation authority/lifecycle is absent;
-11. Listing revision is missing/stale;
-12. global active reservation projection is incomplete;
-13. item identity overlaps another active reservation;
-14. wallet or Rust adapter would require a parallel state copy;
-15. a staged settlement cannot keep source state byte-stable on failure;
-16. root replacement would occur before all commit-boundary postconditions;
-17. transaction success would be shown before canonical receipt validation;
-18. save/load would drop replay receipts or cost-basis identity;
-19. Browser proof cannot reproduce the intended physical travel/trade path;
-20. an attempt is made to solve a blocker by lowering acceptance.
+6. AI/market/read-model vocabulary does not match the accepted canonical Listing id+revision contract;
+7. more than one writer exists for a domain;
+8. a required current snapshot is absent or UNKNOWN;
+9. market position/tradeRange has no canonical source;
+10. arrival evidence is fabricated or unavailable;
+11. Reservation authority/lifecycle is absent;
+12. Listing revision is missing/stale;
+13. global active reservation projection is incomplete;
+14. item identity overlaps another active reservation;
+15. wallet or Rust adapter would require a parallel state copy;
+16. a staged settlement cannot keep source state byte-stable on failure;
+17. root replacement would occur before all commit-boundary postconditions;
+18. transaction success would be shown before canonical receipt validation;
+19. save/load would drop replay receipts or cost-basis identity;
+20. Browser proof cannot reproduce the intended physical travel/trade path;
+21. an attempt is made to solve a blocker by lowering acceptance.
 
 ---
 
@@ -1090,7 +1145,7 @@ Current overall state:
 
     HOLD / UNKNOWN
 
-with an explicit #179 contract/source VIOL at the audited head.
+with explicit donor compatibility VIOLs at the audited heads: #179 contract/source drift and #178 legacy Listing vocabulary versus repaired #179.
 
 ## 14.2 Preconditions before Integration Step 1 may be closed
 
@@ -1106,14 +1161,15 @@ Integration Lead must re-audit:
 
 Required donor-side repairs before progression:
 
-1. #179 exact Success Contract must match repaired source/tests and exact-head Verify must be SUCCESS.
-2. Home Market owner must define canonical Listing/BuyOffer reference mutation if those arrays remain authoritative.
-3. Reservation authority must be defined.
-4. market tradeRange source must be defined.
-5. Navigation must expose/approve the arrival evidence consumed by #178, or #178 contract must be revised by its owner.
-6. BuyOffer procurement matching path must be defined.
-7. post-settlement Listing/Reservation transition and partial-fill rules must be defined.
-8. production persistence ownership for BuyOffers, Reservations, tradeReplay, Ledgers, and any required AI journal must be explicit.
+1. #179 exact Success Contract must match repaired source/tests (including canonical `id + revision` and current #175 relationship) and exact-head Verify must be SUCCESS.
+2. #178 owner must replace legacy `listingId + createdTick/snapshotVersion` consumption with the accepted canonical #179 Listing identity/revision contract, then exact-head Verify.
+3. Home Market owner must define canonical Listing/BuyOffer reference mutation if those arrays remain authoritative.
+4. Reservation authority must be defined.
+5. market tradeRange source must be defined; #178 defaultTradeRange is not authority.
+6. Navigation must expose/approve the producer of the position/arrival evidence consumed by #178; only that producer may assert `verified:true`.
+7. BuyOffer procurement matching path must be defined.
+8. post-settlement Listing/Reservation transition and partial-fill rules must be defined.
+9. production persistence ownership for BuyOffers, Reservations, tradeReplay, Ledgers, and any required AI journal must be explicit.
 
 ## 14.3 Required integrated proof after all dependencies are SAT
 
