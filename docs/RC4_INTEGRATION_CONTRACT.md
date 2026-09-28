@@ -45,11 +45,14 @@ RC3.2 merged-main SHA:
 
     1b60b13394c11bd7b03d10227919f4bb509b02df
 
-All RC4 donor heads audited below diverge from current RC3.2 main and share the older merge base:
+RC4 donor ancestry is now mixed:
 
-    a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e
+- #179 exact head `da82d2178e605283fabf76b80c91cd731da4ad49` has been merge-forwarded onto current RC3.2 main. Compare against `1b60b133...` is ahead 25 / behind 0 with merge-base equal to current main.
+- #175–#178 and #180–#181 still diverge from current RC3.2 main and retain the older merge base:
 
-Therefore an isolated donor Verify SUCCESS is evidence for that donor head only. It is not proof of post-RC3.2 compatibility.
+      a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e
+
+Therefore isolated donor Verify SUCCESS remains evidence for that donor head only. For stale-base donors it is not proof of post-RC3.2 compatibility. For #179, ancestry is aligned but exact-head verification is still required.
 
 ### 0.2 Donor board snapshot
 
@@ -59,13 +62,15 @@ Therefore an isolated donor Verify SUCCESS is evidence for that donor head only.
 | #176 | Home Market | 79ae6792063f8c70a9e676028646f2cd05a62d0a | Verify #1861 SUCCESS | UNKNOWN post-RC3.2 |
 | #177 | Trade Kernel | 73be1764130978f529632aa955bf3a7adf931e29 | Verify #1898 SUCCESS | UNKNOWN post-RC3.2 and missing market/reservation bindings |
 | #178 | Merchant / Customer AI | 8c6c4ffb506cd192e2f81558880a7480ccf13932 | Verify #1864 SUCCESS on isolated donor | VIOL vs repaired #179: Customer AI still consumes legacy listingId + createdTick/snapshotVersion and carries no canonical Listing revision |
-| #179 | Pricing / Listing / Buy Offer / Ledger | 964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f | no exact-head workflow observed for this repaired head | VIOL: exact-head Success Contract still documents the pre-repair Listing shape while source/tests use repaired id+revision shape; exact-head CI also UNKNOWN |
+| #179 | Pricing / Listing / Buy Offer / Ledger | da82d2178e605283fabf76b80c91cd731da4ad49 | Verify #1979 in progress at audit time; RC3.2 ancestry aligned | UNKNOWN until exact-head Verify completes; canonical Repair override aligns Listing id+revision with #177 |
 | #180 | Market UI prototype | 1bb01790e9af627588504af226759f5aff79b80c | Verify #1893 SUCCESS | SAT as docs/prototype donor only; production wiring UNKNOWN |
 | #181 | Canonical Wallet | 6d9eb098333eccc72e2352e605e5364d25e97768 | Verify #1959 SUCCESS | UNKNOWN post-RC3.2; donor contract explicitly requires post-RC3.2 re-audit/rebuild |
 
-The old #179 Verify #1907 belongs to an older head and MUST NOT be used as evidence for head 964b14b2....
+Older #179 Verify evidence belongs to older heads and MUST NOT be used as post-sync evidence for `da82d217...`. The current #179 contract itself explicitly states that its prior isolated repaired proof is not the post-RC3.2 proof.
 
-Cross-donor re-audit also found that #178 head 8c6c4ff... still uses the pre-repair Listing vocabulary (`listingId`, `createdTick` / `snapshotVersion`) while repaired #179 source uses canonical `id` + `revision`. This is a donor compatibility VIOL, not an Integration Lead mapping task.
+The current #179 Success Contract starts with a Repair override that supersedes older conflicting Listing / receipt wording below it. That override and current source/tests agree on canonical `id + revision`.
+
+Cross-donor re-audit still finds #178 head 8c6c4ff... using the pre-repair Listing vocabulary (`listingId`, `createdTick` / `snapshotVersion`). This remains a donor compatibility VIOL, not an Integration Lead mapping task.
 
 ### 0.3 Governing project locks retained from current main
 
@@ -287,7 +292,11 @@ Rules proven by repaired source/tests:
 
 Important integration lock:
 
-The exact-head Success Contract markdown still documents the old shape with listingId and createdTick. Until #179 owner updates the Success Contract and exact-head verification passes, #179 is VIOL for integration. The Integrator MUST NOT write a compatibility shim that accepts both shapes.
+At #179 exact head `da82d217...`, the Success Contract begins with an explicit **Repair override** that declares `id + revision` canonical and says it supersedes older conflicting Listing wording retained later in the document. Current source/tests match that override.
+
+Therefore #179 is no longer VIOL for the Listing vocabulary itself. Its integration state is still UNKNOWN until exact-head Verify #1979 completes successfully.
+
+The lower historical Listing block must not be treated as a second accepted schema, and the Integrator MUST NOT write a compatibility shim that accepts both shapes.
 
 ## 3.3 Buy Offer — #179 current source
 
@@ -908,10 +917,10 @@ The Integration Lead MUST follow this sequence. No later step may begin if a req
 
 | Step | Gate | Required evidence before proceeding | Current planning state |
 | ---: | --- | --- | --- |
-| 1 | Trade vocabulary | #177 + repaired #179 exact contracts/source agree on Listing, receipt, money, IDs | VIOL: #179 contract/source mismatch |
+| 1 | Trade vocabulary | #177 + repaired #179 canonical Repair override/source agree; #178 consumers must use the same Listing identity/revision | VIOL: #178 still consumes legacy Listing vocabulary |
 | 2 | Trade validator bindings | explicit wallet/item/market interfaces; no hidden mapping | UNKNOWN: market tradeRange missing |
 | 3 | Home Market | post-RC3.2 compatible #176; lifecycle + refs authority usable | UNKNOWN: donor stale; ref mutation API missing |
-| 4 | Listings | repaired #179 exact-head CI + contract aligned | UNKNOWN/VIOL at audited head |
+| 4 | Listings | #179 RC3.2-synced exact-head Verify SUCCESS + canonical Repair override/source retained | UNKNOWN while Verify #1979 is in progress |
 | 5 | Buy Offers | canonical persistence + reference ownership | UNKNOWN |
 | 6 | Reservation authority/binding | owner, schema, ID, lifecycle, persistence, global active view | UNKNOWN — HARD STOP |
 | 7 | Merchant Career | post-RC3.2 #175 compatibility + canonical evidence path | UNKNOWN post-RC3.2 |
@@ -1013,9 +1022,12 @@ Owns:
 - pricing;
 - Merchant Ledger.
 
-Current exact-head blocker:
+Current exact-head state:
 
-- repaired source/tests and Success Contract are not yet the same contract.
+- head `da82d217...` is merge-forwarded onto RC3.2 main;
+- the top-level Repair override declares `id + revision` canonical and current source/tests match it;
+- exact-head Verify #1979 is still required and was in progress at audit time;
+- lower historical text still contains a stale sibling-Career observation about an older #175 candidate. Under this plan's source precedence, current #175 exact head/contract wins; #179 owner should clean or explicitly supersede that stale note before final donor acceptance.
 
 ## #180 UI Prototype
 
@@ -1048,10 +1060,10 @@ Contract explicitly requires post-RC3.2 re-audit/rebuild before production integ
 
 | ID | Finding | State | Required owner/action |
 | --- | --- | --- | --- |
-| U1 | Every RC4 donor audited diverges from RC3.2 main and is behind current main | UNKNOWN | Compatibility Auditor / donor rebuild or reselect |
-| V1 | #179 head 964b14b2 source/tests use repaired Listing id+revision, but exact-head Success Contract still describes legacy listingId+createdTick; the same contract also contains stale sibling-Career text that predates #175 head 51f3c972 | VIOL | #179 owner repairs/freeze-aligns the contract, then exact-head Verify |
+| U1 | #175–#178 and #180–#181 still diverge from RC3.2 main; #179 alone is currently merge-forwarded onto main | UNKNOWN | Compatibility Auditor / each stale-base donor rebuilds or proves post-RC3.2 compatibility |
 | V2 | #178 head 8c6c4ff Customer AI still consumes legacy listingId + createdTick/snapshotVersion and does not bind purchase intent to canonical #179 revision | VIOL | #178 owner aligns to repaired #179 canonical Listing vocabulary/revision and reruns exact-head Verify |
-| U2 | #179 repaired exact head has no observed exact-head workflow result | UNKNOWN | #179 owner exact-head Verify |
+| U2 | #179 head da82d217 is RC3.2-synced and contract/source Listing vocabulary aligns through the Repair override, but exact-head Verify #1979 is not yet complete | UNKNOWN | #179 owner/Red Team closes exact-head Verify before donor acceptance |
+| U15 | #179 contract retains a stale lower historical observation about an older #175 Career candidate even though current #175 head has repaired monetary/replay separation | UNKNOWN documentation hygiene | #179 owner cleans or explicitly supersedes the stale sibling note; current #175 exact contract remains authoritative |
 | U3 | #176 owns listingIds/buyOfferIds but exposes no canonical attach/detach reference mutation API | UNKNOWN | #176 owner |
 | U4 | No canonical Reservation writer/lifecycle/persistence/ID rule is supplied | UNKNOWN | market/reservation owner + #177 contract |
 | U5 | #176 does not define #177-required tradeRange source | UNKNOWN | market/trade contract owner |
@@ -1145,7 +1157,7 @@ Current overall state:
 
     HOLD / UNKNOWN
 
-with explicit donor compatibility VIOLs at the audited heads: #179 contract/source drift and #178 legacy Listing vocabulary versus repaired #179.
+with one explicit cross-donor VIOL at the audited heads: #178 legacy Listing vocabulary versus repaired #179. #179 itself is RC3.2-synced but remains UNKNOWN until exact-head Verify #1979 completes.
 
 ## 14.2 Preconditions before Integration Step 1 may be closed
 
@@ -1161,7 +1173,7 @@ Integration Lead must re-audit:
 
 Required donor-side repairs before progression:
 
-1. #179 exact Success Contract must match repaired source/tests (including canonical `id + revision` and current #175 relationship) and exact-head Verify must be SUCCESS.
+1. #179 exact head `da82d217...` must complete Verify #1979 successfully; its Repair override/source/tests must remain aligned, and the stale lower #175 sibling note should be cleaned or explicitly superseded before final donor acceptance.
 2. #178 owner must replace legacy `listingId + createdTick/snapshotVersion` consumption with the accepted canonical #179 Listing identity/revision contract, then exact-head Verify.
 3. Home Market owner must define canonical Listing/BuyOffer reference mutation if those arrays remain authoritative.
 4. Reservation authority must be defined.
