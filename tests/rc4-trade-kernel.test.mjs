@@ -110,6 +110,14 @@ test('RC4 exact replay is idempotent: no second debit, credit, item move or rece
   assert.equal(JSON.stringify(second.state),bytes);assert.equal(second.state.tradeReplay.receipts.length,1);
 });
 
+test('RC4 replay survives a JSON persistence boundary and stays a full no-op',()=>{
+  const first=settleTradeAtomic(fixture(),proposal(),adapters);assert.equal(first.ok,true);
+  const restored=JSON.parse(JSON.stringify(first.state)),before=JSON.stringify(restored);
+  const replay=settleTradeAtomic(restored,proposal(),adapters);
+  assert.equal(replay.ok,true);assert.equal(replay.duplicate,true);assert.equal(replay.state,restored);
+  assert.equal(JSON.stringify(restored),before);assert.equal(restored.tradeReplay.receipts.length,1);
+});
+
 test('RC4 same transactionId with a different proposal is a conflict and immutable',()=>{
   const first=settleTradeAtomic(fixture(),proposal(),adapters);assert.equal(first.ok,true);
   const before=clone(first.state);
