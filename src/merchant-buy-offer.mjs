@@ -1,5 +1,5 @@
 /** RC4 canonical merchant BuyOffer. Reference/intention only; owns no money or item. */
-import {isCanonicalMoney} from './merchant-pricing.mjs';
+import {isCanonicalMoney} from './merchant-pricing.mjs?v=0.5.0';
 
 export const MERCHANT_BUY_OFFER_VERSION='RC4-buy-offer/2';
 export const BUY_OFFER_STATUS=Object.freeze({OPEN:'OPEN',CLOSED:'CLOSED',CANCELED:'CANCELED',FILLED:'FILLED'});
