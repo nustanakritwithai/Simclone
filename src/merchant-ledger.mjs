@@ -2,7 +2,7 @@
  * RC4 Merchant Ledger — accounting read model only.
  * Consumes successful RC4 Trade Kernel settlement results; never commits trade or writes wallet/inventory.
  */
-import {isCanonicalMoney,multiplyMoney} from './merchant-pricing.mjs';
+import {isCanonicalMoney,multiplyMoney} from './merchant-pricing.mjs?v=0.5.0';
 
 export const MERCHANT_LEDGER_VERSION='RC4-ledger/2';
 export const TRADE_KERNEL_COMPAT=Object.freeze({maxQuantity:128,maxIdLength:80,eventPrefix:'TRADE:'});
