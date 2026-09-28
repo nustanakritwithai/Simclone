@@ -370,6 +370,19 @@ Cost basis is retained by item instance identity, so save/load must not:
 
 Byte-stable JSON round-trip is tested for a valid ledger.
 
+## Runtime packaging repair
+
+The first exact-head Verify failed only the repository runtime packaging gates after four new `src/*.mjs` files were added:
+
+- `cache-pins.test.mjs`: import-map count was 108 while runtime modules were 112.
+- `release.test.mjs`: merchant modules imported `./merchant-pricing.mjs` without the required `?v=0.5.0` suffix.
+
+Repair applied:
+
+- all merchant internal imports now use `?v=0.5.0`.
+- `index.html` import map now contains 112 entries including exact SHA-256 pins for all four merchant modules.
+- the `index.html` change is cache/import-map metadata only; no DOM, control, layout or gameplay UI behavior was changed.
+
 ## Authority locks
 
 These modules do not import or call:
@@ -445,7 +458,9 @@ This pricing/ledger branch does not modify PR #175 because Profession/Career is 
 | forbidden authority imports/writes absent | SAT |
 | focused test suite | SAT — 15/15 |
 | Merchant Career duplicate `merchantRealizedProfit` authority | VIOL at integration boundary |
-| exact-head repository CI / `npm test` | UNKNOWN until Actions finishes |
+| prior exact-head Verify #1866 | VIOL — 887/889; two runtime pin/version failures only |
+| runtime pin/version repair | SAT by source inspection — 112 pins and versioned merchant imports |
+| repaired exact-head repository CI / `npm test` | UNKNOWN until new Actions run finishes |
 
 ## Verification command
 
@@ -474,7 +489,8 @@ No focused/local result authorizes merge. Exact-head CI must be SAT before any f
 ## Definition of Done for this isolated slice
 
 - all six requested deliverable files exist
-- no forbidden subsystem is edited
+- no forbidden gameplay/accounting subsystem is edited
+- `index.html` changes only runtime import-map/cache pins required by repository policy
 - exact branch is based on inspected current main
 - focused proof is SAT
 - exact-head PR is opened
