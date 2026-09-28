@@ -153,3 +153,16 @@ They reconcile current Home/owner truth before mutation, reject dead/invalid/arc
 Focused tests prove duplicate attach/detach replay, owner/lifecycle locks, reference save/load continuity, deterministic projection, physical x/y provenance, positive safe-integer range and UI-coordinate non-authority.
 
 Exact-head repo Verify is still required before this repair can be called donor SAT. UNKNOWN is never PASS.
+
+
+## B7 persistence addendum — Home Market
+
+Home Market now exposes authoritative `serializeHomeMarketState()`, `restoreHomeMarketState()` and `migrateHomeMarketState()`.
+
+- missing pre-RC4 component initializes once to the empty canonical component;
+- valid component is byte-stable through serialize/restore;
+- Listing/BuyOffer references survive load;
+- corrupt present state is VIOL / restore throws and is never silently replaced with an empty component;
+- migration replay over a valid component is a no-op.
+
+This remains component ownership only; production root wiring belongs to B8.
