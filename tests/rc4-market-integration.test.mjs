@@ -5,7 +5,7 @@ import {houseSite} from '../src/housing.mjs';
 import {canonicalEdge} from '../src/rust-stations.mjs';
 import {advanceCraft} from '../src/rust-possessions.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
-import {verifyCanonicalMarketArrival} from '../src/navigation-arrival-evidence.mjs';
+import {verifyCanonicalMarketArrival} from '../src/navigation-arrival-evidence.mjs?v=0.5.0';
 import {projectHomeMarketForTrade} from '../src/home-market.mjs';
 import {assessTradeKernelResult,createMerchantLedger,tradeReceiptFingerprint,tradeReceiptIntegrityFingerprint} from '../src/merchant-ledger.mjs';
 
