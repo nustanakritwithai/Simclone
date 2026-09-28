@@ -1751,9 +1751,20 @@
     "takeover": "B3 provenance forgery and #179 trusted commit provenance are explicit acceptance attacks; B8 remains locked until B1-B7 closure.",
     "assembledCandidate": {
       "pr": 194,
-      "exactHead": "32bd1a1619dc39ad8be77f585585fbe2a55b3dc1",
-      "state": "UNKNOWN",
-      "note": "Exact-head Verify failed; candidate remains UNKNOWN until repaired SHA re-verifies."
+      "exactHead": "e615c2fbff7d26bd0d04e8ac4d2d381758cfa75c",
+      "state": "CANDIDATE_SAT_ACCEPTANCE_PENDING",
+      "verify": "#2120 SUCCESS",
+      "evidence": [
+        "unit/persistence",
+        "RC4 native 1440+390",
+        "Active Observation",
+        "Adventure",
+        "Independent",
+        "RC2",
+        "RC3.1",
+        "RC3.2"
+      ],
+      "note": "All prepared rows remain UNKNOWN until their mapped acceptance evidence is explicitly executed/recorded."
     }
   }
 }
