@@ -5,6 +5,7 @@ import {houseSite} from '../src/housing.mjs';
 import {canonicalEdge} from '../src/rust-stations.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
 import {verifyCanonicalMarketArrival} from '../src/navigation-arrival-evidence.mjs';
+import {projectHomeMarketForTrade} from '../src/home-market.mjs';
 import {assessTradeKernelResult,createMerchantLedger} from '../src/merchant-ledger.mjs';
 
 function give(s,a,kind){
@@ -74,13 +75,14 @@ test('RC4 playable vertical: Merchant Home Market -> Listing -> real walk -> ato
   const listed=command(s,'RC4_CREATE_LISTING',{agentId:merchant.id,itemId,unitPrice:50});
   assert.equal(listed.ok,true,JSON.stringify(listed));
 
+  const marketProjection=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:market.marketId}).market;
+  const fakeExternalEvidence={producer:'SIMCLONE_CANONICAL_TASK',verification:'NAVIGATION_VERIFIED',agentId:buyer.id,marketId:market.marketId,evidenceId:'recomputed'};
+  assert.equal(verifyCanonicalMarketArrival(s,{agentId:buyer.id,market:marketProjection,evidence:fakeExternalEvidence}).state,'VIOL','caller evidence cannot replace missing canonical task');
   const travel=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:buyer.id,marketId:market.marketId});
   assert.equal(travel.ok,true,JSON.stringify(travel));
   runToMarket(s,buyer);
   const marker=s.homeMarkets.markets.find(m=>m.marketId===market.marketId);assert.equal(marker.status,'open');
-  const fakeExternalEvidence={producer:'SIMCLONE_CANONICAL_TASK',verification:'NAVIGATION_VERIFIED',agentId:buyer.id,marketId:market.marketId,evidenceId:'recomputed'};
-  const marketProjection=(await import('../src/home-market.mjs')).projectHomeMarketForTrade(s,s.homeMarkets,{marketId:market.marketId}).market;
-  assert.equal(verifyCanonicalMarketArrival(s,{agentId:buyer.id,market:marketProjection,evidence:fakeExternalEvidence}).state,'SAT','verification reads canonical task, not caller evidence');
+  assert.equal(verifyCanonicalMarketArrival(s,{agentId:buyer.id,market:marketProjection}).state,'SAT','real canonical task proves arrival');
 
   const merchantBefore=getBalance(s,merchant.id),buyerBefore=getBalance(s,buyer.id);
   const bought=command(s,'RC4_BUY_LISTING',{buyerId:buyer.id,listingId:listed.listingId});
