@@ -32,10 +32,12 @@ def click_station(st):
     tx=(safe['left']+safe['right'])/2;ty=(safe['top']+safe['bottom'])/2
     page.mouse.move(box['x']+tx,box['y']+ty);page.mouse.down();page.mouse.move(box['x']+tx+tx-p['x'],box['y']+ty+ty-p['y'],steps=10);page.mouse.up();page.wait_for_timeout(100)
     p=page.evaluate('(x)=>simclone.screenPoint(x.x,x.y)',st);page.mouse.click(box['x']+p['x'],box['y']+p['y']);page.wait_for_selector('[data-furnace-materials]')
-def wait_process():
+def run_until(js):
     close();page.locator('[data-speed="5"]').click()
     if page.locator('#pause').inner_text()=='▶': page.locator('#pause').click()
-    page.wait_for_function('simclone.snapshot().rustMaterials.orders.length===0',timeout=30000);pause()
+    page.wait_for_function(js,timeout=30000);pause()
+def wait_process(): run_until('simclone.snapshot().rustMaterials.orders.length===0')
+def wait_craft(): run_until('simclone.snapshot().rustPossessions.orders.length===0')
 try:
     if A.public: assert len(SHA)==40;BASE=os.environ['PAGE_URL'].rstrip('/')
     elif A.native:
@@ -70,12 +72,14 @@ try:
         now=snap();store=now['rustMaterials']['personalStores'][0];check(f'{width}: real Iron process commits once',store['ironOre']==ore0-2 and store['ironIngot']==iron0+1 and store['charcoal']==char0-1)
         click_station(furnace);iron1=store['ironIngot'];steel0=store['steelIngot'];char1=store['charcoal'];page.locator('[data-ux="process-steel"]').click();wait_process()
         now=snap();store=now['rustMaterials']['personalStores'][0];check(f'{width}: real Steel process commits once',store['ironIngot']==iron1-2 and store['steelIngot']==steel0+1 and store['charcoal']==char1-2)
-        open_rust(aid);card=page.locator('[data-recipe-id="STONE_AXE_T2"]');card.scroll_into_view_if_needed()
-        check(f'{width}: T2 is visibly Iron-backed',card.get_attribute('data-known')=='true' and 'ขวานเหล็ก' in card.inner_text() and 'เหล็กแท่ง ×2' in card.inner_text())
+        open_rust(aid);group=page.locator('[data-craft-tier="2"]')
+        if group.get_attribute('open') is None: group.locator('summary').click()
+        card=page.locator('[data-recipe-id="STONE_AXE_T2"]');card.scroll_into_view_if_needed()
+        check(f'{width}: T2 is visibly Iron-backed',card.is_visible() and card.get_attribute('data-known')=='true' and 'ขวานเหล็ก' in card.inner_text() and 'เหล็กแท่ง ×2' in card.inner_text())
         check(f'{width}: Rust material HUD visible',page.locator(f'[data-metal-economy="{aid}"]').is_visible());check(f'{width}: Rust dialog fits viewport',no_overflow());page.screenshot(path=str(OUT/f'{width}-t2-iron.png'))
         pre=snap();prestore=pre['rustMaterials']['personalStores'][0];page.locator('[data-recipe-id="STONE_AXE_T2"] [data-ux="craft-item"]').click();accepted=snap();astore=accepted['rustMaterials']['personalStores'][0]
         check(f'{width}: T2 accepts and reserves Iron once',astore['ironIngot']==prestore['ironIngot']-2 and accepted['rustPossessions']['orders'][0]['reservedProcessed']['ironIngot']==2)
-        wait_process();final=snap();item=max([i for i in final['rustPossessions']['items'] if i.get('craft',{}).get('recipeId')=='STONE_AXE_T2'],key=lambda x:x['id'])
+        wait_craft();final=snap();item=max([i for i in final['rustPossessions']['items'] if i.get('craft',{}).get('recipeId')=='STONE_AXE_T2'],key=lambda x:x['id'])
         check(f'{width}: physical T2 crafted item keeps outcome identity',item['craft']['tier']==2 and item['createdBy']==aid)
         close();page.locator('#menu').click();page.locator('[data-action="save"]').click();saved=page.evaluate("localStorage.getItem('simclone:world:v1')");check(f'{width}: Save retains metals and T2 item',json.loads(saved)['rustMaterials']==final['rustMaterials'])
         check(f'{width}: no browser errors',not errors);ctx.close()
