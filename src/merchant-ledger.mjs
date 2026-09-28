@@ -4,21 +4,35 @@
  */
 import {isCanonicalMoney,multiplyMoney} from './merchant-pricing.mjs?v=0.5.0';
 
-export const MERCHANT_LEDGER_VERSION='RC4-ledger/2';
-export const TRADE_KERNEL_COMPAT=Object.freeze({maxQuantity:128,maxIdLength:80,eventPrefix:'TRADE:'});
+export const MERCHANT_LEDGER_VERSION='RC4-ledger/3';
+export const TRADE_KERNEL_COMPAT=Object.freeze({
+  maxQuantity:128,
+  maxIdLength:80,
+  maxReceipts:512,
+  eventPrefix:'TRADE:',
+  replayVersion:'RC4-trade-replay-1',
+});
 const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const validRefId=(v,max=TRADE_KERNEL_COMPAT.maxIdLength)=>typeof v==='string'&&v.length>0&&v.length<=max&&idPattern.test(v);
 const positiveInt=v=>Number.isSafeInteger(v)&&v>0;
-const clone=v=>JSON.parse(JSON.stringify(v));
+const clone=v=>structuredClone(v);
 const signedMoney=v=>Number.isSafeInteger(v);
 const stableIds=ids=>ids.slice().sort((a,b)=>a-b);
-const sameIds=(a,b)=>a.length===b.length&&stableIds(a).every((id,i)=>id===stableIds(b)[i]);
+
+export function tradeReceiptFingerprint(r={}){
+  return [r.transactionId,r.marketId,r.sellerId,r.buyerId,r.itemKind,r.itemInstanceId,r.quantity,r.unitPrice,r.totalPrice,r.listingId,r.reservationId]
+    .map(v=>String(v)).join('|');
+}
+
+export function tradeReceiptIntegrityFingerprint(r={}){
+  const ids=Array.isArray(r.itemIds)?stableIds(r.itemIds):[];
+  return tradeReceiptFingerprint(r)+'|ITEMS|'+ids.join(',');
+}
 
 export function validateCommittedTradeReceipt(r){
   const e=[];
   if(!r||typeof r!=='object'||Array.isArray(r))return ['receipt'];
   if(!validRefId(r.transactionId))e.push('transactionId');
-  if(typeof r.fingerprint!=='string'||r.fingerprint.length===0)e.push('fingerprint');
   if(!validRefId(r.eventId,TRADE_KERNEL_COMPAT.maxIdLength+TRADE_KERNEL_COMPAT.eventPrefix.length)||
     r.eventId!==TRADE_KERNEL_COMPAT.eventPrefix+r.transactionId)e.push('eventId');
   for(const key of ['marketId','listingId','reservationId'])if(!validRefId(r[key]))e.push(key);
@@ -26,24 +40,57 @@ export function validateCommittedTradeReceipt(r){
   if(!positiveInt(r.sellerId))e.push('sellerId');
   if(r.buyerId===r.sellerId)e.push('selfTrade');
   if(!validRefId(r.itemKind))e.push('itemKind');
+  if(!positiveInt(r.itemInstanceId))e.push('itemInstanceId');
   if(!Number.isSafeInteger(r.quantity)||r.quantity<1||r.quantity>TRADE_KERNEL_COMPAT.maxQuantity)e.push('quantity');
   if(!isCanonicalMoney(r.unitPrice,{allowZero:false}))e.push('unitPrice');
   if(!isCanonicalMoney(r.totalPrice,{allowZero:false}))e.push('totalPrice');
   if(!Array.isArray(r.itemIds)||r.itemIds.length!==r.quantity||new Set(r.itemIds).size!==r.itemIds.length||r.itemIds.some(id=>!positiveInt(id)))e.push('itemIds');
+  else {
+    if(r.itemIds.join(',')!==stableIds(r.itemIds).join(','))e.push('itemIds-order');
+    if(!r.itemIds.includes(r.itemInstanceId))e.push('itemInstanceId');
+  }
   if(!e.includes('unitPrice')&&!e.includes('totalPrice')&&!e.includes('quantity')){
     try{if(multiplyMoney(r.unitPrice,r.quantity)!==r.totalPrice)e.push('totalPrice');}catch{e.push('totalPrice');}
   }
+  if(typeof r.fingerprint!=='string'||r.fingerprint!==tradeReceiptFingerprint(r))e.push('fingerprint');
+  if(typeof r.integrityFingerprint!=='string'||r.integrityFingerprint!==tradeReceiptIntegrityFingerprint(r))e.push('integrityFingerprint');
   return [...new Set(e)];
 }
 
-/** Raw proposal / failed / UNKNOWN is not accounting evidence. */
+function sameCommittedReceipt(a,b){
+  if(validateCommittedTradeReceipt(a).length||validateCommittedTradeReceipt(b).length)return false;
+  return a.transactionId===b.transactionId&&a.fingerprint===b.fingerprint&&a.integrityFingerprint===b.integrityFingerprint&&
+    a.eventId===b.eventId&&a.marketId===b.marketId&&a.listingId===b.listingId&&a.reservationId===b.reservationId&&
+    a.buyerId===b.buyerId&&a.sellerId===b.sellerId&&a.itemKind===b.itemKind&&a.itemInstanceId===b.itemInstanceId&&
+    a.quantity===b.quantity&&a.unitPrice===b.unitPrice&&a.totalPrice===b.totalPrice&&
+    a.itemIds.length===b.itemIds.length&&a.itemIds.every((id,i)=>id===b.itemIds[i]);
+}
+
+function assessCommittedReplayEvidence(state,receipt){
+  const replay=state?.tradeReplay;
+  if(!replay||replay.version!==TRADE_KERNEL_COMPAT.replayVersion||!Array.isArray(replay.receipts)||replay.receipts.length>TRADE_KERNEL_COMPAT.maxReceipts)
+    return {state:'UNKNOWN',reason:'committed-state-evidence'};
+  const seen=new Set();
+  for(const row of replay.receipts){
+    const errors=validateCommittedTradeReceipt(row);
+    if(errors.length||seen.has(row.transactionId))return {state:'VIOL',reason:'committed-state-evidence',errors};
+    seen.add(row.transactionId);
+  }
+  const matches=replay.receipts.filter(row=>row.transactionId===receipt.transactionId);
+  if(matches.length!==1||!sameCommittedReceipt(matches[0],receipt))return {state:'VIOL',reason:'committed-state-evidence'};
+  return {state:'SAT'};
+}
+
+/** Raw proposal / failed / UNKNOWN / forged success is not accounting evidence. */
 export function assessTradeKernelResult(result){
-  if(!result||typeof result!=='object')return {state:'UNKNOWN',reason:'trade-result'};
+  if(!result||typeof result!=='object'||Array.isArray(result))return {state:'UNKNOWN',reason:'trade-result'};
   if(result.ok!==true)return result.ok===false?{state:'VIOL',reason:result.reason??'trade-not-committed'}:{state:'UNKNOWN',reason:'trade-result'};
+  if(result.duplicate!==true&&result.duplicate!==false)return {state:'UNKNOWN',reason:'commit-status'};
   const errors=validateCommittedTradeReceipt(result.receipt);
   if(errors.length)return {state:'VIOL',reason:'trade-receipt',errors};
+  const replayEvidence=assessCommittedReplayEvidence(result.state,result.receipt);
+  if(replayEvidence.state!=='SAT')return replayEvidence;
   if(result.duplicate===true)return {state:'SAT',duplicate:true,receipt:result.receipt};
-  if(result.duplicate!==false)return {state:'UNKNOWN',reason:'commit-status'};
   return {state:'SAT',duplicate:false,verification:'VERIFIED',commitStatus:'COMMITTED',receipt:result.receipt};
 }
 
