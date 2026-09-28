@@ -30,6 +30,7 @@ test('RC4 acceptance artifacts are parseable, unique and fail-closed before Mast
   assert.equal(fixture.masterGate?.result,'UNKNOWN');
   assert.equal(fixture.donorSnapshot?.donors?.['179']?.head,'da82d2178e605283fabf76b80c91cd731da4ad49');
   assert.equal(fixture.donorSnapshot?.donors?.['180']?.head,'0aa5a824d7da70172a267dbf1f440e69d44ef271');
+  assert.ok(!(fixture.masterGate?.currentHardStops??[]).some(x=>/#179.*exact-head|exact-head.*#179/i.test(x)),'resolved #179 exact-head blocker must not remain in current hard stops');
   assert.ok(fixture.setupPolicy?.forbiddenPrimaryEvidence?.some(x=>x.includes('tradeRange')));
   assert.ok(fixture.setupPolicy?.forbiddenPrimaryEvidence?.some(x=>x.includes('Reservation')));
 });
