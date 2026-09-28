@@ -3,6 +3,7 @@ import {isCanonicalMoney} from './merchant-pricing.mjs?v=0.5.0';
 
 export const MERCHANT_LISTING_VERSION='RC4-listing/3';
 export const MERCHANT_LISTING_COLLECTION_VERSION='RC4-listing-collection/1';
+export const MERCHANT_LISTING_ROOT_KEY='merchantListings';
 export const LISTING_STATUS=Object.freeze({OPEN:'OPEN',CLOSED:'CLOSED',CANCELED:'CANCELED',FILLED:'FILLED'});
 const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const validRefId=v=>typeof v==='string'&&v.length>0&&v.length<=80&&idPattern.test(v);
@@ -140,6 +141,13 @@ export function assessListingReservationRevision(listing,reservation){
   const errors=validateListing(listing);if(errors.length)return {state:'VIOL',reason:'listing',errors};
   if(!reservation||typeof reservation!=='object'||reservation.listingId!==listing.id||!positiveInt(reservation.listingRevision))return {state:'VIOL',reason:'reservation'};
   return reservation.listingRevision===listing.revision?{state:'SAT'}:{state:'VIOL',reason:'listing-stale'};
+}
+
+export function migrateListingCollection(raw){
+  if(raw===undefined||raw===null)return {state:'SAT',migrated:true,duplicate:false,collection:createListingCollection()};
+  const errors=validateListingCollection(raw);
+  if(errors.length)return {state:'VIOL',reason:'listing-collection',errors,collection:null};
+  return {state:'SAT',migrated:false,duplicate:true,collection:resultCollection(raw)};
 }
 
 export function serializeListingCollection(collection){

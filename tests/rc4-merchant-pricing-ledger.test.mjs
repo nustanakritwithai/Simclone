@@ -5,12 +5,12 @@ import {
   createListing,validateListing,updateListing,transitionListing,LISTING_STATUS,
   createListingCollection,validateListingCollection,createListingInCollection,updateListingInCollection,transitionListingInCollection,
   applyListingSettlementInCollection,
-  freezeListingReservationSnapshot,assessListingReservationRevision,serializeListingCollection,restoreListingCollection
+  freezeListingReservationSnapshot,assessListingReservationRevision,migrateListingCollection,serializeListingCollection,restoreListingCollection
 } from '../src/merchant-listing.mjs';
 import {
   createBuyOffer,validateBuyOffer,transitionBuyOffer,BUY_OFFER_STATUS,
   createBuyOfferCollection,validateBuyOfferCollection,createBuyOfferInCollection,transitionBuyOfferInCollection,
-  proposeProducerBuyOfferMatch,applyBuyOfferSettlementInCollection,serializeBuyOfferCollection,restoreBuyOfferCollection
+  proposeProducerBuyOfferMatch,applyBuyOfferSettlementInCollection,migrateBuyOfferCollection,serializeBuyOfferCollection,restoreBuyOfferCollection
 } from '../src/merchant-buy-offer.mjs';
 import {quoteAskPrice,deriveScarcityAdjustmentBps} from '../src/merchant-pricing.mjs';
 import {
@@ -326,4 +326,29 @@ test('RC4 B6: stale/price/overfill failures leave Listing bytes unchanged and ge
     assert.equal(r.state,'VIOL');assert.equal(JSON.stringify(r.collection),before);assert.equal(JSON.stringify(collection),before);
   }
   assert.equal(transitionListing(collection.listings[0],LISTING_STATUS.FILLED).state,'VIOL');
+});
+
+
+test('RC4 B7: Listing collection old-save migration is one-shot and corrupt present state fails closed',()=>{
+  const missing=migrateListingCollection(undefined);
+  assert.equal(missing.state,'SAT');assert.equal(missing.migrated,true);assert.equal(missing.duplicate,false);
+  assert.deepEqual(missing.collection,createListingCollection());
+  const replay=migrateListingCollection(missing.collection);
+  assert.equal(replay.state,'SAT');assert.equal(replay.migrated,false);assert.equal(replay.duplicate,true);
+  assert.equal(serializeListingCollection(replay.collection),serializeListingCollection(missing.collection));
+  const corrupt={...createListingCollection(),listings:[{id:'broken'}]};
+  const bad=migrateListingCollection(corrupt);
+  assert.equal(bad.state,'VIOL');assert.equal(bad.collection,null);
+});
+
+test('RC4 B7: BuyOffer collection old-save migration is one-shot and corrupt present state fails closed',()=>{
+  const missing=migrateBuyOfferCollection(null);
+  assert.equal(missing.state,'SAT');assert.equal(missing.migrated,true);assert.equal(missing.duplicate,false);
+  assert.deepEqual(missing.collection,createBuyOfferCollection());
+  const replay=migrateBuyOfferCollection(missing.collection);
+  assert.equal(replay.state,'SAT');assert.equal(replay.migrated,false);assert.equal(replay.duplicate,true);
+  assert.equal(serializeBuyOfferCollection(replay.collection),serializeBuyOfferCollection(missing.collection));
+  const corrupt={...createBuyOfferCollection(),buyOffers:[{offerId:'broken'}]};
+  const bad=migrateBuyOfferCollection(corrupt);
+  assert.equal(bad.state,'VIOL');assert.equal(bad.collection,null);
 });

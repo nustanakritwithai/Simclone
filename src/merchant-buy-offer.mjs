@@ -3,6 +3,7 @@ import {isCanonicalMoney} from './merchant-pricing.mjs?v=0.5.0';
 
 export const MERCHANT_BUY_OFFER_VERSION='RC4-buy-offer/3';
 export const BUY_OFFER_COLLECTION_VERSION='RC4-buy-offer-collection/1';
+export const MERCHANT_BUY_OFFER_ROOT_KEY='merchantBuyOffers';
 export const BUY_OFFER_STATUS=Object.freeze({OPEN:'OPEN',CLOSED:'CLOSED',CANCELED:'CANCELED',FILLED:'FILLED'});
 const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const validRefId=v=>typeof v==='string'&&v.length>0&&v.length<=80&&idPattern.test(v);
@@ -147,6 +148,13 @@ export function applyBuyOfferSettlementInCollection(collection,offerId,{quantity
   if(quantity!==current.quantityWanted||unitPrice!==current.unitPrice)return {state:'VIOL',reason:'offer-settlement-mismatch',collection:clone(collection)};
   const next=clone(collection);next.buyOffers[index]={...current,status:BUY_OFFER_STATUS.FILLED};
   return {state:'SAT',duplicate:false,offer:Object.freeze({...next.buyOffers[index]}),collection:next};
+}
+
+export function migrateBuyOfferCollection(raw){
+  if(raw===undefined||raw===null)return {state:'SAT',migrated:true,duplicate:false,collection:createBuyOfferCollection()};
+  const errors=validateBuyOfferCollection(raw);
+  if(errors.length)return {state:'VIOL',reason:'buy-offer-collection',errors,collection:null};
+  return {state:'SAT',migrated:false,duplicate:true,collection:clone(raw)};
 }
 
 export function serializeBuyOfferCollection(collection){

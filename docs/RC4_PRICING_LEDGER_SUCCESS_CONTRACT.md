@@ -709,3 +709,27 @@ Generic Listing lifecycle is no longer allowed to fabricate `FILLED`.
 These are domain semantics only. They do not by themselves claim outer atomic settlement. #177 must provide the staged post-settlement hook so Listing + Reservation transitions occur before the live root can be replaced.
 
 Exact-head focused tests and repository Verify are required before donor SAT. UNKNOWN is never PASS.
+
+
+## B7 stacked persistence repair — Listing / BuyOffer
+
+This stacked repair defines component-owned root keys without wiring production root state:
+
+- Listing collection root key: `merchantListings`
+- BuyOffer collection root key: `merchantBuyOffers`
+
+Both components now expose one-shot migration APIs:
+
+- `migrateListingCollection(raw)`
+- `migrateBuyOfferCollection(raw)`
+
+Rules:
+
+- missing pre-RC4 component => deterministic empty canonical collection;
+- migration replay over a valid collection => SAT duplicate/no-op;
+- corrupt present component => VIOL and MUST NOT reset to empty;
+- serialize/restore continues to validate the full component;
+- no Wallet, Rust item, Home Market, Reservation or Trade authority is added;
+- production root wiring remains B8-owned and is not claimed here.
+
+UNKNOWN is never PASS. Exact-head Verify is required on this stacked repair.
