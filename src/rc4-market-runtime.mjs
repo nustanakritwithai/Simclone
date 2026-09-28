@@ -402,7 +402,7 @@ export function rc4MarketReadModel(world,selectedAgentId=null){
   const home=selected?homeOf(world,selected.id,{completeOnly:true}):null;
   const balance=selected?getBalance(world,selected.id):null;
   const own=selected?ownMarket(world,selected.id):null;
-  const ledger=selected&&world.merchantLedgers?.ledgers?.find(l=>l.merchantId===selected.id)??null;
+  const ledger=(selected&&world.merchantLedgers?.ledgers?.find(l=>l.merchantId===selected.id))??null;
   const bag=(world.rustPossessions?.items??[]).filter(i=>selected&&i.location?.kind==='bag'&&i.location.agentId===selected.id)
     .map(i=>({id:i.id,kind:i.kind,createdBy:i.createdBy,tradable:tradableRustItemIds(world,{agentId:selected.id,itemKind:i.kind}).includes(i.id)}));
   const markets=(world.homeMarkets?.markets??[]).map(m=>{
