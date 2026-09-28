@@ -101,11 +101,20 @@ Cross-donor re-audit still finds #178 head 8c6c4ff... using the pre-repair Listi
 
 PR #182 is a verification-only RC4 acceptance/attack-suite donor.
 
-PR #182 is currently **volatile / not frozen** and has moved repeatedly during this planning audit.
+Latest independently re-read #182 evidence:
 
-The acceptance owner has already documented that old-head Verify results cannot be reused. This Integration Contract applies the same rule: do not record a fixed #182 SHA as the acceptance baseline until the owner freezes one exact head and that exact head has a completed SUCCESS verification.
+    exact head df2a47f40c80ea166b1696d6310386ba7414a150
+    Verify #2014 SUCCESS
+    based on current RC3.2 main (behind 0)
 
-While #182 remains moving, its current head and current workflow must always be re-read directly from GitHub at handoff time.
+This proves the verification branch itself is green on that exact SHA. It does **not** yet make that SHA the accepted Master Gate baseline because the Integration Contract found two contract-level violations after the suite was written:
+
+1. the suite attacks forged Trade result without canonical replay, but does not explicitly require the stronger attack where the attacker also supplies a fabricated matching tradeReplay state;
+2. some atomic-failure language expects Ledger/Career failure after staged trade work to keep the live trade root unchanged, while the canonical flow commits the trade root before downstream Ledger/Career and requires downstream retry rather than rollback.
+
+A repair request has been returned to #182 owner. Until those two items are repaired and the repaired exact head re-verifies, #182 status is:
+
+    CI SAT / acceptance-contract VIOL pending repair
 
 The current #182 line retains the refreshed donor snapshot:
 
@@ -1201,6 +1210,7 @@ Contract explicitly requires post-RC3.2 re-audit/rebuild before production integ
 | U9 | canonical persistent BuyOffer collection is not defined by current source | UNKNOWN | #179 owner |
 | U10 | production root collection shape for Merchant Ledgers is not defined | UNKNOWN | #179 / persistence owner |
 | U16 | trusted post-root commit provenance/retry binding for Ledger/Career is not frozen; caller-supplied matching tradeReplay is not sufficient proof | UNKNOWN — HARD STOP | Integration Lead + #179 + #175 define root-derived lookup/retry contract and Red Team forgery attacks |
+| V4 | #182 head df2a47f has green Verify #2014 but acceptance contract lacks explicit forged-result + forged-matching-replay attack and contains a Ledger/Career rollback expectation that conflicts with post-root downstream processing | VIOL acceptance contract | #182 owner repairs suite/matrix; new exact-head Verify + compatibility audit required |
 | U11 | tradeReplay old-save migration/root wiring is not integrated | UNKNOWN | #177 / persistence owner |
 | U12 | #178 consumes an intent journal but does not define canonical persistence ownership for it | UNKNOWN | #178 / persistence owner |
 | U13 | authoritative monetary production-cost evidence for final self-produced items is absent on current main | UNKNOWN | production-cost authority owner; direct self-produced Merchant sales remain accounting-UNKNOWN |
@@ -1314,16 +1324,20 @@ Required donor-side repairs before progression:
 
 Use PR #182 as the acceptance harness workstream instead of recreating a weaker suite.
 
-Do **not** hard-pin the harness from this planning document while PR #182 is still moving.
+Last audited green head:
+
+    df2a47f40c80ea166b1696d6310386ba7414a150
+    Verify #2014 SUCCESS
+
+Do **not** promote that SHA to final acceptance baseline yet. It must first repair the provenance attack and downstream-failure boundary described in this contract, then produce a new exact-head SUCCESS.
 
 Handoff rule:
 
-    re-read PR #182 current exact head
-    → require owner-declared/factually stable head
-    → require exact-head Verify SUCCESS on that same SHA
-    → only then pin it as the acceptance baseline
-
-Current head/run are intentionally not pinned here while PR #182 remains volatile. Re-read them from GitHub immediately before acceptance handoff.
+    #182 repair contract
+    → freeze repaired exact head
+    → exact-head Verify SUCCESS
+    → Integration Contract compatibility audit
+    → only then pin as Master Gate acceptance baseline
 
 Required artifacts:
 
@@ -1335,7 +1349,7 @@ Required artifacts:
 
 Before Master Gate execution, donor SHA metadata in that harness must be re-audited against the exact selected integration donors and the final frozen #182 head.
 
-Do not treat #182 itself as an accepted harness donor while its head is changing or while its exact-head Verify is incomplete. A completed SUCCESS on an earlier #182 SHA is not transferable to a later head. The preflight is expected to return UNKNOWN while required bindings are absent. Do not weaken the preflight or turn UNKNOWN into PASS.
+Do not treat #182 as an accepted Master Gate baseline merely because CI is green. Exact-head SUCCESS and contract compatibility are both required. A completed SUCCESS on an earlier #182 SHA is not transferable to a later repaired head. The preflight is expected to return UNKNOWN while required bindings are absent. Do not weaken the preflight or turn UNKNOWN into PASS.
 
 ## 14.4 Required integrated proof after all dependencies are SAT
 
@@ -1566,6 +1580,19 @@ Required contract:
 Acceptance owner must attack both:
 1. forged result with no matching replay;
 2. forged result with attacker-created matching replay state.
+
+## Repair dispatch log — 2026-09-28
+
+Contract defects/dependencies have been returned to their owners:
+
+- #178 Merchant/Customer AI — canonical Listing id/revision repair — comment 5874466730;
+- #175 Merchant Career — authoritative-root commit provenance compatibility — comment 5874648393;
+- #179 Pricing/Ledger — provenance freeze + BuyOffer persistence separation — comment 5874649093;
+- #182 Acceptance Suite — forged matching replay attack + downstream failure boundary correction — comment 5874647470;
+- #176 Home Market — canonical Listing/BuyOffer reference writer — comment 5874659646;
+- #177 Trade Kernel — retain Reservation consumer boundary + post-root provenance semantics — comment 5874660272.
+
+A comment/update timestamp without a new exact donor SHA is not repair evidence.
 
 ## Queue close rule
 
