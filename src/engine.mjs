@@ -96,6 +96,7 @@ function createAgent(s,parent,initial=false,mode='manual'){
   if(parent){a.x=parent.x;a.y=parent.y;}
   if(initial&&parent){const p=scaleLegacyPoint(bounds,9+k%4,10+Math.floor(k/4)*2);a.x=p.x;a.y=p.y;a.satiety=65+k*3;a.energy=72+k*3;}
   s.agents.push(a);
+  if(s.currencyWallet){const account=ensureRc4AccountForAgent(s,a.id);if(!account.ok)throw new Error('RC4 wallet account creation failed');}
   if(isIndependent(s))addPersonalStore(s,a);
   event(s,'birth',parent?(autonomous?a.name+' เกิดจาก '+parent.name+' · รุ่น '+a.generation:a.name+' ถูกสร้างจาก '+parent.name+' · รุ่น '+a.generation):'Original เข้าสู่โลกใหม่',id);
   return a;
@@ -352,7 +353,7 @@ export function command(s,type,data={}){
     if(isIndependent(s)&&!spawn)return {ok:false,reason:'no-spawn',message:'ไม่มีจุดเริ่มชีวิตแยกที่ปลอดภัย'};
     if(!compactRetired(s).ok)return {ok:false,reason:'history-storage',message:'เก็บประวัติเพิ่มไม่ได้ · ไม่หักทรัพยากรและไม่ลบประวัติเดิม'};
     funds.food-=8;funds.wood-=4;s.stats.cloned++;
-    const a=createAgent(s,parent);if(spawn){a.x=spawn.x;a.y=spawn.y;}const account=ensureRc4AccountForAgent(s,a.id);if(!account.ok)throw new Error('RC4 wallet account creation failed');return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
+    const a=createAgent(s,parent);if(spawn){a.x=spawn.x;a.y=spawn.y;}return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
   }
   if(type==='VERIFY_KNOWLEDGE'){
     const verifier=s.agents.find(a=>a.id===data.agentId&&a.alive);
