@@ -520,3 +520,19 @@ The Integration Lead must provide one exact integrated candidate SHA and product
 - forbidden Integration Lead workarounds.
 
 A blocker is removed from the unresolved set only after its owning domain supplies exact-head proof and the assembled integration candidate re-proves the mapped Phase-0 row. Donor-local SAT alone does not close an integration blocker.
+
+
+## Takeover correction — 2026-09-29
+
+Current blocker classification supersedes earlier preparation snapshots:
+
+- B1 — UNKNOWN: implementation candidate exists on #184; exact-head/current-main proof still missing.
+- B2 — UNKNOWN: implementation candidate exists on #184; exact-head/current-main proof still missing.
+- B3 — VIOL: #185 CI is green, but evidence verification is still caller-reconstructible because its deterministic evidenceId is derived from caller-supplied fields rather than independently resolved Navigation journey/execution provenance.
+- B4 — donor prerequisite SAT: #186 exact head `c4d1b544a1203459aa78ef55b83a28db6077056c`, Verify #2025/#2027 SUCCESS. Integration P0-08 remains UNKNOWN.
+- B5 — UNKNOWN: #187 source candidate exists but lacks exact-head Verify.
+- B6 — UNKNOWN: Listing/BuyOffer and Trade staged-boundary candidates exist, but trusted canonical Trade execution provenance into #179 Ledger/#175 Career is still a required domain-owned bridge.
+- B7 — VIOL / incomplete: Home Market persistence currently permits a present `{}` state to normalize as empty instead of failing closed, and the full RC4 root/migration ownership contract is unfinished.
+- B8 — LOCKED_NOT_STARTED.
+
+Current #179 provenance boundary is intentional and must be retained: a caller cannot turn a plain object into committed accounting evidence by supplying valid-looking hashes, replay state, VERIFIED flags, or a verifier callback. The accepted integration must bind Ledger/Career progression to the actual canonical staged Trade execution path without making Integration Lead a second accounting authority.
