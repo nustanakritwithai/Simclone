@@ -4,9 +4,14 @@ import fs from 'node:fs';
 import {
   createListing,validateListing,updateListing,transitionListing,LISTING_STATUS,
   createListingCollection,validateListingCollection,createListingInCollection,updateListingInCollection,transitionListingInCollection,
+  applyListingSettlementInCollection,
   freezeListingReservationSnapshot,assessListingReservationRevision,serializeListingCollection,restoreListingCollection
 } from '../src/merchant-listing.mjs';
-import {createBuyOffer,validateBuyOffer,transitionBuyOffer,BUY_OFFER_STATUS} from '../src/merchant-buy-offer.mjs';
+import {
+  createBuyOffer,validateBuyOffer,transitionBuyOffer,BUY_OFFER_STATUS,
+  createBuyOfferCollection,validateBuyOfferCollection,createBuyOfferInCollection,transitionBuyOfferInCollection,
+  proposeProducerBuyOfferMatch,applyBuyOfferSettlementInCollection,serializeBuyOfferCollection,restoreBuyOfferCollection
+} from '../src/merchant-buy-offer.mjs';
 import {quoteAskPrice,deriveScarcityAdjustmentBps} from '../src/merchant-pricing.mjs';
 import {
   createMerchantLedger,applyTradeKernelCommitToLedger,assessTradeKernelResult,validateCommittedTradeReceipt,
@@ -252,4 +257,73 @@ test('RC4 pricing/ledger modules stay pure and outside forbidden authorities',()
     for(const token of ['Math.random','Date.now','new Date(','document.','window.','state.rng','s.rng',"from './engine", "from './rust-possessions", "from './individual-housing", "from './profession", "kingdom-market", "kingdom-household", 'wallet.', 'rustPossessions'])
       assert.equal(src.includes(token),false,rel+': '+token);
   }
+});
+
+
+test('RC4 B5: canonical BuyOffer collection creates deterministic ids, replays idempotently and persists',()=>{
+  let collection=createBuyOfferCollection();
+  const input={marketId:'M1',buyerId:2,itemKind:'STONE_PICKAXE',quantityWanted:2,unitPrice:70,createdTick:50};
+  const first=createBuyOfferInCollection(collection,input);assert.equal(first.state,'SAT');assert.equal(first.duplicate,false);collection=first.collection;
+  assert.ok(first.offer.offerId.startsWith('BO:'));
+  assert.equal(first.referenceRequest.writer,'attachHomeMarketBuyOfferReference');
+  assert.equal(first.referenceRequest.referenceId,first.offer.offerId);
+  const replay=createBuyOfferInCollection(collection,input);
+  assert.equal(replay.state,'SAT');assert.equal(replay.duplicate,true);assert.equal(replay.offer.offerId,first.offer.offerId);
+  assert.equal(JSON.stringify(replay.collection),JSON.stringify(collection));
+  const conflict=createBuyOfferInCollection(collection,{...input,offerId:first.offer.offerId,itemKind:'HAMMER'});
+  assert.equal(conflict.state,'VIOL');assert.equal(conflict.reason,'offer-id');
+  const wire=serializeBuyOfferCollection(collection),restored=restoreBuyOfferCollection(wire);
+  assert.equal(serializeBuyOfferCollection(restored),wire);assert.deepEqual(validateBuyOfferCollection(restored),[]);
+});
+
+test('RC4 B5: Producer match is proposal-only and names Listing -> B1 ref -> Reservation -> Trade authorities',()=>{
+  const created=createBuyOfferInCollection(createBuyOfferCollection(),{marketId:'M1',buyerId:2,itemKind:'STONE_PICKAXE',quantityWanted:2,unitPrice:70,createdTick:50});
+  const matched=proposeProducerBuyOfferMatch(created.offer,{producerId:1,itemInstanceIds:[102,101]});
+  assert.equal(matched.state,'SAT');
+  const p=matched.proposal;
+  assert.equal(p.authoritative,false);assert.deepEqual(p.itemIds,[101,102]);
+  assert.equal(p.listingRequest.authority,'MERCHANT_LISTING');
+  assert.equal(p.homeMarketListingReferenceRequest.writer,'attachHomeMarketListingReference');
+  assert.equal(p.reservationRequest.authority,'CANONICAL_RESERVATION');
+  assert.equal(p.tradeProposalOwner,'RC4_TRADE_KERNEL');
+  for(const forbidden of ['wallet','money','transfer','commit','reservationState','inventory'])assert.equal(forbidden in p,false);
+  assert.equal(proposeProducerBuyOfferMatch(created.offer,{producerId:1,itemInstanceIds:[101]}).reason,'itemIds');
+});
+
+test('RC4 B5: BuyOffer settlement lifecycle changes only the staged collection and exact fill',()=>{
+  const created=createBuyOfferInCollection(createBuyOfferCollection(),{marketId:'M1',buyerId:2,itemKind:'STONE_PICKAXE',quantityWanted:2,unitPrice:70,createdTick:50});
+  const before=JSON.stringify(created.collection);
+  const bad=applyBuyOfferSettlementInCollection(created.collection,created.offer.offerId,{quantity:1,unitPrice:70});
+  assert.equal(bad.state,'VIOL');assert.equal(JSON.stringify(created.collection),before);
+  const filled=applyBuyOfferSettlementInCollection(created.collection,created.offer.offerId,{quantity:2,unitPrice:70});
+  assert.equal(filled.state,'SAT');assert.equal(filled.offer.status,BUY_OFFER_STATUS.FILLED);
+  assert.equal(JSON.stringify(created.collection),before);
+  assert.equal(transitionBuyOfferInCollection(filled.collection,created.offer.offerId,BUY_OFFER_STATUS.CANCELED).state,'VIOL');
+});
+
+test('RC4 B6: Listing partial/full settlement decrements quantity and revision in one pure mutation',()=>{
+  let collection=createListingCollection();
+  collection=createListingInCollection(collection,{id:'SETTLE-L1',marketId:'M1',sellerId:2,itemKind:'STONE_PICKAXE',itemInstanceId:77,quantity:3,unitPrice:100}).collection;
+  const source=JSON.stringify(collection);
+  const partial=applyListingSettlementInCollection(collection,'SETTLE-L1',{expectedRevision:1,quantity:1,unitPrice:100});
+  assert.equal(partial.state,'SAT');assert.equal(partial.listing.quantity,2);assert.equal(partial.listing.revision,2);assert.equal(partial.listing.status,LISTING_STATUS.OPEN);
+  assert.equal(JSON.stringify(collection),source,'source collection is immutable');
+  const full=applyListingSettlementInCollection(partial.collection,'SETTLE-L1',{expectedRevision:2,quantity:2,unitPrice:100});
+  assert.equal(full.state,'SAT');assert.equal(full.listing.quantity,0);assert.equal(full.listing.revision,3);assert.equal(full.listing.status,LISTING_STATUS.FILLED);
+  assert.deepEqual(validateListingCollection(full.collection),[]);
+});
+
+test('RC4 B6: stale/price/overfill failures leave Listing bytes unchanged and generic lifecycle cannot fabricate FILLED',()=>{
+  let collection=createListingCollection();
+  collection=createListingInCollection(collection,{id:'SETTLE-L2',marketId:'M1',sellerId:2,itemKind:'HAMMER',itemInstanceId:88,quantity:2,unitPrice:90}).collection;
+  const before=JSON.stringify(collection);
+  for(const req of [
+    {expectedRevision:2,quantity:1,unitPrice:90},
+    {expectedRevision:1,quantity:1,unitPrice:91},
+    {expectedRevision:1,quantity:3,unitPrice:90}
+  ]){
+    const r=applyListingSettlementInCollection(collection,'SETTLE-L2',req);
+    assert.equal(r.state,'VIOL');assert.equal(JSON.stringify(r.collection),before);assert.equal(JSON.stringify(collection),before);
+  }
+  assert.equal(transitionListing(collection.listings[0],LISTING_STATUS.FILLED).state,'VIOL');
 });
