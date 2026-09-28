@@ -83,8 +83,9 @@
   function canPurchase(market, listing){
     return market.status === 'OPEN' &&
       listing.status === 'OPEN' &&
-      Number.isFinite(listing.stockAvailable) &&
-      listing.stockAvailable > 0;
+      Number.isSafeInteger(listing.revision) && listing.revision > 0 &&
+      Number.isSafeInteger(listing.unitPrice) && listing.unitPrice > 0 &&
+      Number.isSafeInteger(listing.stockAvailable) && listing.stockAvailable > 0;
   }
 
   function renderMetric(label, value, note){
@@ -238,6 +239,7 @@
       listingId:listing.listingId,
       listingRevision:listing.revision,
       itemKind:listing.itemKind,
+      quantity:1,
       unitPrice:listing.unitPrice
     });
   });
