@@ -7,9 +7,13 @@
  */
 import {individualHouses,homeOf} from './individual-housing.mjs?v=0.5.0';
 import {edgeCells} from './rust-stations.mjs?v=0.5.0';
+import {worldBounds} from './world-bounds.mjs?v=0.5.0';
 
 export const HOME_MARKET_VERSION='RC4-HM-0.1';
 export const HOME_MARKET_STATUSES=Object.freeze(['closed','open','invalid','archived']);
+// Canonical Home Market policy: trade occurs at/adjacent to the physical storefront cell.
+// Integration must consume this value through projectHomeMarketForTrade(); it must not guess a range.
+export const HOME_MARKET_TRADE_RANGE=1;
 const STATUS_SET=new Set(HOME_MARKET_STATUSES);
 const ACTIVE_STATUS=new Set(['closed','open']);
 const ALLOWED_MARKET_KEYS=new Set(['marketId','homeId','ownerAgentId','status','listingIds','buyOfferIds','storefrontSocket','reputation','invalidReason']);
@@ -202,4 +206,71 @@ export function removeArchivedHomeMarket(raw,{marketId}={}){
   const i=state.markets.findIndex(m=>m.marketId===marketId);if(i<0)return {ok:true,changed:false,duplicate:true,marketState:cloneState(state)};
   if(state.markets[i].status!=='archived')return fail('market-status','only archived markets may be removed',cloneState(state));
   const next=cloneState(state);next.markets.splice(i,1);return {ok:true,changed:true,marketState:next};
+}
+
+
+function activeOwnedMarket(world,state,{marketId,ownerAgentId}={}){
+  const index=state.markets.findIndex(m=>m.marketId===marketId);
+  if(index<0)return fail('market','market not found',state);
+  const market=state.markets[index];
+  if(market.ownerAgentId!==ownerAgentId)return fail('owner','only the canonical market owner may mutate references',state);
+  if(!aliveAgent(world,ownerAgentId))return fail('owner-dead','dead owner cannot mutate market references',state);
+  if(market.status==='invalid')return fail('market-invalid',market.invalidReason??'market invalid',state);
+  if(market.status==='archived')return fail('market-archived','archived market cannot mutate references',state);
+  if(!ACTIVE_STATUS.has(market.status))return fail('market-status','market is not active',state);
+  const home=homeOf(world,ownerAgentId,{completeOnly:true});
+  if(!home||home.houseId!==market.homeId)return fail('home-ownership','market no longer belongs to the owner canonical home',state);
+  return {ok:true,index,market};
+}
+
+function mutateMarketReference(world,raw,{marketId,ownerAgentId,referenceId}={},field,attach){
+  const reconciled=reconcileHomeMarkets(world,raw);if(!reconciled.ok)return reconciled;
+  const state=reconciled.marketState;
+  if(!refOk(referenceId))return fail('reference','reference id is invalid',state);
+  const access=activeOwnedMarket(world,state,{marketId,ownerAgentId});if(!access.ok)return access;
+  const current=access.market[field],present=current.some(id=>id===referenceId);
+  if(attach&&present||!attach&&!present)return {ok:true,changed:reconciled.changed,duplicate:true,market:cloneMarket(access.market),marketState:state};
+  const next=cloneState(state);
+  next.markets[access.index][field]=attach
+    ?[...current,referenceId].sort((a,b)=>String(a).localeCompare(String(b)))
+    :current.filter(id=>id!==referenceId);
+  return {ok:true,changed:true,duplicate:false,market:cloneMarket(next.markets[access.index]),marketState:next};
+}
+
+/** Canonical Home Market reference writers. These mutate references only, never Listing/BuyOffer/item/money truth. */
+export const attachHomeMarketListingReference=(world,raw,request)=>mutateMarketReference(world,raw,request,'listingIds',true);
+export const detachHomeMarketListingReference=(world,raw,request)=>mutateMarketReference(world,raw,request,'listingIds',false);
+export const attachHomeMarketBuyOfferReference=(world,raw,request)=>mutateMarketReference(world,raw,request,'buyOfferIds',true);
+export const detachHomeMarketBuyOfferReference=(world,raw,request)=>mutateMarketReference(world,raw,request,'buyOfferIds',false);
+
+function storefrontTradePoint(socket){
+  if(!socket||!FACING.has(socket.facing))return null;
+  if(socket.facing==='N')return {x:socket.x,y:socket.y-1};
+  if(socket.facing==='S')return {x:socket.x,y:socket.y};
+  if(socket.facing==='W')return {x:socket.x-1,y:socket.y};
+  return {x:socket.x,y:socket.y}; // E
+}
+
+/**
+ * Canonical read-only Home Market -> Trade Kernel projection.
+ * id/open come from Home Market lifecycle; x/y come from the physical doorway;
+ * tradeRange is Home Market policy above. UI coordinates never participate.
+ */
+export function projectHomeMarketForTrade(world,raw,{marketId}={}){
+  const reconciled=reconcileHomeMarkets(world,raw);if(!reconciled.ok)return reconciled;
+  const state=reconciled.marketState,market=state.markets.find(m=>m.marketId===marketId);
+  if(!market)return fail('market','market not found',state);
+  if(market.status==='invalid')return fail('market-invalid',market.invalidReason??'market invalid',state);
+  if(market.status==='archived')return fail('market-archived','archived market has no trade projection',state);
+  if(!ACTIVE_STATUS.has(market.status))return fail('market-status','market is not active',state);
+  const owner=aliveAgent(world,market.ownerAgentId);
+  const home=owner?homeOf(world,market.ownerAgentId,{completeOnly:true}):null;
+  const socket=home&&home.houseId===market.homeId?storefrontSocketForHome(world,home):null;
+  const point=storefrontTradePoint(socket),bounds=worldBounds(world);
+  if(!point||!Number.isInteger(point.x)||!Number.isInteger(point.y)||point.x<0||point.y<0||point.x>=bounds.w||point.y>=bounds.h)
+    return fail('market-position','canonical physical storefront position unavailable',state);
+  if(!Number.isSafeInteger(HOME_MARKET_TRADE_RANGE)||HOME_MARKET_TRADE_RANGE<=0)return fail('trade-range','canonical Home Market trade range invalid',state);
+  const projection=Object.freeze({id:market.marketId,open:market.status==='open',x:point.x,y:point.y,tradeRange:HOME_MARKET_TRADE_RANGE});
+  const provenance=Object.freeze({authority:'HomeMarket',homeId:market.homeId,doorwayStationId:socket.doorwayStationId,status:market.status});
+  return {ok:true,market:projection,provenance,marketState:state};
 }
