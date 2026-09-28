@@ -1,4 +1,5 @@
 export const CURRENCY_WALLET_VERSION='RC4-wallet-1';
+export const CURRENCY_WALLET_ROOT_KEY='currencyWallet';
 export const CURRENCY_WALLET_BOOTSTRAP_VERSION='RC4-wallet-bootstrap-1';
 export const CURRENCY_WALLET_BOOTSTRAP_BALANCE=100;
 
@@ -233,4 +234,27 @@ export function currencyWalletSnapshot(state){
 export function canonicalCurrencyBytes(state){
   if(validateCurrencyWallet(state).length)return null;
   return JSON.stringify(state.currencyWallet);
+}
+
+
+export function serializeCurrencyWallet(state){
+  const bytes=canonicalCurrencyBytes(state);
+  if(bytes===null)throw new Error('currency-wallet-invalid');
+  return bytes;
+}
+
+export function restoreCurrencyWallet(state,serialized){
+  if(!state||typeof state!=='object'||Array.isArray(state)||!Array.isArray(state.agents))return {ok:false,reason:'restore-input'};
+  let currencyWallet;
+  try{currencyWallet=JSON.parse(serialized);}catch{return {ok:false,reason:'restore-json'};}
+  const probe={...state,currencyWallet};
+  if(validateCurrencyWallet(probe).length)return {ok:false,reason:'wallet-invalid'};
+  if(state.currencyWallet!==undefined){
+    if(validateCurrencyWallet(state).length)return {ok:false,reason:'wallet-invalid'};
+    const existing=JSON.stringify(state.currencyWallet),incoming=JSON.stringify(currencyWallet);
+    if(existing===incoming)return {ok:true,duplicate:true};
+    return {ok:false,reason:'wallet-restore-conflict'};
+  }
+  state.currencyWallet=clone(currencyWallet);
+  return {ok:true,duplicate:false};
 }
