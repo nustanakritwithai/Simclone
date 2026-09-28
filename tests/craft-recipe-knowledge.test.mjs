@@ -31,7 +31,7 @@ function table(s,a){
 test('RC2 recipe catalog keeps the released nine-recipe view and bounded tier chains',()=>{
   assert.deepEqual(validateCraftingCatalog(),[]);
   assert.equal(Object.keys(RECIPE_CATALOG).length,9);
-  assert.equal(Object.keys(CRAFT_RECIPE_CATALOG).length,23);
+  assert.equal(Object.keys(CRAFT_RECIPE_CATALOG).length,38);
   assert.ok(Object.values(CRAFT_RECIPE_CATALOG).every(r=>r.tier>=0&&r.tier<=5));
   assert.equal(recipeById('constructor'),null);assert.equal(recipeById('__proto__'),null);
   for(const kind of ['STONE_AXE','STONE_PICKAXE','HAMMER'])assert.equal(recipeById(kind+'_T5').tier,5);
@@ -56,7 +56,7 @@ test('RC2 two verified crafts teach one person an advanced recipe without global
   const s=fresh(),[a,b]=s.agents;
   make(s,a);assert.equal(recipeMastery(a,'STONE_AXE'),1);assert.equal(knowsCraftRecipe(s,a,'STONE_AXE_T1'),false);
   const done=make(s,a);assert.equal(recipeMastery(a,'STONE_AXE'),2);
-  assert.deepEqual(done.unlockedRecipes,['STONE_AXE_T1']);
+  assert.deepEqual(done.unlockedRecipes,['STONE_AXE_T1','EMBER_BLADE']);
   assert.equal(knowsCraftRecipe(s,a,'STONE_AXE_T1'),true);assert.equal(knowsCraftRecipe(s,b,'STONE_AXE_T1'),false);
   assert.equal(a.knowledgeState.recipes.entries.find(e=>e.recipeId==='STONE_AXE_T1').learned.method,'mastery');
   assert.deepEqual(validate(s),[]);
@@ -94,6 +94,7 @@ test('RC2 pending craft and mastery continue byte-identically through save/load'
 test('RC2 pre-feature in-flight order completes without inventing retrospective mastery',()=>{
   const s=fresh(),a=s.agents[0];command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'STONE_AXE'});
   delete s.rustPossessions.orders[0].recipeKnowledge;
+  delete s.rustPossessions.orders[0].craftSpec;delete s.rustPossessions.orders[0].reservedItems;
   const loaded=restore(serialize(s));for(let i=0;i<24;i++){loaded.tick++;advanceCraft(loaded,a.id);}
   assert.equal(loaded.agents[0].knowledgeState.recipes,undefined);assert.equal(loaded.rustPossessions.items.length,1);
   assert.deepEqual(validate(loaded),[]);

@@ -43,6 +43,8 @@ test('RC2.1a canonical pending work, escrow, station and clock cannot be shorten
 
 test('RC2.1a old legitimate starter orders keep legacy completion and unchanged knowledge',()=>{
   const s=fresh();command(s,'CRAFT_ITEM',{agentId:1,recipeId:'STONE_AXE'});delete s.rustPossessions.orders[0].recipeKnowledge;
+  // A genuine pre-outcome order had none of the new snapshot/escrow fields.
+  delete s.rustPossessions.orders[0].craftSpec;delete s.rustPossessions.orders[0].reservedItems;
   const loaded=restore(serialize(s));for(let i=0;i<24;i++){loaded.tick++;advanceCraft(loaded,1);}
   assert.equal(loaded.rustPossessions.items.length,1);assert.equal(loaded.agents[0].knowledgeState.recipes,undefined);assert.deepEqual(validate(loaded),[]);
 });

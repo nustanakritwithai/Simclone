@@ -46,8 +46,20 @@ for(const kind of ['STONE_AXE','STONE_PICKAXE','HAMMER']){
     const id=kind+'_T'+tier,previous=tier===base.tier+1?kind:kind+'_T'+(tier-1);
     advanced[id]={id,output:kind,quantity:1,category:'tool',station:'CRAFTING_TABLE_LV1',tier,
       materials:{wood:(base.materials.wood??0)+tier*2,stone:(base.materials.stone??0)+tier},
-      work:base.work+tier*8,unlock:{recipeId:previous,completions:2}};
+      work:base.work+tier*8,itemMaterials:{[kind]:1},unlock:{recipeId:previous,completions:2}};
   }
+}
+const gearRecipes={
+  HIDE_ARMOR:{source:'WOOD_WALL',materials:{wood:2},itemMaterials:{HIDE:1}},
+  EMBER_BLADE:{source:'STONE_AXE',materials:{wood:4,stone:2},itemMaterials:{FIRE_CORE:1,EMBER_SHARD:1}},
+  EMBER_CHARM:{source:'STONE_PICKAXE',materials:{wood:2},itemMaterials:{FIRE_CORE:1}}
+};
+for(const [kind,config] of Object.entries(gearRecipes))for(let tier=1;tier<=5;tier++){
+  const id=tier===1?kind:kind+'_T'+tier,prior=tier===2?kind:kind+'_T'+(tier-1);
+  advanced[id]={id,output:kind,quantity:1,category:'gear',station:'CRAFTING_TABLE_LV1',tier,
+    materials:Object.fromEntries(Object.entries(config.materials).map(([key,n])=>[key,n+tier-1])),
+    itemMaterials:tier===1?{...config.itemMaterials}:{[kind]:1,[kind==='HIDE_ARMOR'?'HIDE':'FIRE_CORE']:1},
+    work:24+tier*8,unlock:{recipeId:tier===1?config.source:prior,completions:2}};
 }
 export const ADVANCED_RECIPE_CATALOG=deepFreeze(advanced);
 export const CRAFT_RECIPE_CATALOG=deepFreeze({...RECIPE_CATALOG,...ADVANCED_RECIPE_CATALOG});
@@ -63,6 +75,7 @@ export function validateCraftingCatalog(){
   for(const [id,r] of Object.entries(CRAFT_RECIPE_CATALOG)){
     if(r.id!==id||r.quantity!==1||!Number.isInteger(r.tier)||r.tier<0||r.tier>5||!ITEM_CATALOG[r.output]||!stations.has(r.station)||!cats.has(r.category)||!Number.isInteger(r.work)||r.work<1)errors.push('recipe:'+id);
     if(r.unlock&&(!CRAFT_RECIPE_CATALOG[r.unlock.recipeId]||CRAFT_RECIPE_CATALOG[r.unlock.recipeId].tier>=r.tier||!Number.isSafeInteger(r.unlock.completions)||r.unlock.completions<1))errors.push('unlock:'+id);
+    if(r.itemMaterials&&Object.entries(r.itemMaterials).some(([kind,n])=>!Object.hasOwn(ITEM_CATALOG,kind)||!Number.isSafeInteger(n)||n<1||n>4))errors.push('item-materials:'+id);
     if(!r.materials||Object.entries(r.materials).some(([k,n])=>!['wood','stone'].includes(k)||!Number.isInteger(n)||n<1))errors.push('materials:'+id);
   }
   return errors;

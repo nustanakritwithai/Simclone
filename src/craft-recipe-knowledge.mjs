@@ -24,6 +24,12 @@ export function recipeMastery(agent,recipeId){
   if(!e||!integer(e.retiredCompletions)||!Array.isArray(e.receipts))return 0;
   return Math.min(RECIPE_KNOWLEDGE_LIMITS.completions,e.retiredCompletions+e.receipts.length);
 }
+/** Family skill is derived from verified per-recipe receipts, never a new XP ledger. */
+export function craftFamilyMastery(agent,recipeId){
+  const r=recipeById(recipeId);if(!r)return 0;
+  return Math.min(RECIPE_KNOWLEDGE_LIMITS.completions,Object.values(CRAFT_RECIPE_CATALOG)
+    .filter(x=>x.output===r.output).reduce((total,x)=>total+recipeMastery(agent,x.id),0));
+}
 function structuralErrors(state,agent){
   if(!baseKnowledge(agent))return ['Recipe knowledge'];
   const book=agent.knowledgeState.recipes;
