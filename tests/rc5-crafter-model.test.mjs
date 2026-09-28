@@ -44,6 +44,9 @@ for (const counts of [undefined, null, [], [0, 0], Array(6),
 }
 test('RC5 rejects nonexistent families and impossible tier-zero evidence', () => {
   assert.throws(() => familyProfile('SHOP_HAMMER', ZERO), TypeError);
+  const coerced = { toString: () => 'HAMMER' };
+  assert.throws(() => familyProfile(coerced, ZERO), TypeError);
+  assert.equal(Object.isFrozen(coerced), false);
   assert.throws(() => familyProfile('HAMMER', [1, 0, 0, 0, 0, 0]), TypeError);
   assert.throws(() => qualityRangeModel(quality(ZERO, 0)), TypeError);
 });

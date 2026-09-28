@@ -52,7 +52,7 @@ const decision = (modelVerdict, reason, extra = {}) => freeze({
  * These are not XP, receipts, a persisted level, or an authority certificate.
  */
 export function familyProfile(family, counts) {
-  if (!Object.hasOwn(FAMILIES, family)) throw new TypeError('RC5 unknown family');
+  if (typeof family !== 'string' || !Object.hasOwn(FAMILIES, family)) throw new TypeError('RC5 unknown family');
   countsCheck(counts);
   if (FAMILY_MIN_TIER[family] === 1 && counts[0] !== 0) {
     throw new TypeError('RC5 impossible tier-zero family completions');

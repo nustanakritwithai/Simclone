@@ -25,9 +25,9 @@
     "src/craft-outcome.mjs": "c2afbed7ebf7c0582c62b452c63034d393446ec8"
   },
   "candidateFiles": {
-    "docs/wip/rc5-crafter/model.mjs": "1fa38cff7f93cfd17268cc2ec39f5e41e8b84a3d",
+    "docs/wip/rc5-crafter/model.mjs": "4e361afebe9f05868878ec6e8845df48b39dc974",
     "docs/wip/rc5-crafter/README.md": "a7b470bfcadf0c723ec64fb7deb600d60ad9c69f",
-    "tests/rc5-crafter-model.test.mjs": "e6e77e6689d5b1105c17d91c2dea382979629685"
+    "tests/rc5-crafter-model.test.mjs": "e2f6c7fa1a4810a99c1cda3a9720e4238f486667"
   },
   "fullRepositoryLocal": "NOT_RUN: only three exact-hash canonical source files were materialized locally; no full checkout",
   "exactHeadCI": "UNKNOWN",
