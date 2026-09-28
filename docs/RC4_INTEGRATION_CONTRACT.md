@@ -73,7 +73,7 @@ Therefore isolated donor Verify SUCCESS remains evidence for that donor head onl
 | #176 | Home Market | 79ae6792063f8c70a9e676028646f2cd05a62d0a | Verify #1861 SUCCESS | UNKNOWN post-RC3.2 |
 | #177 | Trade Kernel | 73be1764130978f529632aa955bf3a7adf931e29 | Verify #1898 SUCCESS | UNKNOWN post-RC3.2 and missing market/reservation bindings |
 | #178 | Merchant / Customer AI | 8c6c4ffb506cd192e2f81558880a7480ccf13932 | Verify #1864 SUCCESS on isolated donor | VIOL vs repaired #179: Customer AI still consumes legacy listingId + createdTick/snapshotVersion and carries no canonical Listing revision |
-| #179 | Pricing / Listing / Buy Offer / Ledger | last frozen SAT head `da82d2178e605283fabf76b80c91cd731da4ad49`; PR branch has moved beyond it | #1979 SUCCESS proves repaired Listing/Pricing/Ledger shape at da82d; later provenance-hardening work reopened Ledger ingestion | MIXED: Listing/Pricing semantics retained SAT; Ledger commit-provenance = UNKNOWN until later head freezes + exact-head Verify + cross-donor audit |
+| #179 | Pricing / Listing / Buy Offer / Ledger | `9b5e63e386f0543f9700237242b2c4f0745a8c2d` | push Verify #2013 SUCCESS; PR Verify #2015 SUCCESS after rerun; current-main aligned | SAT donor for Listing/Pricing + fail-closed Ledger provenance hardening; positive trusted post-root Ledger ingestion remains UNKNOWN integration dependency |
 | #180 | Market UI prototype | 0aa5a824d7da70172a267dbf1f440e69d44ef271 | Verify #1990 SUCCESS; docs-only changed files | SAT as docs/prototype donor; canonical OPEN + Listing revision read-model repair retained; production wiring UNKNOWN |
 | #181 | Canonical Wallet | 6d9eb098333eccc72e2352e605e5364d25e97768 | Verify #1959 SUCCESS | UNKNOWN post-RC3.2; donor contract explicitly requires post-RC3.2 re-audit/rebuild |
 
@@ -85,15 +85,25 @@ Post-sync proof is now available:
     → Verify #1979 SUCCESS
     → RC3.2 ancestry aligned (ahead 25 / behind 0)
 
-At the last frozen verified head `da82d217...`, the #179 Repair override/source/tests agree on canonical `id + revision`; those Listing/Pricing semantics remain the selected proven baseline.
+#179 provenance hardening is now frozen and verified on exact head:
 
-After that head, #179 reopened Merchant Ledger commit ingestion because a caller can forge both a structurally valid receipt and a matching caller-supplied `tradeReplay` state. The hardened Ledger correctly refuses to upgrade an arbitrary non-duplicate object into VERIFIED/COMMITTED accounting evidence and returns UNKNOWN until a trusted authoritative-root provenance path exists.
+    9b5e63e386f0543f9700237242b2c4f0745a8c2d
+
+Evidence:
+
+- push Verify #2013 SUCCESS;
+- PR Verify #2015 SUCCESS after rerunning an unrelated Blueprint browser timeout with no source/test change;
+- current main compatibility retained (behind 0);
+- forged structurally valid receipt + attacker-created matching tradeReplay returns UNKNOWN / trade-commit-provenance;
+- forged purchase/sale cannot create Revenue / COGS / Profit;
+- changed parties or item identity with recomputed valid hashes + matching forged replay remains no-op/UNKNOWN;
+- canonical Listing id/revision protections remain retained.
 
 Therefore:
-- Listing/Pricing semantics: SAT donor baseline at `da82d217...`;
-- Ledger structural validation: retained;
-- Ledger non-duplicate commit provenance: UNKNOWN / HARD STOP;
-- any later #179 head must freeze and pass exact-head verification before replacing this split status.
+- Listing/Pricing semantics: SAT donor;
+- Ledger structural validation and fail-closed provenance boundary: SAT donor;
+- Ledger positive non-duplicate accounting from trusted canonical commit provenance: UNKNOWN integration dependency;
+- no downstream VERIFIED/COMMITTED truth may be inferred merely from a plain result/replay object.
 
 Cross-donor re-audit still finds #178 head 8c6c4ff... using the pre-repair Listing vocabulary (`listingId`, `createdTick` / `snapshotVersion`). This remains a donor compatibility VIOL, not an Integration Lead mapping task.
 
@@ -1139,16 +1149,17 @@ Owns:
 - pricing;
 - Merchant Ledger.
 
-Selected proven baseline and reopened work:
+Current verified #179 donor:
 
-- `da82d217...` is merge-forwarded onto RC3.2 main;
-- Repair override + source/tests prove canonical Listing `id + revision`;
-- Verify #1979 = SUCCESS;
-- Listing/Pricing semantics remain SAT from that frozen head;
-- later #179 commits reopened Ledger ingestion to fix forged-provenance attacks;
-- hardened Ledger correctly treats a non-duplicate caller-supplied result as UNKNOWN until trusted root provenance is supplied;
-- current moving #179 branch is not automatically accepted over the frozen SAT head;
-- current #175 progression contract must be reconciled with this provenance boundary before Career integration can be SAT.
+- exact head `9b5e63e...` is on current RC3.2 main;
+- canonical Listing `id + revision` retained;
+- fail-closed provenance hardening retained;
+- push Verify #2013 SUCCESS;
+- PR Verify #2015 SUCCESS;
+- forged matching replay attacks are covered;
+- plain non-duplicate result never self-promotes to VERIFIED/COMMITTED accounting evidence;
+- positive canonical Ledger ingestion intentionally waits for Integration-owned authoritative-root provenance;
+- current #175 progression contract must still be reconciled with this provenance boundary before Career integration can be SAT.
 
 ## #180 UI Prototype
 
@@ -1209,7 +1220,7 @@ Contract explicitly requires post-RC3.2 re-audit/rebuild before production integ
 | U8 | post-settlement Listing decrement/FILLED/revision and Reservation COMMITTED/release behavior is undefined | UNKNOWN | #179 + Reservation/#177 owner |
 | U9 | canonical persistent BuyOffer collection is not defined by current source | UNKNOWN | #179 owner |
 | U10 | production root collection shape for Merchant Ledgers is not defined | UNKNOWN | #179 / persistence owner |
-| U16 | trusted post-root commit provenance/retry binding for Ledger/Career is not frozen; caller-supplied matching tradeReplay is not sufficient proof | UNKNOWN — HARD STOP | Integration Lead + #179 + #175 define root-derived lookup/retry contract and Red Team forgery attacks |
+| U16 | #179 donor now proves fail-closed forged-result/matching-replay rejection, but trusted positive post-root commit provenance/retry binding for Ledger/Career is not frozen | UNKNOWN — HARD STOP | Integration Lead + #175 define authoritative-root lookup/retry path using #179 hardened boundary; Red Team proves positive commit + retry + forgery separation |
 | V4 | #182 head df2a47f has green Verify #2014 but acceptance contract lacks explicit forged-result + forged-matching-replay attack and contains a Ledger/Career rollback expectation that conflicts with post-root downstream processing | VIOL acceptance contract | #182 owner repairs suite/matrix; new exact-head Verify + compatibility audit required |
 | U11 | tradeReplay old-save migration/root wiring is not integrated | UNKNOWN | #177 / persistence owner |
 | U12 | #178 consumes an intent journal but does not define canonical persistence ownership for it | UNKNOWN | #178 / persistence owner |
@@ -1558,7 +1569,7 @@ Important boundary:
 
 ## G — Ledger/Career commit provenance alignment — PRIORITY 1 / HARD STOP
 
-Owners: #179 Ledger + #175 Career + Integration Lead.
+Owners: #175 Career + Integration Lead, consuming verified #179 hardened donor `9b5e63e...`.
 
 Problem:
 
@@ -1566,7 +1577,13 @@ Problem:
     + caller can fabricate matching tradeReplay state
     ≠ proof of canonical production commit
 
-Required contract:
+#179 donor status for this queue:
+
+- forged/matching-replay negative path = SAT donor;
+- structural receipt validation = SAT donor;
+- positive trusted commit permission = intentionally NOT owned by Ledger.
+
+Required Integration/Career contract:
 
 - root commit path is the trust boundary;
 - downstream accounting/progression looks up committed receipt from authoritative live/persisted root by transactionId;
