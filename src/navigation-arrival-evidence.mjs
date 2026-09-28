@@ -27,7 +27,7 @@ export function isCanonicalMarketTravelTask(task){
  */
 export function createCanonicalMarketTravelTask(world,agent,market,path){
   if(!agent?.alive||!marketOk(market)||market.open!==true)return {state:'VIOL',reason:'market-or-agent'};
-  if(!int(world?.tick)||world.tick<0||!Array.isArray(path)||path.length<1)return {state:'VIOL',reason:'path'};
+  if(!int(world?.tick)||world.tick<0||!Array.isArray(path))return {state:'VIOL',reason:'path'};
   let prev={x:agent.x,y:agent.y};
   for(const p of path){
     if(!int(p?.x)||!int(p?.y)||distance(prev,p)!==1)return {state:'VIOL',reason:'path'};
