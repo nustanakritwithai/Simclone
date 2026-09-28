@@ -50,7 +50,8 @@ The UI exposes one receive-only boundary:
 ```text
 rc4:transaction-result event
 → validate complete canonical result
-→ require verificationStatus === VERIFIED
+→ require state === SAT
+→ require verification === VERIFIED
 → require commitStatus === COMMITTED
 → require duplicate === false
 → require positive safe-integer quantity / totalPrice
