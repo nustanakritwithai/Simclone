@@ -86,8 +86,9 @@ export function migrateRc4EconomyState(world){
   const ledgers=migrateMerchantLedgerCollection(world.merchantLedgers);
   if(ledgers.state!=='SAT')return {state:'VIOL',reason:'ledger-root',detail:ledgers};
   world.merchantLedgers=ledgers.collection;
-  if(world.merchantLedgers.ledgers.some(l=>!world.agents.some(a=>a.id===l.merchantId)))return {state:'VIOL',reason:'ledger-agent'};
-  for(const a of world.agents)if(validateMerchantProgression(a).length)return {state:'VIOL',reason:'merchant-progression',agentId:a.id};
+  const knownPeople=new Set([...(world.agents??[]),...(world.archive??[])].map(a=>a.id));
+  if(world.merchantLedgers.ledgers.some(l=>!knownPeople.has(l.merchantId)))return {state:'VIOL',reason:'ledger-agent'};
+  for(const a of [...(world.agents??[]),...(world.archive??[])])if(validateMerchantProgression(a).length)return {state:'VIOL',reason:'merchant-progression',agentId:a.id};
   world.rc4EconomyVersion=RC4_ECONOMY_ROOT_VERSION;
   return {state:'SAT',migrated:true};
 }
@@ -102,8 +103,9 @@ export function validateRc4EconomyState(world){
   e.push(...validateCurrencyWallet(world).map(x=>'Wallet:'+x));
   e.push(...validateTradeReplayState(world).map(x=>'Trade:'+x));
   e.push(...validateMerchantLedgerCollection(world?.merchantLedgers).map(x=>'Ledger:'+x));
-  if((world?.merchantLedgers?.ledgers??[]).some(l=>!(world?.agents??[]).some(a=>a.id===l.merchantId)))e.push('Ledger:agent');
-  for(const a of world?.agents??[])for(const x of validateMerchantProgression(a))e.push('MerchantCareer:'+a.id+':'+x);
+  const knownPeople=new Set([...(world?.agents??[]),...(world?.archive??[])].map(a=>a.id));
+  if((world?.merchantLedgers?.ledgers??[]).some(l=>!knownPeople.has(l.merchantId)))e.push('Ledger:agent');
+  for(const a of [...(world?.agents??[]),...(world?.archive??[])])for(const x of validateMerchantProgression(a))e.push('MerchantCareer:'+a.id+':'+x);
   return e;
 }
 
