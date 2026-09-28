@@ -29,7 +29,7 @@ def open_rust(aid):
 def click_station(st):
     close();box=page.locator('#world').bounding_box()
     def hit():
-        return page.evaluate("""(st)=>{const p=simclone.screenPoint(st.x,st.y);for(let dy=-60;dy<=30;dy+=3)for(let dx=-36;dx<=36;dx+=3){const h=simclone.structureTargetAtScreen(p.x+dx,p.y+dy);if(h?.type==='station'&&h.id===st.id)return{x:p.x+dx,y:p.y+dy};}return null;}""",st)
+        return page.evaluate("""(st)=>{const p=simclone.screenPoint(st.x,st.y);for(let dy=-60;dy<=30;dy+=3)for(let dx=-36;dx<=36;dx+=3){const h=simclone.worldTargetAtScreen(p.x+dx,p.y+dy);if(h?.kind==='station'&&h.id===st.id)return{x:p.x+dx,y:p.y+dy};}return null;}""",st)
     q=hit()
     if not q:
         p=page.evaluate('(x)=>simclone.screenPoint(x.x,x.y)',st);safe=page.evaluate('simclone.safeFrame()')
