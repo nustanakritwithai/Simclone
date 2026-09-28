@@ -51,7 +51,8 @@ This is a presentation contract, not a new authority schema. Field names should 
     itemDisplayName,
     quantity,
     totalPrice,
-    verificationStatus,      // VERIFIED
+    state,                   // SAT
+    verification,            // VERIFIED
     commitStatus,            // COMMITTED
     duplicate                // false
   }
@@ -67,6 +68,6 @@ This is a presentation contract, not a new authority schema. Field names should 
 - Listing presentation maps canonical Pricing/Listing authority `Listing.id` to display/read-model `listingId`; `revision` is retained unchanged and must accompany a purchase intent.
 - Canonical purchasable Listing state is `OPEN`; UI must not invent an `ACTIVE` status vocabulary.
 - `latestVerifiedTransaction` must not be populated from a local optimistic click result.
-- Transaction success presentation requires `verificationStatus === 'VERIFIED'`, `commitStatus === 'COMMITTED'`, and `duplicate === false`.
+- Transaction success presentation requires `state === 'SAT'`, `verification === 'VERIFIED'`, `commitStatus === 'COMMITTED'`, and `duplicate === false`.
 - Quantity and total price shown as committed trade facts must be positive safe integers.
 - Missing or stale evidence maps to `UNKNOWN`; UNKNOWN never enables a purchase action.
