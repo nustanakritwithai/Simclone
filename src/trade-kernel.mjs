@@ -1,5 +1,7 @@
 export const TRADE_KERNEL_VERSION='RC4-trade-kernel-1';
 export const TRADE_REPLAY_VERSION='RC4-trade-replay-1';
+const canonicalExecutionContexts=new WeakSet();
+export const isCanonicalTradeExecutionContext=context=>!!context&&typeof context==='object'&&canonicalExecutionContexts.has(context);
 export const TRADE_LIMITS=Object.freeze({maxReceipts:512,maxQuantity:128,maxIdLength:80});
 
 const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
@@ -208,6 +210,7 @@ export function settleTradeAtomic(state,proposal,adapters={}){
       proposal:Object.freeze(clone(normalizedProposal(proposal))),
       receipt:Object.freeze(clone(settlement.receipt))
     });
+    canonicalExecutionContexts.add(context);
     const applied=post.apply(staged,context);
     if(!adapterResultOk(applied))return {ok:false,reason:applied?.reason||'post-settlement-apply'};
     const verified=post.verify(staged,context);
