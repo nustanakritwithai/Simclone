@@ -1,0 +1,131 @@
+name: RC31 exact-source transport only
+
+on:
+  push:
+    branches: ["transport/rc31-verified-files-20260928"]
+    paths: [".github/workflows/rc31-transfer.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  transfer:
+    if: github.repository == 'nustanakritwithai/Simclone'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout isolated transfer inputs
+        uses: actions/checkout@v6
+        with:
+          path: transport
+          persist-credentials: false
+
+      - name: Checkout exact RC31 contract base
+        uses: actions/checkout@v6
+        with:
+          ref: 00550f8848f71aa5d856e3b5981b7c23fef18f46
+          path: candidate
+          persist-credentials: false
+
+      - name: Reproduce only hash-verified candidate file transformations
+        working-directory: candidate
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64,hashlib,json,subprocess,zlib
+          BASE='00550f8848f71aa5d856e3b5981b7c23fef18f46'
+          DIGEST='5a20b69bafd5b7c2d53c79a7f1a24e74afdce6742fe4c7536618164b10cf7892'
+          allowed={'.github/workflows/pages.yml','.github/workflows/verify.yml','AGENTS.md','GAME_PLAN.md','docs/NEXT_STEPS.md','docs/STATUS.md','docs/RC3_1_BLUEPRINT_RELEASE.md','index.html','scripts/blueprint-fixture.mjs','src/adventure-combat-session.mjs','src/adventure-loot-commit.mjs','src/adventure-ui.mjs','src/craft-blueprints.mjs','src/craft-recipe-knowledge.mjs','src/crafting-catalog.mjs','src/crafting-ui.mjs','src/rust-possessions.mjs','src/rust-runtime.mjs','src/ux.mjs','tests/blueprint-smoke.py','tests/blueprints.test.mjs','tests/fixtures/blueprint-world.mjs','tests/rust-survival-integration.test.mjs'}
+          sha=lambda b:hashlib.sha256(b).hexdigest()
+          raw=''.join((Path('../transport/.github/rc31-transport')/('part'+str(n)+'.txt')).read_text().strip() for n in range(3))
+          blob=zlib.decompress(base64.b64decode(raw,validate=True))
+          assert sha(blob)==DIGEST,'transport payload mismatch'
+          spec=json.loads(blob)
+          assert spec['base']==BASE and len(spec['files'])==23
+          assert {r['path'] for r in spec['files']}==allowed
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==BASE
+          for row in spec['files']:
+              path=Path(row['path']);old=path.read_bytes() if path.exists() else None
+              assert (sha(old) if old is not None else None)==row['before'],row['path']+' baseline mismatch'
+              if row.get('generated'):
+                  assert row['path']=='index.html' and row['generated']=='runtime-pins'
+                  continue
+              if old is None:
+                  text=row['text']
+              else:
+                  lines=old.decode('utf-8').splitlines(keepends=True)
+                  for start,end,replacement in reversed(row['ops']):
+                      assert isinstance(start,int) and 0<=start<=end<=len(lines)
+                      lines[start:end]=[replacement]
+                  text=''.join(lines)
+              path.parent.mkdir(parents=True,exist_ok=True)
+              path.write_bytes(text.encode('utf-8'))
+          subprocess.run(['node','scripts/pin-assets.mjs'],check=True)
+          for row in spec['files']:
+              content=Path(row['path']).read_bytes()
+              assert sha(content)==row['after'],row['path']+' source hash mismatch'
+              assert hashlib.sha1(('blob '+str(len(content))+'\0').encode()+content).hexdigest()==row['gitBlob'],row['path']+' git blob mismatch'
+              print('EXACT',row['path'],row['after'])
+          Path('../rc31-verified-spec.json').write_bytes(blob)
+          print('All 23 candidate files reproduce the tested local bytes. No branch updated.')
+          PY
+
+      - name: Verify focused Blueprint and release regressions
+        working-directory: candidate
+        run: node --test tests/blueprints.test.mjs tests/release.test.mjs tests/rust-survival-integration.test.mjs
+
+      - name: Setup Python for native Blueprint proof
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install native Chromium
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Verify actual native Blueprint controls before exporting objects
+        working-directory: candidate
+        run: python tests/blueprint-smoke.py --native
+
+      - name: Store verified git objects only, without creating commits or changing refs
+        working-directory: candidate
+        env:
+          GH_OBJECT_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64,hashlib,json,os,urllib.request
+          REPO='nustanakritwithai/Simclone'
+          assert os.environ['GITHUB_REPOSITORY']==REPO
+          spec=json.loads(Path('../rc31-verified-spec.json').read_text())
+          token=os.environ['GH_OBJECT_TOKEN']
+          def api(path,payload=None):
+              body=None if payload is None else json.dumps(payload).encode()
+              req=urllib.request.Request('https://api.github.com/repos/'+REPO+path,data=body,headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'},method='GET' if payload is None else 'POST')
+              with urllib.request.urlopen(req,timeout=45) as response:return json.load(response)
+          base=api('/git/commits/'+spec['base'])
+          entries=[]
+          for row in spec['files']:
+              content=Path(row['path']).read_bytes()
+              assert hashlib.sha256(content).hexdigest()==row['after']
+              result=api('/git/blobs',{'content':base64.b64encode(content).decode(),'encoding':'base64'})
+              assert result['sha']==row['gitBlob'],row['path']
+              entries.append({'path':row['path'],'mode':'100644','type':'blob','sha':result['sha']})
+          tree=api('/git/trees',{'base_tree':base['tree']['sha'],'tree':entries})
+          proof=json.loads(Path('evidence-ui/blueprint-native/report.json').read_text())
+          assert proof['result']=='SAT' and proof['failure'] is None and proof['errors']==[]
+          result={'status':'OBJECTS_ONLY_NOT_RELEASED','base':spec['base'],'treeSha':tree['sha'],'transportSha':os.environ['GITHUB_SHA'],'files':entries,'hashes':{r['path']:r['after'] for r in spec['files']},'nativeBlueprintChecks':len(proof['checks'])}
+          Path('../rc31-transfer-result.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          PY
+
+      - name: Upload exact object manifest and native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc31-exact-source-transport-${{ github.sha }}
+          path: |
+            rc31-transfer-result.json
+            candidate/evidence-ui/blueprint-native/
+          if-no-files-found: warn
