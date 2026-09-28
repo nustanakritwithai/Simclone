@@ -9,6 +9,7 @@ import {
   adoptMerchantProfession,
   merchantProgressionSnapshot,
   projectMerchantRealizedProfit,
+  assessMerchantCareerTransactionEvidence,
   noteVerifiedCommittedMerchantTransaction,
   validateMerchantProgression,
 } from '../src/merchant-career.mjs';
@@ -35,6 +36,35 @@ function worker(id=1){
     professionSinceTick:0,
     career:[{tick:0,profession:'forager'}],
   };
+}
+function canonicalEvidence({
+  transactionId='tx-1',
+  buyerId=1,
+  sellerId=2,
+  itemId=101,
+  duplicate=false,
+  verification='VERIFIED',
+  commitStatus='COMMITTED',
+  receiptOverrides={},
+}={}){
+  const receipt={
+    transactionId,
+    fingerprint:'fp:'+transactionId,
+    eventId:'TRADE:'+transactionId,
+    marketId:'M1',
+    listingId:'L-'+transactionId,
+    reservationId:'R-'+transactionId,
+    buyerId,
+    sellerId,
+    itemKind:'STONE_PICKAXE',
+    itemIds:[itemId],
+    quantity:1,
+    unitPrice:10,
+    totalPrice:10,
+    ...receiptOverrides,
+  };
+  if(duplicate)return {state:'SAT',duplicate:true,receipt};
+  return {state:'SAT',duplicate:false,verification,commitStatus,receipt};
 }
 
 test('Merchant qualification is pure and requires alive adult-capable agent',()=>{
@@ -125,7 +155,7 @@ test('Merchant profession and career continuity survive engine save/load',()=>{
   const s=createWorld(230926),a=s.agents[0];
   const adopted=adoptMerchantProfession(a,validSnapshot({agentId:a.id,evidenceId:'save-load-merchant'}),s.tick);
   assert.equal(adopted.changed,true);
-  const tx=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-save-1',verified:true,committed:true});
+  const tx=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-save-1',buyerId:a.id,sellerId:2,itemId:701}));
   assert.equal(tx.counted,true);
   assert.deepEqual(validate(s),[]);
 
@@ -137,33 +167,123 @@ test('Merchant profession and career continuity survive engine save/load',()=>{
   assert.deepEqual(validate(restored),[]);
 });
 
-test('Merchant progression counts only verified and committed transactions and is replay-safe within retained receipts',()=>{
+test('canonical VERIFIED + COMMITTED Merchant buyer counts exactly once',()=>{
   const a=worker(7);
   assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:7,evidenceId:'merchant-proof-7'}),1).changed,true);
-
-  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',verified:false,committed:true}).counted,false);
-  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',verified:true,committed:false}).counted,false);
-  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',committed:true}).status,'UNKNOWN');
-  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:0,merchantRealizedProfit:null,merchantExperience:0});
-
-  const first=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-1',verified:true,committed:true});
-  assert.equal(first.counted,true);
+  const result=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-buyer',buyerId:7,sellerId:2,itemId:801}));
+  assert.equal(result.counted,true);
+  assert.equal(result.status,'SAT');
   assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:1,merchantRealizedProfit:null,merchantExperience:1});
+});
 
-  const replay=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-1',verified:true,committed:true});
+test('canonical VERIFIED + COMMITTED Merchant seller counts exactly once',()=>{
+  const a=worker(8);
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:8,evidenceId:'merchant-proof-8'}),1).changed,true);
+  const result=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-seller',buyerId:2,sellerId:8,itemId:802}));
+  assert.equal(result.counted,true);
+  assert.equal(result.status,'SAT');
+  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:1,merchantRealizedProfit:null,merchantExperience:1});
+});
+
+test('canonical duplicate:true is a no-op and Career does not determine replay uniqueness',()=>{
+  const a=worker(10);
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:10,evidenceId:'merchant-proof-10'}),1).changed,true);
+  const first=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-replay',buyerId:10,sellerId:2,itemId:803}));
+  assert.equal(first.counted,true);
+  const before=JSON.stringify(a);
+  const replay=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-replay',buyerId:10,sellerId:2,itemId:803,duplicate:true}));
   assert.equal(replay.counted,false);
-  assert.equal(replay.reason,'replay');
+  assert.equal(replay.status,'SAT');
+  assert.equal(replay.reason,'canonical-duplicate');
+  assert.equal(JSON.stringify(a),before);
+});
 
-  const second=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-2',verified:true,committed:true});
-  assert.equal(second.counted,true);
-  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:2,merchantRealizedProfit:null,merchantExperience:2});
-  assert.deepEqual(validateMerchantProgression(a),[]);
+test('Merchant party lock rejects another party transaction',()=>{
+  const a=worker(11);
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:11,evidenceId:'merchant-proof-11'}),1).changed,true);
+  const before=JSON.stringify(a);
+  const result=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-other',buyerId:2,sellerId:3,itemId:804}));
+  assert.equal(result.counted,false);
+  assert.equal(result.status,'VIOL');
+  assert.equal(result.reason,'merchant-not-party');
+  assert.equal(JSON.stringify(a),before);
+});
+
+test('missing canonical verification or commit status is UNKNOWN and immutable',()=>{
+  const a=worker(12);
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:12,evidenceId:'merchant-proof-12'}),1).changed,true);
+  const missingVerification=canonicalEvidence({transactionId:'tx-no-verify',buyerId:12,sellerId:2,itemId:805});
+  delete missingVerification.verification;
+  const missingCommit=canonicalEvidence({transactionId:'tx-no-commit',buyerId:12,sellerId:2,itemId:806});
+  delete missingCommit.commitStatus;
+  const before=JSON.stringify(a);
+  assert.equal(noteVerifiedCommittedMerchantTransaction(a,missingVerification).status,'UNKNOWN');
+  assert.equal(noteVerifiedCommittedMerchantTransaction(a,missingCommit).status,'UNKNOWN');
+  assert.equal(JSON.stringify(a),before);
+});
+
+test('malformed canonical receipt is rejected',()=>{
+  const a=worker(13);
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:13,evidenceId:'merchant-proof-13'}),1).changed,true);
+  const bad=canonicalEvidence({transactionId:'tx-bad',buyerId:13,sellerId:2,itemId:807,receiptOverrides:{totalPrice:11}});
+  const assessed=assessMerchantCareerTransactionEvidence(a,bad);
+  assert.equal(assessed.status,'VIOL');
+  assert.equal(assessed.reason,'trade-receipt');
+  assert.equal(noteVerifiedCommittedMerchantTransaction(a,bad).counted,false);
+});
+
+test('forged legacy plain object cannot increase Merchant progression',()=>{
+  const a=worker(14);
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:14,evidenceId:'merchant-proof-14'}),1).changed,true);
+  const before=JSON.stringify(a);
+  const forged={transactionId:'tx-forged',verified:true,committed:true};
+  const result=noteVerifiedCommittedMerchantTransaction(a,forged);
+  assert.equal(result.counted,false);
+  assert.equal(result.status,'UNKNOWN');
+  assert.equal(JSON.stringify(a),before);
+});
+
+test('more than 32 unique commits then replay of the first transaction stays a no-op',()=>{
+  const a=worker(15);
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:15,evidenceId:'merchant-proof-15'}),1).changed,true);
+  for(let i=1;i<=33;i++){
+    const result=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({
+      transactionId:'tx-long-'+i,buyerId:15,sellerId:2,itemId:900+i,
+    }));
+    assert.equal(result.counted,true);
+  }
+  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:33,merchantRealizedProfit:null,merchantExperience:33});
+  assert.equal(Object.hasOwn(a,'merchantTransactionReceipts'),false);
+  const before=JSON.stringify(a);
+  const replay=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({
+    transactionId:'tx-long-1',buyerId:15,sellerId:2,itemId:901,duplicate:true,
+  }));
+  assert.equal(replay.counted,false);
+  assert.equal(replay.reason,'canonical-duplicate');
+  assert.equal(JSON.stringify(a),before);
+});
+
+test('save/load then old canonical duplicate replay cannot increase progression',()=>{
+  const s=createWorld(991),a=s.agents[0];
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:a.id,evidenceId:'merchant-save-replay'}),s.tick).changed,true);
+  for(let i=1;i<=33;i++)assert.equal(noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({
+    transactionId:'tx-save-long-'+i,buyerId:a.id,sellerId:2,itemId:1000+i,
+  })).counted,true);
+  const restored=restore(serialize(s)),b=restored.agents.find(row=>row.id===a.id);
+  const before=serialize(restored);
+  const replay=noteVerifiedCommittedMerchantTransaction(b,canonicalEvidence({
+    transactionId:'tx-save-long-1',buyerId:b.id,sellerId:2,itemId:1001,duplicate:true,
+  }));
+  assert.equal(replay.counted,false);
+  assert.equal(replay.reason,'canonical-duplicate');
+  assert.equal(serialize(restored),before);
+  assert.deepEqual(merchantProgressionSnapshot(b),{merchantTransactions:33,merchantRealizedProfit:null,merchantExperience:33});
 });
 
 test('Merchant realized profit progression hook is a read-only projection of Merchant Ledger',()=>{
   const a=worker(9);
   assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:9,evidenceId:'merchant-proof-9'}),1).changed,true);
-  noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-ledger-1',verified:true,committed:true});
+  noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-ledger-1',buyerId:9,sellerId:2,itemId:1201}));
   const ledger={merchantId:9,purchases:[],sales:[],revenue:100,costOfGoodsSold:70,realizedProfit:30};
 
   const projection=projectMerchantRealizedProfit(a,ledger);
@@ -185,7 +305,7 @@ test('Merchant realized profit progression hook is a read-only projection of Mer
 test('Merchant career rejects a duplicate monetary profit field and never stores realized profit',()=>{
   const a=worker(8);
   assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:8,evidenceId:'merchant-proof-8'}),1).changed,true);
-  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-money-1',verified:true,committed:true,realizedProfit:999}).counted,true);
+  assert.equal(noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-money-1',buyerId:8,sellerId:2,itemId:1202})).counted,true);
   assert.equal(Object.hasOwn(a,'merchantRealizedProfit'),false);
   a.merchantRealizedProfit=999;
   assert.deepEqual(validateMerchantProgression(a),['Merchant monetary duplicate']);
