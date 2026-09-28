@@ -52,7 +52,24 @@ const market={
   reservation:(s,id)=>s.testMarket.reservations.find(x=>x.id===id)??null,
   activeReservations:s=>s.testMarket.reservations.filter(x=>x.status==='ACTIVE'),
 };
-const adapters={wallet,item,market};
+const postSettlement={
+  apply:(s,{receipt})=>{
+    const listing=s.testMarket.listings.find(x=>x.id===receipt.listingId);
+    const reservation=s.testMarket.reservations.find(x=>x.id===receipt.reservationId);
+    if(!listing||listing.status!=='OPEN'||listing.quantity<receipt.quantity||!reservation||reservation.status!=='ACTIVE')return {ok:false,reason:'market-postcondition'};
+    listing.quantity-=receipt.quantity;listing.revision++;
+    if(listing.quantity===0)listing.status='FILLED';
+    reservation.status='COMMITTED';reservation.transactionId=receipt.transactionId;
+    return {ok:true};
+  },
+  verify:(s,{receipt})=>{
+    const listing=s.testMarket.listings.find(x=>x.id===receipt.listingId);
+    const reservation=s.testMarket.reservations.find(x=>x.id===receipt.reservationId);
+    return {ok:!!listing&&listing.revision===2&&listing.quantity===1&&listing.status==='OPEN'&&
+      reservation?.status==='COMMITTED'&&reservation.transactionId===receipt.transactionId};
+  }
+};
+const adapters={wallet,item,market,postSettlement};
 const proposal=(overrides={})=>({
   transactionId:'TX-1',marketId:'M1',sellerId:2,buyerId:1,itemKind:'IRON_SWORD',itemInstanceId:101,
   quantity:2,unitPrice:25,totalPrice:50,listingId:'L1',reservationId:'R1',...overrides
@@ -81,6 +98,9 @@ test('RC4 atomic success moves money and exact existing item instances once',()=
   assert.equal(r.state.testItems.length,before.testItems.length);
   assert.equal(r.state.tradeReplay.receipts.length,1);
   assert.equal(r.state.tradeReplay.receipts[0].eventId,'TRADE:TX-1');
+  assert.deepEqual(r.state.testMarket.listings[0],{id:'L1',marketId:'M1',status:'OPEN',revision:2,sellerId:2,itemKind:'IRON_SWORD',unitPrice:25,quantity:1});
+  assert.equal(r.state.testMarket.reservations[0].status,'COMMITTED');
+  assert.equal(r.state.testMarket.reservations[0].transactionId,'TX-1');
 });
 
 test('RC4 exact replay is idempotent: no second debit, credit, item move or receipt',()=>{
@@ -238,4 +258,36 @@ test('RC4 source has no random or wall-clock gameplay rule',()=>{
 test('RC4 validator is pure and does not mutate state',()=>{
   const s=fixture(),before=clone(s),r=validateTradeProposal(s,proposal(),adapters);
   assert.equal(r.ok,true);assert.deepEqual(s,before);
+});
+
+
+test('RC4 B6: missing post-settlement authority cannot return a committed candidate',()=>{
+  const s=fixture(),before=JSON.stringify(s),r=settleTradeAtomic(s,proposal(),{wallet,item,market});
+  assert.equal(r.ok,false);assert.equal(r.reason,'post-settlement-authority');assert.equal(JSON.stringify(s),before);
+});
+
+test('RC4 B6: post-settlement apply failure after staged money/item/receipt leaves live source byte-identical',()=>{
+  const s=fixture(),before=JSON.stringify(s);
+  const failing={apply:(staged)=>{
+    staged.testMarket.listings[0].quantity=999;
+    staged.testMarket.reservations[0].status='BROKEN';
+    return {ok:false,reason:'injected-post-apply-failure'};
+  },verify:()=>({ok:true})};
+  const r=settleTradeAtomic(s,proposal(),{wallet,item,market,postSettlement:failing});
+  assert.equal(r.ok,false);assert.equal(r.reason,'injected-post-apply-failure');assert.equal(JSON.stringify(s),before);
+});
+
+test('RC4 B6: post-settlement verify failure discards the entire staged root',()=>{
+  const s=fixture(),before=JSON.stringify(s);
+  const failing={apply:postSettlement.apply,verify:()=>({ok:false,reason:'injected-postcondition-failure'})};
+  const r=settleTradeAtomic(s,proposal(),{wallet,item,market,postSettlement:failing});
+  assert.equal(r.ok,false);assert.equal(r.reason,'injected-postcondition-failure');assert.equal(JSON.stringify(s),before);
+});
+
+test('RC4 B6: exact replay does not re-run Listing/Reservation transitions',()=>{
+  const first=settleTradeAtomic(fixture(),proposal(),adapters);assert.equal(first.ok,true);
+  const bytes=JSON.stringify(first.state),second=settleTradeAtomic(first.state,proposal(),adapters);
+  assert.equal(second.ok,true);assert.equal(second.duplicate,true);assert.equal(JSON.stringify(second.state),bytes);
+  assert.equal(second.state.testMarket.listings[0].revision,2);
+  assert.equal(second.state.testMarket.reservations[0].status,'COMMITTED');
 });
