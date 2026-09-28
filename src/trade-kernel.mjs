@@ -10,23 +10,6 @@ const stableItemIds=ids=>Array.isArray(ids)?ids.slice().sort((a,b)=>a-b):[];
 
 export const createTradeReplayState=()=>({version:TRADE_REPLAY_VERSION,receipts:[]});
 
-export function validateTradeReplayState(state){
-  const replay=state?.tradeReplay;
-  if(!replay||replay.version!==TRADE_REPLAY_VERSION||!Array.isArray(replay.receipts)||replay.receipts.length>TRADE_LIMITS.maxReceipts)
-    return ['Trade replay state'];
-  const seen=new Set();
-  for(const r of replay.receipts){
-    if(!r||!validId(r.transactionId)||seen.has(r.transactionId)||typeof r.fingerprint!=='string'||!r.fingerprint||
-      !validId(r.eventId,TRADE_LIMITS.maxIdLength+6)||!validId(r.marketId)||!validId(r.listingId)||!validId(r.reservationId)||
-      !Number.isSafeInteger(r.buyerId)||!Number.isSafeInteger(r.sellerId)||r.buyerId===r.sellerId||
-      !safePositiveInt(r.quantity)||!safePositiveInt(r.unitPrice)||!safePositiveInt(r.totalPrice)||
-      r.totalPrice!==r.unitPrice*r.quantity||!Array.isArray(r.itemIds)||r.itemIds.length!==r.quantity||
-      new Set(r.itemIds).size!==r.itemIds.length||r.itemIds.some(id=>!safePositiveInt(id)))return ['Trade replay receipt'];
-    seen.add(r.transactionId);
-  }
-  return [];
-}
-
 function normalizedProposal(p={}){
   return {
     transactionId:p.transactionId,marketId:p.marketId,sellerId:p.sellerId,buyerId:p.buyerId,
@@ -39,6 +22,33 @@ export function tradeProposalFingerprint(p={}){
   const x=normalizedProposal(p);
   return [x.transactionId,x.marketId,x.sellerId,x.buyerId,x.itemKind,x.itemInstanceId,x.quantity,x.unitPrice,x.totalPrice,x.listingId,x.reservationId]
     .map(v=>String(v)).join('|');
+}
+
+function receiptFingerprint(r={}){
+  return tradeProposalFingerprint({
+    transactionId:r.transactionId,marketId:r.marketId,sellerId:r.sellerId,buyerId:r.buyerId,
+    itemKind:r.itemKind,itemInstanceId:r.itemInstanceId,quantity:r.quantity,unitPrice:r.unitPrice,
+    totalPrice:r.totalPrice,listingId:r.listingId,reservationId:r.reservationId
+  });
+}
+
+export function validateTradeReplayState(state){
+  const replay=state?.tradeReplay;
+  if(!replay||replay.version!==TRADE_REPLAY_VERSION||!Array.isArray(replay.receipts)||replay.receipts.length>TRADE_LIMITS.maxReceipts)
+    return ['Trade replay state'];
+  const seen=new Set();
+  for(const r of replay.receipts){
+    if(!r||!validId(r.transactionId)||seen.has(r.transactionId)||typeof r.fingerprint!=='string'||!r.fingerprint||
+      r.eventId!=='TRADE:'+r.transactionId||!validId(r.eventId,TRADE_LIMITS.maxIdLength+6)||
+      !validId(r.marketId)||!validId(r.listingId)||!validId(r.reservationId)||!validId(r.itemKind)||
+      !safePositiveInt(r.itemInstanceId)||!Number.isSafeInteger(r.buyerId)||!Number.isSafeInteger(r.sellerId)||r.buyerId===r.sellerId||
+      !safePositiveInt(r.quantity)||!safePositiveInt(r.unitPrice)||!safePositiveInt(r.totalPrice)||
+      r.totalPrice!==r.unitPrice*r.quantity||!Array.isArray(r.itemIds)||r.itemIds.length!==r.quantity||
+      new Set(r.itemIds).size!==r.itemIds.length||r.itemIds.some(id=>!safePositiveInt(id))||
+      !r.itemIds.includes(r.itemInstanceId)||r.fingerprint!==receiptFingerprint(r))return ['Trade replay receipt'];
+    seen.add(r.transactionId);
+  }
+  return [];
 }
 
 function adapterShape(wallet,item,market){
@@ -92,9 +102,16 @@ function resolveValidation(state,proposal,{wallet,item,market}={}){
   if(r.listingRevision!==l.revision)return fail('listing-stale');
   const itemIds=stableItemIds(r.itemIds);
 
-  const active=market.activeReservations(state,p.marketId);
+  // Global reservation view is required: item instances may not be reserved
+  // by another market, not merely another listing in this market.
+  const active=market.activeReservations(state);
   if(!Array.isArray(active))return fail('market-view-incomplete');
-  const reservedByOther=new Set(active.filter(x=>x?.status==='ACTIVE'&&x.id!==p.reservationId).flatMap(x=>Array.isArray(x.itemIds)?x.itemIds:[]));
+  const malformed=active.some(x=>x?.status==='ACTIVE'&&(
+    !validId(x.id)||!validId(x.marketId)||!Array.isArray(x.itemIds)||x.itemIds.length===0||
+    new Set(x.itemIds).size!==x.itemIds.length||x.itemIds.some(id=>!safePositiveInt(id))
+  ));
+  if(malformed||!active.some(x=>x?.status==='ACTIVE'&&x.id===p.reservationId))return fail('market-view-incomplete');
+  const reservedByOther=new Set(active.filter(x=>x.status==='ACTIVE'&&x.id!==p.reservationId).flatMap(x=>x.itemIds));
   if(itemIds.some(id=>reservedByOther.has(id)))return fail('item-reserved');
 
   const tradable=item.tradableItemIds(state,{agentId:p.sellerId,itemKind:p.itemKind});
@@ -124,7 +141,8 @@ export function buildTradeSettlementProposal(state,proposal,adapters={}){
     items:Object.freeze({fromAgentId:p.sellerId,toAgentId:p.buyerId,itemKind:p.itemKind,itemIds:Object.freeze(r.itemIds.slice())}),
     receipt:Object.freeze({transactionId:p.transactionId,fingerprint:tradeProposalFingerprint(p),eventId:'TRADE:'+p.transactionId,
       marketId:p.marketId,listingId:p.listingId,reservationId:p.reservationId,buyerId:p.buyerId,sellerId:p.sellerId,
-      itemKind:p.itemKind,itemIds:Object.freeze(r.itemIds.slice()),quantity:p.quantity,unitPrice:p.unitPrice,totalPrice:p.totalPrice})
+      itemKind:p.itemKind,itemInstanceId:p.itemInstanceId,itemIds:Object.freeze(r.itemIds.slice()),
+      quantity:p.quantity,unitPrice:p.unitPrice,totalPrice:p.totalPrice})
   })};
 }
 
