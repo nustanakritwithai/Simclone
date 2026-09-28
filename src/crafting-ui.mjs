@@ -8,7 +8,7 @@ import {validateCraftedItem} from './craft-outcome.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nameOf=(s,id)=>[...(s.agents??[]),...(s.archive??[])].find(a=>a.id===id)?.name??('#'+id);
-const names={wood:'ไม้',stone:'หิน',food:'อาหาร'};
+const names={wood:'ไม้',stone:'หิน',food:'อาหาร',charcoal:'ถ่านไม้',ironOre:'แร่เหล็ก',ironIngot:'เหล็กแท่ง',steelIngot:'เหล็กกล้า'};
 const stations={HAND:'ทำด้วยมือ',CRAFTING_TABLE_LV1:'โต๊ะคราฟต์ Lv1',FURNACE:'เตาหลอม'};
 const tiers=['Primitive','Basic','Advanced','Rare','Epic','Masterwork'];
 export const craftReasonLabel=reason=>({
@@ -16,15 +16,14 @@ export const craftReasonLabel=reason=>({
   ready:'พร้อมคราฟต์',off:'ไม่ได้เปิดฝึก', 'quota-complete':'ครบเป้าหมายแล้ว · ไม่รับงานเพิ่ม',
   'recipe-unknown':'ยังไม่รู้สูตร', 'recipe-knowledge':'หลักฐานสูตรไม่ถูกต้อง', 'training-state':'ข้อมูลแผนฝึกไม่ถูกต้อง',
   stage:'ช่วงวัยนี้ทำงานไม่ได้','actor-or-recipe':'เลือก Clone และสูตรก่อน',
-  station:'ยังไม่มีสถานีที่ต้องใช้', materials:'ไม้หรือหินไม่พอ','item-materials':'ของวัตถุดิบไม่ครบ หรือยังสวม/ติดผลต่อสู้อยู่',
+  station:'ยังไม่มีสถานีที่ต้องใช้', materials:'วัสดุไม่พอ','item-materials':'ของวัตถุดิบไม่ครบ หรือยังสวม/ติดผลต่อสู้อยู่',
   'craft-busy':'กำลังทำงานในคิวเดิม','bag-full':'กระเป๋าเต็ม',capacity:'พื้นที่เก็บของหรือคิวเต็ม',
   'combat-active':'กำลังต่อสู้',adventure:'อยู่ระหว่างการผจญภัย',survival:'รอให้ HP ≥70 · อิ่ม ≥70 · พลังงาน ≥65',
   housing:'สร้างที่พักให้พร้อมก่อน',reserve:'เก็บอาหาร/ไม้/หินสำรองให้พอก่อน',task:'ทำงานปัจจุบันให้เสร็จก่อน',
   'no-path':'เดินไปสถานีไม่ได้','craft-item-invalid':'ข้อมูลของวัตถุดิบไม่ถูกต้อง'
 }[reason]??'ยังไม่พร้อม: '+reason);
-const costText=r=>[...Object.entries(r.materials),...Object.entries(r.itemMaterials??{})]
-  .map(([id,n])=>(names[id]??ITEM_CATALOG[id]?.name??id)+' ×'+n).join(' · ');
-const title=r=>(ITEM_CATALOG[r.output]?.name??r.output)+' · T'+r.tier;
+const costText=r=>[...Object.entries(r.materials),...Object.entries(r.processedMaterials??{}),...Object.entries(r.itemMaterials??{})].map(([id,x])=>(names[id]??ITEM_CATALOG[id]?.name??id)+' ×'+x).join(' · ');
+const title=r=>(r.name??ITEM_CATALOG[r.output]?.name??r.output)+' · T'+r.tier;
 export function craftBookSnapshot(s,a,{stationId=null}={}){
   const processing=s.rustMaterials?.orders?.some(o=>o.agentId===a.id);
   return Object.freeze(recipeKnowledgeSnapshot(s,a).map(row=>{

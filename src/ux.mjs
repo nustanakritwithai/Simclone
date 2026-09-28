@@ -11,6 +11,7 @@ import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG,CRAFT_RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
 import {renderCraftRecipeBook,renderCraftItemInfo,renderCraftItemActions,renderCraftTraining,renderCraftTeaching} from './crafting-ui.mjs?v=0.5.0';
+import {materialSnapshot} from './material-economy.mjs?v=0.5.0';
 import {evaluateModularHouses,MODULAR_HOUSE_RULES} from './housing.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
@@ -89,7 +90,7 @@ function rustCatalog(s){
 function rustPanel(s,api){
  const selected=api.read().selected,actor=s.agents.find(a=>a.id===selected&&a.alive);
  if(!actor)return rustCatalog(s)+'<div class="life-summary"><div><small>Rust Survival · RS1–RS4</small><b>เลือก Clone ก่อน</b></div><div><small>ถ่านไม้ / สถานี</small><b>'+(s.rustMaterials?.charcoal??0)+' / '+(s.rustStations?.stations?.length??0)+'</b></div></div><p class="source-note">รายการด้านบนคือไอเทม Rust ที่เชื่อมเข้าระบบเกมจริงแล้ว เลือก Clone ที่ยังมีชีวิตเพื่อเริ่มคราฟต์ จัดกระเป๋า และสวมอุปกรณ์</p>';
- const items=s.rustPossessions?.items??[],bag=items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===actor.id);
+ const items=s.rustPossessions?.items??[],bag=items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===actor.id),bulk=materialSnapshot(s,actor);
  const equipped=s.rustPossessions?.equipment?.find(e=>e.agentId===actor.id&&equipmentSlotOf(e)==='hand')?.itemId??null;
  const craft=s.rustPossessions?.orders?.find(o=>o.agentId===actor.id),process=s.rustMaterials?.orders?.find(o=>o.agentId===actor.id);
  const drops=items.filter(i=>i.location?.kind==='drop'&&Math.abs(actor.x-i.location.x)+Math.abs(actor.y-i.location.y)<=1);
@@ -98,7 +99,7 @@ function rustPanel(s,api){
  const equippedItem=bag.find(i=>i.id===equipped);
  const plan=s.productionPlan,goal=plan?.goal;
  return '<section class="menu-hero rust-menu-hero">'+api.portrait(actor)+'<div><small>RUST CRAFTING V2 · CRAFTER IDENTITY</small><h3>'+escape(actor.name)+'</h3><span>'+bag.length+'/4 🎒 · '+(equippedItem?escape(ITEM_CATALOG[equippedItem.kind]?.name??equippedItem.kind):'มือว่าง')+'</span></div></section>'+
- '<div class="menu-metrics">'+menuMetric('fire','ถ่าน',s.rustMaterials?.charcoal??0)+menuMetric('hammer','สถานี',s.rustStations?.stations?.length??0)+menuMetric('bag','ของ',bag.length)+menuMetric('brain','RP1',plan?.enabled?'ON':'OFF',plan?.enabled?'live':'')+'</div>'+
+ '<div class="menu-metrics" data-metal-economy="'+actor.id+'">'+menuMetric('stone','แร่เหล็ก',bulk.ironOre)+menuMetric('hammer','เหล็ก',bulk.ironIngot)+menuMetric('hammer','เหล็กกล้า',bulk.steelIngot)+menuMetric('fire','ถ่าน',bulk.charcoal)+'</div>'+
  (craft||process?'<section class="menu-progress"><span>'+visualToken(craft?'hammer':'fire')+'</span><div><small>งานปัจจุบัน</small><b>'+(craft?escape(ITEM_CATALOG[CRAFT_RECIPE_CATALOG[craft.recipe]?.output]?.name??craft.recipe):'Charcoal')+'</b><div class="menu-progress-bar"><i style="width:'+Math.min(100,Math.round(((craft?.work??process?.work??0)/(craft?.required??process?.required??1))*100))+'%"></i></div></div></section>':'')+
  '<div class="menu-primary-actions"><button class="secondary visual-policy-action" data-ux="production-policy" data-enabled="'+(!plan?.enabled)+'">'+icon(plan?.enabled?'close':'brain')+'<span>'+(plan?.enabled?'หยุด RP1':'เปิด RP1')+'</span></button></div>'+
  bagHtml+renderCraftTraining(s,actor)+renderCraftRecipeBook(s,actor)+renderCraftTeaching(s,actor)+dropHtml+
@@ -231,10 +232,11 @@ export function installUX(api){
     for(const data of options)if(api.preview('PLACE_STATION',data).ok){chosen=data;break;}
     const result=chosen?api.execute('PLACE_STATION',chosen):{ok:false,message:'ไม่มีช่องว่างติดตัวที่ผ่านกฎการวาง'};api.toast(result.message);if(result.ok){api.save();openRust();}
   }
-  if(b.dataset.ux==='process-charcoal'){
+  if(['process-charcoal','process-iron','process-steel'].includes(b.dataset.ux)){
     const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected&&a.alive),requested=Number(b.dataset.station),dist=st=>a?Math.abs(a.x-st.x)+Math.abs(a.y-st.y):Infinity;
     const st=Number.isSafeInteger(requested)?(s.rustStations?.stations??[]).find(x=>x.id===requested&&x.complete&&x.kind==='FURNACE'):a?(s.rustStations?.stations??[]).filter(x=>x.complete&&x.kind==='FURNACE').sort((x,y)=>dist(x)-dist(y)||x.id-y.id)[0]:null;
-    const result=st&&a?api.execute('PROCESS_CHARCOAL',{agentId:a.id,stationId:st.id}):{ok:false,message:'เลือก Clone และเตาหลอมก่อน'};api.toast(result.message);if(result.ok){api.save();if(Number.isSafeInteger(requested))openStructure({type:'station',id:requested});else openRust();}
+    const commandType={'process-charcoal':'PROCESS_CHARCOAL','process-iron':'PROCESS_IRON','process-steel':'PROCESS_STEEL'}[b.dataset.ux];
+    const result=st&&a?api.execute(commandType,{agentId:a.id,stationId:st.id}):{ok:false,message:'เลือก Clone และเตาหลอมก่อน'};api.toast(result.message);if(result.ok){api.save();if(Number.isSafeInteger(requested))openStructure({type:'station',id:requested});else openRust();}
   }
   if(b.dataset.ux==='pickup-rust'){const result=api.execute('PICKUP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openRust();}}
   if(b.dataset.ux==='systems-rust')openRust();
@@ -565,10 +567,10 @@ export function installUX(api){
    $('dialog').dataset.kind='structure';$('dialog').dataset.structure='station:'+st.id;renderHUD();return;
   }
   if(st.kind==='FURNACE'){
-   const process=s.rustMaterials?.orders?.find(o=>o.agentId===selected),craft=s.rustPossessions?.orders?.find(o=>o.agentId===selected);
-   api.openDialog('เตาหลอม','FURNACE · #'+st.id,'<section class="structure-hero">'+visualToken('fire')+'<div><small>PROCESSING</small><h3>เตาหลอม</h3><span>Charcoal '+(s.rustMaterials?.charcoal??0)+'</span></div></section>'+
-    '<div class="menu-metrics">'+menuMetric('wood','Wood',s.stock.wood)+menuMetric('fire','Charcoal',s.rustMaterials?.charcoal??0)+'</div>'+
-    '<div class="structure-actions"><button class="primary visual-policy-action" data-ux="process-charcoal" data-station="'+st.id+'" '+(!actor||craft||process||s.stock.wood<2?'disabled':'')+'>'+icon('fire')+'<span>Wood 2 → Charcoal 1</span></button></div>');
+   const process=s.rustMaterials?.orders?.find(o=>o.agentId===selected),craft=s.rustPossessions?.orders?.find(o=>o.agentId===selected),m=actor?materialSnapshot(s,actor):{wood:0,charcoal:0,ironOre:0,ironIngot:0,steelIngot:0},busy=!actor||craft||process;
+   api.openDialog('เตาหลอม','FURNACE · #'+st.id,'<section class="structure-hero">'+visualToken('fire')+'<div><small>PROCESSING</small><h3>เตาหลอม</h3><span>Ore '+m.ironOre+' · Iron '+m.ironIngot+' · Steel '+m.steelIngot+'</span></div></section>'+
+    '<div class="menu-metrics" data-furnace-materials="'+st.id+'">'+menuMetric('wood','ไม้',m.wood)+menuMetric('fire','ถ่าน',m.charcoal)+menuMetric('stone','แร่เหล็ก',m.ironOre)+menuMetric('hammer','เหล็กกล้า',m.steelIngot)+'</div>'+
+    '<div class="structure-actions"><button class="primary visual-policy-action" data-ux="process-charcoal" data-station="'+st.id+'" '+(busy||m.wood<2?'disabled':'')+'>'+icon('fire')+'<span>ไม้ 2 → ถ่าน 1</span></button><button class="primary visual-policy-action" data-ux="process-iron" data-station="'+st.id+'" '+(busy||m.ironOre<2||m.charcoal<1?'disabled':'')+'>'+icon('hammer')+'<span>แร่เหล็ก 2 + ถ่าน 1 → เหล็ก 1</span></button><button class="primary visual-policy-action" data-ux="process-steel" data-station="'+st.id+'" '+(busy||m.ironIngot<2||m.charcoal<2?'disabled':'')+'>'+icon('hammer')+'<span>เหล็ก 2 + ถ่าน 2 → เหล็กกล้า 1</span></button></div>');
    $('dialog').dataset.kind='structure';$('dialog').dataset.structure='station:'+st.id;renderHUD();return;
   }
   const house=houses.find(h=>h.cells.some(cell=>cell.x===st.x&&cell.y===st.y));

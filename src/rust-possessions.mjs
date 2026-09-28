@@ -6,6 +6,7 @@ import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,STARTER_RECIPE_IDS,recipeById,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
 import {availableStationKinds,stationForRecipe} from './rust-stations.mjs?v=0.5.0';
+import {METAL_ECONOMY_VERSION,materialMissing,consumeMaterialSet} from './material-economy.mjs?v=0.5.0';
 export const RUST_POSSESSIONS_VERSION='RS2-0.2';
 export const RUST_POSSESSION_LIMITS=Object.freeze({bag:4,items:128,orders:12});
 export const createRustPossessions=()=>({version:RUST_POSSESSIONS_VERSION,nextItem:1,nextOrder:1,items:[],equipment:[],orders:[]});
@@ -45,14 +46,14 @@ function checkCraft(s,{agentId,recipeId,stationId=null}={}){
   const station=stationForRecipe(s,recipeId,a,stationId);
   if(r.station!==CRAFT_STATIONS.HAND&&!station)return {ok:false,reason:'station',station:r.station};
   const stock=resourceStock(s,a),check=craftability({stock},recipeId,{stationKinds:availableStationKinds(s)});if(!check.ok)return check;
-  if(selected.some(i=>!validateCraftedItem(i,s.seed)))return {ok:false,reason:'craft-item-invalid'};
-  return {ok:true,p,a,r,station,stock,selected};
+  const processedMissing=materialMissing(s,a,r.processedMaterials??{});if(processedMissing===null)return {ok:false,reason:'materials'};if(Object.keys(processedMissing).length)return {ok:false,reason:'materials',missing:processedMissing};
+  if(selected.some(i=>!validateCraftedItem(i,s.seed)))return {ok:false,reason:'craft-item-invalid'};return {ok:true,p,a,r,station,stock,selected};
 }
 export function craftPreview(s,data={}){
   const check=checkCraft(s,data);if(!check.ok)return check;
   const {r,station,selected}=check;
   return {ok:true,recipeId:r.id,output:r.output,tier:r.tier,station:r.station,stationId:station?.id??null,
-    materials:{...r.materials},itemMaterials:{...r.itemMaterials},ingredientIds:selected.map(i=>i.id),work:r.work};
+    materials:{...r.materials},processedMaterials:{...(r.processedMaterials??{})},itemMaterials:{...r.itemMaterials},ingredientIds:selected.map(i=>i.id),work:r.work};
 }
 export function queueCraft(s,data={}){
   const check=checkCraft(s,data);if(!check.ok)return check;
@@ -60,12 +61,12 @@ export function queueCraft(s,data={}){
   const id=p.nextOrder,craftSpec=createCraftSpec({worldSeed:s.seed,orderId:id,creatorId:a.id,recipeId:r.id,mastery:craftFamilyMastery(a,r.id)});
   // Only audit receipts survive escrow. Selected item IDs are no longer spendable.
   const reservedItems=selected.map(i=>({itemId:i.id,kind:i.kind,createdBy:i.createdBy}));
-  const order={id,agentId:a.id,recipe:r.id,stationId:station?.id??null,work:0,required:r.work,startedTick:s.tick,lastWorkedTick:s.tick,
-    reserved:{...r.materials},recipeKnowledge:RECIPE_KNOWLEDGE_VERSION,craftSpec,reservedItems};
+  const processed=consumeMaterialSet(s,a,r.processedMaterials??{});if(!processed.ok)return processed;
+  const order={id,agentId:a.id,recipe:r.id,stationId:station?.id??null,work:0,required:r.work,startedTick:s.tick,lastWorkedTick:s.tick,reserved:{...r.materials},materialEconomy:METAL_ECONOMY_VERSION,reservedProcessed:{...(r.processedMaterials??{})},recipeKnowledge:RECIPE_KNOWLEDGE_VERSION,craftSpec,reservedItems};
   for(const [key,n] of Object.entries(r.materials))stock[key]-=n;
   const consumed=new Set(selected.map(i=>i.id));if(consumed.size)p.items=p.items.filter(i=>!consumed.has(i.id));
   p.nextOrder++;p.orders.push(order);
-  return {ok:true,orderId:id,recipeId:r.id,stationId:order.stationId,reserved:{...order.reserved},ingredientIds:[...consumed],workRequired:r.work};
+  return {ok:true,orderId:id,recipeId:r.id,stationId:order.stationId,reserved:{...order.reserved},reservedProcessed:{...order.reservedProcessed},ingredientIds:[...consumed],workRequired:r.work};
 }
 /** Pure pending-order check shared by restore and the live executor. */
 export function validateCraftOrder(s,o){
@@ -79,8 +80,8 @@ export function validateCraftOrder(s,o){
   if(validateRecipeKnowledge(s,a).length||!knowsCraftRecipe(s,a,o.recipe))return ['Rust craft permission'];
   const receipts=(a.knowledgeState.recipes?.entries??[]).flatMap(e=>[...e.receipts,...(e.retiredThrough?[e.retiredThrough]:[])]);
   if(receipts.some(done=>done.orderId>=o.id||done.tick>o.startedTick))return ['Rust craft watermark'];
-  if(o.required!==r.work||Object.keys(o.reserved).length!==Object.keys(r.materials).length||
-    Object.entries(r.materials).some(([k,n])=>o.reserved[k]!==n))return ['Rust craft escrow'];
+  if(o.required!==r.work||Object.keys(o.reserved).length!==Object.keys(r.materials).length||Object.entries(r.materials).some(([k,n])=>o.reserved[k]!==n))return ['Rust craft escrow'];
+  if(o.materialEconomy===undefined){if(o.reservedProcessed!==undefined)return ['Rust craft material economy'];}else if(o.materialEconomy!==METAL_ECONOMY_VERSION||!sameMaterials(o.reservedProcessed??{},r.processedMaterials??{}))return ['Rust craft material economy'];
   if(!Number.isSafeInteger(o.startedTick)||o.startedTick<a.bornTick||o.startedTick>s.tick||
     !Number.isSafeInteger(o.lastWorkedTick)||o.lastWorkedTick<o.startedTick||o.lastWorkedTick>s.tick||
     o.work>o.lastWorkedTick-o.startedTick)return ['Rust craft chronology'];

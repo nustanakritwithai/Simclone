@@ -35,7 +35,7 @@ test('new worlds own bounded Rust ledgers and validate',()=>{
   const s=createWorld(230926);
   assert.equal(s.rustPossessions.version,'RS2-0.2');
   assert.equal(s.rustStations.version,'RS3-0.3');
-  assert.equal(s.rustMaterials.version,'RS4-0.2');
+  assert.equal(s.rustMaterials.version,'RS4-0.3');
   assert.deepEqual(validate(s),[]);
 });
 
@@ -45,6 +45,7 @@ test('same-version saves without Rust extensions migrate to empty ledgers',()=>{
   assert.equal(restored.rustPossessions.items.length,0);
   assert.equal(restored.rustStations.stations.length,0);
   assert.equal(restored.rustMaterials.charcoal,0);
+  assert.deepEqual({ironOre:restored.rustMaterials.ironOre,ironIngot:restored.rustMaterials.ironIngot,steelIngot:restored.rustMaterials.steelIngot},{ironOre:0,ironIngot:0,steelIngot:0});
   assert.deepEqual(validate(restored),[]);
 });
 

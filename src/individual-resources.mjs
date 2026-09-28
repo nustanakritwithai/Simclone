@@ -1,3 +1,4 @@
+import {BULK_MATERIAL_KEYS,BULK_MATERIAL_CAPS} from './material-schema.mjs?v=0.5.0';
 /** IC3 resource routing. Each unit has ONE writer/store; world totals are read-only sums.
  * Legacy worlds keep s.stock. Independent saves keep balances in the existing Rust
  * material ledger, never in both places. This module owns the versioned extension.
@@ -9,8 +10,9 @@ export const INDEPENDENT_MODE=Object.freeze({kind:'independent',version:'IC3-1'}
 export const PERSONAL_MATERIAL_VERSION='IC3-materials-1';
 export const HOUSEHOLD_MATERIAL_VERSION='IC6C-household-materials-1';
 export const RESOURCE_KEYS=Object.freeze(['food','wood','stone']);
-const EMPTY=Object.freeze({food:0,wood:0,stone:0,charcoal:0});
-const MATERIAL_KEYS=Object.freeze(['food','wood','stone','charcoal']);
+const EMPTY=Object.freeze({food:0,wood:0,stone:0,charcoal:0,ironOre:0,ironIngot:0,steelIngot:0});
+const MATERIAL_KEYS=Object.freeze([...RESOURCE_KEYS,...BULK_MATERIAL_KEYS]);
+const validMaterialBalance=b=>RESOURCE_KEYS.every(k=>Number.isFinite(b?.[k])&&b[k]>=0&&b[k]<=999)&&BULK_MATERIAL_KEYS.every(k=>Number.isSafeInteger(b?.[k])&&b[k]>=0&&b[k]<=BULK_MATERIAL_CAPS[k]);
 export const isIndependent=s=>s?.worldMode?.kind==='independent';
 export const materialStock=(s,agentOrId)=>isIndependent(s)
  ?s.rustMaterials?.personalStores?.find(b=>b.ownerId===(typeof agentOrId==='object'?agentOrId?.id:agentOrId))??EMPTY:s.stock;
@@ -33,7 +35,7 @@ export function activateHouseholdStore(s,houseId,ownerId){
  let store=householdStore(s,houseId);
  if(store)return {ok:true,changed:false,store};
  const personal=materialStock(s,ownerId);
- store={houseId,ownerId,food:personal.food??0,wood:personal.wood??0,stone:personal.stone??0,charcoal:personal.charcoal??0};
+ store={houseId,ownerId,...Object.fromEntries(MATERIAL_KEYS.map(k=>[k,personal[k]??0]))};
  for(const k of MATERIAL_KEYS)if(Object.prototype.hasOwnProperty.call(personal,k))personal[k]=0;
  s.rustMaterials.householdStores.push(store);
  s.rustMaterials.householdStores.sort((a,b)=>Number(a.houseId.slice(1))-Number(b.houseId.slice(1))||a.houseId.localeCompare(b.houseId));
@@ -82,7 +84,7 @@ export function joinHouseholdResources(s,agentId,houseId){
  if(!store)return {ok:false,reason:'household-store'};
  const next={};
  for(const k of MATERIAL_KEYS){
-   const cap=k==='charcoal'?128:999;
+   const cap=BULK_MATERIAL_CAPS[k]??999;
    next[k]=(store[k]??0)+(personal[k]??0);
    if(next[k]>cap)return {ok:false,reason:'household-store-full',resource:k};
  }
@@ -93,7 +95,7 @@ export function joinHouseholdResources(s,agentId,houseId){
 export function addPersonalStore(s,a,grant=EMPTY){
  if(!isIndependent(s))return;
  if(s.rustMaterials.personalStores.some(b=>b.ownerId===a.id))throw new Error('Duplicate personal store');
- s.rustMaterials.personalStores.push({ownerId:a.id,food:grant.food??0,wood:grant.wood??0,stone:grant.stone??0,charcoal:0});
+ s.rustMaterials.personalStores.push({ownerId:a.id,food:grant.food??0,wood:grant.wood??0,stone:grant.stone??0,...Object.fromEntries(BULK_MATERIAL_KEYS.map(k=>[k,0]))});
 }
 /** A child depends on an evidenced, living adult ancestor, never an invented stranger. */
 export function guardianOf(s,a){
@@ -145,13 +147,13 @@ export function validateIndependentWorld(s){
   return e;
  }
  if(s.version!==INDEPENDENT_SAVE_VERSION||s.worldMode.version!==INDEPENDENT_MODE.version)bad('Independent mode/version');
- if(RESOURCE_KEYS.some(k=>s.stock?.[k]!==0)||s.rustMaterials?.charcoal!==0)bad('Independent world stock must be empty');
+ if(RESOURCE_KEYS.some(k=>s.stock?.[k]!==0)||BULK_MATERIAL_KEYS.some(k=>s.rustMaterials?.[k]!==0))bad('Independent world stock must be empty');
  if(s.rustMaterials?.personalVersion!==PERSONAL_MATERIAL_VERSION||!Array.isArray(s.rustMaterials?.personalStores))return [...e,'Personal material extension'];
  if(s.rustMaterials?.householdVersion!==HOUSEHOLD_MATERIAL_VERSION||!Array.isArray(s.rustMaterials?.householdStores))return [...e,'Household material extension'];
  if(!Array.isArray(s.agents)||!Array.isArray(s.archive)||s.agents.concat(s.archive).some(a=>!a||typeof a!=='object'))return [...e,'Independent people'];
  const people=[...s.agents,...s.archive],ids=new Set(people.map(a=>a.id)),seen=new Set();
  for(const b of s.rustMaterials.personalStores){
-  if(!b||!ids.has(b.ownerId)||seen.has(b.ownerId)||RESOURCE_KEYS.some(k=>!Number.isFinite(b[k])||b[k]<0||b[k]>999)||!Number.isInteger(b?.charcoal)||b.charcoal<0||b.charcoal>128)bad('Personal material balance');
+  if(!b||!ids.has(b.ownerId)||seen.has(b.ownerId)||!validMaterialBalance(b))bad('Personal material balance');
   seen.add(b?.ownerId);
  }
  if(seen.size!==ids.size||[...ids].some(id=>!seen.has(id)))bad('Missing personal material owner');
@@ -162,7 +164,7 @@ export function validateIndependentWorld(s){
  const houses=new Set();
  for(const b of s.rustMaterials.householdStores){
   if(!b||typeof b.houseId!=='string'||!/^H\d+$/.test(b.houseId)||houses.has(b.houseId)||!ids.has(b.ownerId)||
-    RESOURCE_KEYS.some(k=>!Number.isFinite(b[k])||b[k]<0||b[k]>999)||!Number.isInteger(b.charcoal)||b.charcoal<0||b.charcoal>128)bad('Household material balance');
+    !validMaterialBalance(b))bad('Household material balance');
   houses.add(b?.houseId);
  }
  for(const a of people){
