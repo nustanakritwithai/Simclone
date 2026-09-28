@@ -16,17 +16,25 @@ Canonical human-readable contract:
 
 ## Preflight
 
-Run only against the exact integration candidate being evaluated:
+Run only against the exact integration candidate being evaluated. Until canonical owners are supplied for the hard-stop dependencies, preflight MUST remain UNKNOWN.
 
 ~~~bash
-RC4_EXPECTED_HEAD="$(git rev-parse HEAD)" node verification/rc4/preflight.mjs
+RC4_EXPECTED_HEAD="$(git rev-parse HEAD)" \
+RC4_RESERVATION_MODULE="src/<approved-reservation-authority>.mjs" \
+RC4_MARKET_BINDING_MODULE="src/<approved-market-binding>.mjs" \
+RC4_ARRIVAL_EVIDENCE_MODULE="src/<approved-navigation-evidence>.mjs" \
+node verification/rc4/preflight.mjs
 ~~~
+
+The three module paths are declarations of already-approved authorities/bindings. Supplying a test-only or hidden adapter is a VIOL, not a way to unlock the gate.
 
 Exit meanings:
 
-- 0 — preflight SAT only.
+- 0 — preflight SAT only; inspect `masterGateResult` separately.
 - 1 — preflight VIOL.
 - 2 — preflight UNKNOWN.
+
+`masterGateResult` is SAT only when the static/declaration-level hard-stop dependencies checked by preflight are present. It still does not replace executable Phase-0 and Phase-1..15 proof.
 
 A preflight SAT is **not** RC4 integration SAT. The script deliberately reports:
 
@@ -45,6 +53,17 @@ Before the Integration Lead supplies one assembled exact candidate:
 - do not wire a hidden test adapter;
 - do not modify production runtime to satisfy this suite;
 - do not convert donor-level SAT into integration SAT.
+
+Current Master Gate locks:
+
+- #179 repaired exact head must gain exact-head Verify evidence and remain contract/source aligned;
+- Home Market must own Listing/BuyOffer reference mutation;
+- market `tradeRange` must have a canonical source;
+- Navigation must own verified arrival/position evidence;
+- Reservation must have a canonical writer, lifecycle, persistence and global ACTIVE view;
+- BuyOffer must gain canonical persistence/procurement matching;
+- post-settlement Listing/Reservation transitions must be defined;
+- outer commit must stage authoritative mutations and replace the live root once.
 
 Known preparation-time contract attack:
 
@@ -78,5 +97,7 @@ Capture the new merged-main SHA and rerun:
 - Pages/deployment;
 - exact deployed-byte checks;
 - required public desktop/mobile browser proof.
+
+Machine-readable matrix now contains **171** checks including 13 Phase-0 Master Gate readiness rows. All unexecuted rows remain UNKNOWN.
 
 UNKNOWN is never PASS.
