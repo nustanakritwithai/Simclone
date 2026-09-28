@@ -6,7 +6,7 @@
  * or profession state. Pricing is deliberately delegated to the pricing/ledger
  * authority through a bounded pricing-evidence request.
  */
-import {customerMarketDecision} from './rc4-customer-market-policy.mjs';
+import {customerMarketDecision} from './rc4-customer-market-policy.mjs?v=0.5.0';
 
 export const RC4_MERCHANT_AI_VERSION='RC4-merchant-ai-0.1';
 export const RC4_MERCHANT_AI_RULES=Object.freeze({
