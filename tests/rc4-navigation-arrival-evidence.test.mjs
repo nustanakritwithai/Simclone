@@ -74,3 +74,38 @@ test('RC4 B3: closed market and task not ending in trade range do not start a jo
 test('RC4 B3: arrival evidence is explicitly ephemeral across save/load',()=>{
   assert.equal(NAVIGATION_ARRIVAL_PERSISTENCE,'EPHEMERAL_REGENERATE_AFTER_LOAD');
 });
+
+
+test('RC4 B3 provenance: byte-identical cloned journey cannot continue observation',()=>{
+  const s=createWorld(230926);for(const a of s.agents){a.satiety=95;a.energy=95;}
+  const a=findWalkingTask(s);assert.ok(a);
+  const market={id:'HM:NAV-CAP-J',open:true,x:a.task.x,y:a.task.y,tradeRange:1};
+  const begun=beginNavigationArrivalJourney(s,{agentId:a.id,market});assert.equal(begun.state,'SAT');
+  const cloned=structuredClone(begun.journey);
+  const r=observeNavigationArrivalJourney(s,cloned);
+  assert.equal(r.state,'VIOL');assert.equal(r.reason,'journey-provenance');
+});
+
+test('RC4 B3 provenance: fully forged matching evidence cannot verify even if every field matches',()=>{
+  const s=createWorld(230926);for(const a of s.agents){a.satiety=95;a.energy=95;}
+  const a=findWalkingTask(s);assert.ok(a);
+  const market={id:'HM:NAV-CAP-E',open:true,x:a.task.x,y:a.task.y,tradeRange:1};
+  let j=beginNavigationArrivalJourney(s,{agentId:a.id,market}).journey,r=null;
+  for(let i=0;i<400&&!r?.arrived;i++){step(s,1);r=observeNavigationArrivalJourney(s,j);assert.equal(r.state,'SAT',r.reason);j=r.journey;}
+  assert.equal(r.arrived,true);
+  const forged=structuredClone(r.evidence);
+  assert.deepEqual(forged,r.evidence);
+  const rejected=verifyNavigationArrivalEvidence(s,forged,{agentId:a.id,market});
+  assert.equal(rejected.state,'VIOL');assert.equal(rejected.reason,'evidence-provenance');
+  assert.equal(verifyNavigationArrivalEvidence(s,r.evidence,{agentId:a.id,market}).state,'SAT');
+});
+
+test('RC4 B3 provenance: capability is bound to exact live world identity',()=>{
+  const s=createWorld(230926);for(const a of s.agents){a.satiety=95;a.energy=95;}
+  const a=findWalkingTask(s);assert.ok(a);
+  const market={id:'HM:NAV-CAP-W',open:true,x:a.task.x,y:a.task.y,tradeRange:1};
+  const begun=beginNavigationArrivalJourney(s,{agentId:a.id,market});assert.equal(begun.state,'SAT');
+  const copiedWorld=structuredClone(s);
+  const rejected=observeNavigationArrivalJourney(copiedWorld,begun.journey);
+  assert.equal(rejected.state,'VIOL');assert.equal(rejected.reason,'journey-provenance');
+});

@@ -6,7 +6,7 @@
  */
 import {taskValid} from './survival.mjs?v=0.5.0';
 
-export const NAVIGATION_ARRIVAL_VERSION='RC4-navigation-arrival/1';
+export const NAVIGATION_ARRIVAL_VERSION='RC4-navigation-arrival/2-capability';
 export const NAVIGATION_ARRIVAL_VERIFICATION='NAVIGATION_VERIFIED';
 export const NAVIGATION_ARRIVAL_PRODUCER='SIMCLONE_SURVIVAL_NAVIGATION';
 export const NAVIGATION_ARRIVAL_PERSISTENCE='EPHEMERAL_REGENERATE_AFTER_LOAD';
@@ -18,6 +18,19 @@ const positive=v=>Number.isSafeInteger(v)&&v>0;
 const clone=v=>structuredClone(v);
 const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const fail=(reason,extra={})=>({state:'VIOL',reason,...extra});
+
+const issuedJourneys=new WeakMap();
+const issuedEvidence=new WeakMap();
+function issueJourney(world,journey){
+  const frozen=Object.freeze(clone(journey));
+  issuedJourneys.set(frozen,world);
+  return frozen;
+}
+function issueEvidence(world,evidence){
+  const frozen=Object.freeze(clone(evidence));
+  issuedEvidence.set(frozen,world);
+  return frozen;
+}
 
 function stableText(value){
   if(value===null||typeof value!=='object')return JSON.stringify(value);
@@ -114,7 +127,7 @@ export function beginNavigationArrivalJourney(world,{agentId,market}={}){
   };
   journey.journeyId=journeyIdFor(journey);
   const errors=validateNavigationJourney(world,journey);
-  return errors.length?fail('journey', {errors}):{state:'SAT',journey:Object.freeze(clone(journey))};
+  return errors.length?fail('journey', {errors}):{state:'SAT',journey:issueJourney(world,journey)};
 }
 
 function makeEvidence(world,journey,agent){
@@ -130,7 +143,7 @@ function makeEvidence(world,journey,agent){
     steps:journey.route.length
   };
   evidence.evidenceId=evidenceIdFor(evidence);
-  return Object.freeze(evidence);
+  return issueEvidence(world,evidence);
 }
 
 /**
@@ -138,6 +151,7 @@ function makeEvidence(world,journey,agent){
  * Repeated observation while the engine has not moved is a deterministic no-op.
  */
 export function observeNavigationArrivalJourney(world,rawJourney){
+  if(!rawJourney||issuedJourneys.get(rawJourney)!==world)return fail('journey-provenance');
   const journey=clone(rawJourney),errors=validateNavigationJourney(world,journey);
   if(errors.length)return fail('journey',{errors});
   if(!int(world?.tick)||world.tick<journey.lastObservedTick)return fail('tick-regression');
@@ -146,7 +160,7 @@ export function observeNavigationArrivalJourney(world,rawJourney){
   const previous=journey.nextIndex===0?{x:journey.startX,y:journey.startY}:journey.route[journey.nextIndex-1];
   if(agent.x===previous.x&&agent.y===previous.y){
     journey.lastObservedTick=world.tick;
-    return {state:'SAT',arrived:false,moved:false,journey:Object.freeze(journey)};
+    return {state:'SAT',arrived:false,moved:false,journey:issueJourney(world,journey)};
   }
   const next=journey.route[journey.nextIndex];
   if(!next||agent.x!==next.x||agent.y!==next.y)return fail('navigation-deviation');
@@ -156,10 +170,10 @@ export function observeNavigationArrivalJourney(world,rawJourney){
   const expected=journey.route.slice(journey.nextIndex+1);
   if(stableText(remaining)!==stableText(expected))return fail('navigation-path-drift');
   journey.nextIndex++;journey.lastX=agent.x;journey.lastY=agent.y;journey.lastObservedTick=world.tick;
-  if(journey.nextIndex<journey.route.length)return {state:'SAT',arrived:false,moved:true,journey:Object.freeze(journey)};
+  if(journey.nextIndex<journey.route.length)return {state:'SAT',arrived:false,moved:true,journey:issueJourney(world,journey)};
   if(distance(agent,{x:journey.marketX,y:journey.marketY})>journey.tradeRange)return fail('out-of-range');
   const evidence=makeEvidence(world,journey,agent);
-  return {state:'SAT',arrived:true,moved:true,journey:Object.freeze(journey),evidence};
+  return {state:'SAT',arrived:true,moved:true,journey:issueJourney(world,journey),evidence};
 }
 
 /**
@@ -167,6 +181,7 @@ export function observeNavigationArrivalJourney(world,rawJourney){
  * Plain {verified:true} or caller-authored lookalikes fail closed.
  */
 export function verifyNavigationArrivalEvidence(world,evidence,{agentId,market}={}){
+  if(!evidence||issuedEvidence.get(evidence)!==world)return fail('evidence-provenance');
   if(!marketOk(market))return fail('market-projection');
   if(market.open!==true)return fail('market-closed');
   if(!evidence||evidence.version!==NAVIGATION_ARRIVAL_VERSION||

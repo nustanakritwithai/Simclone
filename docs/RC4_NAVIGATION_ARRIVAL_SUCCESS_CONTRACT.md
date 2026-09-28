@@ -1,5 +1,23 @@
 # RC4 Navigation Arrival Evidence — Success Contract
 
+## Provenance repair override — 2026-09-29
+
+The first B3 candidate proved route shape and deterministic hashes but those facts were caller-reconstructible. The repaired producer therefore adds an ephemeral module-private capability boundary.
+
+- issued Journey objects are registered in a private `WeakMap` against the exact live world object observed;
+- issued Arrival Evidence objects are registered the same way;
+- observe/verify require exact object identity plus exact world identity;
+- byte-identical clones, recomputed hashes, caller-authored lookalikes, or evidence bound to another world object fail provenance checks;
+- the capability is intentionally non-serializable, matching `EPHEMERAL_REGENERATE_AFTER_LOAD`;
+- no nonce, secret string, wall clock, random value, second path ledger, or second position writer is introduced.
+
+B8 must pass the actual live authoritative root object to the verifier. A fabricated alternate root cannot transfer capability to the live root.
+
+UNKNOWN is never PASS.
+
+---
+
+
 Status vocabulary: SAT / VIOL / UNKNOWN. UNKNOWN is never PASS.
 
 ## Scope
