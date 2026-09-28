@@ -1,5 +1,58 @@
 # RC4 Pricing & Merchant Ledger — Success Contract
 
+## Provenance boundary repair override — Red Team round 2 (2026-09-28)
+
+**This section supersedes every conflicting statement below about a plain Trade Kernel result being sufficient to become VERIFIED / COMMITTED accounting evidence.**
+
+Red Team proved that receipt shape + valid fingerprint + valid integrityFingerprint + a matching caller-supplied `state.tradeReplay` are still forgeable together. Therefore structural correctness is necessary but is not proof that canonical `settleTradeAtomic()` actually executed.
+
+### Locked rule
+
+`src/merchant-ledger.mjs` must never promote a caller-supplied non-duplicate result to VERIFIED / COMMITTED by itself.
+
+For a structurally valid non-duplicate plain result, including a fully forged matching replay state:
+
+```js
+{ state: 'UNKNOWN', reason: 'trade-commit-provenance' }
+```
+
+`applyTradeKernelCommitToLedger()` must return the original Ledger unchanged.
+
+The following are explicitly insufficient provenance and may not turn UNKNOWN into SAT inside #179:
+
+- `ok:true`
+- `duplicate:false`
+- recomputed valid `fingerprint`
+- recomputed valid `integrityFingerprint`
+- matching caller-supplied `tradeReplay`
+- `verified:true` / `committed:true`
+- `verification:'VERIFIED'` / `commitStatus:'COMMITTED'`
+- synthetic nonce/signature/flag owned by #179
+- caller-supplied verifier callback
+
+This repair intentionally refuses to invent a hidden adapter or a second transaction authority.
+
+### Canonical integration dependency
+
+A future RC4 Integration Contract / Trade Kernel boundary must tie Merchant Ledger ingestion to the actual canonical transaction execution path itself. Until that trusted provenance exists, non-duplicate transaction ingestion is UNKNOWN and cannot mutate purchases, sales, Revenue, COGS or Realized Profit.
+
+Pure accounting arithmetic remains independently testable: `resolveCostBasis()` and `calculateSaleAccounting()` may prove item-level basis and `Revenue = 100 / COGS = 70 / Realized Profit = 30` without claiming that a caller-supplied Trade result committed.
+
+A structurally valid `duplicate:true` result remains a safe accounting no-op and may return SAT/duplicate because it cannot increase accounting state.
+
+### Required adversarial additions
+
+1. forged receipt + recomputed valid fingerprint + recomputed valid integrityFingerprint + forged matching `tradeReplay` => UNKNOWN / no Ledger mutation;
+2. forged purchase followed by forged sale => Revenue / COGS / Profit remain unchanged;
+3. changed buyer/seller + recomputed hashes + matching forged replay => no accounting;
+4. changed `itemInstanceId` / `itemIds` + recomputed hashes + matching forged replay => no accounting;
+5. tampered fingerprint/integrityFingerprint remain structural VIOL;
+6. Revenue / COGS / Profit arithmetic regression remains SAT independently of provenance.
+
+UNKNOWN is never PASS. This repair does not authorize merge. Red Team must re-run on the new exact head.
+
+---
+
 ## Repair override — Trade Kernel #177 direct compatibility (2026-09-28)
 
 This section supersedes any older conflicting Listing / receipt-boundary wording below.
