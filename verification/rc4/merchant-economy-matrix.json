@@ -1,0 +1,1449 @@
+{
+  "schema": "RC4-merchant-economy-acceptance-matrix/1",
+  "repository": "nustanakritwithai/Simclone",
+  "preparedFromMain": "1b60b13394c11bd7b03d10227919f4bb509b02df",
+  "rule": "SAT/VIOL/UNKNOWN only; UNKNOWN is never PASS",
+  "exactIntegrationHead": null,
+  "rows": [
+    {
+      "id": "P1-01",
+      "phase": 1,
+      "kind": "vertical",
+      "objective": "A produces one physical item through canonical production/Rust authority",
+      "evidenceRequired": "canonical production command/order + Rust item snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P1-02",
+      "phase": 1,
+      "kind": "invariant",
+      "objective": "Produced item has canonical id and createdBy=A",
+      "evidenceRequired": "item snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P1-03",
+      "phase": 1,
+      "kind": "invariant",
+      "objective": "Production provenance retained",
+      "evidenceRequired": "craft/production provenance snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P1-04",
+      "phase": 1,
+      "kind": "attack",
+      "objective": "No mint/clone/remint workaround used",
+      "evidenceRequired": "source + event/provenance evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P1-05",
+      "phase": 1,
+      "kind": "persistence",
+      "objective": "Save/load preserves exact item identity and provenance",
+      "evidenceRequired": "serialize/restore bytes + item snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P2-01",
+      "phase": 2,
+      "kind": "vertical",
+      "objective": "B qualifies Merchant through canonical profession authority",
+      "evidenceRequired": "qualification evidence + career history",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P2-02",
+      "phase": 2,
+      "kind": "vertical",
+      "objective": "B owns/controls a completed personal home",
+      "evidenceRequired": "canonical home authority snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P2-03",
+      "phase": 2,
+      "kind": "vertical",
+      "objective": "Home Market attaches to the existing home",
+      "evidenceRequired": "home + market snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P2-04",
+      "phase": 2,
+      "kind": "invariant",
+      "objective": "Home Market creates no second housing/building authority",
+      "evidenceRequired": "before/after housing/building bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P2-05",
+      "phase": 2,
+      "kind": "invariant",
+      "objective": "Market attachment does not change housing capacity",
+      "evidenceRequired": "before/after capacity",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P2-06",
+      "phase": 2,
+      "kind": "invariant",
+      "objective": "Market owns no spendable wallet",
+      "evidenceRequired": "market schema + wallet authority snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P2-07",
+      "phase": 2,
+      "kind": "invariant",
+      "objective": "Market owns no physical item",
+      "evidenceRequired": "market schema + Rust ownership snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P2-08",
+      "phase": 2,
+      "kind": "attack",
+      "objective": "Duplicate market create is idempotent",
+      "evidenceRequired": "replay create + market count",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P2-09",
+      "phase": 2,
+      "kind": "persistence",
+      "objective": "Old save missing Home Market initializes deterministically",
+      "evidenceRequired": "pre-RC4 save load result",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P3-01",
+      "phase": 3,
+      "kind": "vertical",
+      "objective": "B creates canonical Buy Offer",
+      "evidenceRequired": "Buy Offer snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P3-02",
+      "phase": 3,
+      "kind": "vertical",
+      "objective": "Before A->B trade: A owns item and B does not",
+      "evidenceRequired": "Rust ownership snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P3-03",
+      "phase": 3,
+      "kind": "vertical",
+      "objective": "A->B trade commits canonically at 70",
+      "evidenceRequired": "Trade Kernel result + receipt",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P3-04",
+      "phase": 3,
+      "kind": "invariant",
+      "objective": "B money decreases 70 and A increases 70",
+      "evidenceRequired": "wallet snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P3-05",
+      "phase": 3,
+      "kind": "invariant",
+      "objective": "Money conservation holds across all canonical accounts",
+      "evidenceRequired": "totalCurrency before/after",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P3-06",
+      "phase": 3,
+      "kind": "invariant",
+      "objective": "Same physical item id moves A->B exactly once",
+      "evidenceRequired": "Rust item identity before/after",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P3-07",
+      "phase": 3,
+      "kind": "invariant",
+      "objective": "createdBy/provenance unchanged across trade",
+      "evidenceRequired": "item provenance before/after",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-01",
+      "phase": 4,
+      "kind": "contract",
+      "objective": "Listing exposes canonical id",
+      "evidenceRequired": "listing snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-02",
+      "phase": 4,
+      "kind": "contract",
+      "objective": "Listing revision is safe integer >=1",
+      "evidenceRequired": "listing snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-03",
+      "phase": 4,
+      "kind": "contract",
+      "objective": "Listing points to correct market/B/item and integer price",
+      "evidenceRequired": "listing snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-04",
+      "phase": 4,
+      "kind": "attack",
+      "objective": "One physical item cannot have two OPEN listings",
+      "evidenceRequired": "second create attempt + listing store",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-05",
+      "phase": 4,
+      "kind": "attack",
+      "objective": "Replay create cannot add duplicate OPEN row",
+      "evidenceRequired": "same create replay + listing store",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-06",
+      "phase": 4,
+      "kind": "attack",
+      "objective": "Duplicate listing id with conflicting payload rejected",
+      "evidenceRequired": "conflicting create + listing store",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-07",
+      "phase": 4,
+      "kind": "attack",
+      "objective": "Authoritative listing mutation increments revision",
+      "evidenceRequired": "transition/update snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-08",
+      "phase": 4,
+      "kind": "attack",
+      "objective": "Stale listing revision rejected",
+      "evidenceRequired": "reservation/listing revision mismatch",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-09",
+      "phase": 4,
+      "kind": "persistence",
+      "objective": "Save/load retains listing id/revision/uniqueness",
+      "evidenceRequired": "serialize/restore listing state",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P4-10",
+      "phase": 4,
+      "kind": "lifecycle",
+      "objective": "CLOSED/CANCELED/FILLED release lock exactly once",
+      "evidenceRequired": "lifecycle transitions + uniqueness check",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P5-01",
+      "phase": 5,
+      "kind": "vertical",
+      "objective": "C has a real item need",
+      "evidenceRequired": "canonical need snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P5-02",
+      "phase": 5,
+      "kind": "knowledge",
+      "objective": "C discovers only known/observed markets and listings",
+      "evidenceRequired": "customer knowledge + decision evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P5-03",
+      "phase": 5,
+      "kind": "attack",
+      "objective": "Leaked global market truth is ignored",
+      "evidenceRequired": "decision with worldMarkets/worldListings leak",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P5-04",
+      "phase": 5,
+      "kind": "attack",
+      "objective": "Global price omniscience is ignored",
+      "evidenceRequired": "decision with global price leak",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P6-01",
+      "phase": 6,
+      "kind": "vertical",
+      "objective": "C creates travel goal for selected market",
+      "evidenceRequired": "intent/goal evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P6-02",
+      "phase": 6,
+      "kind": "vertical",
+      "objective": "C walks through canonical navigation",
+      "evidenceRequired": "position/path trace",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P6-03",
+      "phase": 6,
+      "kind": "invariant",
+      "objective": "No teleport occurs",
+      "evidenceRequired": "consecutive position/path evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P6-04",
+      "phase": 6,
+      "kind": "attack",
+      "objective": "Forged arrival fails",
+      "evidenceRequired": "forged evidence + unchanged trade state",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P6-05",
+      "phase": 6,
+      "kind": "attack",
+      "objective": "Out-of-range purchase fails",
+      "evidenceRequired": "position/range + unchanged authorities",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P6-06",
+      "phase": 6,
+      "kind": "attack",
+      "objective": "Closed market purchase fails",
+      "evidenceRequired": "closed market + unchanged authorities",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P6-07",
+      "phase": 6,
+      "kind": "attack",
+      "objective": "Stale listing purchase fails",
+      "evidenceRequired": "stale revision + unchanged authorities",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P7-01",
+      "phase": 7,
+      "kind": "vertical",
+      "objective": "Before B->C trade: B owns item and C does not",
+      "evidenceRequired": "Rust ownership snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P7-02",
+      "phase": 7,
+      "kind": "contract",
+      "objective": "Reservation is ACTIVE and listingRevision matches current revision",
+      "evidenceRequired": "reservation/listing snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P7-03",
+      "phase": 7,
+      "kind": "contract",
+      "objective": "Global reservation view is complete and non-overlapping",
+      "evidenceRequired": "activeReservations evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P7-04",
+      "phase": 7,
+      "kind": "contract",
+      "objective": "Both parties alive, buyer in range, buyer funded",
+      "evidenceRequired": "validation evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P7-05",
+      "phase": 7,
+      "kind": "vertical",
+      "objective": "B->C trade commits canonically at 100",
+      "evidenceRequired": "Trade Kernel result + receipt",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P7-06",
+      "phase": 7,
+      "kind": "invariant",
+      "objective": "C money decreases 100 and B increases 100",
+      "evidenceRequired": "wallet snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P7-07",
+      "phase": 7,
+      "kind": "invariant",
+      "objective": "Money conservation holds after customer purchase",
+      "evidenceRequired": "totalCurrency before/after",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P7-08",
+      "phase": 7,
+      "kind": "invariant",
+      "objective": "Same exact physical item moves B->C once",
+      "evidenceRequired": "Rust ownership/provenance snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P8-01",
+      "phase": 8,
+      "kind": "accounting",
+      "objective": "Merchant Ledger Revenue=100",
+      "evidenceRequired": "ledger snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P8-02",
+      "phase": 8,
+      "kind": "accounting",
+      "objective": "Merchant Ledger COGS=70",
+      "evidenceRequired": "ledger snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P8-03",
+      "phase": 8,
+      "kind": "accounting",
+      "objective": "Merchant Ledger Realized Profit=30",
+      "evidenceRequired": "ledger snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P8-04",
+      "phase": 8,
+      "kind": "authority",
+      "objective": "Career reads profit projection only",
+      "evidenceRequired": "career + ledger source/state evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P8-05",
+      "phase": 8,
+      "kind": "attack",
+      "objective": "Career cannot write Revenue/COGS/Profit",
+      "evidenceRequired": "source audit + mutation attempt",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-01",
+      "phase": 9,
+      "kind": "career",
+      "objective": "Canonical VERIFIED+COMMITTED non-duplicate transaction progresses real Merchant party",
+      "evidenceRequired": "career before/after + receipt",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-02",
+      "phase": 9,
+      "kind": "attack",
+      "objective": "forged object does not progress Career",
+      "evidenceRequired": "career before/after byte comparison",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-03",
+      "phase": 9,
+      "kind": "attack",
+      "objective": "malformed receipt does not progress Career",
+      "evidenceRequired": "career before/after byte comparison",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-04",
+      "phase": 9,
+      "kind": "attack",
+      "objective": "Merchant not buyer/seller does not progress Career",
+      "evidenceRequired": "career before/after byte comparison",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-05",
+      "phase": 9,
+      "kind": "attack",
+      "objective": "duplicate=true does not progress Career",
+      "evidenceRequired": "career before/after byte comparison",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-06",
+      "phase": 9,
+      "kind": "attack",
+      "objective": "UNKNOWN result does not progress Career",
+      "evidenceRequired": "career before/after byte comparison",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-07",
+      "phase": 9,
+      "kind": "attack",
+      "objective": "missing verification does not progress Career",
+      "evidenceRequired": "career before/after byte comparison",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-08",
+      "phase": 9,
+      "kind": "attack",
+      "objective": "missing commit status does not progress Career",
+      "evidenceRequired": "career before/after byte comparison",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-09",
+      "phase": 9,
+      "kind": "attack",
+      "objective": "tampered fingerprint does not progress Career",
+      "evidenceRequired": "career before/after byte comparison",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P9-10",
+      "phase": 9,
+      "kind": "attack",
+      "objective": "tampered integrityFingerprint does not progress Career",
+      "evidenceRequired": "career before/after byte comparison",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-01",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "immediate replay cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-02",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "same transaction id same payload cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-03",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "same id different payload cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-04",
+      "phase": 10,
+      "kind": "replay",
+      "objective": ">32 unique transactions then replay first cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-05",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "replay after save/load cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-06",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "tampered receipt cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-07",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "tampered fingerprint cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-08",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "tampered integrityFingerprint cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-09",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "changed buyer cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-10",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "changed seller cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-11",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "changed itemIds cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-12",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "changed quantity cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-13",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "changed price cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-14",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "changed market cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-15",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "changed listing cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-16",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "changed reservation cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P10-17",
+      "phase": 10,
+      "kind": "replay",
+      "objective": "changed eventId cannot duplicate authoritative mutation",
+      "evidenceRequired": "money/item/ledger/career/replay bytes",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-01",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "insufficient money leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-02",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "wallet validation failure leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-03",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "wallet transfer failure leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-04",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "item missing leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-05",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "item equipped/nontradable leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-06",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "item transfer failure leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-07",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "seller dead leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-08",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "buyer dead leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-09",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "buyer bag overflow leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-10",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "listing stale leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-11",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "reservation stale leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-12",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "overlapping reservation same market leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-13",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "overlapping reservation another market leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-14",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "duplicate reservation id leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-15",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "incomplete global reservation view leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-16",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "market closed leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P11-17",
+      "phase": 11,
+      "kind": "atomic-failure",
+      "objective": "buyer outside range leaves source authoritative state byte-identical",
+      "evidenceRequired": "full authoritative root before/after",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-01",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Wallet balances survive save/load",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-02",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Wallet replay receipts survive save/load",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-03",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Item ownership/provenance survives save/load",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-04",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Home Market survives save/load",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-05",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Listings and revision survive save/load",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-06",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Buy Offers survive save/load",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-07",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Reservations survive save/load",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-08",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Trade replay survives save/load",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-09",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Merchant Ledger survives save/load",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-10",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Career progression survives save/load",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P12-11",
+      "phase": 12,
+      "kind": "persistence",
+      "objective": "Old committed transaction replay after reload is full no-op",
+      "evidenceRequired": "serialize/restore + authoritative snapshots",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P13-01",
+      "phase": 13,
+      "kind": "migration",
+      "objective": "Pre-RC4 save loads",
+      "evidenceRequired": "pre-RC4 fixture + first/second restore evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P13-02",
+      "phase": 13,
+      "kind": "migration",
+      "objective": "Missing RC4 components initialize deterministically",
+      "evidenceRequired": "pre-RC4 fixture + first/second restore evidence",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P13-03",
+      "phase": 13,
+      "kind": "migration",
+      "objective": "No duplicate wallet/account",
+      "evidenceRequired": "pre-RC4 fixture + first/second restore evidence",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P13-04",
+      "phase": 13,
+      "kind": "migration",
+      "objective": "No duplicate item",
+      "evidenceRequired": "pre-RC4 fixture + first/second restore evidence",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P13-05",
+      "phase": 13,
+      "kind": "migration",
+      "objective": "No duplicate market",
+      "evidenceRequired": "pre-RC4 fixture + first/second restore evidence",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P13-06",
+      "phase": 13,
+      "kind": "migration",
+      "objective": "No duplicate transaction",
+      "evidenceRequired": "pre-RC4 fixture + first/second restore evidence",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P13-07",
+      "phase": 13,
+      "kind": "migration",
+      "objective": "No silent money creation beyond approved bootstrap",
+      "evidenceRequired": "pre-RC4 fixture + first/second restore evidence",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P13-08",
+      "phase": 13,
+      "kind": "migration",
+      "objective": "Migration is one-shot and second migration byte-stable",
+      "evidenceRequired": "pre-RC4 fixture + first/second restore evidence",
+      "immutableOnFail": true,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-D-01",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "desktop Merchant home/storefront/OPEN-CLOSED visible",
+      "evidenceRequired": "browser screenshot + DOM",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-D-02",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "desktop Listing and Buy Offer visible",
+      "evidenceRequired": "browser screenshot + DOM",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-D-03",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "desktop Merchant identity visible",
+      "evidenceRequired": "browser screenshot + DOM",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-D-04",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "desktop Customer physically walks and arrives",
+      "evidenceRequired": "browser trace + screenshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-D-05",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "desktop transaction feedback appears only after VERIFIED canonical result",
+      "evidenceRequired": "UI/runtime evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-D-06",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "desktop stock and wallet visibly change after commit",
+      "evidenceRequired": "before/after UI + canonical snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-D-07",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "desktop Revenue/COGS/Profit visible and match ledger",
+      "evidenceRequired": "UI + ledger snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-D-08",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "desktop proof uses real clicks/commands, not direct JS state injection",
+      "evidenceRequired": "browser test source audit",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-M-01",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "mobile Merchant home/storefront/OPEN-CLOSED visible",
+      "evidenceRequired": "browser screenshot + DOM",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-M-02",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "mobile Listing and Buy Offer visible",
+      "evidenceRequired": "browser screenshot + DOM",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-M-03",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "mobile Merchant identity visible",
+      "evidenceRequired": "browser screenshot + DOM",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-M-04",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "mobile Customer physically walks and arrives",
+      "evidenceRequired": "browser trace + screenshots",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-M-05",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "mobile transaction feedback appears only after VERIFIED canonical result",
+      "evidenceRequired": "UI/runtime evidence",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-M-06",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "mobile stock and wallet visibly change after commit",
+      "evidenceRequired": "before/after UI + canonical snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-M-07",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "mobile Revenue/COGS/Profit visible and match ledger",
+      "evidenceRequired": "UI + ledger snapshot",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P14-M-08",
+      "phase": 14,
+      "kind": "browser",
+      "objective": "mobile proof uses real clicks/commands, not direct JS state injection",
+      "evidenceRequired": "browser test source audit",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P15-01",
+      "phase": 15,
+      "kind": "regression",
+      "objective": "full npm test",
+      "evidenceRequired": "exact-head CI / dedicated proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P15-02",
+      "phase": 15,
+      "kind": "regression",
+      "objective": "cache/import-map invariant",
+      "evidenceRequired": "exact-head CI / dedicated proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P15-03",
+      "phase": 15,
+      "kind": "regression",
+      "objective": "SWA7",
+      "evidenceRequired": "exact-head CI / dedicated proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P15-04",
+      "phase": 15,
+      "kind": "regression",
+      "objective": "Active Observation",
+      "evidenceRequired": "exact-head CI / dedicated proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P15-05",
+      "phase": 15,
+      "kind": "regression",
+      "objective": "Adventure Hunt/Combat",
+      "evidenceRequired": "exact-head CI / dedicated proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P15-06",
+      "phase": 15,
+      "kind": "regression",
+      "objective": "Independent gameplay",
+      "evidenceRequired": "exact-head CI / dedicated proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P15-07",
+      "phase": 15,
+      "kind": "regression",
+      "objective": "RC2 crafting",
+      "evidenceRequired": "exact-head CI / dedicated proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P15-08",
+      "phase": 15,
+      "kind": "regression",
+      "objective": "RC3.1 Blueprint",
+      "evidenceRequired": "exact-head CI / dedicated proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P15-09",
+      "phase": 15,
+      "kind": "regression",
+      "objective": "RC3.2 metal economy",
+      "evidenceRequired": "exact-head CI / dedicated proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    },
+    {
+      "id": "P15-10",
+      "phase": 15,
+      "kind": "regression",
+      "objective": "independent RC4 Red Team",
+      "evidenceRequired": "exact-head CI / dedicated proof",
+      "immutableOnFail": false,
+      "result": "UNKNOWN",
+      "reason": "Master Gate not open / no exact integrated candidate evidence"
+    }
+  ]
+}
