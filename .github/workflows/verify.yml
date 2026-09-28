@@ -77,3 +77,14 @@ jobs:
           name: blueprint-candidate-evidence-${{ github.sha }}
           path: evidence-ui/blueprint-native/
           if-no-files-found: warn
+
+      - name: Verify RC3.2 native Iron and Steel economy
+        run: python tests/rc3-metal-smoke.py --native
+
+      - name: Upload RC3.2 candidate metal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-candidate-evidence-${{ github.sha }}
+          path: evidence-ui/metal-native/
+          if-no-files-found: warn

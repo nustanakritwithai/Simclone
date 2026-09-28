@@ -24,6 +24,7 @@ import {claimVerifiedAdventureLoot,validateAdventureLootClaimState} from './adve
 import {laborAuthoritySignal} from './kingdom-labor-authority.mjs?v=0.5.0';
 import {applyWorldResourceRegeneration} from './worldsim-resource-authority.mjs?v=0.5.0';
 import {ensureRustState,rustCommand,placementPreview,pendingRustWork,advanceRustWork,rustToolMultiplier,rustGrantAdventureLoot,releaseRustOnDeath,validateRustState,rustSummary} from './rust-runtime.mjs?v=0.5.0';
+import {ironOreYieldForMining,addMaterialSet} from './material-economy.mjs?v=0.5.0';
 import {housingCapacity,unfinishedHousing,evaluateModularHouses,pendingPlacements} from './housing.mjs?v=0.5.0';
 import {pendingPersonalPlacements} from './individual-housing.mjs?v=0.5.0';
 import {placementIdFor} from './rust-stations.mjs?v=0.5.0';
@@ -523,7 +524,7 @@ function execute(s,a){
     const result=advanceRustWork(s,a,workRate);
     if(!result.ok){if(result.reason!=='already-worked')a.task=null;return;}
     t.work=result.work??t.work;
-    if(result.completed){event(s,'craft',a.name+(t.kind==='CRAFT'?' คราฟต์ของสำเร็จ':' แปรรูปถ่านไม้สำเร็จ'),a.id);a.task=null;}
+    if(result.completed){event(s,'craft',a.name+(t.kind==='CRAFT'?' คราฟต์ของสำเร็จ':' แปรรูปวัสดุสำเร็จ'),a.id);a.task=null;}
     return;
   }
   t.work+=workRate;
@@ -563,10 +564,12 @@ function execute(s,a){
     if(t.work>=Math.max(4,14-level(a.skills[t.kind]))){
       const amount=Math.min(n.amount,2+Math.floor(level(a.skills[t.kind])/2),999-stock[n.type]);
       if(amount>0){
+        const extractedBefore=n.max-n.amount;
         n.amount-=amount;s.stats.gathered+=amount;
         // A hungry forager eats ONE freshly harvested unit. No free meal is created.
         const meal=t.kind==='FORAGE'&&a.satiety<RULES.hungry&&amount>=1?1:0;
         stock[n.type]+=amount-meal;
+        if(t.kind==='MINE'){const ironOre=ironOreYieldForMining({worldSeed:s.seed,nodeId:n.id,extractedBefore,amount});if(ironOre>0)addMaterialSet(s,a,{ironOre});}
         if(meal)a.satiety=clamp(a.satiety+RULES.mealSatiety);
         gain(s,a,t.kind,n.id);
         if(!recordResourceDiscovery(a,n,s.tick,{action:t.kind,amount}))throw new Error('Knowledge evidence write failed');
@@ -850,7 +853,7 @@ function migrateSave(s,{sameWorld=false}={}){
   if(s?.worldBounds?.profile==='same-world'){ensureWildMonsterWorld(s);migrateWildMonsterLifecycleState(s);}
   migrateAutonomousAdventurePolicy(s);
   const sourceVersion=s.version;
-  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureSocialState(s);syncHouseholdResources(s);ensureSettlementState(s);ensureGovernanceState(s);return s;} // additive social/settlement/governance state migrates deterministically.
+  if(sourceVersion===INDEPENDENT_SAVE_VERSION){migrateSkillProvenance(s);ensureRustState(s);ensureSocialState(s);syncHouseholdResources(s);ensureSettlementState(s);ensureGovernanceState(s);return s;} // additive social/settlement/governance/material state migrates deterministically.
   // Rust RS1-RS4 is an optional 0.5.0 extension; older 0.5.0 saves gain empty bounded ledgers.
   if(sourceVersion===SAVE_VERSION){migrateSkillProvenance(s);ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);return s;}
   if(sourceVersion===PREVIOUS_SAVE_VERSION){

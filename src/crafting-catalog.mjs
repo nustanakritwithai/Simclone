@@ -1,3 +1,4 @@
+import {BULK_MATERIAL_KEYS} from './material-schema.mjs?v=0.5.0';
 /** Rust Survival RS1 — bounded crafting catalog adapted to Simclone authority. */
 const deepFreeze=value=>{
   if(value&&typeof value==='object'&&!Object.isFrozen(value)){
@@ -41,15 +42,9 @@ export const RECIPE_CATALOG=deepFreeze({
  * All crafting authorities resolve through recipeById / CRAFT_RECIPE_CATALOG. */
 export const STARTER_RECIPE_IDS=deepFreeze(Object.keys(RECIPE_CATALOG));
 const advanced={};
-for(const kind of ['STONE_AXE','STONE_PICKAXE','HAMMER']){
-  const base=RECIPE_CATALOG[kind];
-  for(let tier=base.tier+1;tier<=5;tier++){
-    const id=kind+'_T'+tier,previous=tier===base.tier+1?kind:kind+'_T'+(tier-1);
-    advanced[id]={id,output:kind,quantity:1,category:'tool',station:'CRAFTING_TABLE_LV1',tier,
-      materials:{wood:(base.materials.wood??0)+tier*2,stone:(base.materials.stone??0)+tier},
-      work:base.work+tier*8,itemMaterials:{[kind]:1},unlock:{recipeId:previous,completions:2}};
-  }
-}
+const toolNames=Object.freeze({STONE_AXE:['ขวานหิน','ขวานหินเสริม','ขวานเหล็ก','ขวานเหล็กกล้า','ขวานเหล็กกล้าชั้นสูง','ขวานมาสเตอร์เวิร์ก'],STONE_PICKAXE:['อีเต้อหิน','อีเต้อหินเสริม','อีเต้อเหล็ก','อีเต้อเหล็กกล้า','อีเต้อเหล็กกล้าชั้นสูง','อีเต้อมาสเตอร์เวิร์ก'],HAMMER:['ค้อน','ค้อนเสริม','ค้อนเหล็ก','ค้อนเหล็กกล้า','ค้อนเหล็กกล้าชั้นสูง','ค้อนมาสเตอร์เวิร์ก']});
+const processedForTier=tier=>tier<2?{}:tier===2?{ironIngot:2}:{steelIngot:tier===3?2:tier===4?3:4};
+for(const kind of ['STONE_AXE','STONE_PICKAXE','HAMMER']){const base=RECIPE_CATALOG[kind];for(let tier=base.tier+1;tier<=5;tier++){const id=kind+'_T'+tier,previous=tier===base.tier+1?kind:kind+'_T'+(tier-1);advanced[id]={id,name:toolNames[kind][tier],output:kind,quantity:1,category:'tool',station:'CRAFTING_TABLE_LV1',tier,materials:{wood:(base.materials.wood??0)+tier*2,stone:(base.materials.stone??0)+tier},processedMaterials:processedForTier(tier),work:base.work+tier*8,itemMaterials:{[kind]:1},unlock:{recipeId:previous,completions:2}};}}
 const gearRecipes={
   HIDE_ARMOR:{source:'WOOD_WALL',materials:{wood:2},itemMaterials:{HIDE:1}},
   EMBER_BLADE:{source:'STONE_AXE',materials:{wood:4,stone:2},itemMaterials:{FIRE_CORE:1,EMBER_SHARD:1}},
@@ -77,6 +72,7 @@ export function validateCraftingCatalog(){
     if(r.id!==id||r.quantity!==1||!Number.isInteger(r.tier)||r.tier<0||r.tier>5||!ITEM_CATALOG[r.output]||!stations.has(r.station)||!cats.has(r.category)||!Number.isInteger(r.work)||r.work<1)errors.push('recipe:'+id);
     if(r.unlock&&(!CRAFT_RECIPE_CATALOG[r.unlock.recipeId]||CRAFT_RECIPE_CATALOG[r.unlock.recipeId].tier>=r.tier||!Number.isSafeInteger(r.unlock.completions)||r.unlock.completions<1))errors.push('unlock:'+id);
     if(r.itemMaterials&&Object.entries(r.itemMaterials).some(([kind,n])=>!Object.hasOwn(ITEM_CATALOG,kind)||!Number.isSafeInteger(n)||n<1||n>4))errors.push('item-materials:'+id);
+    if(r.processedMaterials&&Object.entries(r.processedMaterials).some(([kind,n])=>!BULK_MATERIAL_KEYS.includes(kind)||!Number.isSafeInteger(n)||n<1||n>8))errors.push('processed-materials:'+id);
     if(!r.materials||Object.entries(r.materials).some(([k,n])=>!['wood','stone'].includes(k)||!Number.isInteger(n)||n<1))errors.push('materials:'+id);
   }
   return errors;
