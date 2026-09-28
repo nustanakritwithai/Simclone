@@ -65,7 +65,7 @@
         <div>
           <span class="eyebrow" id="panel-kicker">HOME MARKET</span>
           <h1 id="panel-title">Mira's Goods</h1>
-          <p id="panel-subtitle">Home 12 · owner Mira</p>
+          <p id="panel-subtitle">Home 12 · owner Mira · OPEN</p>
         </div>
         <button class="icon-button" id="closeInspector" aria-label="Close inspector">×</button>
       </header>
@@ -77,62 +77,8 @@
       </div>
 
       <div class="panel-scroll" id="panelScroll">
-        <section class="panel-view active" data-view="market">
-          <div class="status-line">
-            <span class="pill open-pill">● OPEN</span>
-            <span class="muted">Market ID · market-mira</span>
-          </div>
-
-          <div class="metric-grid">
-            <article><span>Stock</span><strong>17</strong><small>canonical item refs</small></article>
-            <article><span>Revenue</span><strong>◎ 268</strong><small>verified sales</small></article>
-            <article><span>COGS</span><strong>◎ 171</strong><small>realized only</small></article>
-            <article><span>Profit</span><strong>◎ 97</strong><small>revenue − COGS</small></article>
-          </div>
-
-          <div class="section-title"><h2>Listings</h2><span>3 active</span></div>
-          <div class="card-list">
-            <button class="listing-card" data-intent="PURCHASE_INTENT" data-item="IRON_PICKAXE" data-price="38">
-              <span class="item-icon">⛏</span><span class="item-copy"><b>Iron Pickaxe</b><small>qty 3 · stock 3</small></span><span class="price">◎ 38 <small>/ ea</small></span>
-            </button>
-            <button class="listing-card" data-intent="PURCHASE_INTENT" data-item="CHARCOAL" data-price="7">
-              <span class="item-icon">◆</span><span class="item-copy"><b>Charcoal</b><small>qty 8 · stock 8</small></span><span class="price">◎ 7 <small>/ ea</small></span>
-            </button>
-            <button class="listing-card" data-intent="PURCHASE_INTENT" data-item="HIDE_ARMOR" data-price="64">
-              <span class="item-icon">🛡</span><span class="item-copy"><b>Hide Armor</b><small>qty 1 · stock 1</small></span><span class="price">◎ 64 <small>/ ea</small></span>
-            </button>
-          </div>
-
-          <div class="section-title"><h2>Buy offers</h2><span>2 open</span></div>
-          <div class="offer-list">
-            <article><span class="item-icon small">🪨</span><span><b>Iron Ore</b><small>want 10</small></span><strong>◎ 6 bid</strong></article>
-            <article><span class="item-icon small">🪵</span><span><b>Wood</b><small>want 20</small></span><strong>◎ 2 bid</strong></article>
-          </div>
-
-          <div class="authority-note">
-            <b>UI authority lock</b>
-            <span>Snapshot → display. Tap → command intent. No wallet, item, ledger, profession or market-state writes here.</span>
-          </div>
-        </section>
-
-        <section class="panel-view" data-view="merchant">
-          <div class="merchant-hero">
-            <div class="portrait">M</div>
-            <div><span class="eyebrow">PROFESSION</span><h2>Mira · Merchant</h2><p>Home 12 · Market owner</p></div>
-          </div>
-          <div class="metric-grid merchant-metrics">
-            <article><span>Transactions</span><strong>19</strong><small>verified commits</small></article>
-            <article><span>Revenue</span><strong>◎ 268</strong><small>ledger snapshot</small></article>
-            <article><span>COGS</span><strong>◎ 171</strong><small>ledger snapshot</small></article>
-            <article><span>Profit</span><strong>◎ 97</strong><small>realized</small></article>
-          </div>
-          <div class="section-title"><h2>Current stock</h2><span>17 items</span></div>
-          <div class="stock-chips"><span>⛏ Pickaxe ×3</span><span>◆ Charcoal ×8</span><span>🛡 Armor ×1</span><span>🪓 Axe ×5</span></div>
-          <div class="goal-card"><span class="goal-icon">◎</span><div><small>CURRENT MERCHANT GOAL</small><b>Restock Iron Pickaxe</b><p>Observed local demand > available listing stock.</p></div></div>
-          <button class="intent-button" data-intent="MARKET_CLOSE_INTENT">Request close shop</button>
-          <p class="intent-hint">Prototype emits intent only; visible status remains unchanged until an authoritative snapshot returns.</p>
-        </section>
-
+        <section class="panel-view active" data-view="market" id="marketView"></section>
+        <section class="panel-view" data-view="merchant" id="merchantView"></section>
         <section class="panel-view" data-view="intent">
           <div class="section-title"><h2>Prototype intent log</h2><span>UI-local</span></div>
           <div id="intentLog" class="intent-log">
@@ -145,14 +91,14 @@
 
     <div class="transaction-toast" id="transactionToast" role="status" aria-live="polite">
       <div class="tx-check">✓</div>
-      <div><span>VERIFIED TRANSACTION</span><b>Nok → Mira · Iron Pickaxe ×1</b><small>Total ◎ 38 · transaction tx-041</small></div>
+      <div><span>VERIFIED TRANSACTION</span><b id="txSummary"></b><small id="txMeta"></small></div>
       <button id="closeToast" aria-label="Dismiss transaction">×</button>
     </div>
 
     <nav class="mobile-dock" aria-label="prototype mobile controls">
       <button data-open="market">▦<span>Market</span></button>
       <button data-open="merchant">♙<span>Merchant</span></button>
-      <button data-demo="transaction">✓<span>Transaction</span></button>
+      <button data-open="intent">≡<span>Intent</span></button>
     </nav>
   </main>
   <script src="prototype.js"></script>

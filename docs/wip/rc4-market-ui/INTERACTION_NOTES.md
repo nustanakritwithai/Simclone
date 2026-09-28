@@ -8,11 +8,11 @@
 4. Inspector remains a side sheet so the world and physical location stay visible.
 5. Close button returns immediately to unobstructed world view.
 
-The UI must never create a Market because a house was tapped. No valid market snapshot means no market storefront UI.
+The UI never creates a Market because a house was tapped. An unresolved market ID renders explicit `UNKNOWN`; it never falls back to another shop.
 
 ## Market Inspector
 
-Read-only display fields:
+Every selected market re-renders from its own snapshot:
 
 - owner
 - market status
@@ -23,13 +23,13 @@ Read-only display fields:
 - COGS
 - realized profit
 
-Listing tap may submit a purchase command intent. It does not decrement buyer money, remove seller stock, reserve an item, or show success until the trade authority returns a verified result.
+A listing can submit `PURCHASE_INTENT` only when the selected market is `OPEN`, the listing is `ACTIVE`, and stock evidence is positive. CLOSED and UNKNOWN render listing controls disabled. Clicking a listing never decrements buyer money, seller stock, reservations or ledger values.
 
 Buy Offer rows are read-only in this prototype. A future accepted command may create/modify offers, but that command remains domain-authoritative outside UI.
 
 ## Merchant Inspector
 
-Read-only display fields:
+Read-only display fields are re-bound to the selected market owner:
 
 - `Profession: Merchant`
 - verified transaction count
@@ -39,41 +39,41 @@ Read-only display fields:
 - current canonical stock summary
 - current merchant goal/proposal
 
-The prototype “Request close shop” control emits `MARKET_CLOSE_INTENT`; the visible snapshot remains unchanged. Production must use the Integration Lead-approved canonical command name.
+The “Request close shop” control emits `MARKET_CLOSE_INTENT` only for an OPEN market. For CLOSED/UNKNOWN it is disabled. The visible status remains unchanged until a new authoritative snapshot arrives.
 
 ## Transaction feedback
 
-Only show the success treatment after a VERIFIED transaction result. The feedback contains:
+There is no player-facing “fake success” button and no query-string shortcut that can display a verified sale.
 
-- buyer
-- seller
-- item
-- quantity
-- total price
-- optional transaction ID for drill-down
+The UI exposes one receive-only boundary:
 
-Do not infer success from an accepted button tap or from an optimistic local state.
+```text
+rc4:transaction-result event
+→ validate complete result
+→ require verificationStatus === VERIFIED
+→ render success feedback
+```
+
+The feedback contains buyer, seller, item, quantity, total price and transaction ID. Missing fields, UNKNOWN, SAT-like strings, ACCEPTED intents, failures and unverified results are rejected without showing success.
 
 ## Required state semantics
 
-`OPEN` and `CLOSED` must be expressed with text and icon/shape as well as color. `UNKNOWN` must not be coerced into either status; render it explicitly as `UNKNOWN`/unavailable and disable transaction actions.
+`OPEN`, `CLOSED` and `UNKNOWN` are explicit states. UNKNOWN is not coerced to OPEN/CLOSED. Status uses text/icon/shape as well as color.
 
-A listing with stale/invalid/unknown verification must not be presented as purchasable. A command rejection must leave the snapshot unchanged and show a bounded rejection message.
+A stale/invalid/unknown listing must not be presented as purchasable. Command rejection leaves snapshot values unchanged.
 
 ## Android landscape
 
 Reference layout targets 915×412 and remains useful down to ~800×360:
 
 - inspector width ≤ 46vw;
-- world remains visible behind/beside the inspector;
+- world remains visible behind/beside inspector;
 - primary touch targets ≥ 44px;
 - panel body scrolls independently;
 - close control remains fixed in header;
-- persistent bottom controls are compact and do not cover the center of world space.
+- persistent bottom controls stay compact and never include a transaction-success shortcut.
 
 ## Integration adapter boundary
-
-Recommended one-way data flow:
 
 ```text
 canonical runtime snapshot
@@ -85,7 +85,7 @@ user tap
 → UI command intent
 → Integration Lead command bridge
 → domain validation / settlement
-→ next canonical snapshot or verified result
+→ authoritative snapshot or verified transaction result
 → UI
 ```
 
