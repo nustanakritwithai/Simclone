@@ -98,7 +98,7 @@ export function transitionBuyOfferInCollection(collection,offerId,status){
 
 /**
  * Producer matching is proposal-only. It cannot reserve money/items or commit Trade.
- * V1 matches one exact physical item to a one-unit BuyOffer; canonical Listing,
+ * V1 freezes exact physical item ids for the requested quantity; canonical Listing,
  * Reservation and Trade authorities remain separate.
  */
 export function proposeProducerBuyOfferMatch(offer,{producerId,itemInstanceId,itemInstanceIds}={}){
