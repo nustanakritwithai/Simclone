@@ -1,12 +1,29 @@
 /** RC4 canonical merchant BuyOffer. Reference/intention only; owns no money or item. */
 import {isCanonicalMoney} from './merchant-pricing.mjs?v=0.5.0';
 
-export const MERCHANT_BUY_OFFER_VERSION='RC4-buy-offer/2';
+export const MERCHANT_BUY_OFFER_VERSION='RC4-buy-offer/3';
+export const BUY_OFFER_COLLECTION_VERSION='RC4-buy-offer-collection/1';
 export const BUY_OFFER_STATUS=Object.freeze({OPEN:'OPEN',CLOSED:'CLOSED',CANCELED:'CANCELED',FILLED:'FILLED'});
 const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const validRefId=v=>typeof v==='string'&&v.length>0&&v.length<=80&&idPattern.test(v);
 const positiveInt=v=>Number.isSafeInteger(v)&&v>0;
 const validKind=validRefId;
+const clone=v=>structuredClone(v);
+
+function stableText(value){
+  if(value===null||typeof value!=='object')return JSON.stringify(value);
+  if(Array.isArray(value))return '['+value.map(stableText).join(',')+']';
+  return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+stableText(value[k])).join(',')+'}';
+}
+function hash32(text,seed=0x811c9dc5){
+  let h=seed>>>0;
+  for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}
+  return h.toString(16).padStart(8,'0');
+}
+export function buyOfferIdFor({marketId,buyerId,itemKind,quantityWanted,unitPrice,createdTick}={}){
+  const text=stableText({marketId,buyerId,itemKind,quantityWanted,unitPrice,createdTick});
+  return 'BO:'+hash32(text)+hash32(text,0x9e3779b9);
+}
 
 export function validateBuyOffer(row){
   const e=[];
@@ -34,4 +51,95 @@ export function transitionBuyOffer(offer,status){
   if(offer.status===status)return {state:'SAT',duplicate:true,offer:Object.freeze({...offer})};
   if(offer.status!==BUY_OFFER_STATUS.OPEN)return {state:'VIOL',reason:'transition'};
   return {state:'SAT',duplicate:false,offer:Object.freeze({...offer,status})};
+}
+
+export const createBuyOfferCollection=()=>({version:BUY_OFFER_COLLECTION_VERSION,buyOffers:[]});
+
+export function validateBuyOfferCollection(collection){
+  if(!collection||collection.version!==BUY_OFFER_COLLECTION_VERSION||!Array.isArray(collection.buyOffers))return ['buy-offer-collection'];
+  const e=[],ids=new Set();
+  for(const row of collection.buyOffers){
+    if(validateBuyOffer(row).length)e.push('buy-offer');
+    if(ids.has(row?.offerId))e.push('duplicate-id');else ids.add(row?.offerId);
+    if(row&&row.offerId!==buyOfferIdFor(row))e.push('non-deterministic-id');
+  }
+  return [...new Set(e)];
+}
+
+export function createBuyOfferInCollection(collection,input={}){
+  const errors=validateBuyOfferCollection(collection);if(errors.length)return {state:'VIOL',reason:'buy-offer-collection',errors,collection:clone(collection)};
+  const deterministicId=buyOfferIdFor(input);
+  if(input.offerId!==undefined&&input.offerId!==deterministicId)return {state:'VIOL',reason:'offer-id',collection:clone(collection)};
+  const made=createBuyOffer({...input,offerId:deterministicId});if(made.state!=='SAT')return {...made,collection:clone(collection)};
+  const existing=collection.buyOffers.find(x=>x.offerId===made.offer.offerId);
+  if(existing){
+    if(stableText(existing)===stableText(made.offer))return {state:'SAT',duplicate:true,offer:Object.freeze({...existing}),collection:clone(collection)};
+    return {state:'VIOL',reason:'offer-id-conflict',collection:clone(collection)};
+  }
+  const next=clone(collection);next.buyOffers.push({...made.offer});next.buyOffers.sort((a,b)=>a.offerId.localeCompare(b.offerId));
+  return {state:'SAT',duplicate:false,offer:made.offer,collection:next};
+}
+
+export function transitionBuyOfferInCollection(collection,offerId,status){
+  const errors=validateBuyOfferCollection(collection);if(errors.length)return {state:'VIOL',reason:'buy-offer-collection',errors,collection:clone(collection)};
+  const index=collection.buyOffers.findIndex(x=>x.offerId===offerId);if(index<0)return {state:'VIOL',reason:'buy-offer-missing',collection:clone(collection)};
+  const changed=transitionBuyOffer(collection.buyOffers[index],status);if(changed.state!=='SAT')return {...changed,collection:clone(collection)};
+  if(changed.duplicate)return {...changed,collection:clone(collection)};
+  const next=clone(collection);next.buyOffers[index]={...changed.offer};
+  return {state:'SAT',duplicate:false,offer:changed.offer,collection:next};
+}
+
+/**
+ * Producer matching is proposal-only. It cannot reserve money/items or commit Trade.
+ * V1 matches one exact physical item to a one-unit BuyOffer; canonical Listing,
+ * Reservation and Trade authorities remain separate.
+ */
+export function proposeProducerBuyOfferMatch(offer,{producerId,itemInstanceId}={}){
+  const errors=validateBuyOffer(offer);if(errors.length)return {state:'VIOL',reason:'buy-offer',errors};
+  if(offer.status!==BUY_OFFER_STATUS.OPEN)return {state:'VIOL',reason:'offer-not-open'};
+  if(offer.quantityWanted!==1)return {state:'UNKNOWN',reason:'v1-exact-single-item-only'};
+  if(!positiveInt(producerId)||producerId===offer.buyerId)return {state:'VIOL',reason:'producer'};
+  if(!positiveInt(itemInstanceId))return {state:'VIOL',reason:'itemInstanceId'};
+  const key=stableText({offerId:offer.offerId,producerId,itemInstanceId});
+  const matchId='BOM:'+hash32(key)+hash32(key,0x9e3779b9);
+  const listingId='PROC:'+hash32(matchId+'|LISTING')+hash32(matchId+'|LISTING',0x9e3779b9);
+  return {state:'SAT',proposal:Object.freeze({
+    authoritative:false,
+    kind:'BUY_OFFER_PRODUCER_MATCH',
+    matchId,buyOfferId:offer.offerId,marketId:offer.marketId,buyerId:offer.buyerId,producerId,
+    itemKind:offer.itemKind,itemInstanceId,quantity:1,unitPrice:offer.unitPrice,
+    listingRequest:Object.freeze({
+      authority:'MERCHANT_LISTING',
+      id:listingId,marketId:offer.marketId,sellerId:producerId,itemKind:offer.itemKind,
+      itemInstanceId,quantity:1,unitPrice:offer.unitPrice,status:'OPEN'
+    }),
+    reservationRequest:Object.freeze({
+      authority:'CANONICAL_RESERVATION',
+      buyerId:offer.buyerId,
+      exactItemIds:Object.freeze([itemInstanceId]),
+      listingSnapshotRequired:true
+    }),
+    tradeProposalOwner:'RC4_TRADE_KERNEL'
+  })};
+}
+
+/** Post-commit BuyOffer lifecycle projection. Exact V1 procurement fills the one-unit offer. */
+export function applyBuyOfferSettlementInCollection(collection,offerId,{quantity,unitPrice}={}){
+  const errors=validateBuyOfferCollection(collection);if(errors.length)return {state:'VIOL',reason:'buy-offer-collection',errors,collection:clone(collection)};
+  const index=collection.buyOffers.findIndex(x=>x.offerId===offerId);if(index<0)return {state:'VIOL',reason:'buy-offer-missing',collection:clone(collection)};
+  const current=collection.buyOffers[index];
+  if(current.status!==BUY_OFFER_STATUS.OPEN)return {state:'VIOL',reason:'offer-not-open',collection:clone(collection)};
+  if(quantity!==current.quantityWanted||unitPrice!==current.unitPrice)return {state:'VIOL',reason:'offer-settlement-mismatch',collection:clone(collection)};
+  const next=clone(collection);next.buyOffers[index]={...current,status:BUY_OFFER_STATUS.FILLED};
+  return {state:'SAT',duplicate:false,offer:Object.freeze({...next.buyOffers[index]}),collection:next};
+}
+
+export function serializeBuyOfferCollection(collection){
+  const errors=validateBuyOfferCollection(collection);if(errors.length)throw new Error('buy-offer-collection-invalid:'+errors.join(','));
+  return JSON.stringify(collection);
+}
+export function restoreBuyOfferCollection(serialized){
+  const collection=JSON.parse(serialized),errors=validateBuyOfferCollection(collection);
+  if(errors.length)throw new Error('buy-offer-collection-invalid:'+errors.join(','));
+  return collection;
 }
