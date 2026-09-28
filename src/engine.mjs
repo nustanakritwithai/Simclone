@@ -45,6 +45,7 @@ import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventu
 import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement,defeatWildMonster,stepWildMonsterLifecycle,migrateWildMonsterLifecycleState} from './adventure-world-monsters.mjs?v=0.5.0';
 import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adventure-autonomy.mjs?v=0.5.0';
 import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
+import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command} from './rc4-market-runtime.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -165,6 +166,7 @@ export function createWorld(seed=230926,options={}){
   }
   const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
   if(independent){initializeIndependentStart(s,walkable);ensureSettlementState(s);ensureGovernanceState(s);for(const a of s.agents){ensureLeadershipSkill(a,{tick:s.tick});ensureAdventureProgressionSkill(a,{tick:s.tick});}setPlanningPolicy(s,'local');}
+  const rc4=migrateRc4EconomyState(s);if(rc4.state!=='SAT')throw new Error('RC4 initialization failed: '+rc4.reason);
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
@@ -175,6 +177,7 @@ export const previewPlacement = (s,data) => placementPreview(s,data,walkable);
 export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){
+  const rc4=rc4Command(s,type,data);if(rc4){if(rc4.ok&&rc4.eventText)event(s,rc4.eventType??'market',rc4.eventText,rc4.agentId??null);return rc4;}
   const residence=householdResidenceCommand(s,type,data);if(residence){if(residence.ok&&residence.changed)event(s,'household',residence.message,residence.agentId??null);return residence;}
   const mentorship=mentorshipCommand(s,type,data);if(mentorship){
     if(mentorship.ok&&mentorship.changed){
@@ -349,7 +352,7 @@ export function command(s,type,data={}){
     if(isIndependent(s)&&!spawn)return {ok:false,reason:'no-spawn',message:'ไม่มีจุดเริ่มชีวิตแยกที่ปลอดภัย'};
     if(!compactRetired(s).ok)return {ok:false,reason:'history-storage',message:'เก็บประวัติเพิ่มไม่ได้ · ไม่หักทรัพยากรและไม่ลบประวัติเดิม'};
     funds.food-=8;funds.wood-=4;s.stats.cloned++;
-    const a=createAgent(s,parent);if(spawn){a.x=spawn.x;a.y=spawn.y;}return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
+    const a=createAgent(s,parent);if(spawn){a.x=spawn.x;a.y=spawn.y;}const account=ensureRc4AccountForAgent(s,a.id);if(!account.ok)throw new Error('RC4 wallet account creation failed');return {ok:true,message:'สร้าง '+a.name+' แล้ว · สืบทักษะ 35% จาก '+parent.name,agentId:a.id};
   }
   if(type==='VERIFY_KNOWLEDGE'){
     const verifier=s.agents.find(a=>a.id===data.agentId&&a.alive);
@@ -516,6 +519,7 @@ function gain(s,a,key,targetId=null){
 }
 function execute(s,a){
   const t=a.task,stock=resourceStock(s,a),meal=foodStock(s,a);
+  if(t?.rc4MarketTravel&&t.path.length===0){a.moveTick=0;return;}
   if(t.kind==='IDLE'){a.energy=clamp(a.energy+.3);if(++t.work>=12)a.task=null;return;}
   if(t.kind==='EAT'&&meal.food<=0){a.task=null;return;}
   if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const p=t.path.shift();a.x=p.x;a.y=p.y;a.moveTick=0;}return;}
@@ -770,6 +774,7 @@ export function validate(s){
   for(const e of validateProductionPlan(s))bad(e);
   for(const e of validateMentorship(s))bad(e);
   for(const e of validateSocialState(s,{required:isIndependent(s)}))bad(e);
+  for(const e of validateRc4EconomyState(s))bad(e);
   return errors;
 }
 function deathCauseFromText(text){
@@ -880,6 +885,6 @@ function migrateSave(s,{sameWorld=false}={}){
 }
 export function restore(text,options={}){
   if(typeof text!=='string'||text.length>HISTORY_LIMITS.maxSaveCharacters)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป');
-  const s=migrateSave(JSON.parse(text),options),errors=validate(s);
+  const s=migrateSave(JSON.parse(text),options),rc4=migrateRc4EconomyState(s);if(rc4.state!=='SAT')throw new Error('RC4 migration failed: '+rc4.reason);const errors=validate(s);
   if(errors.length)throw new Error('บันทึกไม่ถูกต้อง: '+errors.join(', '));return s;
 }
