@@ -124,14 +124,14 @@ test('Merchant profession and career continuity survive engine save/load',()=>{
   const s=createWorld(230926),a=s.agents[0];
   const adopted=adoptMerchantProfession(a,validSnapshot({agentId:a.id,evidenceId:'save-load-merchant'}),s.tick);
   assert.equal(adopted.changed,true);
-  const tx=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-save-1',verified:true,committed:true,realizedProfit:3});
+  const tx=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-save-1',verified:true,committed:true});
   assert.equal(tx.counted,true);
   assert.deepEqual(validate(s),[]);
 
   const restored=restore(serialize(s)),b=restored.agents.find(row=>row.id===a.id);
   assert.equal(b.profession,'merchant');
   assert.equal(b.career.at(-1).profession,'merchant');
-  assert.deepEqual(merchantProgressionSnapshot(b),{merchantTransactions:1,merchantRealizedProfit:3,merchantExperience:1});
+  assert.deepEqual(merchantProgressionSnapshot(b),{merchantTransactions:1,merchantExperience:1});
   assert.deepEqual(validateMerchantProgression(b),[]);
   assert.deepEqual(validate(restored),[]);
 });
@@ -140,23 +140,32 @@ test('Merchant progression counts only verified and committed transactions and i
   const a=worker(7);
   assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:7,evidenceId:'merchant-proof-7'}),1).changed,true);
 
-  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',verified:false,committed:true,realizedProfit:9}).counted,false);
-  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',verified:true,committed:false,realizedProfit:9}).counted,false);
-  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',committed:true,realizedProfit:9}).status,'UNKNOWN');
-  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:0,merchantRealizedProfit:0,merchantExperience:0});
+  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',verified:false,committed:true}).counted,false);
+  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',verified:true,committed:false}).counted,false);
+  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',committed:true}).status,'UNKNOWN');
+  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:0,merchantExperience:0});
 
-  const first=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-1',verified:true,committed:true,realizedProfit:4.5});
+  const first=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-1',verified:true,committed:true});
   assert.equal(first.counted,true);
-  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:1,merchantRealizedProfit:4.5,merchantExperience:1});
+  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:1,merchantExperience:1});
 
-  const replay=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-1',verified:true,committed:true,realizedProfit:4.5});
+  const replay=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-1',verified:true,committed:true});
   assert.equal(replay.counted,false);
   assert.equal(replay.reason,'replay');
 
-  const second=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-2',verified:true,committed:true,realizedProfit:-2});
+  const second=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-2',verified:true,committed:true});
   assert.equal(second.counted,true);
-  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:2,merchantRealizedProfit:2.5,merchantExperience:2});
+  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:2,merchantExperience:2});
   assert.deepEqual(validateMerchantProgression(a),[]);
+});
+
+test('Merchant career rejects a duplicate monetary profit field and never stores realized profit',()=>{
+  const a=worker(8);
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:8,evidenceId:'merchant-proof-8'}),1).changed,true);
+  assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-money-1',verified:true,committed:true,realizedProfit:999}).counted,true);
+  assert.equal(Object.hasOwn(a,'merchantRealizedProfit'),false);
+  a.merchantRealizedProfit=999;
+  assert.deepEqual(validateMerchantProgression(a),['Merchant monetary duplicate']);
 });
 
 test('Merchant career module has no direct profession assignment',()=>{
