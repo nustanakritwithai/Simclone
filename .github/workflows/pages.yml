@@ -44,6 +44,9 @@ jobs:
       - name: Verify exact-main Independent native HTTP/storage
         run: python tests/independent-ui-smoke.py --native --width 1440
 
+      - name: Verify RC2 exact-main native crafting
+        run: python tests/rc2-crafting-smoke.py --native
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -92,3 +95,19 @@ jobs:
           path: evidence-public-swa7/
           if-no-files-found: warn
 
+
+      - name: Verify public RC2 Crafter Identity lifecycle
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: python tests/rc2-crafting-smoke.py --public
+
+      - name: Upload RC2 public browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc2-public-evidence-${{ github.sha }}
+          path: |
+            evidence-public-rc2/
+            evidence-ui/rc2-native/
+          if-no-files-found: warn

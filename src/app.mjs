@@ -1,3 +1,4 @@
+import {equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
 import {installIndependentUI} from './independent-ui.mjs?v=0.5.0';
 import {isIndependent,resourceStock,resourceAccount,materialTotals} from './individual-resources.mjs?v=0.5.0';
 import {individualHouses} from './individual-housing.mjs?v=0.5.0';
@@ -429,7 +430,7 @@ function person(c,a,time,bubble=null){
  if(ap.style===1)ellipse(c,-6,-28,2.5,5,ap.hair);
  if(ap.style===2){c.fillStyle=ap.hair;c.fillRect(-6,-31,3,12);}
  ellipse(c,-2,-26,1,.9,'#29392e');ellipse(c,3,-26,1,.9,'#29392e');
- const equipped=state.rustPossessions?.equipment?.find(e=>e.agentId===a.id),equippedItem=equipped&&state.rustPossessions?.items?.find(i=>i.id===equipped.itemId),tool=equippedItem?.kind;
+ const equipped=state.rustPossessions?.equipment?.find(e=>e.agentId===a.id&&equipmentSlotOf(e)==='hand'),equippedItem=equipped&&state.rustPossessions?.items?.find(i=>i.id===equipped.itemId),tool=equippedItem?.kind;
  if(!moving&&tool==='STONE_AXE'){line(c,[[10,-12],[18,-23]],'#a69265',2);polygon(c,[[16,-24],[23,-21],[20,-16]],'#c4c9b4');}
  if(!moving&&tool==='STONE_PICKAXE')line(c,[[10,-12],[17,-26],[24,-24]],'#b5bba5',2);
  if(!moving&&tool==='HAMMER'){line(c,[[10,-12],[17,-23]],'#a69265',2.4);c.fillStyle='#b8bdad';c.fillRect(14,-27,9,5);}

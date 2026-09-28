@@ -57,6 +57,7 @@ export function rustCommand(s,type,data={},isWalkable){
   else return null;
   if(!r.ok)return {...r,message:msg(r)};
   const text=type==='TEACH_CRAFT_RECIPE'?(r.changed?'ถ่ายทอดสูตรให้ผู้เรียนแล้ว':'ผู้เรียนรู้สูตรนี้อยู่แล้ว'):type==='CRAFT_ITEM'?'รับงานคราฟต์แล้ว · วัสดุถูกกันเข้า order และจะไม่หักซ้ำ':
+    type==='EQUIP_ADVENTURE_GEAR'?'สวมอุปกรณ์ผจญภัยแล้ว':type==='UNEQUIP_ADVENTURE_GEAR'?'ถอดอุปกรณ์ผจญภัยแล้ว':
     type==='EQUIP_ITEM'?'สวมอุปกรณ์ช่องมือแล้ว':type==='UNEQUIP_ITEM'?(r.changed?'ถอดอุปกรณ์ช่องมือแล้ว':'ช่องมือว่างอยู่แล้ว'):type==='PICKUP_ITEM'?'เก็บของขึ้นกระเป๋าแล้ว':
     type==='PLACE_STATION'?'วางสิ่งปลูกสร้างสำเร็จ': 'รับงานเผาถ่านแล้ว · ไม้ถูกกันเข้า order';
   return {...r,message:text};

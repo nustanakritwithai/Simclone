@@ -8,7 +8,9 @@ import {createResourceRegenerationShadow} from './worldsim-resource-regen-shadow
 import {createFoodRegenerationImpact} from './worldsim-food-regen-impact.mjs?v=0.5.0';
 import {createFoodEcologyCalibration} from './worldsim-food-regen-calibration.mjs?v=0.5.0';
 import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
-import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
+import {ITEM_CATALOG,RECIPE_CATALOG,CRAFT_RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
+import {equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
+import {renderCraftRecipeBook,renderCraftItemInfo,renderCraftItemActions,renderCraftTraining,renderCraftTeaching} from './crafting-ui.mjs?v=0.5.0';
 import {evaluateModularHouses,MODULAR_HOUSE_RULES} from './housing.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
 const $=id=>document.getElementById(id);
@@ -88,35 +90,33 @@ function rustPanel(s,api){
  const selected=api.read().selected,actor=s.agents.find(a=>a.id===selected&&a.alive);
  if(!actor)return rustCatalog(s)+'<div class="life-summary"><div><small>Rust Survival · RS1–RS4</small><b>เลือก Clone ก่อน</b></div><div><small>ถ่านไม้ / สถานี</small><b>'+(s.rustMaterials?.charcoal??0)+' / '+(s.rustStations?.stations?.length??0)+'</b></div></div><p class="source-note">รายการด้านบนคือไอเทม Rust ที่เชื่อมเข้าระบบเกมจริงแล้ว เลือก Clone ที่ยังมีชีวิตเพื่อเริ่มคราฟต์ จัดกระเป๋า และสวมอุปกรณ์</p>';
  const items=s.rustPossessions?.items??[],bag=items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===actor.id);
- const equipped=s.rustPossessions?.equipment?.find(e=>e.agentId===actor.id)?.itemId??null;
+ const equipped=s.rustPossessions?.equipment?.find(e=>e.agentId===actor.id&&equipmentSlotOf(e)==='hand')?.itemId??null;
  const craft=s.rustPossessions?.orders?.find(o=>o.agentId===actor.id),process=s.rustMaterials?.orders?.find(o=>o.agentId===actor.id);
  const drops=items.filter(i=>i.location?.kind==='drop'&&Math.abs(actor.x-i.location.x)+Math.abs(actor.y-i.location.y)<=1);
- const recipes=Object.values(RECIPE_CATALOG).filter(r=>r.station==='HAND').map(r=>{const item=ITEM_CATALOG[r.output],cost=Object.entries(r.materials).map(([k,n])=>(k==='wood'?'🪵':'◆')+n).join(' ');return '<button class="visual-recipe-card secondary" data-ux="craft-item" data-recipe="'+r.id+'" '+(craft||process?'disabled':'')+' aria-label="คราฟต์ '+escape(item.name)+'">'+visualToken(itemIconKind(item.id))+'<b>'+escape(item.name)+'</b><small>'+cost+'</small></button>';}).join('');
- const bagHtml=bag.length?menuSection('bag','กระเป๋า','<div class="visual-inventory-grid rust-bag-grid">'+bag.map(i=>{const def=ITEM_CATALOG[i.kind],isTool=def?.category==='tool',action=isTool?(equipped===i.id?'<button class="icon-action secondary" data-ux="unequip-item" aria-label="ถอด '+escape(def?.name??i.kind)+'">'+icon('close')+'</button>':'<button class="icon-action secondary" data-ux="equip-item" data-item="'+i.id+'" aria-label="สวม '+escape(def?.name??i.kind)+'">'+icon('bolt')+'</button>'):'<button class="icon-action secondary" data-ux="place-station" data-item="'+i.id+'" aria-label="วาง '+escape(def?.name??i.kind)+'">'+icon('focus')+'</button>';return '<div class="visual-inventory-slot" data-item-id="'+i.id+'">'+visualToken(itemIconKind(i.kind))+'<b>'+escape(def?.name??i.kind)+'</b><small>#'+i.id+'</small>'+action+'</div>';}).join('')+'</div>',{badge:bag.length+'/4'}):'';
+ const bagHtml=bag.length?menuSection('bag','กระเป๋าและผลงาน','<div class="visual-inventory-grid rust-bag-grid">'+bag.map(i=>{const def=ITEM_CATALOG[i.kind];return '<div class="visual-inventory-slot" data-item-id="'+i.id+'">'+visualToken(itemIconKind(i.kind))+'<b>'+escape(def?.name??i.kind)+'</b><small>#'+i.id+'</small>'+renderCraftItemInfo(s,i)+renderCraftItemActions(s,actor,i)+'</div>';}).join('')+'</div>',{open:true,badge:bag.length+'/4'}):'';
  const dropHtml=drops.length?menuSection('map','ของตกใกล้ตัว','<div class="visual-action-grid">'+drops.map(i=>'<button class="visual-recipe-card secondary" data-ux="pickup-rust" data-item="'+i.id+'" aria-label="เก็บ '+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+'">'+visualToken(itemIconKind(i.kind))+'<b>'+escape(ITEM_CATALOG[i.kind]?.name??i.kind)+'</b><small>#'+i.id+'</small></button>').join('')+'</div>',{badge:drops.length+' ชิ้น'}):'';
  const equippedItem=bag.find(i=>i.id===equipped);
  const plan=s.productionPlan,goal=plan?.goal;
- return '<section class="menu-hero rust-menu-hero">'+api.portrait(actor)+'<div><small>RUST SURVIVAL</small><h3>'+escape(actor.name)+'</h3><span>'+bag.length+'/4 🎒 · '+(equippedItem?escape(ITEM_CATALOG[equippedItem.kind]?.name??equippedItem.kind):'มือว่าง')+'</span></div></section>'+
+ return '<section class="menu-hero rust-menu-hero">'+api.portrait(actor)+'<div><small>RUST CRAFTING V2 · CRAFTER IDENTITY</small><h3>'+escape(actor.name)+'</h3><span>'+bag.length+'/4 🎒 · '+(equippedItem?escape(ITEM_CATALOG[equippedItem.kind]?.name??equippedItem.kind):'มือว่าง')+'</span></div></section>'+
  '<div class="menu-metrics">'+menuMetric('fire','ถ่าน',s.rustMaterials?.charcoal??0)+menuMetric('hammer','สถานี',s.rustStations?.stations?.length??0)+menuMetric('bag','ของ',bag.length)+menuMetric('brain','RP1',plan?.enabled?'ON':'OFF',plan?.enabled?'live':'')+'</div>'+
- (craft||process?'<section class="menu-progress"><span>'+visualToken(craft?'hammer':'fire')+'</span><div><small>งานปัจจุบัน</small><b>'+(craft?escape(ITEM_CATALOG[RECIPE_CATALOG[craft.recipe]?.output]?.name??craft.recipe):'Charcoal')+'</b><div class="menu-progress-bar"><i style="width:'+Math.min(100,Math.round(((craft?.work??process?.work??0)/(craft?.required??process?.required??1))*100))+'%"></i></div></div></section>':'')+
+ (craft||process?'<section class="menu-progress"><span>'+visualToken(craft?'hammer':'fire')+'</span><div><small>งานปัจจุบัน</small><b>'+(craft?escape(ITEM_CATALOG[CRAFT_RECIPE_CATALOG[craft.recipe]?.output]?.name??craft.recipe):'Charcoal')+'</b><div class="menu-progress-bar"><i style="width:'+Math.min(100,Math.round(((craft?.work??process?.work??0)/(craft?.required??process?.required??1))*100))+'%"></i></div></div></section>':'')+
  '<div class="menu-primary-actions"><button class="secondary visual-policy-action" data-ux="production-policy" data-enabled="'+(!plan?.enabled)+'">'+icon(plan?.enabled?'close':'brain')+'<span>'+(plan?.enabled?'หยุด RP1':'เปิด RP1')+'</span></button></div>'+
- menuSection('hammer','คราฟต์ด้วยมือ','<div class="visual-action-grid">'+recipes+'</div>',{open:true,badge:Object.values(RECIPE_CATALOG).filter(r=>r.station==='HAND').length+' สูตร'})+
- bagHtml+dropHtml+
+ bagHtml+renderCraftTraining(s,actor)+renderCraftRecipeBook(s,actor)+renderCraftTeaching(s,actor)+dropHtml+
  rustCatalog(s)+
- '<details class="menu-explain"><summary>กฎการผลิต</summary><p>วัสดุ commit เข้า order ตอนรับงาน · งานเดินตาม tick จริง · hunger/energy interrupt ได้ · Axe/Pickaxe เร่งงาน ×1.25 · Hammer ใช้วางชิ้นส่วนอาคาร</p><small>'+(goal?escape(goal.goal+' · '+goal.outcome):'ยังไม่มีแผนล่าสุด')+'</small></details>';
+ '<details class="menu-explain"><summary>กฎการผลิต</summary><p>วัสดุ commit เข้า order ตอนรับงาน · งานเดินตาม tick จริง · hunger/energy interrupt ได้ · Axe/Pickaxe พื้นฐาน ×1.25 และเพิ่มตามโบนัสของชิ้นที่สวม · Hammer ใช้วางชิ้นส่วนอาคาร</p><small>'+(goal?escape(goal.goal+' · '+goal.outcome):'ยังไม่มีแผนล่าสุด')+'</small></details>';
 }
 
 
 function personalInventoryPanel(s,a){
  const items=s.rustPossessions?.items??[],bag=items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===a.id).sort((x,y)=>x.id-y.id);
- const equippedId=s.rustPossessions?.equipment?.find(e=>e.agentId===a.id)?.itemId??null,equipped=bag.find(i=>i.id===equippedId)??null;
+ const equippedId=s.rustPossessions?.equipment?.find(e=>e.agentId===a.id&&equipmentSlotOf(e)==='hand')?.itemId??null,equipped=bag.find(i=>i.id===equippedId)??null;
  const slots=Array.from({length:4},(_,slot)=>{const item=bag[slot];if(!item)return '<div class="visual-inventory-slot is-empty" data-inventory-slot="'+slot+'" aria-label="ช่อง '+(slot+1)+' ว่าง">'+visualToken('bag')+'<small>'+(slot+1)+'</small></div>';
   const def=ITEM_CATALOG[item.kind],action=a.alive&&def?.category==='tool'?(equippedId===item.id?'<button class="icon-action secondary" data-ux="unequip-item" aria-label="ถอด '+escape(def.name)+'">'+icon('close')+'</button>':'<button class="icon-action secondary" data-ux="equip-item" data-item="'+item.id+'" aria-label="สวม '+escape(def.name)+'">'+icon('bolt')+'</button>'):'';
-  return '<div class="visual-inventory-slot" data-inventory-slot="'+slot+'" data-item-id="'+item.id+'" aria-label="'+escape(def?.name??item.kind)+'">'+visualToken(itemIconKind(item.kind))+'<b>'+escape(def?.name??item.kind)+'</b><small>#'+item.id+'</small>'+action+'</div>';}).join('');
+  return '<div class="visual-inventory-slot" data-inventory-slot="'+slot+'" data-item-id="'+item.id+'" aria-label="'+escape(def?.name??item.kind)+'">'+visualToken(itemIconKind(item.kind))+'<b>'+escape(def?.name??item.kind)+'</b><small>#'+item.id+'</small>'+renderCraftItemInfo(s,item)+action+'</div>';}).join('');
  const hand=equipped?escape(ITEM_CATALOG[equipped.kind]?.name??equipped.kind)+' #'+equipped.id:'ว่าง';
  return '<div class="life-summary"><div><small>กระเป๋าส่วนตัว</small><b>'+bag.length+' / 4 ช่อง</b></div><div><small>อุปกรณ์ · มือ</small><b>'+hand+'</b></div></div>'+
   '<div class="visual-inventory-grid" data-personal-inventory="'+a.id+'">'+slots+'</div>'+
-  '<p class="source-note">ของเป็นของ Clone คนนี้ตาม item instance จริง · อุปกรณ์ที่สวมยังอยู่ในกระเป๋าและใช้ช่องเดิม · ตอนนี้มีช่องอุปกรณ์มือ 1 ช่องสำหรับ Stone Axe / Stone Pickaxe / Hammer</p>';
+  '<p class="source-note">ของเป็นของ Clone คนนี้ตาม item instance จริง · อุปกรณ์ที่สวมยังอยู่ในกระเป๋าและใช้ช่องเดิม · ช่องมือสำหรับเครื่องมือ · WEAPON / ARMOR / ACCESSORY ใช้ช่องอุปกรณ์เดิมของ Adventure</p>';
 }
 
 const blockedLabels={reserved:'มีคนจองงานแล้ว',satisfied:'สำรองและงานที่จองถึงเป้าแล้ว','no-path':'ไม่มีทางเดิน',stage:'ช่วงวัยนี้ทำงานนี้ไม่ได้'};
@@ -205,7 +205,20 @@ export function installUX(api){
   if(b.dataset.ux==='read-archive'){const result=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.key});api.toast(result.message);if(result.ok)api.save();}
   if(b.dataset.ux==='planning-policy'){const result=api.execute('SET_PLANNING_POLICY',{policy:b.dataset.policy});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='production-policy'){const result=api.execute('SET_PRODUCTION_POLICY',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openRust();}}
-  if(b.dataset.ux==='craft-item'){const result=api.execute('CRAFT_ITEM',{agentId:api.read().selected,recipeId:b.dataset.recipe});api.toast(result.message);if(result.ok){api.save();const ref=$('dialog').dataset.structure??'';if($('dialog').dataset.kind==='structure'&&ref.startsWith('station:'))openStructure({type:'station',id:Number(ref.split(':')[1])});else openRust();}}
+  if(['craft-train','craft-training-stop'].includes(b.dataset.ux)){
+    const {state:s,selected}=api.read(),a=s.agents.find(x=>x.id===selected);if(!a)return;
+    const result=api.execute('SET_CRAFT_TRAINING',{agentId:selected,enabled:b.dataset.ux==='craft-train',recipeId:b.dataset.recipe,expectedRevision:a.craftTraining?.revision??0,count:2});
+    api.toast(result.message);if(result.ok){api.save();openRust();}return;
+  }
+  if(b.dataset.ux==='teach-craft-recipe'){
+    const result=api.execute('TEACH_CRAFT_RECIPE',{teacherId:api.read().selected,studentId:Number($('rc2-teach-student')?.value),recipeId:$('rc2-teach-recipe')?.value});
+    api.toast(result.message);if(result.ok){api.save();openRust();}return;
+  }
+  if(['equip-craft-gear','unequip-craft-gear'].includes(b.dataset.ux)){
+    const result=api.execute(b.dataset.ux==='equip-craft-gear'?'EQUIP_ADVENTURE_GEAR':'UNEQUIP_ADVENTURE_GEAR',{agentId:api.read().selected,itemId:Number(b.dataset.item),slot:b.dataset.slot});
+    api.toast(result.message);if(result.ok){api.save();openRust();}return;
+  }
+  if(b.dataset.ux==='craft-item'){const result=api.execute('CRAFT_ITEM',{agentId:api.read().selected,recipeId:b.dataset.recipe,...(b.dataset.station?{stationId:Number(b.dataset.station)}:{})});api.toast(result.message);if(result.ok){api.save();const ref=$('dialog').dataset.structure??'';if($('dialog').dataset.kind==='structure'&&ref.startsWith('station:'))openStructure({type:'station',id:Number(ref.split(':')[1])});else openRust();}}
   if(b.dataset.ux==='equip-item'){const result=api.execute('EQUIP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openRust();}}
   if(b.dataset.ux==='unequip-item'){const result=api.execute('UNEQUIP_ITEM',{agentId:api.read().selected});api.toast(result.message);if(result.ok){api.save();openRust();}}
   if(b.dataset.ux==='place-station'){
@@ -525,7 +538,7 @@ export function installUX(api){
   api.select(parent.id,false);const p=api.preview('CLONE',{parentId:parent.id});
   api.openDialog('ส่งต่อสิ่งที่เรียนรู้','CREATE A CLONE',`<div class="clone-lineage"><div>${api.portrait(parent)}<b>${escape(parent.name)}</b><small>ต้นแบบ · รุ่น ${parent.generation}</small></div><span>→</span><div class="new-life">${icon('clone')}<b>ชีวิตใหม่</b><small>รุ่น ${parent.generation+1}</small></div></div><button class="text-link" data-ux="choose-parent">เลือกต้นแบบคนอื่น →</button><p>ใช้ <b>อาหาร 8 + ไม้ 4</b> · ที่พัก ${living(s).length} / ${capacity(s)} คน<br>รับ 35% ของ XP แต่ละทักษะ แล้วเลือกงานและเรียนรู้ต่อเอง</p><div class="clone-skills">${SKILLS.map(k=>`<div><span>${roles[k]}</span><b>${parent.skills[k]} <small>→</small> ${p.agent?p.agent.skills[k]:'—'} XP</b></div>`).join('')}</div><p class="clone-validity ${p.ok?'':'error'}" role="status">${p.ok?'พร้อมสร้าง · จะแสดงตัวละครใหม่หลังยืนยัน':escape(p.message)}</p><div class="dialog-actions"><button class="primary" data-action="confirm-clone" ${p.ok?'':'disabled'}>ยืนยันสร้าง Clone</button><button class="secondary" data-action="cancel">ยกเลิก</button></div><p class="source-note">คำสั่งนี้สร้าง Clone วัยผู้ใหญ่อายุ 18 ปีทันที · การเกิดอัตโนมัติเป็นอีกระบบหนึ่ง เด็กเริ่มอายุ 0 ปีแล้วค่อยเติบโต</p>`);$('dialog').dataset.kind='clone';
  }
- function openRust(){const s=api.read().state;api.openDialog('ไอเทมและการคราฟต์','RUST SURVIVAL · RS1–RS4',rustPanel(s,api));$('dialog').dataset.kind='rust';}
+ function openRust(){const s=api.read().state;api.openDialog('ไอเทมและการคราฟต์','RUST CRAFTING V2 · CRAFTER IDENTITY',rustPanel(s,api));$('dialog').dataset.kind='rust';}
  function openStructure(target){
   const s=api.read().state,selected=api.read().selected,actor=s.agents.find(a=>a.id===selected&&a.alive),houses=evaluateModularHouses(s).houses;
   if(!target)return;
@@ -547,7 +560,7 @@ export function installUX(api){
   if(st.kind==='CRAFTING_TABLE_LV1'){
    const craft=s.rustPossessions?.orders?.find(o=>o.agentId===selected),process=s.rustMaterials?.orders?.find(o=>o.agentId===selected);
    const recipes=Object.values(RECIPE_CATALOG).filter(r=>r.station==='CRAFTING_TABLE_LV1').map(r=>{const item=ITEM_CATALOG[r.output],cost=Object.entries(r.materials).map(([k,n])=>(k==='wood'?'🪵':'◆')+n).join(' ');return '<button class="visual-recipe-card secondary" data-ux="craft-item" data-recipe="'+r.id+'" '+(!actor||craft||process?'disabled':'')+'>'+visualToken(itemIconKind(item.id))+'<b>'+escape(item.name)+'</b><small>'+cost+'</small></button>';}).join('');
-   api.openDialog('โต๊ะคราฟต์','CRAFTING TABLE · #'+st.id,'<section class="structure-hero">'+visualToken('hammer')+'<div><small>WORKSTATION</small><h3>โต๊ะคราฟต์ Lv1</h3><span>'+(actor?'ผู้ใช้ '+escape(actor.name):'เลือก Clone ก่อน')+'</span></div></section><div class="visual-action-grid">'+recipes+'</div>');
+   api.openDialog('โต๊ะคราฟต์','CRAFTING TABLE · #'+st.id,'<section class="structure-hero">'+visualToken('hammer')+'<div><small>WORKSTATION</small><h3>โต๊ะคราฟต์ Lv1</h3><span>'+(actor?'ผู้ใช้ '+escape(actor.name):'เลือก Clone ก่อน')+'</span></div></section>'+(actor?renderCraftRecipeBook(s,actor,{stationKind:st.kind,stationId:st.id}):'<div class="visual-action-grid">'+recipes+'</div>'));
    $('dialog').dataset.kind='structure';$('dialog').dataset.structure='station:'+st.id;renderHUD();return;
   }
   if(st.kind==='FURNACE'){
