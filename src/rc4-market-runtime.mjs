@@ -6,22 +6,22 @@ import {
   attachHomeMarketListingReference,attachHomeMarketBuyOfferReference,projectHomeMarketForTrade
 } from './home-market.mjs?v=0.5.0';
 import {
-  createListingCollection,validateListingCollection,createListingInCollection,applyListingSettlementInCollection
+  migrateListingCollection,validateListingCollection,createListingInCollection,applyListingSettlementInCollection
 } from './merchant-listing.mjs?v=0.5.0';
 import {
-  createBuyOfferCollection,validateBuyOfferCollection,createBuyOfferInCollection,proposeProducerBuyOfferMatch,
+  migrateBuyOfferCollection,validateBuyOfferCollection,createBuyOfferInCollection,proposeProducerBuyOfferMatch,
   applyBuyOfferSettlementInCollection
 } from './merchant-buy-offer.mjs?v=0.5.0';
 import {
-  createReservationState,validateReservationState,createReservation,reservationById,globalActiveReservations,commitReservation
+  migrateReservationState,validateReservationState,createReservation,reservationById,globalActiveReservations,commitReservation
 } from './merchant-reservation.mjs?v=0.5.0';
 import {migrateLegacyCurrencyWallet,validateCurrencyWallet,getBalance,createCurrencyAccount} from './currency-wallet.mjs?v=0.5.0';
 import {createTradeWalletAdapter} from './trade-wallet-adapter.mjs?v=0.5.0';
 import {rustTradeItemAdapter} from './trade-rust-adapter.mjs?v=0.5.0';
-import {createTradeReplayState,validateTradeReplayState,settleTradeAtomic} from './trade-kernel.mjs?v=0.5.0';
+import {migrateTradeReplayState,validateTradeReplayState,settleTradeAtomic} from './trade-kernel.mjs?v=0.5.0';
 import {tradableRustItemIds} from './rust-possessions.mjs?v=0.5.0';
 import {
-  createMerchantLedger,validateMerchantLedger,applyCanonicalTradeExecutionToLedger
+  createMerchantLedger,validateMerchantLedgerCollection,migrateMerchantLedgerCollection,applyCanonicalTradeExecutionToLedger
 } from './merchant-ledger.mjs?v=0.5.0';
 import {
   evaluateMerchantQualification,adoptMerchantProfession,noteVerifiedCommittedMerchantTransaction,validateMerchantProgression
@@ -29,7 +29,6 @@ import {
 import {createCanonicalMarketTravelTask,verifyCanonicalMarketArrival,isCanonicalMarketTravelTask} from './navigation-arrival-evidence.mjs?v=0.5.0';
 
 export const RC4_ECONOMY_ROOT_VERSION='RC4-economy-root/1';
-export const RC4_LEDGER_ROOT_VERSION='RC4-ledger-root/1';
 
 const clone=v=>structuredClone(v);
 const validMoney=v=>Number.isSafeInteger(v)&&v>0;
@@ -46,22 +45,9 @@ function hash32(text,seed=0x811c9dc5){
 const deterministicId=(prefix,payload)=>prefix+hash32(stableText(payload))+hash32(stableText(payload),0x9e3779b9);
 const fail=(reason,message=reason,extra={})=>({ok:false,reason,message,...extra});
 
-export const createMerchantLedgerRoot=()=>({version:RC4_LEDGER_ROOT_VERSION,ledgers:[]});
-
-export function validateMerchantLedgerRoot(world){
-  const root=world?.merchantLedgers;
-  if(!root||root.version!==RC4_LEDGER_ROOT_VERSION||!Array.isArray(root.ledgers))return ['Merchant ledger root'];
-  const ids=new Set(),people=new Set((world.agents??[]).map(a=>a.id));
-  for(const ledger of root.ledgers){
-    if(validateMerchantLedger(ledger).length||ids.has(ledger?.merchantId)||!people.has(ledger?.merchantId))return ['Merchant ledger root'];
-    ids.add(ledger.merchantId);
-  }
-  return [];
-}
-
 function ledgerIndex(world,merchantId){return world.merchantLedgers?.ledgers?.findIndex(x=>x.merchantId===merchantId)??-1;}
 function ensureLedger(world,merchantId){
-  if(validateMerchantLedgerRoot(world).length)return {ok:false,reason:'ledger-root'};
+  if(validateMerchantLedgerCollection(world.merchantLedgers).length)return {ok:false,reason:'ledger-root'};
   let index=ledgerIndex(world,merchantId);
   if(index>=0)return {ok:true,index,ledger:world.merchantLedgers.ledgers[index]};
   const ledger=createMerchantLedger(merchantId);
@@ -78,26 +64,29 @@ export function migrateRc4EconomyState(world){
   if(hm.state!=='SAT')return {state:'VIOL',reason:'home-markets',detail:hm};
   world.homeMarkets=hm.marketState;
 
-  if(world.merchantListings===undefined)world.merchantListings=createListingCollection();
-  else if(validateListingCollection(world.merchantListings).length)return {state:'VIOL',reason:'listings'};
+  const listings=migrateListingCollection(world.merchantListings);
+  if(listings.state!=='SAT')return {state:'VIOL',reason:'listings',detail:listings};
+  world.merchantListings=listings.collection;
 
-  if(world.merchantBuyOffers===undefined)world.merchantBuyOffers=createBuyOfferCollection();
-  else if(validateBuyOfferCollection(world.merchantBuyOffers).length)return {state:'VIOL',reason:'buy-offers'};
+  const offers=migrateBuyOfferCollection(world.merchantBuyOffers);
+  if(offers.state!=='SAT')return {state:'VIOL',reason:'buy-offers',detail:offers};
+  world.merchantBuyOffers=offers.collection;
 
-  const reservations=world.merchantReservations===undefined
-    ?{state:'SAT',migrated:true,reservationState:createReservationState()}
-    :{state:validateReservationState(world.merchantReservations).length?'VIOL':'SAT',reservationState:world.merchantReservations};
-  if(reservations.state!=='SAT')return {state:'VIOL',reason:'reservations'};
+  const reservations=migrateReservationState(world.merchantReservations);
+  if(reservations.state!=='SAT')return {state:'VIOL',reason:'reservations',detail:reservations};
   world.merchantReservations=clone(reservations.reservationState);
 
-  if(world.tradeReplay===undefined)world.tradeReplay=createTradeReplayState();
-  else if(validateTradeReplayState(world).length)return {state:'VIOL',reason:'trade-replay'};
+  const replay=migrateTradeReplayState(world.tradeReplay);
+  if(replay.state!=='SAT')return {state:'VIOL',reason:'trade-replay',detail:replay};
+  world.tradeReplay=replay.tradeReplay;
 
   const wallet=migrateLegacyCurrencyWallet(world);
   if(!wallet.ok)return {state:'VIOL',reason:'wallet',detail:wallet};
 
-  if(world.merchantLedgers===undefined)world.merchantLedgers=createMerchantLedgerRoot();
-  if(validateMerchantLedgerRoot(world).length)return {state:'VIOL',reason:'ledger-root'};
+  const ledgers=migrateMerchantLedgerCollection(world.merchantLedgers);
+  if(ledgers.state!=='SAT')return {state:'VIOL',reason:'ledger-root',detail:ledgers};
+  world.merchantLedgers=ledgers.collection;
+  if(world.merchantLedgers.ledgers.some(l=>!world.agents.some(a=>a.id===l.merchantId)))return {state:'VIOL',reason:'ledger-agent'};
   for(const a of world.agents)if(validateMerchantProgression(a).length)return {state:'VIOL',reason:'merchant-progression',agentId:a.id};
   world.rc4EconomyVersion=RC4_ECONOMY_ROOT_VERSION;
   return {state:'SAT',migrated:true};
@@ -112,7 +101,8 @@ export function validateRc4EconomyState(world){
   e.push(...validateReservationState(world?.merchantReservations).map(x=>'Reservation:'+x));
   e.push(...validateCurrencyWallet(world).map(x=>'Wallet:'+x));
   e.push(...validateTradeReplayState(world).map(x=>'Trade:'+x));
-  e.push(...validateMerchantLedgerRoot(world));
+  e.push(...validateMerchantLedgerCollection(world?.merchantLedgers).map(x=>'Ledger:'+x));
+  if((world?.merchantLedgers?.ledgers??[]).some(l=>!(world?.agents??[]).some(a=>a.id===l.merchantId)))e.push('Ledger:agent');
   for(const a of world?.agents??[])for(const x of validateMerchantProgression(a))e.push('MerchantCareer:'+a.id+':'+x);
   return e;
 }
