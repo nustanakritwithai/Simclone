@@ -5,6 +5,7 @@ import {createWorld,command,serialize,restore,walkable} from '../src/engine.mjs'
 import {houseSite} from '../src/housing.mjs';
 import {canonicalEdge} from '../src/rust-stations.mjs';
 import {projectHomeMarketForTrade} from '../src/home-market.mjs';
+import {transferRustItemInstances,RUST_POSSESSION_LIMITS} from '../src/rust-possessions.mjs';
 import {verifyCanonicalMarketArrival} from '../src/navigation-arrival-evidence.mjs?v=0.5.0';
 import {
   createMerchantLedger,applyTradeKernelCommitToLedger,tradeReceiptFingerprint,tradeReceiptIntegrityFingerprint
@@ -96,4 +97,33 @@ test('RC4 independent Red Team: UI has no direct canonical economy writer',()=>{
   ])assert.equal(pattern.test(app),false,String(pattern));
   for(const forbidden of ['merchantWallet','shopWallet','merchantInventory'])assert.equal(app.includes(forbidden),false,forbidden);
   assert.ok(app.includes("command(state,'RC4_"),'UI dispatches validated engine commands');
+});
+
+
+test('RC4 independent Red Team: equipped item and buyer bag overflow fail in Rust authority without mutation',()=>{
+  {
+    const s=createWorld(501),seller=s.agents[0],buyer=s.agents[1],itemId=give(s,seller,'STONE_AXE');
+    s.rustPossessions.equipment.push({agentId:seller.id,itemId});
+    const before=JSON.stringify(s),x=transferRustItemInstances(s,{fromAgentId:seller.id,toAgentId:buyer.id,itemIds:[itemId]});
+    assert.equal(x.ok,false);assert.equal(x.reason,'item-reserved');assert.equal(JSON.stringify(s),before);
+  }
+  {
+    const s=createWorld(502),seller=s.agents[0],buyer=s.agents[1];
+    for(let i=0;i<RUST_POSSESSION_LIMITS.bag;i++)give(s,buyer,'WOOD_WALL');
+    const itemId=give(s,seller,'STONE_AXE'),before=JSON.stringify(s);
+    const x=transferRustItemInstances(s,{fromAgentId:seller.id,toAgentId:buyer.id,itemIds:[itemId]});
+    assert.equal(x.ok,false);assert.equal(x.reason,'bag-full');assert.equal(JSON.stringify(s),before);
+  }
+});
+
+test('RC4 independent Red Team: Ledger and Career run inside staged postSettlement before live-root replacement',()=>{
+  const runtime=readFileSync(new URL('../src/rc4-market-runtime.mjs',import.meta.url),'utf8');
+  const post=runtime.indexOf('function postSettlementAdapter()');
+  const accounting=runtime.indexOf('const accounting=applyMerchantAccounting(staged,context)',post);
+  const settle=runtime.indexOf('const result=settleTradeAtomic(prepared,proposal',post);
+  const reject=runtime.indexOf('if(!result.ok)return fail',settle);
+  const replace=runtime.indexOf('replaceWorldRoot(world,result.state)',reject);
+  assert.ok(post>=0&&accounting>post,'Ledger/Career accounting must be part of staged postSettlement');
+  assert.ok(settle>post&&reject>settle&&replace>reject,'live root replacement must occur only after successful atomic settlement');
+  assert.equal(runtime.slice(post,replace).includes('world.merchantLedgers='),false,'integration may not write live Ledger before root replacement');
 });
