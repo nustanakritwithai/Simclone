@@ -37,6 +37,10 @@ function worker(id=1){
     career:[{tick:0,profession:'forager'}],
   };
 }
+function tradeFingerprint(r){
+  return [r.transactionId,r.marketId,r.sellerId,r.buyerId,r.itemKind,r.itemInstanceId,r.quantity,r.unitPrice,r.totalPrice,r.listingId,r.reservationId]
+    .map(value=>String(value)).join('|');
+}
 function canonicalEvidence({
   transactionId='tx-1',
   buyerId=1,
@@ -49,7 +53,6 @@ function canonicalEvidence({
 }={}){
   const receipt={
     transactionId,
-    fingerprint:'fp:'+transactionId,
     eventId:'TRADE:'+transactionId,
     marketId:'M1',
     listingId:'L-'+transactionId,
@@ -57,12 +60,15 @@ function canonicalEvidence({
     buyerId,
     sellerId,
     itemKind:'STONE_PICKAXE',
+    itemInstanceId:itemId,
     itemIds:[itemId],
     quantity:1,
     unitPrice:10,
     totalPrice:10,
     ...receiptOverrides,
   };
+  receipt.fingerprint=tradeFingerprint(receipt);
+  receipt.integrityFingerprint=receipt.fingerprint+'|ITEMS|'+receipt.itemIds.slice().sort((a,b)=>a-b).join(',');
   if(duplicate)return {state:'SAT',duplicate:true,receipt};
   return {state:'SAT',duplicate:false,verification,commitStatus,receipt};
 }
@@ -230,6 +236,18 @@ test('malformed canonical receipt is rejected',()=>{
   assert.equal(assessed.status,'VIOL');
   assert.equal(assessed.reason,'trade-receipt');
   assert.equal(noteVerifiedCommittedMerchantTransaction(a,bad).counted,false);
+});
+
+test('tampered Trade Kernel receipt fingerprint is rejected',()=>{
+  const a=worker(17);
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:17,evidenceId:'merchant-proof-17'}),1).changed,true);
+  const evidence=canonicalEvidence({transactionId:'tx-tamper',buyerId:17,sellerId:2,itemId:808});
+  evidence.receipt.fingerprint='forged';
+  const assessed=assessMerchantCareerTransactionEvidence(a,evidence);
+  assert.equal(assessed.status,'VIOL');
+  assert.equal(assessed.reason,'trade-receipt');
+  assert.ok(assessed.errors.includes('fingerprint'));
+  assert.equal(noteVerifiedCommittedMerchantTransaction(a,evidence).counted,false);
 });
 
 test('forged legacy plain object cannot increase Merchant progression',()=>{
