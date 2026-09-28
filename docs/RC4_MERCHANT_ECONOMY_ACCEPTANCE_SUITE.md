@@ -16,15 +16,15 @@ Prepared from merged RC3.2 main:
 
 Observed donor heads at preparation time:
 
-| PR | Domain | Exact head |
-| --- | --- | --- |
-| #175 | Merchant Career | 51f3c9727429ecfb055548c8bf0ffed09a70b0d9 |
-| #176 | Home Market | 79ae6792063f8c70a9e676028646f2cd05a62d0a |
-| #177 | Trade Kernel | 73be1764130978f529632aa955bf3a7adf931e29 |
-| #178 | Merchant / Customer AI | 8c6c4ffb506cd192e2f81558880a7480ccf13932 |
-| #179 | Pricing / Merchant Ledger | 964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f |
-| #180 | Market UI prototype | 1bb01790e9af627588504af226759f5aff79b80c |
-| #181 | Canonical Wallet | 6d9eb098333eccc72e2352e605e5364d25e97768 |
+| PR | Domain | Exact head | Exact-head evidence at latest audit |
+| --- | --- | --- | --- |
+| #175 | Merchant Career | 51f3c9727429ecfb055548c8bf0ffed09a70b0d9 | Verify #1946 SUCCESS |
+| #176 | Home Market | 79ae6792063f8c70a9e676028646f2cd05a62d0a | Verify #1861 SUCCESS |
+| #177 | Trade Kernel | 73be1764130978f529632aa955bf3a7adf931e29 | Verify #1898 SUCCESS |
+| #178 | Merchant / Customer AI | 8c6c4ffb506cd192e2f81558880a7480ccf13932 | Verify #1864 SUCCESS |
+| #179 | Pricing / Merchant Ledger | 964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f | UNKNOWN — no exact-head workflow observed for repaired head |
+| #180 | Market UI prototype | 1bb01790e9af627588504af226759f5aff79b80c | Verify #1893 SUCCESS |
+| #181 | Canonical Wallet | 6d9eb098333eccc72e2352e605e5364d25e97768 | Verify #1959 SUCCESS |
 
 All #175-#181 donor branches were based on pre-RC3.2 main a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e at this audit. None of those donor heads is itself an RC4 integration candidate.
 
@@ -37,6 +37,38 @@ Before the RC4 Master Gate opens, this workstream may prepare tests, fixtures, m
 No RC4 integration result may be called SAT until all required proof runs are executed on one exact integration head SHA.
 
 After merge, all pre-merge integration evidence expires for production acceptance. The suite MUST be rerun on the exact merged-main SHA and public deployment proof must be tied to that new SHA.
+
+## PHASE 0 — Master Gate Readiness
+
+**Phase 0 is a hard stop. Every Phase-0 row must be SAT before Phase 1 can count as integrated acceptance evidence.**
+
+Required before Master Gate opens:
+
+- one exact integration head SHA is supplied and matches the checked-out candidate;
+- integration base is the current audited merged-main, or compatibility is explicitly re-audited after any main movement;
+- every selected donor exact head is frozen and has exact-head evidence; old-head CI cannot be reused;
+- #179 repaired Listing source/tests/Success Contract agree on `id + revision` and the repaired exact head has successful verification;
+- Home Market exposes canonical owner-controlled mutation for `listingIds` / `buyOfferIds`; the Integrator may not push/splice those arrays directly;
+- the #177 market projection has documented canonical sources for `id/open/x/y/tradeRange`; `tradeRange` may not be guessed;
+- Navigation owns the verified position/arrival evidence consumed by #178; Integration/UI/AI may not fabricate `verified:true`;
+- one canonical Reservation authority exists with deterministic identity, lifecycle, persistence, complete global ACTIVE view and cleanup/reconciliation semantics;
+- Buy Offer has an authoritative persistent collection and an approved Producer-procurement matching path;
+- post-settlement Listing quantity/status/revision and Reservation terminal/release rules have named owners;
+- production persistence ownership is explicit for Listings, BuyOffers, Reservations, tradeReplay, Merchant Ledgers and any required AI journal;
+- all compatibility adapters are explicit documented projections over canonical authorities; hidden normalization is forbidden;
+- the outer integration commit path stages all authoritative RC4 mutations and replaces the live root once only after every required postcondition succeeds.
+
+Current audited blockers from the Integration Contract are therefore not ordinary later-phase UNKNOWNs; they keep the Master Gate closed:
+
+- canonical Home Market reference mutation API is missing;
+- canonical `tradeRange` source is undefined;
+- canonical Navigation arrival-evidence producer is undefined;
+- Reservation writer/lifecycle/persistence/ID rule is undefined;
+- BuyOffer procurement matching/persistence is undefined;
+- post-settlement Listing/Reservation transition semantics are undefined;
+- #179 repaired head still lacks exact-head workflow evidence at the latest audit.
+
+No Integration Lead assumption may convert any of these to SAT.
 
 ## Non-negotiable authority locks
 
@@ -105,6 +137,8 @@ Required proof:
 
 B creates a Buy Offer and A sells the exact Phase-1 item to B.
 
+Buy Offer acceptance additionally proves that the offer is reference/intention only, holds no spendable money or physical item, is referenced exactly once by the owning Home Market through its canonical reference API, and survives save/load without duplicate reference drift.
+
 Before committed trade:
 
 - A owns the item;
@@ -153,6 +187,8 @@ Attack cases:
 
 Any pre-repair #179 listingId-only/no-revision vocabulary is not accepted as canonical proof. The latest observed #179 repair must still be re-proven after assembly on the exact integration SHA.
 
+The Listing itself remains reference/intention only: it cannot own money or a Rust item. The owning Home Market must reference the canonical Listing exactly once through the approved Home Market reference API; duplicate create/replay may not duplicate that reference.
+
 ## PHASE 5 — Customer Discovery
 
 C must have a real item need.
@@ -180,7 +216,8 @@ Proof:
 - out-of-range purchase fails;
 - closed market fails;
 - stale listing fails;
-- arrival evidence must match C, the selected market and current position.
+- arrival evidence must match C, the selected market and current position;
+- the evidence must carry provenance from the approved Navigation evidence producer, not a record fabricated by UI/AI/integration.
 
 ## PHASE 7 — Customer Purchase: B to C
 
@@ -208,7 +245,9 @@ After canonical commit:
 - C money decreases by exactly 100;
 - B money increases by exactly 100;
 - total money is unchanged;
-- item conservation remains one exact instance.
+- item conservation remains one exact instance;
+- the #177 market projection used for commit must derive `id/open/x/y/tradeRange` from documented canonical sources;
+- post-settlement Listing and Reservation transitions must be staged inside the same outer commit boundary, not cleaned up afterward.
 
 ## PHASE 8 — Merchant Accounting
 
@@ -223,6 +262,8 @@ Reference case:
 - Realized Profit = 30.
 
 Career may project profit read-only. Career state MUST NOT contain an authoritative Revenue / COGS / Realized Profit accumulator.
+
+A forged successful-looking Trade Kernel result that is absent from canonical `tradeReplay` must not mutate Merchant Ledger.
 
 ## PHASE 9 — Career Progression
 
@@ -245,7 +286,8 @@ The following MUST NOT progress:
 - missing verification;
 - missing commit status;
 - tampered fingerprint;
-- tampered integrityFingerprint.
+- tampered integrityFingerprint;
+- a direct runtime-fabricated canonical-looking VERIFIED/COMMITTED projection that bypasses #179 `assessTradeKernelResult()`.
 
 ## PHASE 10 — Replay Attack Suite
 
@@ -267,7 +309,8 @@ Run all of these after at least one committed transaction:
 14. changed market;
 15. changed listing;
 16. changed reservation;
-17. changed eventId.
+17. changed eventId;
+18. fill Trade Kernel replay storage to its canonical capacity, attempt another commit, and replay the oldest transaction.
 
 For every replay or tamper failure, assert byte-identical authoritative state for:
 
@@ -277,7 +320,7 @@ For every replay or tamper failure, assert byte-identical authoritative state fo
 - Merchant Career;
 - transaction receipt/replay state except that a valid first-time transaction may have already created its original receipt.
 
-No duplicate receipt mutation is allowed.
+No duplicate receipt mutation is allowed. Replay-capacity exhaustion must fail closed without evicting old receipts or making an old transaction spendable again.
 
 ## PHASE 11 — Atomic Failure Attacks
 
@@ -299,7 +342,10 @@ Attack at least:
 - duplicate reservation id;
 - incomplete global reservation view;
 - market closed;
-- buyer outside range.
+- buyer outside range;
+- Merchant Ledger validation/projection failure after the trade has been staged;
+- Merchant Career validation/progression failure after trade/ledger work has been staged;
+- post-settlement Listing/Reservation postcondition failure.
 
 For each failed settlement, authoritative source state must be byte-identical.
 
@@ -308,7 +354,7 @@ No partial item mutation.
 No partial Merchant Ledger.
 No Merchant Career progress.
 
-A rollback that performs compensating writes after partial commit is not sufficient evidence. The Trade Kernel contract requires staged atomic commit.
+A rollback that performs compensating writes after partial commit is not sufficient evidence. The Trade Kernel contract requires staged atomic commit, and the integration boundary must keep the live authoritative root unchanged until required wallet/item/replay/market/accounting/career postconditions for that RC4 event have succeeded on the staged candidate.
 
 ## PHASE 12 — Save / Load
 
@@ -398,7 +444,7 @@ Every row is exactly one of SAT / VIOL / UNKNOWN.
 
 UNKNOWN is never PASS.
 
-Final RC4 integration candidate may be called SAT only when all mandatory top-level gates are SAT:
+Final RC4 integration candidate may be called SAT only when **Phase 0 is fully SAT** and all mandatory top-level gates are SAT:
 
 - money conservation;
 - item conservation;
