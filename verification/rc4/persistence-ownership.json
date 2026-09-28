@@ -1,0 +1,116 @@
+{
+  "schema": "RC4-persistence-ownership/1",
+  "auditedMain": "1b60b13394c11bd7b03d10227919f4bb509b02df",
+  "rule": "UNKNOWN is never PASS. Component persistence may be donor-SAT; production root wiring remains B8-owned.",
+  "rootContainers": [
+    {
+      "rootKey": "homeMarkets",
+      "owner": "Home Market",
+      "donorPr": 184,
+      "donorHead": "090cefd757f0c34f175d2152f421bcd92c40b51b",
+      "migrate": "migrateHomeMarketState",
+      "serialize": "serializeHomeMarketState",
+      "restore": "restoreHomeMarketState",
+      "corruptPresent": "FAIL_CLOSED",
+      "rootWiring": "B8"
+    },
+    {
+      "rootKey": "merchantListings",
+      "owner": "Listing",
+      "donorPr": 189,
+      "donorHead": "bf0272e5772fc6dfffb58b697ec9759f1064f999",
+      "migrate": "migrateListingCollection",
+      "serialize": "serializeListingCollection",
+      "restore": "restoreListingCollection",
+      "corruptPresent": "FAIL_CLOSED",
+      "rootWiring": "B8"
+    },
+    {
+      "rootKey": "merchantBuyOffers",
+      "owner": "BuyOffer",
+      "donorPr": 189,
+      "donorHead": "bf0272e5772fc6dfffb58b697ec9759f1064f999",
+      "migrate": "migrateBuyOfferCollection",
+      "serialize": "serializeBuyOfferCollection",
+      "restore": "restoreBuyOfferCollection",
+      "corruptPresent": "FAIL_CLOSED",
+      "rootWiring": "B8"
+    },
+    {
+      "rootKey": "merchantReservations",
+      "owner": "Reservation",
+      "donorPr": 186,
+      "donorHead": "c4d1b544a1203459aa78ef55b83a28db6077056c",
+      "migrate": "migrateReservationState",
+      "serialize": "serializeReservationState",
+      "restore": "restoreReservationState",
+      "corruptPresent": "FAIL_CLOSED",
+      "rootWiring": "B8"
+    },
+    {
+      "rootKey": "tradeReplay",
+      "owner": "Trade Kernel",
+      "donorPr": 190,
+      "donorHead": "d6601bbcbad42d3b47574af0de5ac8274ad4e4ba",
+      "migrate": "migrateTradeReplayState",
+      "serialize": "serializeTradeReplayState",
+      "restore": "restoreTradeReplayState",
+      "corruptPresent": "FAIL_CLOSED",
+      "rootWiring": "B8"
+    },
+    {
+      "rootKey": "currencyWallet",
+      "owner": "Currency Wallet",
+      "donorPr": 191,
+      "donorHead": "6d7f3e834eb884da1affbe687647be1192493730",
+      "migrate": "migrateLegacyCurrencyWallet",
+      "serialize": "serializeCurrencyWallet",
+      "restore": "restoreCurrencyWallet",
+      "corruptPresent": "FAIL_CLOSED",
+      "rootWiring": "B8"
+    },
+    {
+      "rootKey": "merchantLedgers",
+      "owner": "Merchant Ledger",
+      "donorPr": 192,
+      "donorHead": "87f83a5dd3e844657927f39ecb07d0dc4effb850",
+      "migrate": "migrateMerchantLedgerCollection",
+      "serialize": "serializeMerchantLedgerCollection",
+      "restore": "restoreMerchantLedgerCollection",
+      "corruptPresent": "FAIL_CLOSED",
+      "rootWiring": "B8"
+    }
+  ],
+  "embeddedState": [
+    {
+      "path": "agents[*].merchantTransactions",
+      "owner": "Merchant Career",
+      "donorPr": 175,
+      "donorHead": "db4dc3d207201dbe194e301ba9687be8b3894169",
+      "missingPolicy": "CANONICAL_ZERO_UNTIL_TRUSTED_POST_COMMIT_WRITE",
+      "duplicateTopLevelForbidden": true
+    },
+    {
+      "path": "agents[*].merchantExperience",
+      "owner": "Merchant Career",
+      "donorPr": 175,
+      "donorHead": "db4dc3d207201dbe194e301ba9687be8b3894169",
+      "missingPolicy": "CANONICAL_ZERO_UNTIL_TRUSTED_POST_COMMIT_WRITE",
+      "duplicateTopLevelForbidden": true
+    }
+  ],
+  "absentByContract": [
+    {
+      "name": "merchantAIJournal",
+      "rule": "No persisted AI journal root exists unless a later accepted AI contract proves it is required. Integration must not invent one."
+    }
+  ],
+  "b8Requirements": [
+    "attach each canonical component to exactly the declared root key",
+    "run migration once on missing pre-RC4 component",
+    "never replace corrupt present replay/wallet/reservation/listing/buyOffer/ledger state with empty state",
+    "persist tradeReplay and wallet receipts so old transaction replay remains no-op after reload",
+    "after authoritative trade root replacement, downstream Ledger/Career catch-up must be retry-safe and exactly-once",
+    "no UI/localStorage shadow may become authority"
+  ]
+}
