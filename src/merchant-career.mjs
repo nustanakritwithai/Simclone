@@ -11,10 +11,14 @@ export const MERCHANT_QUALIFICATION_POLICY=Object.freeze({
   minOperatingCapital:1,
   minTradeEvidence:1,
 });
-export const MERCHANT_TRANSACTION_RECEIPT_LIMIT=32;
+export const MERCHANT_TRANSACTION_AUDIT_LIMIT=32;
+export const MERCHANT_TRANSACTION_COMPAT=Object.freeze({maxQuantity:128,maxIdLength:80,eventPrefix:'TRADE:'});
 
 const SAT='SAT',VIOL='VIOL',UNKNOWN='UNKNOWN';
 const nonEmptyString=value=>typeof value==='string'&&value.length>0&&value.length<=120;
+const transactionIdPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+const validTransactionRef=(value,max=MERCHANT_TRANSACTION_COMPAT.maxIdLength)=>typeof value==='string'&&value.length>0&&value.length<=max&&transactionIdPattern.test(value);
+const positiveInt=value=>Number.isSafeInteger(value)&&value>0;
 const pass=detail=>({status:SAT,detail});
 const fail=detail=>({status:VIOL,detail});
 const unknown=detail=>({status:UNKNOWN,detail});
@@ -152,46 +156,91 @@ export function merchantProgressionSnapshot(agent,{ledger=null}={}){
 
 export function validateMerchantProgression(agent){
   if(agent?.merchantRealizedProfit!==undefined)return ['Merchant monetary duplicate'];
-  const fields=['merchantTransactions','merchantExperience','merchantTransactionReceipts'];
-  const present=fields.some(key=>agent?.[key]!==undefined);
-  if(!present)return [];
-  if(!Number.isInteger(agent?.merchantTransactions)||agent.merchantTransactions<0)return ['Merchant progression'];
-  if(!Number.isInteger(agent?.merchantExperience)||agent.merchantExperience<0)return ['Merchant progression'];
-  if(!Array.isArray(agent?.merchantTransactionReceipts)||agent.merchantTransactionReceipts.length>MERCHANT_TRANSACTION_RECEIPT_LIMIT)return ['Merchant progression'];
-  const ids=new Set();
-  for(const id of agent.merchantTransactionReceipts){
-    if(!nonEmptyString(id)||ids.has(id))return ['Merchant progression'];
-    ids.add(id);
+  const corePresent=agent?.merchantTransactions!==undefined||agent?.merchantExperience!==undefined;
+  if(corePresent&&(!Number.isInteger(agent?.merchantTransactions)||agent.merchantTransactions<0||
+    !Number.isInteger(agent?.merchantExperience)||agent.merchantExperience<0))return ['Merchant progression'];
+  // Legacy/recent ids may remain as bounded diagnostics only. They are never
+  // consulted for idempotency or progression uniqueness.
+  if(agent?.merchantTransactionReceipts!==undefined){
+    if(!Array.isArray(agent.merchantTransactionReceipts)||agent.merchantTransactionReceipts.length>MERCHANT_TRANSACTION_AUDIT_LIMIT)
+      return ['Merchant audit projection'];
+    const ids=new Set();
+    for(const id of agent.merchantTransactionReceipts){
+      if(!validTransactionRef(id)||ids.has(id))return ['Merchant audit projection'];
+      ids.add(id);
+    }
   }
   return [];
 }
 
+function validateCanonicalCommittedReceipt(receipt){
+  const errors=[];
+  if(!receipt||typeof receipt!=='object'||Array.isArray(receipt))return ['receipt'];
+  if(!validTransactionRef(receipt.transactionId))errors.push('transactionId');
+  if(typeof receipt.fingerprint!=='string'||receipt.fingerprint.length===0)errors.push('fingerprint');
+  if(!validTransactionRef(receipt.eventId,MERCHANT_TRANSACTION_COMPAT.maxIdLength+MERCHANT_TRANSACTION_COMPAT.eventPrefix.length)||
+    receipt.eventId!==MERCHANT_TRANSACTION_COMPAT.eventPrefix+receipt.transactionId)errors.push('eventId');
+  for(const key of ['marketId','listingId','reservationId'])if(!validTransactionRef(receipt[key]))errors.push(key);
+  if(!positiveInt(receipt.buyerId))errors.push('buyerId');
+  if(!positiveInt(receipt.sellerId))errors.push('sellerId');
+  if(receipt.buyerId===receipt.sellerId)errors.push('selfTrade');
+  if(!validTransactionRef(receipt.itemKind))errors.push('itemKind');
+  if(!Number.isSafeInteger(receipt.quantity)||receipt.quantity<1||receipt.quantity>MERCHANT_TRANSACTION_COMPAT.maxQuantity)errors.push('quantity');
+  if(!positiveInt(receipt.unitPrice))errors.push('unitPrice');
+  if(!positiveInt(receipt.totalPrice))errors.push('totalPrice');
+  if(!Array.isArray(receipt.itemIds)||receipt.itemIds.length!==receipt.quantity||new Set(receipt.itemIds).size!==receipt.itemIds.length||
+    receipt.itemIds.some(id=>!positiveInt(id)))errors.push('itemIds');
+  if(!errors.includes('unitPrice')&&!errors.includes('totalPrice')&&!errors.includes('quantity')&&
+    (!Number.isSafeInteger(receipt.unitPrice*receipt.quantity)||receipt.totalPrice!==receipt.unitPrice*receipt.quantity))errors.push('totalPrice');
+  return [...new Set(errors)];
+}
+
 /**
- * Progression hook only. It consumes already-authoritative transaction identity;
- * it does not consume or store Revenue/COGS/Profit and never becomes accounting authority.
+ * Consumes the exact canonical projection vocabulary emitted by
+ * PR #179 merchant-ledger.mjs::assessTradeKernelResult().
+ * Career never upgrades caller assertions into VERIFIED/COMMITTED evidence.
  */
-export function noteVerifiedCommittedMerchantTransaction(agent,fact){
+export function assessMerchantCareerTransactionEvidence(agent,evidence){
+  if(!evidence||typeof evidence!=='object'||Array.isArray(evidence))return {status:UNKNOWN,reason:'transaction-evidence'};
+  if(evidence.state!=='SAT'){
+    if(evidence.state==='VIOL')return {status:VIOL,reason:evidence.reason??'transaction-evidence'};
+    return {status:UNKNOWN,reason:'transaction-evidence'};
+  }
+  const receiptErrors=validateCanonicalCommittedReceipt(evidence.receipt);
+  if(receiptErrors.length)return {status:VIOL,reason:'trade-receipt',errors:receiptErrors};
+  const receipt=evidence.receipt;
+  if(receipt.buyerId!==agent?.id&&receipt.sellerId!==agent?.id)
+    return {status:VIOL,reason:'merchant-not-party',receipt};
+  if(evidence.duplicate===true)return {status:SAT,reason:'canonical-duplicate',duplicate:true,receipt};
+  if(evidence.duplicate!==false)return {status:UNKNOWN,reason:'duplicate-status',receipt};
+  if(evidence.verification!=='VERIFIED')
+    return {status:evidence.verification===undefined?UNKNOWN:VIOL,reason:'verification',receipt};
+  if(evidence.commitStatus!=='COMMITTED')
+    return {status:evidence.commitStatus===undefined?UNKNOWN:VIOL,reason:'commit-status',receipt};
+  return {status:SAT,reason:'verified-committed',duplicate:false,receipt};
+}
+
+/**
+ * Progression consumes canonical committed transaction projection only.
+ * Trade Kernel/canonical transaction authority owns transaction identity,
+ * commit/replay status and parties. Career never determines uniqueness itself.
+ */
+export function noteVerifiedCommittedMerchantTransaction(agent,evidence){
   const before=merchantProgressionSnapshot(agent);
-  const skip=(status,reason)=>({counted:false,status,reason,...before});
+  const skip=(status,reason,extra={})=>({counted:false,status,reason,...before,...extra});
   if(!agent||typeof agent!=='object'||Array.isArray(agent))return skip(UNKNOWN,'agent');
   if(agent.profession!=='merchant')return skip(VIOL,'profession');
   if(validateMerchantProgression(agent).length)return skip(UNKNOWN,'progression-state');
-  if(fact?.verified!==true)return skip(fact?.verified===false?VIOL:UNKNOWN,'verified');
-  if(fact?.committed!==true)return skip(fact?.committed===false?VIOL:UNKNOWN,'committed');
-  if(!nonEmptyString(fact?.transactionId))return skip(UNKNOWN,'transaction-id');
 
-  if(Array.isArray(agent.merchantTransactionReceipts)&&agent.merchantTransactionReceipts.includes(fact.transactionId))
-    return skip(SAT,'replay');
+  const assessed=assessMerchantCareerTransactionEvidence(agent,evidence);
+  if(assessed.status!==SAT)return skip(assessed.status,assessed.reason,{errors:assessed.errors});
+  if(assessed.duplicate===true)return skip(SAT,'canonical-duplicate',{transactionId:assessed.receipt.transactionId});
 
   if(agent.merchantTransactions===undefined){
     agent.merchantTransactions=0;
     agent.merchantExperience=0;
-    agent.merchantTransactionReceipts=[];
   }
   agent.merchantTransactions+=1;
   agent.merchantExperience+=1;
-  agent.merchantTransactionReceipts.push(fact.transactionId);
-  while(agent.merchantTransactionReceipts.length>MERCHANT_TRANSACTION_RECEIPT_LIMIT)agent.merchantTransactionReceipts.shift();
-
-  return {counted:true,status:SAT,reason:'verified-committed',...merchantProgressionSnapshot(agent)};
+  return {counted:true,status:SAT,reason:'verified-committed',transactionId:assessed.receipt.transactionId,...merchantProgressionSnapshot(agent)};
 }
