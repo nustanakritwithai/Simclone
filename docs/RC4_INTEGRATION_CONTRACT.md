@@ -93,17 +93,19 @@ Cross-donor re-audit still finds #178 head 8c6c4ff... using the pre-repair Listi
 
 PR #182 is a verification-only RC4 acceptance/attack-suite donor.
 
-Exact audited head:
+PR #182 is currently **volatile / not frozen**. The latest observed head during this audit moved repeatedly and was:
 
-    149b31fef7629f4cabbc85cbeb26b1426bd9a916
+    9a1b6581c753613b3a14558a94ff708132375838
 
-This head retains the refreshed acceptance-suite donor snapshot and adds a harness meta-test lock for that evidence:
+with Verify #2002 in progress at the time of observation.
+
+The acceptance owner has already documented that old-head Verify results cannot be reused. This Integration Contract applies the same rule: do not pin #182 as the acceptance baseline until the owner freezes one exact head and that exact head has a completed SUCCESS verification.
+
+The current #182 line retains the refreshed donor snapshot:
 
 - #179 = `da82d217...` with Verify #1978/#1979 SUCCESS;
 - #180 = `0aa5a824...` with Verify #1990 SUCCESS;
 - #178 remains `8c6c4ff...`.
-
-Exact-head Verify #2001 is in progress at this audit. Earlier #1996/#1997 evidence belongs to older #182 heads and is not reused as exact-head proof for `149b31fe...`.
 
 The branch remains based directly on current RC3.2 main and changes only RC4 acceptance documentation, fixtures/matrices, static preflight and acceptance-suite tests.
 
@@ -1240,11 +1242,21 @@ Required donor-side repairs before progression:
 
 ## 14.3 Acceptance harness handoff
 
-Use PR #182 as the acceptance harness baseline instead of recreating a weaker suite:
+Use PR #182 as the acceptance harness workstream instead of recreating a weaker suite.
 
-    PR #182
-    exact head 149b31fef7629f4cabbc85cbeb26b1426bd9a916
-    Verify #2001 pending at audit time
+Do **not** hard-pin the harness from this planning document while PR #182 is still moving.
+
+Handoff rule:
+
+    re-read PR #182 current exact head
+    → require owner-declared/factually stable head
+    → require exact-head Verify SUCCESS on that same SHA
+    → only then pin it as the acceptance baseline
+
+Latest observed during this audit:
+
+    head 9a1b6581c753613b3a14558a94ff708132375838
+    Verify #2002 in progress
 
 Required artifacts:
 
@@ -1254,9 +1266,9 @@ Required artifacts:
 - `verification/rc4/merchant-economy-fixture-contract.json`;
 - `verification/rc4/preflight.mjs`.
 
-Before Master Gate execution, donor SHA metadata in that harness must still be re-audited against the exact selected integration donors, especially if any head moves after `149b31fe...`.
+Before Master Gate execution, donor SHA metadata in that harness must be re-audited against the exact selected integration donors and the final frozen #182 head.
 
-Do not treat #182 itself as an accepted harness donor until exact-head Verify #2001 is SUCCESS. The preflight is expected to return UNKNOWN while required bindings are absent. Do not weaken the preflight or turn UNKNOWN into PASS.
+Do not treat #182 itself as an accepted harness donor while its head is changing or while its exact-head Verify is incomplete. The preflight is expected to return UNKNOWN while required bindings are absent. Do not weaken the preflight or turn UNKNOWN into PASS.
 
 ## 14.4 Required integrated proof after all dependencies are SAT
 
