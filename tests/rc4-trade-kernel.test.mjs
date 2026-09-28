@@ -140,6 +140,20 @@ test('RC4 fails closed when global active-reservation view omits current reserva
   assert.equal(r.ok,false);assert.equal(r.reason,'market-view-incomplete');assert.deepEqual(s,before);
 });
 
+test('RC4 fails closed when global current-reservation projection disagrees with canonical reservation lookup',()=>{
+  const s=fixture(),before=clone(s);
+  const incoherentMarket={...market,activeReservations:state=>state.testMarket.reservations
+    .filter(x=>x.status==='ACTIVE').map(x=>x.id==='R1'?{...x,itemIds:[101,103]}:x)};
+  const r=settleTradeAtomic(s,proposal(),{wallet,item,market:incoherentMarket});
+  assert.equal(r.ok,false);assert.equal(r.reason,'market-view-incomplete');assert.deepEqual(s,before);
+});
+
+test('RC4 fails closed on duplicate active reservation ids in global evidence',()=>{
+  const s=fixture();s.testMarket.reservations.push({...clone(s.testMarket.reservations[0])});
+  const before=clone(s),r=settleTradeAtomic(s,proposal(),adapters);
+  assert.equal(r.ok,false);assert.equal(r.reason,'market-view-incomplete');assert.deepEqual(s,before);
+});
+
 test('RC4 fails closed on malformed global active reservation evidence',()=>{
   const s=fixture();s.testMarket.reservations.push({id:'R2',status:'ACTIVE',marketId:'M2',itemIds:[NaN]});
   const before=clone(s),r=settleTradeAtomic(s,proposal(),adapters);
