@@ -28,10 +28,15 @@ def open_rust(aid):
     select_actor(aid);b=page.locator('#rust');(b if b.is_visible() else page.locator('[data-nav="rust"]')).click()
 def click_station(st):
     close();box=page.locator('#world').bounding_box()
-    p=page.evaluate('(x)=>simclone.screenPoint(x.x,x.y)',st);safe=page.evaluate('simclone.safeFrame()')
-    tx=(safe['left']+safe['right'])/2;ty=(safe['top']+safe['bottom'])/2
-    page.mouse.move(box['x']+tx,box['y']+ty);page.mouse.down();page.mouse.move(box['x']+tx+tx-p['x'],box['y']+ty+ty-p['y'],steps=10);page.mouse.up();page.wait_for_timeout(100)
-    p=page.evaluate('(x)=>simclone.screenPoint(x.x,x.y)',st);page.mouse.click(box['x']+p['x'],box['y']+p['y']);page.wait_for_selector('[data-furnace-materials]')
+    def hit():
+        return page.evaluate("""(st)=>{const p=simclone.screenPoint(st.x,st.y);for(let dy=-60;dy<=30;dy+=3)for(let dx=-36;dx<=36;dx+=3){const h=simclone.structureTargetAtScreen(p.x+dx,p.y+dy);if(h?.type==='station'&&h.id===st.id)return{x:p.x+dx,y:p.y+dy};}return null;}""",st)
+    q=hit()
+    if not q:
+        p=page.evaluate('(x)=>simclone.screenPoint(x.x,x.y)',st);safe=page.evaluate('simclone.safeFrame()')
+        tx=(safe['left']+safe['right'])/2;ty=(safe['top']+safe['bottom'])/2
+        page.mouse.move(box['x']+tx,box['y']+ty);page.mouse.down();page.mouse.move(box['x']+tx+tx-p['x'],box['y']+ty+ty-p['y'],steps=10);page.mouse.up();page.wait_for_timeout(150);q=hit()
+    check(f'Furnace #{st["id"]}: canvas hitbox resolved',q is not None)
+    page.mouse.click(box['x']+q['x'],box['y']+q['y']);page.wait_for_selector('[data-furnace-materials]')
 def run_until(js):
     close();page.locator('[data-speed="5"]').click()
     if page.locator('#pause').inner_text()=='▶': page.locator('#pause').click()
