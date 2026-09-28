@@ -1,7 +1,6 @@
-/** RC4 Merchant Pricing V1 — pure deterministic money/pricing helpers. */
-export const MERCHANT_PRICING_VERSION='RC4-pricing/1';
+/** RC4 Merchant Pricing V1 — pure deterministic integer-currency pricing. */
+export const MERCHANT_PRICING_VERSION='RC4-pricing/2';
 export const MERCHANT_PRICING_RULES=Object.freeze({
-  moneyScale:100,
   maxMarginBps:50000,
   maxScarcityAdjustmentBps:2500,
   maxObservationQuantity:1000000000,
@@ -10,37 +9,25 @@ export const MERCHANT_PRICING_RULES=Object.freeze({
 const int=(n,min=0,max=Number.MAX_SAFE_INTEGER)=>Number.isSafeInteger(n)&&n>=min&&n<=max;
 const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
 
+/** RC4 Trade Kernel currency is an integer amount. */
 export function isCanonicalMoney(value,{allowZero=true}={}){
-  if(typeof value!=='number'||!Number.isFinite(value)||value<0||(!allowZero&&value===0))return false;
-  const scaled=value*MERCHANT_PRICING_RULES.moneyScale,rounded=Math.round(scaled);
-  return Number.isSafeInteger(rounded)&&Math.abs(scaled-rounded)<1e-7;
+  return Number.isSafeInteger(value)&&value>=0&&(allowZero||value>0);
 }
 
-export function moneyToMinor(value){
-  if(!isCanonicalMoney(value))throw new Error('money');
-  return Math.round(value*MERCHANT_PRICING_RULES.moneyScale);
-}
-
-export function minorToMoney(value){
-  if(!Number.isSafeInteger(value)||value<0)throw new Error('minor-money');
-  return value/MERCHANT_PRICING_RULES.moneyScale;
+function bpsAmount(base,bps){
+  if(!isCanonicalMoney(base)||!Number.isSafeInteger(bps))throw new Error('bps');
+  const numerator=BigInt(base)*BigInt(Math.abs(bps));
+  const rounded=(numerator+5000n)/10000n;
+  const signed=bps<0?-rounded:rounded;
+  const value=Number(signed);
+  if(!Number.isSafeInteger(value))throw new Error('money-overflow');
+  return value;
 }
 
 export function multiplyMoney(unitPrice,quantity){
-  if(!isCanonicalMoney(unitPrice)||!int(quantity,1))throw new Error('money-multiply');
-  const minor=moneyToMinor(unitPrice);
-  if(minor>Math.floor(Number.MAX_SAFE_INTEGER/quantity))throw new Error('money-overflow');
-  return minorToMoney(minor*quantity);
-}
-
-function signedBpsMinor(baseMinor,bps){
-  if(!Number.isSafeInteger(baseMinor)||baseMinor<0||!Number.isSafeInteger(bps))throw new Error('bps');
-  const numerator=BigInt(baseMinor)*BigInt(Math.abs(bps));
-  const rounded=(numerator+5000n)/10000n;
-  const signed=bps<0?-rounded:rounded;
-  const n=Number(signed);
-  if(!Number.isSafeInteger(n))throw new Error('money-overflow');
-  return n;
+  if(!isCanonicalMoney(unitPrice,{allowZero:false})||!int(quantity,1))throw new Error('money-multiply');
+  if(unitPrice>Math.floor(Number.MAX_SAFE_INTEGER/quantity))throw new Error('money-overflow');
+  return unitPrice*quantity;
 }
 
 /**
@@ -66,23 +53,14 @@ export function quoteAskPrice({acquisitionCost,marginBps=0,scarcity=null,
   if(!int(marginBps,0,MERCHANT_PRICING_RULES.maxMarginBps))return {state:'VIOL',reason:'margin'};
   if(!int(maxScarcityAdjustmentBps,0,MERCHANT_PRICING_RULES.maxScarcityAdjustmentBps))return {state:'VIOL',reason:'scarcity-bound'};
   let scarcityAdjustmentBps=0;
+  try{scarcityAdjustmentBps=scarcity===null?0:deriveScarcityAdjustmentBps(scarcity,{maxAdjustmentBps:maxScarcityAdjustmentBps});}
+  catch{return {state:'VIOL',reason:'scarcity-observation'};}
   try{
-    scarcityAdjustmentBps=scarcity===null?0:deriveScarcityAdjustmentBps(scarcity,{maxAdjustmentBps:maxScarcityAdjustmentBps});
-  }catch{return {state:'VIOL',reason:'scarcity-observation'};}
-  try{
-    const costMinor=moneyToMinor(acquisitionCost);
-    const marginMinor=signedBpsMinor(costMinor,marginBps);
-    const scarcityMinor=signedBpsMinor(costMinor,scarcityAdjustmentBps);
-    const askMinor=costMinor+marginMinor+scarcityMinor;
-    if(!Number.isSafeInteger(askMinor)||askMinor<0)return {state:'VIOL',reason:'price-overflow'};
-    return Object.freeze({
-      state:'SAT',version:MERCHANT_PRICING_VERSION,
-      acquisitionCost,
-      marginBps,
-      marginAmount:marginMinor/MERCHANT_PRICING_RULES.moneyScale,
-      scarcityAdjustmentBps,
-      scarcityAdjustment:scarcityMinor/MERCHANT_PRICING_RULES.moneyScale,
-      askPrice:askMinor/MERCHANT_PRICING_RULES.moneyScale,
-    });
+    const marginAmount=bpsAmount(acquisitionCost,marginBps);
+    const scarcityAdjustment=bpsAmount(acquisitionCost,scarcityAdjustmentBps);
+    const askPrice=acquisitionCost+marginAmount+scarcityAdjustment;
+    if(!isCanonicalMoney(askPrice,{allowZero:false}))return {state:'VIOL',reason:'price-overflow'};
+    return Object.freeze({state:'SAT',version:MERCHANT_PRICING_VERSION,acquisitionCost,marginBps,marginAmount,
+      scarcityAdjustmentBps,scarcityAdjustment,askPrice});
   }catch{return {state:'VIOL',reason:'price-overflow'};}
 }
