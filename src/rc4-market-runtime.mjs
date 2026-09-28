@@ -306,14 +306,16 @@ export function rc4Command(world,type,data={}){
   if(stateErrors.length)return fail('rc4-state','RC4 state ไม่พร้อม',{errors:stateErrors});
 
   if(type==='RC4_BECOME_MERCHANT'){
-    const agent=world.agents.find(a=>a.id===data.agentId&&a.alive);if(!agent)return fail('agent','ไม่พบ Clone');
-    const qualification=merchantQualificationSnapshot(world,agent);
+    const candidate=clone(world),agent=candidate.agents.find(a=>a.id===data.agentId&&a.alive);if(!agent)return fail('agent','ไม่พบ Clone');
+    const qualification=merchantQualificationSnapshot(candidate,agent);
     const evaluated=evaluateMerchantQualification(qualification);
     if(evaluated.status!=='SAT')return fail('qualification','ยังไม่ผ่านคุณสมบัติ Merchant',{qualification:evaluated});
-    const changed=adoptMerchantProfession(agent,qualification,world.tick);
+    const changed=adoptMerchantProfession(agent,qualification,candidate.tick);
     if(changed.status!=='SAT')return fail(changed.reason??'profession','เปลี่ยนอาชีพไม่ได้',{qualification:evaluated});
-    const ledger=ensureLedger(world,agent.id);if(!ledger.ok)return fail(ledger.reason,'สร้าง Merchant Ledger ไม่ได้');
-    return {ok:true,agentId:agent.id,profession:agent.profession,eventType:'career',eventText:agent.name+' เป็น Merchant แล้ว'};
+    const ledger=ensureLedger(candidate,agent.id);if(!ledger.ok)return fail(ledger.reason,'สร้าง Merchant Ledger ไม่ได้');
+    const errors=validateRc4EconomyState(candidate);if(errors.length)return fail('rc4-postcondition','Merchant state ไม่ผ่าน postcondition',{errors});
+    replaceWorldRoot(world,candidate);
+    return {ok:true,agentId:agent.id,profession:'merchant',eventType:'career',eventText:agent.name+' เป็น Merchant แล้ว'};
   }
 
   if(type==='RC4_CREATE_MARKET'){
