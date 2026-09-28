@@ -2,6 +2,7 @@ import {RULES,taskValid} from './survival.mjs?v=0.5.0';
 
 export const NAVIGATION_ARRIVAL_VERSION='RC4-navigation-arrival/2';
 export const NAVIGATION_ARRIVAL_PRODUCER='SIMCLONE_CANONICAL_TASK';
+const canonicalMarketTravelTasks=new WeakSet();
 
 const validId=v=>typeof v==='string'&&v.length>0&&v.length<=160&&/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(v);
 const int=v=>Number.isSafeInteger(v);
@@ -15,7 +16,7 @@ function marketOk(m){
 
 export function isCanonicalMarketTravelTask(task){
   const m=task?.rc4MarketTravel;
-  return task?.kind==='EXPLORE'&&task?.policy===RULES.jobPolicy&&!!m&&
+  return canonicalMarketTravelTasks.has(task)&&task?.kind==='EXPLORE'&&task?.policy===RULES.jobPolicy&&!!m&&
     m.version===NAVIGATION_ARRIVAL_VERSION&&m.producer===NAVIGATION_ARRIVAL_PRODUCER&&
     validId(m.marketId)&&int(m.marketX)&&int(m.marketY)&&positive(m.tradeRange)&&
     int(m.startedTick)&&m.startedTick===task.started;
@@ -47,7 +48,9 @@ export function createCanonicalMarketTravelTask(world,agent,market,path){
       startedTick:world.tick
     }
   };
-  return {state:'SAT',task:Object.freeze(clone(task))};
+  const canonicalTask=Object.freeze(clone(task));
+  canonicalMarketTravelTasks.add(canonicalTask);
+  return {state:'SAT',task:canonicalTask};
 }
 
 /**
