@@ -1,3 +1,12 @@
+> **RC3.2 RELEASED override — 2026-09-28**
+>
+> Released production baseline: `main@1b60b13394c11bd7b03d10227919f4bb509b02df` from merged PR #174.
+> RC3.2 candidate head `0498dc9bc2b108741c60eee439dc6cba67f91b9d` passed Verify #1823 before merge.
+> Exact released SHA `1b60b13394c11bd7b03d10227919f4bb509b02df` then passed post-merge exact-SHA Verify #1965 and Pages #112.
+> Pages #112 public proof passed exact-byte checks plus desktop (1440px) and mobile (390px) browser acceptance for Iron/Steel; RC3.1 Blueprint, RC2 crafting, Adventure and SWA7 were retained.
+> RC3.2 release evidence includes deterministic real MINE Iron Ore, real-click Furnace Ore→Iron→Steel processing, T2/T3 metal reservation semantics, physical crafted item continuity, save/load, and RS4-0.2 old-save migration.
+> RC3.2 is closed. The next integration line is RC4 Merchant Economy; do not reopen RC3.2 authorities or treat older candidate/baseline notes below as current where they conflict with this override.
+>
 > **RC3.1 candidate source update — 2026-09-28**
 >
 > Starting released main: `c1fdbcac92f61499507ef89eec8b207da5bab7cb` (RC2, Pages #110). PR #173 adds physical Blueprint loot and personal recipe learning through existing authorities.
