@@ -69,8 +69,8 @@
       "id": "P0-07",
       "phase": 0,
       "kind": "master-gate",
-      "objective": "Navigation exposes or approves canonical position/arrival evidence consumed by Customer/Merchant AI",
-      "evidenceRequired": "Navigation evidence contract + source/test proof",
+      "objective": "Navigation exposes canonical non-forgeable position/arrival provenance consumed by Customer/Merchant AI",
+      "evidenceRequired": "Navigation journey/execution authority + proof that a fully fabricated evidence object with recomputed deterministic hash/id cannot verify",
       "immutableOnFail": false,
       "result": "UNKNOWN",
       "reason": "Master Gate not open / no exact integrated candidate evidence"
@@ -569,8 +569,8 @@
       "id": "P6-04",
       "phase": 6,
       "kind": "attack",
-      "objective": "Forged arrival fails",
-      "evidenceRequired": "forged evidence + unchanged trade state",
+      "objective": "Forged arrival fails even when caller fabricates the complete evidence object and recomputes its deterministic evidenceId",
+      "evidenceRequired": "canonical Navigation journey/execution provenance + full-object forgery attack + unchanged trade state",
       "immutableOnFail": true,
       "result": "UNKNOWN",
       "reason": "Master Gate not open / no exact integrated candidate evidence"
@@ -769,8 +769,8 @@
       "id": "P8-06",
       "phase": 8,
       "kind": "attack",
-      "objective": "Forged successful Trade Kernel-looking result without matching canonical tradeReplay receipt cannot mutate Merchant Ledger",
-      "evidenceRequired": "ledger before/after + forged result",
+      "objective": "Forged Trade result cannot mutate Merchant Ledger even with recomputed receipt hashes and a matching caller-forged tradeReplay graph",
+      "evidenceRequired": "Ledger before/after + forged receipt/fingerprint/integrityFingerprint/tradeReplay + trusted canonical execution provenance check",
       "immutableOnFail": true,
       "result": "UNKNOWN",
       "reason": "Master Gate not open / no exact integrated candidate evidence"
@@ -780,7 +780,7 @@
       "phase": 9,
       "kind": "career",
       "objective": "Canonical VERIFIED+COMMITTED non-duplicate transaction progresses real Merchant party",
-      "evidenceRequired": "career before/after + receipt",
+      "evidenceRequired": "career before/after + receipt; trusted canonical Trade execution provenance must be retained through the #179 assessment/ingestion path",
       "immutableOnFail": false,
       "result": "UNKNOWN",
       "reason": "Master Gate not open / no exact integrated candidate evidence"
@@ -1746,5 +1746,8 @@
       "181": "Verify #1959 SUCCESS"
     },
     "rule": "Any donor head drift invalidates its pinned evidence until the new exact head is independently re-audited."
+  },
+  "auditUpdate": {
+    "takeover": "B3 provenance forgery and #179 trusted commit provenance are explicit acceptance attacks; B8 remains locked until B1-B7 closure."
   }
 }
