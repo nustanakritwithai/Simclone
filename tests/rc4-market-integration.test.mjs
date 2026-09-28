@@ -99,8 +99,9 @@ test('RC4 playable vertical: Merchant Home Market -> Listing -> real walk -> ato
   assert.equal(reservation.status,'COMMITTED');assert.equal(reservation.transactionId,bought.transactionId);
   const ledger=s.merchantLedgers.ledgers.find(l=>l.merchantId===merchant.id);
   assert.equal(ledger.revenue,50);assert.equal(ledger.costOfGoodsSold,0);assert.equal(ledger.realizedProfit,50);
-  assert.equal(merchant.merchantTransactions,1);assert.equal(merchant.merchantExperience,1);
-  assert.equal(buyer.task,null);
+  const merchantAfter=s.agents.find(a=>a.id===merchant.id),buyerAfter=s.agents.find(a=>a.id===buyer.id);
+  assert.equal(merchantAfter.merchantTransactions,1);assert.equal(merchantAfter.merchantExperience,1);
+  assert.equal(buyerAfter.task,null);
   assert.deepEqual(validate(s),[]);
 
   const wire=serialize(s);s=restore(wire);
