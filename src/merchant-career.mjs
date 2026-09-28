@@ -124,9 +124,28 @@ export function adoptMerchantProfession(agent,snapshot,tick){
   return {...transition,status,qualification};
 }
 
-export function merchantProgressionSnapshot(agent){
+/**
+ * Read-only accounting bridge. Merchant Ledger remains the only writer of
+ * Revenue / COGS / Realized Profit. Career only projects a validated ledger
+ * total for progression/UI consumers and never stores it on the agent.
+ */
+export function projectMerchantRealizedProfit(agent,ledger){
+  if(!agent||typeof agent!=='object'||Array.isArray(agent))return {status:UNKNOWN,reason:'agent',merchantRealizedProfit:null,authority:'merchant-ledger'};
+  if(ledger===undefined||ledger===null)return {status:UNKNOWN,reason:'ledger-missing',merchantRealizedProfit:null,authority:'merchant-ledger'};
+  if(!ledger||typeof ledger!=='object'||Array.isArray(ledger))return {status:VIOL,reason:'ledger-shape',merchantRealizedProfit:null,authority:'merchant-ledger'};
+  if(!Number.isSafeInteger(ledger.merchantId)||ledger.merchantId<1||ledger.merchantId!==agent.id)
+    return {status:VIOL,reason:'ledger-merchant',merchantRealizedProfit:null,authority:'merchant-ledger'};
+  if(!Number.isSafeInteger(ledger.revenue)||ledger.revenue<0||!Number.isSafeInteger(ledger.costOfGoodsSold)||ledger.costOfGoodsSold<0||
+    !Number.isSafeInteger(ledger.realizedProfit)||ledger.realizedProfit!==ledger.revenue-ledger.costOfGoodsSold)
+    return {status:VIOL,reason:'ledger-totals',merchantRealizedProfit:null,authority:'merchant-ledger'};
+  return {status:SAT,reason:'ledger-projection',merchantRealizedProfit:ledger.realizedProfit,authority:'merchant-ledger'};
+}
+
+export function merchantProgressionSnapshot(agent,{ledger=null}={}){
+  const profit=projectMerchantRealizedProfit(agent,ledger);
   return {
     merchantTransactions:Number.isInteger(agent?.merchantTransactions)&&agent.merchantTransactions>=0?agent.merchantTransactions:0,
+    merchantRealizedProfit:profit.status===SAT?profit.merchantRealizedProfit:null,
     merchantExperience:Number.isInteger(agent?.merchantExperience)&&agent.merchantExperience>=0?agent.merchantExperience:0,
   };
 }
