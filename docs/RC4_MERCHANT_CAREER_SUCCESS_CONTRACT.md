@@ -158,6 +158,7 @@ A new committed transaction is eligible only when the projection has:
   receipt: {
     transactionId,
     fingerprint,
+    integrityFingerprint,
     eventId,
     marketId,
     listingId,
@@ -165,6 +166,7 @@ A new committed transaction is eligible only when the projection has:
     buyerId,
     sellerId,
     itemKind,
+    itemInstanceId,
     itemIds,
     quantity,
     unitPrice,
@@ -185,8 +187,9 @@ A replay projected by the canonical transaction path is:
 
 and MUST be a no-op for Career progression.
 
-Career validates the compatible committed-receipt structure before consuming it, but Career does not create,
-upgrade or infer transaction truth. In particular it does not turn arbitrary `verified:true` or
+Career validates the compatible committed-receipt structure before consuming it, including the Trade Kernel
+proposal fingerprint and receipt integrity fingerprint over the exact canonical fields + sorted itemIds.
+Career does not create, upgrade or infer transaction truth. In particular it does not turn arbitrary `verified:true` or
 `committed:true` booleans into canonical evidence.
 
 ### Merchant party lock
@@ -259,6 +262,7 @@ Canonical `duplicate:true` never increments either field.
 - missing canonical verification is UNKNOWN / no mutation
 - missing canonical commit status is UNKNOWN / no mutation
 - malformed canonical receipt is rejected
+- tampered Trade Kernel fingerprint/integrity evidence is rejected
 - forged plain `transactionId + verified:true + committed:true` object cannot increment progression
 - more than 32 canonical unique commits are accepted without using a bounded replay gate
 - replay of the first transaction after more than 32 commits is a no-op
