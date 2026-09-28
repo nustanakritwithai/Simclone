@@ -99,7 +99,7 @@ test('IC6C LEAVE returns to an empty temporary store and never splits household 
   const pool=resourceStock(s,owner),before={...pool};
   assert.equal(command(s,'LEAVE_HOUSEHOLD',{agentId:subject.id}).ok,true);
   assert.equal(resourceAccount(s,subject).kind,'personal');
-  assert.deepEqual(materialStock(s,subject),{ownerId:subject.id,food:0,wood:0,stone:0,charcoal:0});
+  assert.deepEqual(materialStock(s,subject),{ownerId:subject.id,food:0,wood:0,stone:0,charcoal:0,ironOre:0,ironIngot:0,steelIngot:0});
   assert.deepEqual({...resourceStock(s,owner)},before);
 });
 
