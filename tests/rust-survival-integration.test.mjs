@@ -72,7 +72,9 @@ test('equipped tools expose action-specific multiplier only',()=>{
   command(s,'CRAFT_ITEM',{agentId:1,recipeId:'STONE_PICKAXE'});
   const r=finishCraft(s,1,24);
   assert.equal(command(s,'EQUIP_ITEM',{agentId:1,itemId:r.itemId}).ok,true);
-  assert.equal(toolMultiplier(s,1,'MINE'),1.25);
+  const item=s.rustPossessions.items.find(i=>i.id===r.itemId);
+  const speed=item.craft.abilities.find(a=>a.kind==='WORK_SPEED_BPS').value;
+  assert.equal(toolMultiplier(s,1,'MINE'),1.25*(10000+speed)/10000);
   assert.equal(toolMultiplier(s,1,'WOODCUT'),1);
   assert.equal(toolMultiplier(s,1,'BUILD'),1);
 });

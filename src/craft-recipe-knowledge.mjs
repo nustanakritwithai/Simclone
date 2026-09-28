@@ -24,6 +24,12 @@ export function recipeMastery(agent,recipeId){
   if(!e||!integer(e.retiredCompletions)||!Array.isArray(e.receipts))return 0;
   return Math.min(RECIPE_KNOWLEDGE_LIMITS.completions,e.retiredCompletions+e.receipts.length);
 }
+/** Family skill is derived from verified per-recipe receipts, never a new XP ledger. */
+export function craftFamilyMastery(agent,recipeId){
+  const r=recipeById(recipeId);if(!r)return 0;
+  return Math.min(RECIPE_KNOWLEDGE_LIMITS.completions,Object.values(CRAFT_RECIPE_CATALOG)
+    .filter(x=>x.output===r.output).reduce((total,x)=>total+recipeMastery(agent,x.id),0));
+}
 function structuralErrors(state,agent){
   if(!baseKnowledge(agent))return ['Recipe knowledge'];
   const book=agent.knowledgeState.recipes;
@@ -86,11 +92,12 @@ function writableBook(agent){return agent.knowledgeState.recipes?copy(agent.know
  * Receipt watermark is monotonic per recipe; bounded compaction never reopens an
  * old order. Legacy orders are not retrospectively awarded mastery.
  */
-export function recipeCompletionProposal(state,agent,order,itemId){
+export function recipeCompletionProposal(state,agent,order,itemId,completedWork=order?.work){
   if(order?.recipeKnowledge===undefined)return null;
   if(order.recipeKnowledge!==RECIPE_KNOWLEDGE_VERSION)throw new Error('craft_knowledge_version');
   if(validateRecipeKnowledge(state,agent).length||order.agentId!==agent.id||
-    !state.rustPossessions.orders.includes(order)||order.work<order.required||
+    !state.rustPossessions.orders.includes(order)||completedWork<order.required||
+    completedWork>order.work+1||
     !integer(itemId,1)||itemId!==state.rustPossessions.nextItem||
     !knowsCraftRecipe(state,agent,order.recipe))throw new Error('craft_knowledge_completion');
   const book=writableBook(agent),e=book.entries.find(x=>x.recipeId===order.recipe);

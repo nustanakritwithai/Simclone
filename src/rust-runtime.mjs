@@ -1,6 +1,7 @@
+import {validateCraftedItem} from './craft-outcome.mjs?v=0.5.0';
 import {teachCraftRecipe,validateRecipeKnowledge,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,PLACEABLE_KINDS,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
-import {createRustPossessions,queueCraft,advanceCraft,equipTool,unequipTool,equipAdventureGear,unequipAdventureGear,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,grantAdventureLoot,equipmentSlotOf,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
+import {createRustPossessions,queueCraft,advanceCraft,validateCraftOrder,equipTool,unequipTool,equipAdventureGear,unequipAdventureGear,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,grantAdventureLoot,equipmentSlotOf,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
 import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS,stationLimit} from './rust-stations.mjs?v=0.5.0';
 import {completedHouseIds} from './housing.mjs?v=0.5.0';
 import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
@@ -16,6 +17,7 @@ export function ensureRustState(s){
   return s;
 }
 const msg=r=>({
+  'item-materials':'ของวัตถุดิบไม่ครบ หรือยังสวม/ติดผลต่อสู้อยู่','output-capacity':'กระเป๋าเต็ม งานที่เสร็จรอช่องว่าง','craft-order-invalid':'หลักฐานงานคราฟต์ไม่ถูกต้อง','craft-item-invalid':'คุณสมบัติของวัตถุดิบไม่ถูกต้อง',
   'recipe-unknown':'คนนี้ยังไม่รู้สูตร ต้องฝึกหรือเรียนจากผู้ที่รู้สูตรก่อน','recipe-knowledge':'ข้อมูลสูตรของคนนี้ไม่ถูกต้อง','recipe-actors':'เลือกครูและผู้เรียนที่ยังมีชีวิตคนละคน',
   'actor-or-recipe':'เลือกคนที่มีชีวิตและสูตรที่ถูกต้อง','craft-busy':'คนนี้มีงานคราฟต์ค้างอยู่','bag-full':'กระเป๋าเต็ม','capacity':'พื้นที่เก็บของเต็ม',
   station:'ต้องมีสถานีที่ถูกต้อง','materials':'วัสดุไม่พอ','item':'ไม่พบของชิ้นนี้ในกระเป๋า','range':'ต้องอยู่ใกล้จุดใช้งาน',
@@ -93,7 +95,9 @@ export function validateRustState(s){
   const p=s.rustPossessions,rs=s.rustStations,m=s.rustMaterials,people=new Set([...(s.agents??[]),...(s.archive??[])].map(a=>a.id)),alive=new Set((s.agents??[]).filter(a=>a.alive).map(a=>a.id));
   if(!p||p.version!==RUST_POSSESSIONS_VERSION||!Number.isSafeInteger(p.nextItem)||!Number.isSafeInteger(p.nextOrder)||!Array.isArray(p.items)||p.items.length>RUST_POSSESSION_LIMITS.items||!Array.isArray(p.orders)||p.orders.length>RUST_POSSESSION_LIMITS.orders||!Array.isArray(p.equipment))e.push('Rust possessions');
   else{
-    const ids=new Set();for(const i of p.items){const def=ITEM_CATALOG[i?.kind];if(!i||!Number.isSafeInteger(i.id)||ids.has(i.id)||!def||!people.has(i.createdBy)||!i.location)e.push('Rust item');ids.add(i?.id);
+    const ids=new Set(),craftOrders=new Set();for(const i of p.items){const def=ITEM_CATALOG[i?.kind];if(!i||!Number.isSafeInteger(i.id)||ids.has(i.id)||!def||!people.has(i.createdBy)||!i.location)e.push('Rust item');ids.add(i?.id);
+      if(!validateCraftedItem(i,s.seed))e.push('Rust craft outcome');
+      if(i?.craft){if(craftOrders.has(i.craft.orderId)||!Number.isSafeInteger(i.createdTick)||i.createdTick<0||i.createdTick>s.tick||i.craft.orderId>=p.nextOrder||p.orders.some(o=>o.id===i.craft.orderId))e.push('Rust craft outcome');craftOrders.add(i.craft.orderId);}
       if(def?.category==='gear'&&i.upgradeLevel!==0)e.push('Rust gear');
       if(i?.location?.kind==='bag'&&!alive.has(i.location.agentId))e.push('Rust bag');
       if(i?.location?.kind==='drop'&&(!Number.isInteger(i.location.x)||!Number.isInteger(i.location.y)))e.push('Rust drop');
@@ -101,7 +105,9 @@ export function validateRustState(s){
     }
     const bagCounts=new Map();for(const i of p.items.filter(i=>i.location?.kind==='bag'))bagCounts.set(i.location.agentId,(bagCounts.get(i.location.agentId)??0)+1);
     if([...bagCounts.values()].some(n=>n>RUST_POSSESSION_LIMITS.bag))e.push('Rust bag capacity');
-    for(const o of p.orders)if(!o||!alive.has(o.agentId)||!RECIPE_CATALOG[o.recipe]||!Number.isFinite(o.work)||o.work<0||!Number.isFinite(o.required)||o.required<1||!o.reserved||(o.recipeKnowledge!==undefined&&o.recipeKnowledge!==RECIPE_KNOWLEDGE_VERSION))e.push('Rust craft order');
+    for(const o of p.orders)if(!o||!alive.has(o.agentId)||!RECIPE_CATALOG[o.recipe]||!Number.isFinite(o.work)||o.work<0||!Number.isFinite(o.required)||o.required<1||!o.reserved||(o.recipeKnowledge!==undefined&&o.recipeKnowledge!==RECIPE_KNOWLEDGE_VERSION)||!validateCraftOrder(s,o))e.push('Rust craft order');
+    const escrowIds=p.orders.flatMap(o=>Array.isArray(o?.reservedItems)?o.reservedItems.map(i=>i.itemId):[]);
+    if(new Set(escrowIds).size!==escrowIds.length)e.push('Rust craft escrow');
     const equippedSlots=new Set();for(const q of p.equipment){
       const slot=equipmentSlotOf(q),key=q?.agentId+':'+slot,item=p.items.find(i=>i.id===q?.itemId&&i.location?.kind==='bag'&&i.location.agentId===q?.agentId),def=item&&ITEM_CATALOG[item.kind];
       const validSlot=slot==='hand'

@@ -1,3 +1,4 @@
+import {craftedGearBaseModifiers,validateCraftedItem} from './craft-outcome.mjs?v=0.5.0';
 import {ADVENTURE_GEAR_EXAMPLES,ADVENTURE_GEAR_SLOTS,calculateLoadoutModifiers} from './adventure-gear.mjs?v=0.5.0';
 import {calculateUpgradeModifiers,ADVENTURE_MAX_UPGRADE_LEVEL} from './adventure-upgrade.mjs?v=0.5.0';
 import {equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
@@ -19,10 +20,11 @@ export function adventureCombatLoadoutSnapshot(state,agentId){
     if(row.agentId!==agentId||!ADVENTURE_GEAR_SLOTS.includes(slot))continue;
     const item=p.items?.find(i=>i.id===row.itemId&&i.location?.kind==='bag'&&i.location.agentId===agentId);
     const gear=item&&ADVENTURE_GEAR_EXAMPLES[item.kind];
-    if(!item||!gear||gear.slot!==slot||item.upgradeLevel!==0)throw new Error('invalid_adventure_equipment');
+    if(!item||!gear||gear.slot!==slot||item.upgradeLevel!==0||!validateCraftedItem(item,state.seed))throw new Error('invalid_adventure_equipment');
     items.push(freeze({
       itemId:item.id,gearId:gear.gearId,slot,rarity:gear.rarity,upgradeLevel:item.upgradeLevel,
-      modifiers:calculateUpgradeModifiers(gear.baseModifiers,item.upgradeLevel),
+      ...(item.craft?{createdBy:item.createdBy,craft:JSON.parse(JSON.stringify(item.craft))}:{}),
+      modifiers:calculateUpgradeModifiers(craftedGearBaseModifiers(item,gear.baseModifiers),item.upgradeLevel),
     }));
   }
   items.sort((a,b)=>orderedSlots.get(a.slot)-orderedSlots.get(b.slot)||a.itemId-b.itemId);
@@ -41,7 +43,8 @@ export function validateAdventureCombatLoadoutSnapshot(snapshot){
     for(const item of snapshot.items){
       const gear=ADVENTURE_GEAR_EXAMPLES[item?.gearId];
       if(!gear||item.slot!==gear.slot||seen.has(item.slot)||!Number.isSafeInteger(item.itemId)||item.upgradeLevel!==0)return ['Adventure loadout'];
-      const modifiers=calculateUpgradeModifiers(gear.baseModifiers,item.upgradeLevel);
+      if(!validateCraftedItem(item))return ['Adventure loadout'];
+      const modifiers=calculateUpgradeModifiers(craftedGearBaseModifiers(item,gear.baseModifiers),item.upgradeLevel);
       if(JSON.stringify(modifiers)!==JSON.stringify(item.modifiers))return ['Adventure loadout'];
       seen.add(item.slot);entries.push({slot:item.slot,modifiers});
     }

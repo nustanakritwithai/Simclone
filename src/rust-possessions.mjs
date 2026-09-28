@@ -1,4 +1,5 @@
-import {knowsCraftRecipe,validateRecipeKnowledge,recipeCompletionProposal,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
+import {createCraftSpec,validateCraftSpec,resolveCraftOutcome,validateCraftedItem,craftedToolMultiplier} from './craft-outcome.mjs?v=0.5.0';
+import {knowsCraftRecipe,validateRecipeKnowledge,recipeCompletionProposal,craftFamilyMastery,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
@@ -10,41 +11,106 @@ const living=(s,id)=>s.agents?.find(a=>a.id===id&&a.alive);
 const bag=(p,id)=>p.items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===id);
 export const RUST_EQUIPMENT_SLOTS=Object.freeze(['hand','WEAPON','ARMOR','ACCESSORY']);
 export const equipmentSlotOf=e=>e?.slot??'hand';
-export function queueCraft(s,{agentId,recipeId,stationId=null}={}){
-  const p=s.rustPossessions,a=living(s,agentId),r=RECIPE_CATALOG[recipeId];
-  if(isIndependent(s)&&a&&!canPerformProductiveWork(s,a))return {ok:false,reason:'stage'};
+const integer=(n,min=0)=>Number.isSafeInteger(n)&&n>=min;
+const sameMaterials=(a,b)=>a&&b&&Object.keys(a).length===Object.keys(b).length&&Object.entries(b).every(([key,n])=>a[key]===n);
+/** Read source ledgers, never create a second spendable ingredient inventory. */
+function reservedLootItemIds(s){
+  return new Set((s.agents??[]).flatMap(a=>a.adventureCombat?.lootClaim?.itemIds??[]));
+}
+function selectedCraftIngredients(s,a,r){
+  const p=s.rustPossessions,equipped=new Set(p.equipment.map(e=>e.itemId)),held=reservedLootItemIds(s),selected=[],missing={};
+  for(const [kind,quantity] of Object.entries(r.itemMaterials??{})){
+    const available=p.items.filter(i=>i.kind===kind&&i.location?.kind==='bag'&&i.location.agentId===a.id&&
+      !equipped.has(i.id)&&!held.has(i.id)).sort((x,y)=>x.id-y.id);
+    const chosen=available.slice(0,quantity);selected.push(...chosen);
+    if(chosen.length<quantity)missing[kind]=quantity-chosen.length;
+  }
+  return {selected,missing};
+}
+function checkCraft(s,{agentId,recipeId,stationId=null}={}){
+  const p=s.rustPossessions,a=living(s,agentId),r=Object.hasOwn(RECIPE_CATALOG,recipeId??'')?RECIPE_CATALOG[recipeId]:null;
+  if(a&&!canPerformProductiveWork(s,a))return {ok:false,reason:'stage'};
   if(!p||!a||!r)return {ok:false,reason:'actor-or-recipe'};
   if(validateRecipeKnowledge(s,a).length)return {ok:false,reason:'recipe-knowledge'};
   if(!knowsCraftRecipe(s,a,recipeId))return {ok:false,reason:'recipe-unknown'};
+  if(a.adventureCombat?.status==='ACTIVE')return {ok:false,reason:'combat-active'};
   if(p.orders.some(o=>o.agentId===agentId))return {ok:false,reason:'craft-busy'};
-  if(p.orders.length>=RUST_POSSESSION_LIMITS.orders||p.items.length+p.orders.length>=RUST_POSSESSION_LIMITS.items)return {ok:false,reason:'capacity'};
-  if(bag(p,agentId).length+p.orders.filter(o=>o.agentId===agentId).length>=RUST_POSSESSION_LIMITS.bag)return {ok:false,reason:'bag-full'};
+  if(!integer(p.nextOrder,1)||p.nextOrder>=Number.MAX_SAFE_INTEGER||!integer(p.nextItem,1)||p.nextItem>=Number.MAX_SAFE_INTEGER)return {ok:false,reason:'capacity'};
+  const {selected,missing}=selectedCraftIngredients(s,a,r);
+  if(Object.keys(missing).length)return {ok:false,reason:'item-materials',missing};
+  if(p.orders.length>=RUST_POSSESSION_LIMITS.orders||p.items.length-selected.length+p.orders.length>=RUST_POSSESSION_LIMITS.items)return {ok:false,reason:'capacity'};
+  if(bag(p,agentId).length-selected.length>=RUST_POSSESSION_LIMITS.bag)return {ok:false,reason:'bag-full'};
   const station=stationForRecipe(s,recipeId,a,stationId);
   if(r.station!==CRAFT_STATIONS.HAND&&!station)return {ok:false,reason:'station',station:r.station};
-  const stock=resourceStock(s,a);
-  const check=craftability({stock},recipeId,{stationKinds:availableStationKinds(s)});if(!check.ok)return check;
-  // Atomic escrow: remove materials once at acceptance. Completion never spends again.
-  for(const [k,n] of Object.entries(r.materials))stock[k]-=n;
-  const order={id:p.nextOrder++,agentId,recipe:recipeId,stationId:station?.id??null,work:0,required:r.work,startedTick:s.tick,lastWorkedTick:s.tick,reserved:{...r.materials},recipeKnowledge:RECIPE_KNOWLEDGE_VERSION};
-  p.orders.push(order);
-  return {ok:true,orderId:order.id,recipeId,stationId:order.stationId,reserved:{...order.reserved},workRequired:r.work};
+  const stock=resourceStock(s,a),check=craftability({stock},recipeId,{stationKinds:availableStationKinds(s)});if(!check.ok)return check;
+  if(selected.some(i=>!validateCraftedItem(i,s.seed)))return {ok:false,reason:'craft-item-invalid'};
+  return {ok:true,p,a,r,station,stock,selected};
+}
+export function craftPreview(s,data={}){
+  const check=checkCraft(s,data);if(!check.ok)return check;
+  const {r,station,selected}=check;
+  return {ok:true,recipeId:r.id,output:r.output,tier:r.tier,station:r.station,stationId:station?.id??null,
+    materials:{...r.materials},itemMaterials:{...r.itemMaterials},ingredientIds:selected.map(i=>i.id),work:r.work};
+}
+export function queueCraft(s,data={}){
+  const check=checkCraft(s,data);if(!check.ok)return check;
+  const {p,a,r,station,stock,selected}=check;
+  const id=p.nextOrder,craftSpec=createCraftSpec({worldSeed:s.seed,orderId:id,creatorId:a.id,recipeId:r.id,mastery:craftFamilyMastery(a,r.id)});
+  // Only audit receipts survive escrow. Selected item IDs are no longer spendable.
+  const reservedItems=selected.map(i=>({itemId:i.id,kind:i.kind,createdBy:i.createdBy}));
+  const order={id,agentId:a.id,recipe:r.id,stationId:station?.id??null,work:0,required:r.work,startedTick:s.tick,lastWorkedTick:s.tick,
+    reserved:{...r.materials},recipeKnowledge:RECIPE_KNOWLEDGE_VERSION,craftSpec,reservedItems};
+  for(const [key,n] of Object.entries(r.materials))stock[key]-=n;
+  const consumed=new Set(selected.map(i=>i.id));if(consumed.size)p.items=p.items.filter(i=>!consumed.has(i.id));
+  p.nextOrder++;p.orders.push(order);
+  return {ok:true,orderId:id,recipeId:r.id,stationId:order.stationId,reserved:{...order.reserved},ingredientIds:[...consumed],workRequired:r.work};
+}
+export function validateCraftOrder(s,o){
+  const r=RECIPE_CATALOG[o?.recipe];if(!r)return false;
+  // Pre-outcome orders retain their already committed costs and legacy output.
+  if(o.craftSpec===undefined)return o.reservedItems===undefined;
+  if(o.recipeKnowledge!==RECIPE_KNOWLEDGE_VERSION||!integer(o.id,1)||o.id>=s.rustPossessions.nextOrder||
+    !integer(o.startedTick)||!integer(o.lastWorkedTick)||o.startedTick>o.lastWorkedTick||o.lastWorkedTick>s.tick||
+    !Number.isFinite(o.work)||o.work<0||o.work>o.required||o.required!==r.work||!sameMaterials(o.reserved,r.materials)||
+    !validateCraftSpec(o.craftSpec,{worldSeed:s.seed,orderId:o.id,creatorId:o.agentId,recipeId:o.recipe})||
+    !Array.isArray(o.reservedItems)||o.reservedItems.length>4)return false;
+  const counts={},ids=new Set(),people=new Set([...(s.agents??[]),...(s.archive??[])].map(a=>a.id));
+  for(const i of o.reservedItems){
+    if(!i||!integer(i.itemId,1)||i.itemId>=s.rustPossessions.nextItem||ids.has(i.itemId)||!people.has(i.createdBy)||
+      !r.itemMaterials?.[i.kind]||s.rustPossessions.items.some(x=>x.id===i.itemId))return false;
+    ids.add(i.itemId);counts[i.kind]=(counts[i.kind]??0)+1;
+  }
+  return sameMaterials(counts,r.itemMaterials??{});
 }
 export function advanceCraft(s,agentId,{workRate=1}={}){
   const p=s.rustPossessions,a=living(s,agentId),o=p?.orders.find(o=>o.agentId===agentId);
   if(!p||!a||!o)return {ok:false,reason:'order'};
+  if(!canPerformProductiveWork(s,a))return {ok:false,reason:'stage'};
   const r=RECIPE_CATALOG[o.recipe];if(!r)return {ok:false,reason:'recipe'};
+  if(!validateCraftOrder(s,o))return {ok:false,reason:'craft-order-invalid'};
   const st=stationForRecipe(s,o.recipe,a,o.stationId);
   if(r.station!==CRAFT_STATIONS.HAND&&(!st||a.x!==st.x||a.y!==st.y))return {ok:false,reason:'not-at-station'};
   if(s.tick<=o.lastWorkedTick)return {ok:false,reason:'already-worked'};
   if(!Number.isFinite(workRate)||workRate<=0||workRate>1)return {ok:false,reason:'work-rate'};
-  o.lastWorkedTick=s.tick;o.work+=workRate;
-  if(o.work<o.required)return {ok:true,completed:false,orderId:o.id,work:o.work,required:o.required};
+  const nextWork=Math.min(o.required,o.work+workRate);
+  if(nextWork<o.required){o.lastWorkedTick=s.tick;o.work=nextWork;return {ok:true,completed:false,orderId:o.id,work:o.work,required:o.required};}
+  // Capacity may change while the person is walking or working. Hold the same
+  // order/snapshot; do not consume twice, lose output, reroll, or grant mastery.
+  if(bag(p,agentId).length>=RUST_POSSESSION_LIMITS.bag||p.items.length>=RUST_POSSESSION_LIMITS.items||
+    !integer(p.nextItem,1)||p.nextItem>=Number.MAX_SAFE_INTEGER)return {ok:false,reason:'output-capacity'};
   const itemId=p.nextItem;
-  const mastery=recipeCompletionProposal(s,a,o,itemId);
-  p.nextItem++;p.items.push({id:itemId,kind:r.output,createdBy:agentId,createdTick:s.tick,location:{kind:'bag',agentId}});
+  let craft,mastery;
+  try{
+    craft=o.craftSpec?resolveCraftOutcome({spec:o.craftSpec,orderId:o.id,creatorId:agentId,recipeId:o.recipe}):null;
+    mastery=recipeCompletionProposal(s,a,o,itemId,nextWork);
+  }catch{return {ok:false,reason:'craft-order-invalid'};}
+  const item={id:itemId,kind:r.output,createdBy:agentId,createdTick:s.tick,
+    ...(ITEM_CATALOG[r.output].category==='gear'?{upgradeLevel:0}:{}),...(craft?{craft}:{}),location:{kind:'bag',agentId}};
+  p.nextItem++;p.items.push(item);
   if(mastery)a.knowledgeState.recipes=mastery.book;
   p.orders=p.orders.filter(x=>x.id!==o.id);
-  return {ok:true,completed:true,orderId:o.id,itemId,kind:r.output,...(mastery?{mastery:mastery.completed,unlockedRecipes:mastery.unlocked}:{})};
+  return {ok:true,completed:true,orderId:o.id,itemId,kind:r.output,...(craft?{tier:craft.tier,quality:craft.quality}:{}),
+    ...(mastery?{mastery:mastery.completed,unlockedRecipes:mastery.unlocked}:{})};
 }
 export function grantAdventureLoot(s,{agentId,claimKey,items}={}){
   const p=s.rustPossessions,a=living(s,agentId);
@@ -127,7 +193,7 @@ export function pickupDroppedItem(s,agentId,itemId){
 }
 export function toolMultiplier(s,agentId,action){
   const p=s.rustPossessions,e=p?.equipment.find(e=>e.agentId===agentId&&equipmentSlotOf(e)==='hand'),item=e&&p.items.find(i=>i.id===e.itemId&&i.location?.kind==='bag'&&i.location.agentId===agentId),def=item&&ITEM_CATALOG[item.kind];
-  return def?.workAction===action?(Number(def.workMultiplier)||1):1;
+  return def?.workAction===action?craftedToolMultiplier(item,Number(def.workMultiplier)||1):1;
 }
 export function releaseRustPossessionsOnDeath(s,agentId){
   const p=s.rustPossessions,a=s.agents?.find(a=>a.id===agentId);
