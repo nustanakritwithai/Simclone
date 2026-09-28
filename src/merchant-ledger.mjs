@@ -1,10 +1,16 @@
 /**
- * RC4 Merchant Ledger — accounting read model only.
- * Consumes successful RC4 Trade Kernel settlement results; never commits trade or writes wallet/inventory.
+ * RC4 Merchant Ledger — deterministic accounting read model only.
+ *
+ * IMPORTANT PROVENANCE BOUNDARY:
+ * A plain JavaScript object cannot prove it was produced by the canonical Trade Kernel.
+ * This donor therefore validates receipt shape/integrity but never promotes a caller-supplied
+ * non-duplicate Trade Kernel result to VERIFIED/COMMITTED accounting evidence by itself.
+ * Trusted commit provenance must be supplied by the later Integration Contract / canonical
+ * Trade Kernel path. Until then, non-duplicate commit ingestion fails closed as UNKNOWN.
  */
 import {isCanonicalMoney,multiplyMoney} from './merchant-pricing.mjs?v=0.5.0';
 
-export const MERCHANT_LEDGER_VERSION='RC4-ledger/3';
+export const MERCHANT_LEDGER_VERSION='RC4-ledger/4';
 export const TRADE_KERNEL_COMPAT=Object.freeze({
   maxQuantity:128,
   maxIdLength:80,
@@ -57,16 +63,7 @@ export function validateCommittedTradeReceipt(r){
   return [...new Set(e)];
 }
 
-function sameCommittedReceipt(a,b){
-  if(validateCommittedTradeReceipt(a).length||validateCommittedTradeReceipt(b).length)return false;
-  return a.transactionId===b.transactionId&&a.fingerprint===b.fingerprint&&a.integrityFingerprint===b.integrityFingerprint&&
-    a.eventId===b.eventId&&a.marketId===b.marketId&&a.listingId===b.listingId&&a.reservationId===b.reservationId&&
-    a.buyerId===b.buyerId&&a.sellerId===b.sellerId&&a.itemKind===b.itemKind&&a.itemInstanceId===b.itemInstanceId&&
-    a.quantity===b.quantity&&a.unitPrice===b.unitPrice&&a.totalPrice===b.totalPrice&&
-    a.itemIds.length===b.itemIds.length&&a.itemIds.every((id,i)=>id===b.itemIds[i]);
-}
-
-function assessCommittedReplayEvidence(state,receipt){
+function validateReplayShape(state,receipt){
   const replay=state?.tradeReplay;
   if(!replay||replay.version!==TRADE_KERNEL_COMPAT.replayVersion||!Array.isArray(replay.receipts)||replay.receipts.length>TRADE_KERNEL_COMPAT.maxReceipts)
     return {state:'UNKNOWN',reason:'committed-state-evidence'};
@@ -77,29 +74,41 @@ function assessCommittedReplayEvidence(state,receipt){
     seen.add(row.transactionId);
   }
   const matches=replay.receipts.filter(row=>row.transactionId===receipt.transactionId);
-  if(matches.length!==1||!sameCommittedReceipt(matches[0],receipt))return {state:'VIOL',reason:'committed-state-evidence'};
-  return {state:'SAT'};
+  if(matches.length!==1)return {state:'VIOL',reason:'committed-state-evidence'};
+  const row=matches[0];
+  const same=row.fingerprint===receipt.fingerprint&&row.integrityFingerprint===receipt.integrityFingerprint&&
+    row.eventId===receipt.eventId&&row.marketId===receipt.marketId&&row.listingId===receipt.listingId&&
+    row.reservationId===receipt.reservationId&&row.buyerId===receipt.buyerId&&row.sellerId===receipt.sellerId&&
+    row.itemKind===receipt.itemKind&&row.itemInstanceId===receipt.itemInstanceId&&row.quantity===receipt.quantity&&
+    row.unitPrice===receipt.unitPrice&&row.totalPrice===receipt.totalPrice&&
+    row.itemIds.length===receipt.itemIds.length&&row.itemIds.every((id,i)=>id===receipt.itemIds[i]);
+  return same?{state:'SAT'}:{state:'VIOL',reason:'committed-state-evidence'};
 }
 
-/** Raw proposal / failed / UNKNOWN / forged success is not accounting evidence. */
+/**
+ * Structural assessment only.
+ *
+ * duplicate:true is a harmless no-op after structural validation.
+ * A non-duplicate plain result is NEVER promoted to VERIFIED/COMMITTED here because the caller
+ * can forge both receipt and matching tradeReplay state. Canonical provenance must come from
+ * the Integration Contract / Trade Kernel authority, which this isolated donor does not own.
+ */
 export function assessTradeKernelResult(result){
   if(!result||typeof result!=='object'||Array.isArray(result))return {state:'UNKNOWN',reason:'trade-result'};
   if(result.ok!==true)return result.ok===false?{state:'VIOL',reason:result.reason??'trade-not-committed'}:{state:'UNKNOWN',reason:'trade-result'};
   if(result.duplicate!==true&&result.duplicate!==false)return {state:'UNKNOWN',reason:'commit-status'};
   const errors=validateCommittedTradeReceipt(result.receipt);
   if(errors.length)return {state:'VIOL',reason:'trade-receipt',errors};
-  const replayEvidence=assessCommittedReplayEvidence(result.state,result.receipt);
-  if(replayEvidence.state!=='SAT')return replayEvidence;
+  const replayShape=validateReplayShape(result.state,result.receipt);
+  if(replayShape.state!=='SAT')return replayShape;
   if(result.duplicate===true)return {state:'SAT',duplicate:true,receipt:result.receipt};
-  return {state:'SAT',duplicate:false,verification:'VERIFIED',commitStatus:'COMMITTED',receipt:result.receipt};
+  return {state:'UNKNOWN',reason:'trade-commit-provenance',duplicate:false,receipt:result.receipt};
 }
 
 export function createMerchantLedger(merchantId){
   if(!positiveInt(merchantId))throw new Error('merchantId');
   return {merchantId,purchases:[],sales:[],revenue:0,costOfGoodsSold:0,realizedProfit:0};
 }
-
-const transactionIds=ledger=>new Set([...ledger.purchases,...ledger.sales].map(x=>x.transactionId));
 
 export function validateMerchantLedger(ledger){
   const e=[];
@@ -151,6 +160,8 @@ function productionItemBasis(itemId,evidence){
 }
 
 export function resolveCostBasis(ledger,receipt,{productionEvidence=null}={}){
+  const ledgerErrors=validateMerchantLedger(ledger);if(ledgerErrors.length)return {state:'VIOL',reason:'ledger',errors:ledgerErrors};
+  const receiptErrors=validateCommittedTradeReceipt(receipt);if(receiptErrors.length)return {state:'VIOL',reason:'trade-receipt',errors:receiptErrors};
   const parts=[];
   for(const itemId of receipt.itemIds){
     const purchased=purchasedItemBasis(ledger,itemId,receipt.itemKind);
@@ -163,27 +174,27 @@ export function resolveCostBasis(ledger,receipt,{productionEvidence=null}={}){
   return {state:'SAT',cogs,source:sources.size===1?[...sources][0]:'mixed',parts};
 }
 
-export function applyTradeKernelCommitToLedger(ledger,result,{productionEvidence=null}={}){
-  const ledgerErrors=validateMerchantLedger(ledger);if(ledgerErrors.length)return {state:'VIOL',reason:'ledger',errors:ledgerErrors,ledger:clone(ledger)};
-  const assessed=assessTradeKernelResult(result);if(assessed.state!=='SAT'||assessed.duplicate)return {...assessed,ledger:clone(ledger)};
-  const r=assessed.receipt;
-  if(transactionIds(ledger).has(r.transactionId))return {state:'SAT',duplicate:true,ledger:clone(ledger)};
-  const next=clone(ledger);
-  if(r.buyerId===next.merchantId){
-    next.purchases.push({transactionId:r.transactionId,marketId:r.marketId,itemKind:r.itemKind,itemIds:stableIds(r.itemIds),remainingItemIds:stableIds(r.itemIds),
-      quantity:r.quantity,unitPrice:r.unitPrice,totalPrice:r.totalPrice,listingId:r.listingId,reservationId:r.reservationId});
-    const errors=validateMerchantLedger(next);return errors.length?{state:'VIOL',reason:'ledger-post',errors,ledger:clone(ledger)}:{state:'SAT',duplicate:false,ledger:next};
-  }
-  if(r.sellerId!==next.merchantId)return {state:'VIOL',reason:'merchant-not-party',ledger:clone(ledger)};
-  const basis=resolveCostBasis(next,r,{productionEvidence});if(basis.state!=='SAT')return {...basis,ledger:clone(ledger)};
-  for(const part of basis.parts)if(part.source==='purchase')next.purchases[part.purchaseIndex].remainingItemIds=next.purchases[part.purchaseIndex].remainingItemIds.filter(id=>id!==part.itemId);
-  const profit=r.totalPrice-basis.cogs;
-  next.sales.push({transactionId:r.transactionId,marketId:r.marketId,itemKind:r.itemKind,itemIds:stableIds(r.itemIds),quantity:r.quantity,
-    unitPrice:r.unitPrice,totalPrice:r.totalPrice,cogs:basis.cogs,profit,costBasisSource:basis.source,costBasisRefs:basis.parts.map(p=>p.ref),
-    listingId:r.listingId,reservationId:r.reservationId});
-  next.revenue+=r.totalPrice;next.costOfGoodsSold+=basis.cogs;next.realizedProfit=next.revenue-next.costOfGoodsSold;
-  if(!Number.isSafeInteger(next.revenue)||!Number.isSafeInteger(next.costOfGoodsSold)||!Number.isSafeInteger(next.realizedProfit))return {state:'VIOL',reason:'ledger-overflow',ledger:clone(ledger)};
-  const errors=validateMerchantLedger(next);return errors.length?{state:'VIOL',reason:'ledger-post',errors,ledger:clone(ledger)}:{state:'SAT',duplicate:false,ledger:next};
+/** Pure arithmetic only. This function does not mutate or authorize a transaction. */
+export function calculateSaleAccounting({revenueBefore=0,costOfGoodsSoldBefore=0,totalPrice,cogs}={}){
+  if(!isCanonicalMoney(revenueBefore)||!isCanonicalMoney(costOfGoodsSoldBefore)||
+    !isCanonicalMoney(totalPrice,{allowZero:false})||!isCanonicalMoney(cogs))return {state:'VIOL',reason:'accounting-input'};
+  const revenue=revenueBefore+totalPrice,costOfGoodsSold=costOfGoodsSoldBefore+cogs;
+  if(!Number.isSafeInteger(revenue)||!Number.isSafeInteger(costOfGoodsSold))return {state:'VIOL',reason:'accounting-overflow'};
+  const realizedProfit=revenue-costOfGoodsSold;
+  if(!Number.isSafeInteger(realizedProfit))return {state:'VIOL',reason:'accounting-overflow'};
+  return Object.freeze({state:'SAT',revenue,costOfGoodsSold,realizedProfit});
+}
+
+/**
+ * Fail-closed ingestion boundary for the isolated donor.
+ * Until Integration supplies canonical, unforgeable Trade Kernel commit provenance,
+ * no non-duplicate caller-supplied result may mutate Merchant Ledger.
+ */
+export function applyTradeKernelCommitToLedger(ledger,result){
+  const ledgerErrors=validateMerchantLedger(ledger);
+  if(ledgerErrors.length)return {state:'VIOL',reason:'ledger',errors:ledgerErrors,ledger:clone(ledger)};
+  const assessed=assessTradeKernelResult(result);
+  return {...assessed,ledger:clone(ledger)};
 }
 
 export function serializeMerchantLedger(ledger){
