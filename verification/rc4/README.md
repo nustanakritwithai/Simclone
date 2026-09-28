@@ -108,3 +108,19 @@ Capture the new merged-main SHA and rerun:
 Machine-readable matrix contains **171** checks including 13 Phase-0 Master Gate readiness rows. Latest pinned donor refresh: #179 `da82d217…` (#1978/#1979 SUCCESS) and #180 `0aa5a824…` (#1990 SUCCESS). All unexecuted rows remain UNKNOWN.
 
 UNKNOWN is never PASS.
+
+
+## Takeover audit — 2026-09-29
+
+Latest accepted takeover facts:
+
+- #179 current head is `9b5e63e386f0543f9700237242b2c4f0745a8c2d`; Verify #2013 push and #2015 PR are SUCCESS. Non-duplicate plain Trade results now fail closed as `UNKNOWN / trade-commit-provenance`.
+- B3 #185 `34055f557d45ca3c9e9adc118d0f77e658b7f5e9` has green #2020/#2026 CI but is **VIOL** by source audit because complete caller-fabricated arrival evidence can recompute its own deterministic evidenceId without canonical journey provenance.
+- B4 #186 `c4d1b544a1203459aa78ef55b83a28db6077056c` passed #2025/#2027 and is donor-scope SAT; P0-08 remains UNKNOWN until assembled integration.
+- B1/B2 #184 and B5/B6 #187/#188 remain UNKNOWN pending exact-head/current-main verification and cross-domain proof.
+- B7 is **VIOL / incomplete**: Home Market present `{}` can normalize to a fresh empty component instead of failing closed, and persistence ownership is not yet complete for all RC4 roots.
+- B8 is `LOCKED_NOT_STARTED` until B1–B7 donor/domain closure is accepted.
+
+Two explicit attack locks are now part of the matrix:
+- full fabricated Navigation evidence + recomputed hash/id must fail;
+- forged Trade receipt + matching forged tradeReplay + recomputed hashes must not mutate Ledger/Career without trusted canonical execution provenance.
