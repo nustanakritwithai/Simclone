@@ -21,10 +21,15 @@ test('RC4 acceptance artifacts are parseable, unique and fail-closed before Mast
   assert.deepEqual([...new Set(matrix.rows.map(row=>row.phase))].sort((a,b)=>a-b),Array.from({length:16},(_,i)=>i));
   assert.ok(matrix.rows.every(row=>['SAT','VIOL','UNKNOWN'].includes(row.result)));
   assert.equal(matrix.rows.filter(row=>row.result!=='UNKNOWN').length,0,'unexecuted prepared rows may not be pre-promoted');
+  assert.equal(matrix.donorSnapshot?.exactHeads?.['179'],'da82d2178e605283fabf76b80c91cd731da4ad49');
+  assert.equal(matrix.donorSnapshot?.exactHeads?.['180'],'0aa5a824d7da70172a267dbf1f440e69d44ef271');
+  assert.match(matrix.donorSnapshot?.evidence?.['179']??'',/#1978.*SUCCESS.*#1979.*SUCCESS/);
 
   assert.equal(fixture.schema,'RC4-merchant-economy-fixture-contract/1');
   assert.equal(fixture.verdict,'UNKNOWN');
   assert.equal(fixture.masterGate?.result,'UNKNOWN');
+  assert.equal(fixture.donorSnapshot?.donors?.['179']?.head,'da82d2178e605283fabf76b80c91cd731da4ad49');
+  assert.equal(fixture.donorSnapshot?.donors?.['180']?.head,'0aa5a824d7da70172a267dbf1f440e69d44ef271');
   assert.ok(fixture.setupPolicy?.forbiddenPrimaryEvidence?.some(x=>x.includes('tradeRange')));
   assert.ok(fixture.setupPolicy?.forbiddenPrimaryEvidence?.some(x=>x.includes('Reservation')));
 });
