@@ -1,0 +1,159 @@
+{
+  "schema": "RC4-merchant-economy-fixture-contract/1",
+  "repository": "nustanakritwithai/Simclone",
+  "preparedFromMain": "1b60b13394c11bd7b03d10227919f4bb509b02df",
+  "purpose": "Scenario contract only. It identifies roles, legal setup actions and expected invariants. It is not authoritative gameplay state.",
+  "status": "PREPARED",
+  "verdict": "UNKNOWN",
+  "rule": "UNKNOWN is never PASS",
+  "actors": {
+    "minimumDistinctLivingClones": 3,
+    "A": {
+      "role": "Producer",
+      "requirements": [
+        "canonical agent identity",
+        "alive",
+        "adult-capable for required production path"
+      ]
+    },
+    "B": {
+      "role": "Merchant",
+      "requirements": [
+        "canonical agent identity",
+        "alive",
+        "adult-capable",
+        "must qualify through canonical profession authority",
+        "must own/control one real completed personal home"
+      ]
+    },
+    "C": {
+      "role": "Customer",
+      "requirements": [
+        "canonical agent identity",
+        "alive",
+        "must obtain a real item need through accepted runtime/fixture setup"
+      ]
+    }
+  },
+  "referenceCase": {
+    "procurementUnitPrice": 70,
+    "resaleUnitPrice": 100,
+    "expectedAccounting": {
+      "revenue": 100,
+      "costOfGoodsSold": 70,
+      "realizedProfit": 30
+    },
+    "currencyRule": "positive safe-integer canonical units",
+    "physicalItemRule": "the same exact physical item instance must move A -> B -> C; no clone/delete/remint"
+  },
+  "setupPolicy": {
+    "allowed": [
+      "Create a deterministic world through existing world creation authority with at least three canonical agents.",
+      "Use existing canonical command/production paths to create the sale item.",
+      "Use existing canonical construction paths to produce B's completed personal home.",
+      "Use a validated canonical save as browser scenario preparation when needed, following existing Simclone browser-proof precedent.",
+      "Arrange non-claimed fixture conditions only when they do not substitute for the behavior being accepted."
+    ],
+    "forbiddenPrimaryEvidence": [
+      "Directly push or splice the sale item into Rust possessions.",
+      "Directly change physical item ownership/location to simulate a trade.",
+      "Directly edit canonical wallet balances to simulate procurement or sale.",
+      "Directly create or edit Trade Kernel committed receipts.",
+      "Fabricate VERIFIED or COMMITTED transaction evidence.",
+      "Directly write Merchant Ledger Revenue, COGS or Realized Profit.",
+      "Directly increment Merchant Career progression.",
+      "Directly teleport C or mutate C position to claim travel/arrival acceptance.",
+      "Directly write Home Market/listing/reservation state to claim production runtime acceptance.",
+      "Use hidden compatibility aliases or adapters that convert a noncanonical listingId-only shape into canonical listing.id/revision for the purpose of passing acceptance."
+    ],
+    "browser": {
+      "primaryInteraction": "real clicks/taps -> command intent -> runtime -> canonical validation -> authoritative mutation -> visible result",
+      "directBrowserStateInjectionForAcceptance": false,
+      "validatedSaveBootAllowed": true,
+      "requiredViewports": [
+        {
+          "name": "desktop",
+          "width": 1440,
+          "height": 1000
+        },
+        {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "note": "A validated save may prepare prerequisites, but every RC4 trade mutation claimed by browser acceptance must be produced by real UI/command/runtime flow."
+    }
+  },
+  "canonicalEvidence": {
+    "producer": [
+      "production command/order acceptance",
+      "canonical Rust item snapshot with item id and createdBy=A",
+      "production/craft provenance",
+      "save/load round-trip"
+    ],
+    "homeMarket": [
+      "canonical profession/career history",
+      "canonical completed-home snapshot",
+      "Home Market snapshot",
+      "before/after housing capacity and building state"
+    ],
+    "trade": [
+      "current authoritative market/listing/reservation projections",
+      "Trade Kernel validation/commit result",
+      "canonical wallet snapshots and total currency",
+      "canonical Rust ownership/provenance before and after",
+      "Trade Kernel replay state/receipt"
+    ],
+    "accounting": [
+      "Merchant Ledger before/after",
+      "Career projection/progression before/after"
+    ],
+    "travel": [
+      "customer local knowledge",
+      "travel intent/goal",
+      "canonical path/position trace",
+      "verified position evidence",
+      "verified arrival evidence"
+    ]
+  },
+  "immutableFailureSnapshot": {
+    "mustCapture": [
+      "canonical wallet state",
+      "canonical Rust item ownership/provenance",
+      "Home Market state",
+      "listing state",
+      "reservation state",
+      "Trade replay state",
+      "Merchant Ledger",
+      "Merchant Career progression"
+    ],
+    "comparison": "byte-identical canonical serialization before vs after every failed atomic attack",
+    "exception": "No exception permits partial mutation or compensating rollback to count as SAT."
+  },
+  "persistence": {
+    "fullSliceMustSurvive": [
+      "wallet balances",
+      "wallet replay receipts",
+      "item ownership and provenance",
+      "Home Market",
+      "Listings and revision",
+      "Buy Offers",
+      "Reservations",
+      "Trade replay",
+      "Merchant Ledger",
+      "Career progression"
+    ],
+    "replayAfterReload": "old committed transaction must be a full authoritative no-op"
+  },
+  "migration": {
+    "source": "pre-RC4 save with no RC4 components",
+    "required": [
+      "loads successfully",
+      "deterministic component initialization",
+      "no duplicate wallet/account/item/market/transaction",
+      "no silent money creation except explicitly approved canonical wallet bootstrap",
+      "one-shot; second migration/load is byte-stable"
+    ]
+  }
+}
