@@ -14,7 +14,7 @@ Prepared from merged RC3.2 main:
 - RC3.2 PR #174 candidate: 0498dc9bc2b108741c60eee439dc6cba67f91b9d
 - RC3.2 merged-main SHA: 1b60b13394c11bd7b03d10227919f4bb509b02df
 
-Observed donor heads at preparation time:
+Observed donor heads at latest acceptance audit:
 
 | PR | Domain | Exact head | Exact-head evidence at latest audit |
 | --- | --- | --- | --- |
