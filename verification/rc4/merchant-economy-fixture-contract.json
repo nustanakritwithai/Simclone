@@ -182,7 +182,7 @@
       "B6 Trade candidate #188 lacks exact-head Verify and is diverged from current main.",
       "B7 persistence is incomplete; Home Market present `{}` currently normalizes as empty instead of fail-closed.",
       "#179 head 9b5e63e386f0543f9700237242b2c4f0745a8c2d requires trusted canonical Trade execution provenance before non-duplicate Ledger/Career mutation.",
-      "B8 is LOCKED_NOT_STARTED until B1-B7 domain closure is accepted."
+      "B8 assembled candidate PR #194 exists but exact-head Verify failed; repaired exact SHA must re-run all gates before any Phase-0 promotion."
     ],
     "resolvedPrerequisites": [
       "#180 repaired UI prototype head 0aa5a824d7da70172a267dbf1f440e69d44ef271 has Verify #1990 SUCCESS and canonical OPEN/listing-revision/SAT+VERIFIED+COMMITTED+duplicate:false presentation vocabulary; production wiring remains UNKNOWN.",
@@ -215,10 +215,10 @@
         "verify": "#1864 SUCCESS"
       },
       "179": {
-        "head": "da82d2178e605283fabf76b80c91cd731da4ad49",
+        "head": "9b5e63e386f0543f9700237242b2c4f0745a8c2d",
         "base": "1b60b13394c11bd7b03d10227919f4bb509b02df",
-        "verify": "#1978 push SUCCESS; #1979 PR SUCCESS",
-        "note": "current-main merge-forward repair"
+        "verify": "#2013 push SUCCESS; #2015 PR SUCCESS",
+        "note": "provenance-boundary repair; non-duplicate plain results remain UNKNOWN"
       },
       "180": {
         "head": "0aa5a824d7da70172a267dbf1f440e69d44ef271",
