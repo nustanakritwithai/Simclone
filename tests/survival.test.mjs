@@ -5,6 +5,21 @@ import {VERSION,SAVE_VERSION,DAY_TICKS,createWorld,step,command,serialize,restor
 import {RULES,RESOURCE_ACTIONS,routeField,routeTo,routeDistance,reservations,taskValid,stockTargets} from '../src/survival.mjs';
 function scenario(n=3){
  const s=createWorld(77);s.tiles.fill('grass');s.nodes=[];s.agents=s.agents.slice(0,n);
+ // This synthetic survival fixture intentionally removes hot identities from a fresh world.
+ // Keep the additive RC4 Wallet root consistent with that synthetic identity projection
+ // instead of weakening production wallet validation.
+ if(s.currencyWallet){
+  const ids=new Set(s.agents.map(a=>a.id));
+  s.currencyWallet.accounts=s.currencyWallet.accounts.filter(a=>ids.has(a.agentId));
+  s.currencyWallet.receipts=s.currencyWallet.receipts.filter(r=>
+    (r.agentId===null||r.agentId===undefined||ids.has(r.agentId))&&
+    (r.fromAgentId===null||r.fromAgentId===undefined||ids.has(r.fromAgentId))&&
+    (r.toAgentId===null||r.toAgentId===undefined||ids.has(r.toAgentId)));
+  if(s.currencyWallet.bootstrap){
+   s.currencyWallet.bootstrap.agentIds=s.currencyWallet.bootstrap.agentIds.filter(id=>ids.has(id));
+   s.currencyWallet.bootstrap.totalGranted=s.currencyWallet.bootstrap.initialBalance*s.currencyWallet.bootstrap.agentIds.length;
+  }
+ }
  s.stock={food:0,wood:0,stone:0};s.buildings=[{id:1,type:'camp',x:11,y:12,progress:30,complete:true}];
  for(const a of s.agents){a.x=11;a.y=12;a.satiety=100;a.energy=100;a.task=null;}
  return s;

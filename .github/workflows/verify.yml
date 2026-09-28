@@ -3,9 +3,11 @@ name: Verify Simclone candidates
 on:
   push:
     branches:
+      - "main"
       - "feature/**"
       - "fix/**"
       - "ci/**"
+      - "integration/**"
   pull_request:
     branches: ["main"]
 
@@ -19,6 +21,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Archive exact RC4 checkout for independent replay
+        if: github.head_ref == 'integration/rc4-merchant-economy-v1' || github.ref == 'refs/heads/integration/rc4-merchant-economy-v1'
+        run: |
+          mkdir -p /tmp/rc4-replay-source
+          git show -s --format='%H%n%T' HEAD > /tmp/rc4-replay-source/revision.txt
+          git archive --format=tar HEAD | gzip -n > /tmp/rc4-replay-source/source.tar.gz
+          cd /tmp/rc4-replay-source
+          sha256sum source.tar.gz > source.sha256
+
+      - name: Upload exact RC4 replay source
+        if: github.head_ref == 'integration/rc4-merchant-economy-v1' || github.ref == 'refs/heads/integration/rc4-merchant-economy-v1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc4-replay-source-${{ github.sha }}
+          path: /tmp/rc4-replay-source/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Verify engine, persistence and active unit regressions
         run: npm test
@@ -38,6 +58,17 @@ jobs:
         run: |
           python -m pip install playwright
           python -m playwright install --with-deps chromium
+
+      - name: Verify RC4 Merchant Economy native desktop and mobile
+        run: python tests/rc4-market-smoke.py
+
+      - name: Upload RC4 Merchant Economy evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc4-market-candidate-evidence-${{ github.sha }}
+          path: evidence-ui/rc4-market-native/
+          if-no-files-found: warn
 
       - name: Verify active observation UI
         run: python tests/ui-smoke.py

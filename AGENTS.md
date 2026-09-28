@@ -1,3 +1,10 @@
+> **RC4 production candidate — 2026-09-29**
+>
+> PR #194 is the assembled Merchant Economy candidate on the RC3.2 production baseline.
+> Read `docs/RC4_RELEASE_SUCCESS_CONTRACT.md` for authorities, user interaction, replay, corruption and exact-main/public gates.
+> Implementation and old-head CI are not release evidence. Consult PR #194 and its exact current checkout, main Verify and Pages/public reports. Do not label this release complete until all mandatory exact-SHA gates succeed.
+> Earlier dated baseline notes below are historical.
+
 > **RC3.1 candidate source update — 2026-09-28**
 >
 > Starting released main: `c1fdbcac92f61499507ef89eec8b207da5bab7cb` (RC2, Pages #110). PR #173 adds physical Blueprint loot and personal recipe learning through existing authorities.

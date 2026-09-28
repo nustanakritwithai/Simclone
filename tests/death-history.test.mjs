@@ -6,10 +6,26 @@ import {
   ageYears,adultLife,lifespanYears
 } from '../src/engine.mjs';
 
+function trimRc4IdentityRoots(s){
+  const ids=new Set(s.agents.map(a=>a.id));
+  if(s.currencyWallet){
+    s.currencyWallet.accounts=s.currencyWallet.accounts.filter(a=>ids.has(a.agentId));
+    s.currencyWallet.receipts=s.currencyWallet.receipts.filter(r=>
+      (r.agentId==null||ids.has(r.agentId))&&(r.fromAgentId==null||ids.has(r.fromAgentId))&&(r.toAgentId==null||ids.has(r.toAgentId)));
+    if(s.currencyWallet.bootstrap){
+      s.currencyWallet.bootstrap.agentIds=s.currencyWallet.bootstrap.agentIds.filter(id=>ids.has(id));
+      s.currencyWallet.bootstrap.totalGranted=s.currencyWallet.bootstrap.initialBalance*s.currencyWallet.bootstrap.agentIds.length;
+    }
+  }
+}
+function stripRc4Roots(raw){
+  for(const key of ['rc4EconomyVersion','homeMarkets','merchantListings','merchantBuyOffers','merchantReservations','currencyWallet','tradeReplay','merchantLedgers'])delete raw[key];
+}
 function oneAgent(seed=1){
   const s=createWorld(seed);
   s.agents=s.agents.slice(0,1);
   s.buildings=s.buildings.slice(0,1);
+  trimRc4IdentityRoots(s);
   return s;
 }
 
@@ -51,7 +67,7 @@ test('0.2.0 migration recovers death facts from retained evidence',()=>{
   a.life=adultLife(0,41);s.tick=100;a.satiety=0;a.hp=.1;
   step(s);
   const raw=JSON.parse(serialize(s));
-  raw.version="0.2.0";delete raw.archive;delete raw.archiveVersion;
+  raw.version="0.2.0";delete raw.archive;delete raw.archiveVersion;stripRc4Roots(raw);
   delete raw.historyVersion;
   for(const x of raw.agents){delete x.death;delete x.skillProvenance;delete x.knowledgeState;}
   const migrated=restore(JSON.stringify(raw)),m=migrated.agents[0];
@@ -67,7 +83,7 @@ test('dead 0.2.0 agent without retained evidence remains explicitly unknown',()=
   a.alive=false;a.hp=0;a.task=null;a.moveTick=0;a.memory=[];
   s.events=s.events.filter(e=>e.agentId!==a.id||e.type!=='death');
   const raw=JSON.parse(serialize(s));
-  raw.version="0.2.0";delete raw.archive;delete raw.archiveVersion;
+  raw.version="0.2.0";delete raw.archive;delete raw.archiveVersion;stripRc4Roots(raw);
   delete raw.historyVersion;
   for(const x of raw.agents){delete x.death;delete x.skillProvenance;delete x.knowledgeState;}
   const migrated=restore(JSON.stringify(raw)),m=migrated.agents[0];

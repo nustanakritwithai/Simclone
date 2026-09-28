@@ -38,6 +38,19 @@ jobs:
           python -m pip install playwright
           python -m playwright install --with-deps chromium
 
+      - name: Verify exact-main RC4 Merchant Economy before publication
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+        run: python tests/rc4-market-smoke.py
+
+      - name: Upload exact-main RC4 browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc4-native-main-evidence-${{ github.sha }}
+          path: evidence-ui/rc4-market-native/
+          if-no-files-found: error
+
       - name: Verify active observation UI
         run: python tests/ui-smoke.py
 
@@ -149,3 +162,17 @@ jobs:
             evidence-public-metal/
             evidence-ui/metal-native/
           if-no-files-found: warn
+
+      - name: Verify public RC4 exact bytes and real desktop/mobile lifecycle
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: python tests/rc4-market-smoke.py --public
+
+      - name: Upload public RC4 release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc4-public-evidence-${{ github.sha }}
+          path: evidence-public-rc4/
+          if-no-files-found: error
