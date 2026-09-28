@@ -93,13 +93,11 @@ Cross-donor re-audit still finds #178 head 8c6c4ff... using the pre-repair Listi
 
 PR #182 is a verification-only RC4 acceptance/attack-suite donor.
 
-PR #182 is currently **volatile / not frozen**. The latest observed head during this audit moved repeatedly and was:
+PR #182 is currently **volatile / not frozen** and has moved repeatedly during this planning audit.
 
-    9a1b6581c753613b3a14558a94ff708132375838
+The acceptance owner has already documented that old-head Verify results cannot be reused. This Integration Contract applies the same rule: do not record a fixed #182 SHA as the acceptance baseline until the owner freezes one exact head and that exact head has a completed SUCCESS verification.
 
-with Verify #2002 in progress at the time of observation.
-
-The acceptance owner has already documented that old-head Verify results cannot be reused. This Integration Contract applies the same rule: do not pin #182 as the acceptance baseline until the owner freezes one exact head and that exact head has a completed SUCCESS verification.
+While #182 remains moving, its current head and current workflow must always be re-read directly from GitHub at handoff time.
 
 The current #182 line retains the refreshed donor snapshot:
 
@@ -1253,10 +1251,7 @@ Handoff rule:
     → require exact-head Verify SUCCESS on that same SHA
     → only then pin it as the acceptance baseline
 
-Latest observed during this audit:
-
-    head 9a1b6581c753613b3a14558a94ff708132375838
-    Verify #2002 in progress
+Current head/run are intentionally not pinned here while PR #182 remains volatile. Re-read them from GitHub immediately before acceptance handoff.
 
 Required artifacts:
 
@@ -1268,7 +1263,7 @@ Required artifacts:
 
 Before Master Gate execution, donor SHA metadata in that harness must be re-audited against the exact selected integration donors and the final frozen #182 head.
 
-Do not treat #182 itself as an accepted harness donor while its head is changing or while its exact-head Verify is incomplete. The preflight is expected to return UNKNOWN while required bindings are absent. Do not weaken the preflight or turn UNKNOWN into PASS.
+Do not treat #182 itself as an accepted harness donor while its head is changing or while its exact-head Verify is incomplete. A completed SUCCESS on an earlier #182 SHA is not transferable to a later head. The preflight is expected to return UNKNOWN while required bindings are absent. Do not weaken the preflight or turn UNKNOWN into PASS.
 
 ## 14.4 Required integrated proof after all dependencies are SAT
 
