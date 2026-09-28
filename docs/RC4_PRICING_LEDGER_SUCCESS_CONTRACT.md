@@ -645,3 +645,67 @@ No focused/local result authorizes merge. Exact-head CI must be SAT before any f
 - CI status is reported SAT / VIOL / UNKNOWN without treating UNKNOWN as PASS
 - cross-branch Career accounting conflict is explicitly recorded
 - PR remains unmerged
+
+
+## Master Gate closure repair — B5 + Listing side of B6
+
+This section is additive and supersedes older BuyOffer wording where it conflicts.
+
+### B5 — Canonical BuyOffer persistence
+
+Production collection writer:
+
+- `createBuyOfferCollection()`
+- `createBuyOfferInCollection()`
+- `transitionBuyOfferInCollection()`
+- `serializeBuyOfferCollection()`
+- `restoreBuyOfferCollection()`
+
+The collection path computes a deterministic `offerId` from market, buyer, item kind, requested quantity, unit price and created tick. Same request is replay-idempotent. Caller-supplied conflicting IDs fail closed. Duplicate collection IDs and non-deterministic IDs are invalid.
+
+Creation returns an explicit Home Market reference request naming B1's canonical writer:
+
+```text
+attachHomeMarketBuyOfferReference
+```
+
+The BuyOffer module does not push/splice Home Market arrays and does not become Home Market authority.
+
+### Producer procurement matching
+
+`proposeProducerBuyOfferMatch()` is proposal-only and freezes exact physical item IDs supplied by the Producer-side canonical Rust projection. It creates no Reservation, transfers no item, reserves no money and commits no Trade.
+
+The explicit handoff is:
+
+```text
+BuyOffer match proposal
+→ #179 canonical Listing request
+→ B1 attachHomeMarketListingReference
+→ B4 canonical Reservation from the created Listing snapshot
+→ #177 canonical TradeProposal / settleTradeAtomic
+→ staged post-settlement domain transitions
+```
+
+The proposal names those authorities directly. There is no hidden procurement ledger.
+
+### BuyOffer terminal lifecycle
+
+After a verified exact settlement, `applyBuyOfferSettlementInCollection()` changes the staged canonical BuyOffer from OPEN to FILLED only when quantity and unit price match the frozen offer. It is pure; failure leaves the source collection byte-identical.
+
+### B6 — Listing settlement semantics
+
+Generic Listing lifecycle is no longer allowed to fabricate `FILLED`.
+
+`applyListingSettlementInCollection()` owns post-settlement Listing mutation:
+
+- requires current OPEN status;
+- requires exact expected revision and unit price;
+- requires positive fill quantity not exceeding remaining quantity;
+- decrements remaining quantity and increments revision exactly once;
+- partial fill stays OPEN;
+- zero remaining quantity becomes FILLED with quantity 0;
+- any failure returns the original source collection unchanged.
+
+These are domain semantics only. They do not by themselves claim outer atomic settlement. #177 must provide the staged post-settlement hook so Listing + Reservation transitions occur before the live root can be replaced.
+
+Exact-head focused tests and repository Verify are required before donor SAT. UNKNOWN is never PASS.
