@@ -96,7 +96,7 @@ test('RC4 playable vertical A->B->C: Producer -> Merchant -> Customer with 100/7
   assert.equal(promoted.ok,true,JSON.stringify(promoted));
   producer=actor(s,producerId);merchant=actor(s,merchantId);customer=actor(s,customerId);
   assert.equal(merchant.profession,'merchant');
-  assert.equal(command(s,'RC4_OPEN_MARKET',{marketId:market.marketId}).ok,true);
+  assert.equal(command(s,'RC4_OPEN_MARKET',{agentId:merchant.id,marketId:market.marketId}).ok,true);
 
   // Producer accepts BuyOffer, producing a canonical procurement Listing at Merchant's market.
   const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:offer.offerId,itemId:sale.id});
