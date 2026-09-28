@@ -196,15 +196,6 @@ export function transfer(state,{transactionId,fromAgentId,toAgentId,amount,evide
   return {ok:true,duplicate:false,receipt:clone(staged.receipts.at(-1)),totalBefore,totalAfter};
 }
 
-function tradeLeg(state,{transactionId,agentId,amount,evidence={},direction}){
-  const kind=direction==='debit'?'TRADE_DEBIT':'TRADE_CREDIT',suffix=direction==='debit'?':D':':C';
-  if(!validTransactionId(transactionId)||transactionId.length+2>MAX_ID_LENGTH)return {ok:false,reason:'transaction-id'};
-  return commitSingleAccountMutation(state,{kind,transactionId:transactionId+suffix,agentId,amount,evidence:{...evidence,operation:kind,tradeTransactionId:transactionId},delta:direction==='debit'?-1:1,requireLiving:direction==='debit'});
-}
-
-export function applyTradeDebit(state,{transactionId,agentId,amount,evidence={}}={}){return tradeLeg(state,{transactionId,agentId,amount,evidence,direction:'debit'});}
-export function applyTradeCredit(state,{transactionId,agentId,amount,evidence={}}={}){return tradeLeg(state,{transactionId,agentId,amount,evidence,direction:'credit'});}
-
 export function migrateLegacyCurrencyWallet(state,{initialBalance=CURRENCY_WALLET_BOOTSTRAP_BALANCE}={}){
   if(!state||typeof state!=='object'||Array.isArray(state)||!Array.isArray(state.agents)||!safeNonNegative(initialBalance))return {ok:false,reason:'migration-input'};
   if(state.currencyWallet!==undefined){
