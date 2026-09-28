@@ -55,3 +55,14 @@ jobs:
 
       - name: Verify Independent gameplay desktop smoke
         run: python tests/independent-ui-smoke.py --width 1440
+
+      - name: Verify RC2 native crafting desktop and mobile
+        run: python tests/rc2-crafting-smoke.py --native
+
+      - name: Upload RC2 candidate browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc2-candidate-evidence-${{ github.sha }}
+          path: evidence-ui/rc2-native/
+          if-no-files-found: warn

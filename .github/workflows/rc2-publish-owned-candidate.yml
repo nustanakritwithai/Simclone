@@ -1,0 +1,85 @@
+name: RC2 owned candidate transport
+
+on:
+  push:
+    branches: ["feature/rc2-crafter-public-closeout-20260928"]
+    paths: ["docs/wip/rc2-transfer/**", ".github/workflows/rc2-publish-owned-candidate.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.repository == 'nustanakritwithai/Simclone' && github.ref == 'refs/heads/feature/rc2-crafter-public-closeout-20260928'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Apply only checksum-verified candidate files
+        run: |
+          python3 - <<'PY'
+          import gzip, hashlib, json, pathlib, subprocess
+          root=pathlib.Path.cwd()
+          def sha(data): return hashlib.sha256(data).hexdigest()
+          parts=[0,2,3,4,5,6,7]
+          payload=b''.join((root/f'docs/wip/rc2-transfer/{n}.part').read_bytes() for n in parts)
+          assert sha(payload)=='237ff8e2484a9c30e40e75cd843461b11e51455db18ab9b62b221be9f53b67b6', 'transport checksum'
+          data=json.loads(gzip.decompress(payload))
+          assert data['version']==1 and data['base']=='4f9c573bf896c9a5e2ade1310f2287bab8e95a6f'
+          subprocess.run(['git','merge-base','--is-ancestor',data['base'],'HEAD'],check=True)
+          existing=set('AGENTS.md README.md docs/STATUS.md docs/NEXT_STEPS.md index.html src/app.mjs src/engine.mjs src/individual-home-planning.mjs src/production-planning.mjs src/rust-runtime.mjs src/rust-stations.mjs src/ux.mjs tests/ui-smoke.py'.split())
+          new=set('docs/RC2_CRAFTER_RELEASE.md scripts/rc2-crafting-fixture.mjs src/craft-training.mjs src/crafting-ui.mjs src/crafting-ui.css tests/craft-training.test.mjs tests/crafting-ui.test.mjs tests/fixtures/rc2-world.mjs tests/rc2-crafting-smoke.py'.split())
+          assert set(data['before'])==existing and set(data['new'])==new and set(data['after'])==existing|new
+          for path,digest in data['before'].items():
+              assert sha((root/path).read_bytes())==digest, 'base drift: '+path
+          for path in new:
+              assert not (root/path).exists(), 'new-file collision: '+path
+          patch=pathlib.Path('/tmp/rc2-candidate.patch')
+          patch.write_text(data['patch'],encoding='utf-8')
+          subprocess.run(['git','apply','--check',str(patch)],check=True)
+          subprocess.run(['git','apply',str(patch)],check=True)
+          for path,content in data['new'].items():
+              p=root/path; p.parent.mkdir(parents=True,exist_ok=True); p.write_text(content,encoding='utf-8')
+          subprocess.run(['node','scripts/pin-assets.mjs'],check=True)
+          for path,digest in data['after'].items():
+              assert sha((root/path).read_bytes())==digest, 'output mismatch: '+path
+          changed=set(subprocess.check_output(['git','diff','--name-only'],text=True).splitlines())
+          untracked=set(subprocess.check_output(['git','ls-files','--others','--exclude-standard'],text=True).splitlines())
+          assert changed<=existing and untracked==new, 'unexpected change outside candidate'
+          subprocess.run(['git','add','--',*sorted(existing|new)],check=True)
+          pathlib.Path('/tmp/rc2-source-manifest.json').write_text(json.dumps(data['after'],indent=2))
+          print('SAT exact local candidate SHA-256 for all 22 files')
+          PY
+
+      - name: Verify transported contracts
+        run: |
+          node --test tests/craft-training.test.mjs tests/crafting-ui.test.mjs
+          python3 -m py_compile tests/rc2-crafting-smoke.py
+
+      - name: Fast-forward only this owned branch
+        env:
+          EXPECTED_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          branch='feature/rc2-crafter-public-closeout-20260928'
+          current="$(git ls-remote origin "refs/heads/$branch" | cut -f1)"
+          test "$current" = "$EXPECTED_HEAD"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'RC2.5-6: visible crafter identity, teaching, bounded practice and hand-slot proof'
+          git push origin "HEAD:refs/heads/$branch"
+          git rev-parse HEAD > /tmp/rc2-source-head.txt
+
+      - name: Upload exact transport evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rc2-owned-transport-${{ github.sha }}
+          path: |
+            /tmp/rc2-source-manifest.json
+            /tmp/rc2-source-head.txt
+          if-no-files-found: warn
