@@ -216,6 +216,34 @@ export function unequipTool(s,agentId){
   p.equipment=p.equipment.filter(e=>e.agentId!==agentId||equipmentSlotOf(e)!=='hand');
   return {ok:true,changed:true,itemId:equipped.itemId,slot:'hand'};
 }
+export function tradableRustItemIds(s,{agentId,itemKind}={}){
+  const p=s?.rustPossessions,a=living(s,agentId);
+  if(!p||!a||typeof itemKind!=='string'||!itemKind)return [];
+  const equipped=new Set(p.equipment.map(e=>e.itemId)),held=reservedLootItemIds(s);
+  return p.items.filter(i=>i.kind===itemKind&&i.location?.kind==='bag'&&i.location.agentId===agentId&&
+    !equipped.has(i.id)&&!held.has(i.id)).map(i=>i.id).sort((a,b)=>a-b);
+}
+
+/**
+ * Generic ownership transfer stays inside the existing Rust Item Authority.
+ * The whole batch is validated before any item location changes.
+ */
+export function transferRustItemInstances(s,{fromAgentId,toAgentId,itemIds}={}){
+  const p=s?.rustPossessions,from=living(s,fromAgentId),to=living(s,toAgentId);
+  if(!p||!from||!to||fromAgentId===toAgentId)return {ok:false,reason:'actor'};
+  if(!Array.isArray(itemIds)||itemIds.length===0||new Set(itemIds).size!==itemIds.length||
+    itemIds.some(id=>!integer(id,1)))return {ok:false,reason:'item'};
+  const ids=itemIds.slice().sort((a,b)=>a-b),wanted=new Set(ids);
+  const rows=p.items.filter(i=>wanted.has(i.id));
+  if(rows.length!==ids.length||rows.some(i=>i.location?.kind!=='bag'||i.location.agentId!==fromAgentId))
+    return {ok:false,reason:'item'};
+  const equipped=new Set(p.equipment.map(e=>e.itemId)),held=reservedLootItemIds(s);
+  if(rows.some(i=>equipped.has(i.id)||held.has(i.id)))return {ok:false,reason:'item-reserved'};
+  if(bag(p,toAgentId).length+rows.length>RUST_POSSESSION_LIMITS.bag)return {ok:false,reason:'bag-full'};
+  for(const i of rows)i.location={kind:'bag',agentId:toAgentId};
+  return {ok:true,fromAgentId,toAgentId,itemIds:ids};
+}
+
 export function pickupDroppedItem(s,agentId,itemId){
   const p=s.rustPossessions,a=living(s,agentId),item=p?.items.find(i=>i.id===itemId&&i.location?.kind==='drop');
   if(!p||!a||!item)return {ok:false,reason:'item'};
