@@ -23,7 +23,9 @@
         "alive",
         "adult-capable",
         "must qualify through canonical profession authority",
-        "must own/control one real completed personal home"
+        "must own/control one real completed personal home",
+        "operating-capital evidence must come from canonical Wallet projection",
+        "trade-knowledge evidence must come from an approved evidence authority; fixture may not fabricate qualification truth"
       ]
     },
     "C": {
@@ -64,7 +66,11 @@
       "Directly increment Merchant Career progression.",
       "Directly teleport C or mutate C position to claim travel/arrival acceptance.",
       "Directly write Home Market/listing/reservation state to claim production runtime acceptance.",
-      "Use hidden compatibility aliases or adapters that convert a noncanonical listingId-only shape into canonical listing.id/revision for the purpose of passing acceptance."
+      "Use hidden compatibility aliases or adapters that convert a noncanonical listingId-only shape into canonical listing.id/revision for the purpose of passing acceptance.",
+      "Directly push/splice HomeMarket listingIds or buyOfferIds from integration/test code instead of using the canonical Home Market writer.",
+      "Invent or hardcode tradeRange in integration/test code without a named canonical source.",
+      "Construct verified arrival/position evidence outside the approved Navigation evidence producer.",
+      "Create a Reservation in fixture/test code when the production Reservation authority/lifecycle is absent."
     ],
     "browser": {
       "primaryInteraction": "real clicks/taps -> command intent -> runtime -> canonical validation -> authoritative mutation -> visible result",
@@ -96,14 +102,17 @@
       "canonical profession/career history",
       "canonical completed-home snapshot",
       "Home Market snapshot",
-      "before/after housing capacity and building state"
+      "before/after housing capacity and building state",
+      "canonical Home Market reference-writer evidence for listingIds/buyOfferIds"
     ],
     "trade": [
       "current authoritative market/listing/reservation projections",
       "Trade Kernel validation/commit result",
       "canonical wallet snapshots and total currency",
       "canonical Rust ownership/provenance before and after",
-      "Trade Kernel replay state/receipt"
+      "Trade Kernel replay state/receipt",
+      "documented market projection provenance for id/open/x/y/tradeRange",
+      "canonical Reservation writer/lifecycle/persistence evidence"
     ],
     "accounting": [
       "Merchant Ledger before/after",
@@ -154,6 +163,25 @@
       "no duplicate wallet/account/item/market/transaction",
       "no silent money creation except explicitly approved canonical wallet bootstrap",
       "one-shot; second migration/load is byte-stable"
+    ]
+  },
+  "masterGate": {
+    "result": "UNKNOWN",
+    "rule": "All Phase-0 readiness rows must be SAT before Phase-1 integrated evidence can count.",
+    "requiredDeclaredSources": {
+      "reservationModule": "RC4_RESERVATION_MODULE",
+      "marketBindingModule": "RC4_MARKET_BINDING_MODULE",
+      "navigationArrivalEvidenceModule": "RC4_ARRIVAL_EVIDENCE_MODULE"
+    },
+    "currentHardStops": [
+      "repaired #179 exact-head workflow evidence missing at latest audit",
+      "canonical Home Market listing/buy-offer reference mutation API unproven",
+      "canonical market tradeRange source unproven",
+      "canonical Navigation-derived arrival evidence producer unproven",
+      "canonical Reservation authority/lifecycle/persistence/ID rule unproven",
+      "canonical persistent BuyOffer collection/procurement matching unproven",
+      "post-settlement Listing/Reservation semantics unproven",
+      "production persistence ownership for all RC4 collections unproven"
     ]
   }
 }
