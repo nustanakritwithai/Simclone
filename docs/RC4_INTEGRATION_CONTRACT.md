@@ -1212,16 +1212,17 @@ Contract explicitly requires post-RC3.2 re-audit/rebuild before production integ
 | U1 | #175–#178 and #180–#181 still diverge from RC3.2 main; #179 is the current RC3.2-synced RC4 donor | UNKNOWN | Compatibility Auditor / each stale-base runtime donor rebuilds or proves post-RC3.2 compatibility; #180 is docs-only and does not claim runtime compatibility |
 | V2 | #178 head 8c6c4ff Customer AI still consumes legacy listingId + createdTick/snapshotVersion and does not bind purchase intent to canonical #179 revision | VIOL | #178 owner aligns to repaired #179 canonical Listing vocabulary/revision and reruns exact-head Verify |
 | V3 | #175 Career expects #179-style VERIFIED+COMMITTED non-duplicate evidence, while hardened #179 correctly refuses to promote caller-supplied result/state because both receipt and matching tradeReplay can be forged | VIOL cross-donor / provenance contract unresolved | #175 + #179 + Integration Lead align on authoritative-root-derived commit evidence; no downstream self-verification |
-| U3 | #176 owns listingIds/buyOfferIds but exposes no canonical attach/detach reference mutation API | UNKNOWN | #176 owner |
-| U4 | No canonical Reservation writer/lifecycle/persistence/ID rule is supplied | UNKNOWN | market/reservation owner + #177 contract |
-| U5 | #176 does not define #177-required tradeRange source | UNKNOWN | market/trade contract owner |
-| U6 | #178 defines consumer validation for positionEvidence/arrivalEvidence, but current main has no audited Navigation/task producer authorized to set verified:true for those records | UNKNOWN | Navigation / #178 integration owner defines/proves evidence producer |
-| U7 | BuyOffer is not consumed by #177; BuyOffer -> producer acceptance -> Listing/Reservation mapping is undefined | UNKNOWN | #179 + #177 owner |
-| U8 | post-settlement Listing decrement/FILLED/revision and Reservation COMMITTED/release behavior is undefined | UNKNOWN | #179 + Reservation/#177 owner |
-| U9 | canonical persistent BuyOffer collection is not defined by current source | UNKNOWN | #179 owner |
+| U3 | B1/B2 repair exists in #184 head 090cefd7 with canonical Home Market reference writers, trade projection and persistence, but branch is stale-base and has no exact-head Verify | UNKNOWN | #184 owner sync current main + exact-head Verify |
+| U5 | #184 defines Home Market-owned tradeRange=1 and id/open/x/y projection, but stale base + missing CI prevent B2 closure | UNKNOWN | #184 owner |
+| V5 | #185 head 34055f55 is current-main aligned and Verify #2026 SUCCESS, but positive arrival evidence remains forgeable as a canonical-looking plain object; #178 consumer vocabulary also mismatches | VIOL B3 provenance/consumer contract | #185 + #178 owners repair trusted provenance/reachability and consumer schema |
+| U7 | #187 head 8e0d2cfe adds persistent BuyOffer collection + Producer matching on current main but has no exact-head Verify | UNKNOWN | #187 owner exact-head Verify + #184/#186 compatibility audit |
+| U8 | #187 defines Listing fill semantics; #188 defines staged hook but is stale-base/no-CI and incorrectly stages Merchant Ledger before root replacement | VIOL/UNKNOWN | #188 owner repairs boundary and syncs current main |
+| U9 | persistent BuyOffer collection exists in #187 but is unverified on that exact head | UNKNOWN | #187 owner exact-head Verify |
 | U10 | production root collection shape for Merchant Ledgers is not defined | UNKNOWN | #179 / persistence owner |
-| U16 | #179 donor now proves fail-closed forged-result/matching-replay rejection, but trusted positive post-root commit provenance/retry binding for Ledger/Career is not frozen | UNKNOWN — HARD STOP | Integration Lead + #175 define authoritative-root lookup/retry path using #179 hardened boundary; Red Team proves positive commit + retry + forgery separation |
+| U16 | #179 donor proves fail-closed forged-result/matching-replay rejection, but trusted positive post-root commit provenance/retry binding for Ledger/Career is not frozen | UNKNOWN — HARD STOP | Integration Lead + #175 define authoritative-root lookup/retry path |
 | V4 | #182 head df2a47f has green Verify #2014 but acceptance contract lacks explicit forged-result + forged-matching-replay attack and contains a Ledger/Career rollback expectation that conflicts with post-root downstream processing | VIOL acceptance contract | #182 owner repairs suite/matrix; new exact-head Verify + compatibility audit required |
+| S4 | #186 head c4d1b544 is current-main aligned, Verify #2027 SUCCESS, and directly matches #177 Reservation consumer vocabulary | SAT donor for B4 | Later integration binds it; no separate Reservation model |
+| V6 | #188 contract stages Merchant Ledger in pre-root postSettlement before live-root replacement, conflicting with canonical downstream Ledger/Career boundary | VIOL | #188 owner limits pre-root hook to settlement-domain state, syncs current main, exact-head Verify |
 | U11 | tradeReplay old-save migration/root wiring is not integrated | UNKNOWN | #177 / persistence owner |
 | U12 | #178 consumes an intent journal but does not define canonical persistence ownership for it | UNKNOWN | #178 / persistence owner |
 | U13 | authoritative monetary production-cost evidence for final self-produced items is absent on current main | UNKNOWN | production-cost authority owner; direct self-produced Merchant sales remain accounting-UNKNOWN |
@@ -1473,45 +1474,73 @@ Exit:
     → exact-head Verify SUCCESS
     → independent compatibility audit against #179/#177
 
-## B — #176 Home Market reference authority — PRIORITY 1 / UNKNOWN
+## B — Home Market reference authority / market projection — PRIORITY 1 / UNKNOWN
 
-Current state has `listingIds` / `buyOfferIds` but no canonical attach/detach writer.
+Repair candidate now exists:
 
-Required contract:
+    PR #184
+    head 090cefd757f0c34f175d2152f421bcd92c40b51b
 
-- owner-controlled reference mutation;
-- deterministic idempotent add/remove;
-- no duplicate refs;
-- Home Market owns references only, never Listing/BuyOffer payload;
-- no item, money or housing mutation;
-- invalid/archived market behavior explicit;
-- save/load/reference replay proof;
-- post-RC3.2 compatibility proof.
+Source audit shows the requested semantics are present:
 
-Integrator must never mutate those arrays directly.
+- attach/detach Listing reference;
+- attach/detach BuyOffer reference;
+- deterministic duplicate/missing replay no-op;
+- Home Market owns references only;
+- canonical Trade projection {id, open, x, y, tradeRange};
+- Home Market policy owns HOME_MARKET_TRADE_RANGE = 1;
+- Home Market serialize/restore/migrate support.
 
-## C — Canonical Reservation authority — PRIORITY 1 / HARD STOP
+But #184 still diverges from RC3.2 main (behind 18) and has no exact-head workflow result.
 
-An owner must be explicitly assigned before implementation. The contract must satisfy #177 rather than create a competing reservation model.
+Verdict:
 
-Minimum requirements:
+    semantic candidate present
+    + stale base
+    + no exact-head Verify
+    = UNKNOWN
 
-- deterministic reservation ID;
+Integrator must never mutate reference arrays directly and must not consume #184 until current-main compatibility is proven.
+
+## C — Canonical Reservation authority — B4 DONOR SAT
+
+Repair donor:
+
+    PR #186
+    exact head c4d1b544a1203459aa78ef55b83a28db6077056c
+    Verify #2027 SUCCESS
+    current-main aligned (behind 0)
+
+Independent source audit confirms:
+
+- deterministic Reservation ID;
 - exact Listing id + listingRevision;
 - buyer/seller/market/item/quantity/unitPrice binding;
-- frozen exact `itemIds[]`;
-- complete global ACTIVE projection;
-- overlap prevention across markets;
-- idempotent create/replay;
-- terminal/release lifecycle;
-- persistence + old-save behavior;
-- cleanup/reconciliation;
-- no wallet/item ownership;
-- no wall-clock expiry rule.
+- frozen sorted exact itemIds[];
+- complete validated global ACTIVE projection;
+- global cross-market item overlap prevention;
+- exact replay idempotency;
+- ACTIVE -> COMMITTED / RELEASED / CANCELED terminal lifecycle;
+- terminal records release item locks but retain audit history;
+- reconciliation for dead parties, missing/closed/stale/changed Listing;
+- serialize/restore + one-shot old-save migration;
+- corrupt present state fails closed;
+- no wallet/item ownership or Trade commit authority;
+- no wall-clock expiry.
+
+Field-by-field comparison matches #177 Reservation consumer vocabulary.
+
+Verdict:
+
+    SAT donor for B4
+
+This does not start B8. Permission to call commitReservation must come from the accepted staged Trade settlement path, not arbitrary callers.
 
 ## D — Market binding + Navigation evidence — PRIORITY 1 / HARD STOP
 
-Market binding must source from named authorities:
+### Market binding
+
+#184 source now provides the correct named Home Market projection:
 
     id
     open
@@ -1519,53 +1548,129 @@ Market binding must source from named authorities:
     y
     tradeRange
 
-#178's defaultTradeRange is not authority.
+and owns tradeRange=1 as Home Market policy. This remains UNKNOWN until #184 is current-main aligned and exact-head verified.
 
-Navigation/task authority must be the only producer allowed to assert:
+### Navigation evidence
 
-    positionEvidence.verified = true
-    arrivalEvidence.verified = true
+Repair candidate:
 
-Evidence must bind actual agent, coordinates, target/market, simulation tick/evidence identity and real Navigation/task outcome.
+    PR #185
+    exact head 34055f557d45ca3c9e9adc118d0f77e658b7f5e9
+    Verify #2026 SUCCESS
+    current-main aligned
 
-#177 still revalidates current distance at settlement.
+The observer correctly watches real canonical task-path movement, rejects naive teleport/path drift and keeps evidence ephemeral across save/load.
 
-## E — #179 BuyOffer persistence/procurement bridge — PRIORITY 2 / UNKNOWN
+However Red Team found the positive verifier is still data-forgeable:
 
-On current SAT #179 head `da82d217...`, Listing has a canonical collection + serialize/restore path, but BuyOffer remains row-level only.
+- verifier accepts caller-supplied journeyId;
+- verifier accepts caller-supplied routeFingerprint;
+- evidenceId is only a deterministic hash over caller-controlled evidence fields;
+- verifier does not prove that the supplied journey/evidence actually came from the trusted observer path;
+- a caller can construct a canonical-looking object for current agent/market/tick/position and recompute evidenceId.
 
-Owner must define:
+This is the same provenance class already fixed in #179 Ledger.
 
-- canonical BuyOffer collection;
-- create/replay/conflict behavior;
-- serialization/restore/corrupt-state validation;
-- Home Market reference through the #176 API;
-- Producer acceptance/matching path.
+Additionally #178 still consumes legacy e.verified === true, while #185 canonical evidence uses producer=SIMCLONE_SURVIVAL_NAVIGATION and verification=NAVIGATION_VERIFIED.
 
-Because #177 settles Listing + Reservation, BuyOffer procurement must explicitly reach a canonical seller Listing/Reservation without hidden temporary state.
+Required repair:
 
-## F — Post-settlement market state + persistence root — PRIORITY 2 / HARD STOP
+- establish Navigation-owned positive provenance/call reachability that a data-only caller cannot fabricate;
+- do not replace that with a plain boolean;
+- align #178 consumer to the accepted canonical Navigation evidence vocabulary;
+- keep final #177 current-distance revalidation.
 
-Owners: Listing / Reservation / Persistence.
+Verdict:
 
-Must freeze:
+    #185 CI SAT
+    B3 provenance/consumer contract VIOL
+    Master Gate remains closed
 
-- full-fill Listing transition;
-- partial-fill quantity/revision;
-- Reservation terminal state;
-- reference cleanup/reconciliation;
-- all required settlement-domain market-state transitions inside the accepted staged trade boundary;
-- production root keys/collections for Home Market, Listings, BuyOffers, Reservations, tradeReplay and Merchant Ledgers;
-- old-save defaults without replay loss;
-- downstream Ledger/Career catch-up cursor/idempotency from authoritative committed receipts.
+## E — BuyOffer persistence/procurement bridge — PRIORITY 2 / UNKNOWN
 
-No compensating live-state rollback is accepted.
+Repair candidate:
 
-Important boundary:
-- wallet/item/tradeReplay + approved Listing/Reservation settlement state must pass before live root replacement;
-- Merchant Ledger and Merchant Career run **after** the canonical trade root commit;
-- downstream Ledger/Career failure must not roll back the committed trade;
-- downstream retry must derive from authoritative root, never a caller-supplied forged result object.
+    PR #187
+    exact head 8e0d2cfee43168d7988c3369f0fcc2f559081231
+    current-main aligned
+    exact-head Verify: missing
+
+Source audit shows:
+
+- deterministic BuyOffer collection;
+- deterministic ID/conflict/replay checks;
+- serialize/restore;
+- proposal-only Producer matching;
+- explicit canonical Listing request;
+- explicit canonical Reservation request;
+- explicit Home Market reference-writer request;
+- no money/item reservation or Trade commit inside matching;
+- exact-match BuyOffer settlement transition to FILLED.
+
+This closes the prior hidden BuyOffer -> Listing/Reservation path at source-contract level.
+
+Verdict remains UNKNOWN because the exact #187 head has no Verify and still needs #184/#186 compatibility proof.
+
+## F — Post-settlement market state + persistence root — PRIORITY 1 / HARD STOP
+
+Two repair candidates now exist.
+
+### Listing side — #187
+
+Head 8e0d2cfe... adds:
+
+- settlement-owned Listing mutation;
+- expectedRevision + unitPrice lock;
+- quantity decrement;
+- revision increment exactly once;
+- partial fill stays OPEN;
+- zero remaining quantity becomes FILLED;
+- generic lifecycle cannot fabricate FILLED.
+
+These semantics remain UNKNOWN until exact-head Verify.
+
+### Trade-side staged boundary — #188
+
+Head:
+
+    d7588de68ed2d23ee7f1740d357df50a7cb041b7
+
+The pure kernel hook correctly keeps wallet/item/receipt and settlement-domain postconditions on one cloned candidate before caller root replacement.
+
+But #188 has two blockers:
+
+1. it is based on the old pre-RC3.2 line (behind 18) and has no exact-head Verify;
+2. its Success Contract explicitly says the pre-root postSettlement hook stages Merchant Ledger together with Listing/Reservation.
+
+Item 2 is a contract VIOL.
+
+Canonical boundary remains:
+
+    staged trade root:
+      wallet
+      item ownership
+      tradeReplay
+      Listing settlement
+      Reservation terminal state
+      BuyOffer/reference settlement reconciliation as approved
+    -> verify
+    -> live root replacement ONCE
+    -> Merchant Ledger
+    -> Merchant Career
+    -> UI
+
+Ledger/Career are downstream and may fail/retry without rolling back canonical trade.
+
+Required #188 repair:
+
+- remove Ledger from pre-root postSettlement.apply/verify;
+- explicitly forbid Career there;
+- constrain hook to settlement-domain canonical state only;
+- preserve failure-injection/live-root immutability proof;
+- merge-forward/rebuild onto RC3.2 main;
+- exact-head Verify.
+
+B7 production root ownership remains partial/UNKNOWN.
 
 ## G — Ledger/Career commit provenance alignment — PRIORITY 1 / HARD STOP
 
@@ -1609,6 +1714,14 @@ Contract defects/dependencies have been returned to their owners:
 - #176 Home Market — canonical Listing/BuyOffer reference writer — comment 5874659646;
 - #177 Trade Kernel — retain Reservation consumer boundary + post-root provenance semantics — comment 5874660272;
 - #181 Canonical Wallet — post-RC3.2 merge-forward/rebuild + exact-head Verify — comment 5874713790.
+
+New blocker-closure PR audit:
+
+- #184 B1/B2 — 090cefd7... — semantics present; stale-base + no CI => UNKNOWN;
+- #185 B3 — 34055f55... — Verify #2026 SUCCESS but positive evidence provenance is forgeable and #178 schema mismatches => VIOL;
+- #186 B4 — c4d1b544... — Verify #2027 SUCCESS, current-main aligned, direct #177 compatibility => SAT donor;
+- #187 B5 + Listing-side B6 — 8e0d2cfe... — current-main aligned, no exact-head CI => UNKNOWN;
+- #188 Trade-side B6 — d7588de6... — stale-base + no exact-head CI + pre-root Ledger staging VIOL.
 
 A comment/update timestamp without a new exact donor SHA is not repair evidence.
 
