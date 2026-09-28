@@ -35,10 +35,11 @@ def open_market():
     else:
         page.locator('#menu').click()
         page.locator('[data-action="market"]').click()
-    page.wait_for_selector('[data-action="rc4-become-merchant"], [data-action="rc4-create-market"], [data-action="rc4-open-market"], [data-action="rc4-close-market"], .help-block')
-def click_action(name):
-    b=page.locator(f'[data-action="{name}"]').first
-    b.scroll_into_view_if_needed();check(name+' visible',b.is_visible());b.click()
+    page.wait_for_selector('.help-block, [data-action^="rc4-"]')
+def click_locator(locator,label):
+    b=locator.first;b.scroll_into_view_if_needed();check(label+' visible',b.is_visible());b.click()
+def action(name):
+    return page.locator(f'[data-action="{name}"]')
 def no_overflow():
     return page.evaluate('document.documentElement.scrollWidth<=innerWidth+1 && (!document.querySelector("#dialog").open || document.querySelector("#dialog-body").scrollWidth<=document.querySelector("#dialog-body").clientWidth+1)')
 
@@ -56,46 +57,76 @@ try:
         page.add_init_script("localStorage.clear();localStorage.setItem('simclone:world:v1',"+json.dumps(SAVED)+");")
         r=page.goto(BASE+'/?rc4-native=1',wait_until='load',timeout=60000);check(f'{width}: HTTP',r and r.ok)
         page.wait_for_function("window.simclone?.uiVersion==='0.5.0'");pause()
-        s=snap();merchant=s['agents'][0];buyer=s['agents'][1]
-        sale=next(i for i in s['rustPossessions']['items'] if i['kind']=='STONE_AXE' and i['createdBy']==merchant['id'] and i['location']['kind']=='bag')
-        check(f'{width}: canonical fixture sale provenance',sale['createdBy']==merchant['id'])
-        check(f'{width}: wallet bootstrap visible',next(a for a in s['currencyWallet']['accounts'] if a['agentId']==merchant['id'])['balance']==100)
+        s=snap();producer=s['agents'][0];merchant=s['agents'][1];customer=s['agents'][2]
+        sale=next(i for i in s['rustPossessions']['items'] if i['kind']=='STONE_AXE' and i['createdBy']==producer['id'] and i['location']=={'kind':'bag','agentId':producer['id']})
+        check(f'{width}: canonical Producer item provenance',sale['createdBy']==producer['id'])
+        check(f'{width}: wallet bootstrap',all(a['balance']==100 for a in s['currencyWallet']['accounts']))
 
+        # B prepares a CLOSED Home Market and a canonical BuyOffer before profession adoption.
         select_actor(merchant['id']);open_market()
-        click_action('rc4-become-merchant')
-        check(f'{width}: Merchant profession through UI',snap()['agents'][0]['profession']=='merchant')
-        click_action('rc4-create-market');click_action('rc4-open-market')
-        click_action('rc4-list-item')
-        s=snap();market=s['homeMarkets']['markets'][0];listing=s['merchantListings']['listings'][0]
+        click_locator(action('rc4-create-market'),f'{width}: prepare Home Market')
+        click_locator(page.locator('[data-action="rc4-create-offer"][data-kind="STONE_AXE"]'),f'{width}: create BuyOffer 70')
+        click_locator(action('rc4-become-merchant'),f'{width}: qualify Merchant')
+        check(f'{width}: Merchant profession',snap()['agents'][1]['profession']=='merchant')
+        click_locator(action('rc4-open-market'),f'{width}: open Home Market')
+        s=snap();market=s['homeMarkets']['markets'][0];offer=s['merchantBuyOffers']['buyOffers'][0]
         check(f'{width}: Home Market OPEN',market['status']=='open')
-        check(f'{width}: Listing canonical OPEN/revision',listing['status']=='OPEN' and listing['revision']==1 and listing['itemInstanceId']==sale['id'])
-        check(f'{width}: Market dialog fits',no_overflow())
-        page.screenshot(path=str(OUT/f'{width}-merchant-market.png'))
+        check(f'{width}: BuyOffer OPEN 70',offer['status']=='OPEN' and offer['unitPrice']==70 and offer['itemKind']=='STONE_AXE')
+        check(f'{width}: market dialog fits',no_overflow())
+        page.screenshot(path=str(OUT/f'{width}-merchant-open-buyoffer.png'))
 
-        select_actor(buyer['id']);open_market();click_action('rc4-travel-market')
+        # Producer A answers BuyOffer using the exact crafted item.
+        select_actor(producer['id']);open_market()
+        click_locator(page.locator(f'[data-action="rc4-accept-offer"][data-item="{sale["id"]}"]'),f'{width}: Producer accepts BuyOffer')
+        s=snap();procurement=next(l for l in s['merchantListings']['listings'] if l['sellerId']==producer['id'] and l['itemInstanceId']==sale['id'])
+        check(f'{width}: procurement Listing 70',procurement['status']=='OPEN' and procurement['unitPrice']==70)
+
+        # Merchant B physically walks to own market and buys A's exact item for 70.
+        select_actor(merchant['id']);open_market()
+        click_locator(action('rc4-travel-market'),f'{width}: Merchant walks to market')
         resume5()
-        page.wait_for_function(f"""()=>{{const a=simclone.snapshot().agents.find(a=>a.id==={buyer['id']});return a?.task?.rc4MarketTravel&&a.task.path.length===0;}}""",timeout=30000)
+        page.wait_for_function(f"""()=>{{const a=simclone.snapshot().agents.find(a=>a.id==={merchant['id']});return a?.task?.rc4MarketTravel&&a.task.path.length===0;}}""",timeout=30000)
         pause();open_market()
-        check(f'{width}: NAVIGATION VERIFIED shown','NAVIGATION VERIFIED' in page.locator('#dialog-body').inner_text())
-        click_action('rc4-buy-listing')
+        check(f'{width}: Merchant NAVIGATION VERIFIED','NAVIGATION VERIFIED' in page.locator('#dialog-body').inner_text())
+        click_locator(action('rc4-buy-listing'),f'{width}: Merchant buys Producer item 70')
+        s=snap()
+        check(f'{width}: exact item A->B',next(i for i in s['rustPossessions']['items'] if i['id']==sale['id'])['location']=={'kind':'bag','agentId':merchant['id']})
+        check(f'{width}: Merchant balance 30',next(a for a in s['currencyWallet']['accounts'] if a['agentId']==merchant['id'])['balance']==30)
+        check(f'{width}: Producer balance 170',next(a for a in s['currencyWallet']['accounts'] if a['agentId']==producer['id'])['balance']==170)
+
+        # Merchant lists the acquired physical item for 100.
+        select_actor(merchant['id']);open_market()
+        click_locator(page.locator(f'[data-action="rc4-list-item"][data-item="{sale["id"]}"]'),f'{width}: Merchant lists exact item 100')
+        s=snap();resale=next(l for l in s['merchantListings']['listings'] if l['sellerId']==merchant['id'] and l['itemInstanceId']==sale['id'] and l['status']=='OPEN')
+        check(f'{width}: resale Listing canonical',resale['unitPrice']==100 and resale['revision']==1)
+
+        # Customer C physically walks and purchases for 100.
+        select_actor(customer['id']);open_market()
+        click_locator(action('rc4-travel-market'),f'{width}: Customer walks to market')
+        resume5()
+        page.wait_for_function(f"""()=>{{const a=simclone.snapshot().agents.find(a=>a.id==={customer['id']});return a?.task?.rc4MarketTravel&&a.task.path.length===0;}}""",timeout=30000)
+        pause();open_market()
+        check(f'{width}: Customer NAVIGATION VERIFIED','NAVIGATION VERIFIED' in page.locator('#dialog-body').inner_text())
+        click_locator(action('rc4-buy-listing'),f'{width}: Customer buys 100')
         final=snap()
-        fm=next(a for a in final['agents'] if a['id']==merchant['id']);fb=next(a for a in final['agents'] if a['id']==buyer['id'])
+        fm=next(a for a in final['agents'] if a['id']==merchant['id']);fc=next(a for a in final['agents'] if a['id']==customer['id'])
         check(f'{width}: money conserved',sum(a['balance'] for a in final['currencyWallet']['accounts'])==len(final['agents'])*100)
-        check(f'{width}: buyer pays 100',next(a for a in final['currencyWallet']['accounts'] if a['agentId']==buyer['id'])['balance']==0)
-        check(f'{width}: merchant receives 100',next(a for a in final['currencyWallet']['accounts'] if a['agentId']==merchant['id'])['balance']==200)
+        check(f'{width}: Customer balance 0',next(a for a in final['currencyWallet']['accounts'] if a['agentId']==customer['id'])['balance']==0)
+        check(f'{width}: Merchant final balance 130',next(a for a in final['currencyWallet']['accounts'] if a['agentId']==merchant['id'])['balance']==130)
+        check(f'{width}: Producer final balance 170',next(a for a in final['currencyWallet']['accounts'] if a['agentId']==producer['id'])['balance']==170)
         moved=next(i for i in final['rustPossessions']['items'] if i['id']==sale['id'])
-        check(f'{width}: exact item moved once',moved['location']=={'kind':'bag','agentId':buyer['id']})
-        filled=next(l for l in final['merchantListings']['listings'] if l['id']==listing['id'])
-        check(f'{width}: Listing FILLED revision 2',filled['status']=='FILLED' and filled['quantity']==0 and filled['revision']==2)
-        reservation=final['merchantReservations']['reservations'][-1]
-        check(f'{width}: Reservation COMMITTED',reservation['status']=='COMMITTED' and reservation.get('transactionId'))
+        check(f'{width}: exact item B->C',moved['location']=={'kind':'bag','agentId':customer['id']})
+        filled=next(l for l in final['merchantListings']['listings'] if l['id']==resale['id'])
+        check(f'{width}: resale FILLED revision 2',filled['status']=='FILLED' and filled['quantity']==0 and filled['revision']==2)
+        check(f'{width}: two committed Reservations',sum(1 for x in final['merchantReservations']['reservations'] if x['status']=='COMMITTED')==2)
         ledger=next(l for l in final['merchantLedgers']['ledgers'] if l['merchantId']==merchant['id'])
-        check(f'{width}: Ledger Revenue/COGS/Profit',ledger['revenue']==100 and ledger['costOfGoodsSold']==0 and ledger['realizedProfit']==100)
-        check(f'{width}: Career counted once',fm.get('merchantTransactions')==1 and fm.get('merchantExperience')==1)
-        check(f'{width}: buyer travel task cleared',fb.get('task') is None)
-        check(f'{width}: UI shows accounting','Revenue 100' in page.locator('#dialog-body').inner_text())
+        check(f'{width}: Ledger 100/70/30',ledger['revenue']==100 and ledger['costOfGoodsSold']==70 and ledger['realizedProfit']==30)
+        check(f'{width}: acquisition basis consumed',len(ledger['purchases'])==1 and ledger['purchases'][0]['unitPrice']==70 and ledger['purchases'][0]['remainingItemIds']==[])
+        check(f'{width}: Career counted two committed trades',fm.get('merchantTransactions')==2 and fm.get('merchantExperience')==2)
+        check(f'{width}: customer travel task cleared',fc.get('task') is None)
+        check(f'{width}: UI shows accounting','Revenue 100' in page.locator('#dialog-body').inner_text() and 'COGS 70' in page.locator('#dialog-body').inner_text() and 'Profit 30' in page.locator('#dialog-body').inner_text())
         check(f'{width}: final dialog fits',no_overflow())
-        page.screenshot(path=str(OUT/f'{width}-verified-sale.png'))
+        page.screenshot(path=str(OUT/f'{width}-verified-vertical-100-70-30.png'))
         check(f'{width}: no browser errors',not errors)
         ctx.close()
     success=True
