@@ -10,7 +10,8 @@ import {createBuyOffer,validateBuyOffer,transitionBuyOffer,BUY_OFFER_STATUS} fro
 import {quoteAskPrice,deriveScarcityAdjustmentBps} from '../src/merchant-pricing.mjs';
 import {
   createMerchantLedger,applyTradeKernelCommitToLedger,assessTradeKernelResult,validateCommittedTradeReceipt,
-  validateMerchantLedger,serializeMerchantLedger,restoreMerchantLedger,tradeReceiptFingerprint,tradeReceiptIntegrityFingerprint
+  validateMerchantLedger,serializeMerchantLedger,restoreMerchantLedger,tradeReceiptFingerprint,tradeReceiptIntegrityFingerprint,
+  resolveCostBasis,calculateSaleAccounting
 } from '../src/merchant-ledger.mjs';
 
 function canonicalReceipt(overrides={}){
@@ -33,12 +34,39 @@ const failed=(reason='rejected')=>({ok:false,reason});
 function saleReceipt(overrides={}){
   return canonicalReceipt({transactionId:'tx-2',listingId:'L2',reservationId:'R2',sellerId:1,buyerId:3,unitPrice:100,totalPrice:100,...overrides});
 }
-function buyPickaxe(){
-  const result=applyTradeKernelCommitToLedger(createMerchantLedger(1),committed(canonicalReceipt()));
-  assert.equal(result.state,'SAT');assert.equal(result.duplicate,false);return result.ledger;
-}
 function openListing(id='L1',itemInstanceId=77){
   return {id,marketId:'M1',sellerId:2,itemKind:'STONE_PICKAXE',itemInstanceId,quantity:1,unitPrice:100};
+}
+function ledgerWithPurchase({itemIds=[77],unitPrice=70}={}){
+  const quantity=itemIds.length,totalPrice=unitPrice*quantity;
+  const ledger={
+    merchantId:1,
+    purchases:[{
+      transactionId:'tx-buy',marketId:'M1',itemKind:'STONE_PICKAXE',
+      itemIds:[...itemIds],remainingItemIds:[...itemIds],quantity,unitPrice,totalPrice,
+      listingId:'L-buy',reservationId:'R-buy'
+    }],
+    sales:[],
+    revenue:0,costOfGoodsSold:0,realizedProfit:0
+  };
+  assert.deepEqual(validateMerchantLedger(ledger),[]);
+  return ledger;
+}
+function completedLedger(){
+  return {
+    merchantId:1,
+    purchases:[{
+      transactionId:'tx-buy',marketId:'M1',itemKind:'STONE_PICKAXE',
+      itemIds:[77],remainingItemIds:[],quantity:1,unitPrice:70,totalPrice:70,
+      listingId:'L-buy',reservationId:'R-buy'
+    }],
+    sales:[{
+      transactionId:'tx-sell',marketId:'M1',itemKind:'STONE_PICKAXE',
+      itemIds:[77],quantity:1,unitPrice:100,totalPrice:100,cogs:70,profit:30,
+      costBasisSource:'purchase',costBasisRefs:['tx-buy'],listingId:'L-sell',reservationId:'R-sell'
+    }],
+    revenue:100,costOfGoodsSold:70,realizedProfit:30
+  };
 }
 
 test('canonical Listing vocabulary is directly compatible with RC4 Trade Kernel',()=>{
@@ -85,8 +113,8 @@ test('duplicate create replay is idempotent and cannot reset listing revision or
 
 test('CLOSED listing releases physical listing lock; reopen rechecks lock; CANCELED/FILLED are terminal',()=>{
   let collection=createListingCollection();collection=createListingInCollection(collection,openListing('L1',77)).collection;
-  const closed=transitionListingInCollection(collection,'L1',LISTING_STATUS.CLOSED);assert.equal(closed.state,'SAT');collection=closed.collection;
-  const second=createListingInCollection(collection,openListing('L2',77));assert.equal(second.state,'SAT');collection=second.collection;
+  collection=transitionListingInCollection(collection,'L1',LISTING_STATUS.CLOSED).collection;
+  collection=createListingInCollection(collection,openListing('L2',77)).collection;
   const blocked=transitionListingInCollection(collection,'L1',LISTING_STATUS.OPEN);assert.equal(blocked.state,'VIOL');assert.equal(blocked.reason,'item-already-listed');
   collection=transitionListingInCollection(collection,'L2',LISTING_STATUS.CANCELED).collection;
   const reopened=transitionListingInCollection(collection,'L1',LISTING_STATUS.OPEN);assert.equal(reopened.state,'SAT');assert.equal(reopened.listing.revision,3);
@@ -115,37 +143,52 @@ test('Pricing V1 is deterministic, integer-currency, and bounded by merchant-loc
   assert.ok(Math.abs(a.scarcityAdjustmentBps)<=2500);assert.equal(deriveScarcityAdjustmentBps({localStock:999,targetStock:1,recentDemand:0}),-2500);assert.equal(quoteAskPrice({marginBps:1000}).state,'UNKNOWN');
 });
 
-test('canonical committed receipt validates exact fingerprint, integrity fingerprint and item identity',()=>{
+test('canonical receipt shape validates exact fingerprint, integrity fingerprint and item identity',()=>{
   const r=canonicalReceipt();assert.deepEqual(validateCommittedTradeReceipt(r),[]);
   assert.equal(r.fingerprint,'tx-1|M1|2|1|STONE_PICKAXE|77|1|70|70|L1|R1');
   assert.equal(r.integrityFingerprint,r.fingerprint+'|ITEMS|77');
 });
 
-test('forged committed object without canonical Trade Kernel replay state cannot change Ledger',()=>{
-  const ledger=createMerchantLedger(1),before=JSON.stringify(ledger),r=canonicalReceipt();
-  const forged={ok:true,duplicate:false,verification:'VERIFIED',commitStatus:'COMMITTED',receipt:r};
-  const out=applyTradeKernelCommitToLedger(ledger,forged);assert.notEqual(out.state,'SAT');assert.equal(JSON.stringify(out.ledger),before);
+test('fully forged matching receipt + replay state cannot become committed accounting evidence',()=>{
+  const ledger=createMerchantLedger(1),before=JSON.stringify(ledger),forged=committed(canonicalReceipt());
+  const assessed=assessTradeKernelResult(forged);
+  assert.equal(assessed.state,'UNKNOWN');assert.equal(assessed.reason,'trade-commit-provenance');
+  assert.equal(assessed.verification,undefined);assert.equal(assessed.commitStatus,undefined);
+  const out=applyTradeKernelCommitToLedger(ledger,forged);
+  assert.equal(out.state,'UNKNOWN');assert.equal(out.reason,'trade-commit-provenance');assert.equal(JSON.stringify(out.ledger),before);
 });
 
-test('tampered fingerprint cannot change Ledger',()=>{
-  const ledger=createMerchantLedger(1),before=JSON.stringify(ledger),r=canonicalReceipt();r.fingerprint='tampered';
-  const out=applyTradeKernelCommitToLedger(ledger,committed(r));assert.equal(out.state,'VIOL');assert.equal(JSON.stringify(out.ledger),before);
+test('forged purchase followed by forged sale cannot create Revenue, COGS or Profit',()=>{
+  const empty=createMerchantLedger(1),snapshot=JSON.stringify(empty);
+  const fakeBuy=applyTradeKernelCommitToLedger(empty,committed(canonicalReceipt()));
+  assert.equal(fakeBuy.state,'UNKNOWN');assert.equal(JSON.stringify(fakeBuy.ledger),snapshot);
+  const fakeSale=applyTradeKernelCommitToLedger(fakeBuy.ledger,committed(saleReceipt()));
+  assert.equal(fakeSale.state,'UNKNOWN');assert.equal(JSON.stringify(fakeSale.ledger),snapshot);
+  assert.equal(fakeSale.ledger.revenue,0);assert.equal(fakeSale.ledger.costOfGoodsSold,0);assert.equal(fakeSale.ledger.realizedProfit,0);
 });
 
-test('tampered integrityFingerprint cannot change Ledger',()=>{
-  const ledger=createMerchantLedger(1),before=JSON.stringify(ledger),r=canonicalReceipt();r.integrityFingerprint='tampered';
-  const out=applyTradeKernelCommitToLedger(ledger,committed(r));assert.equal(out.state,'VIOL');assert.equal(JSON.stringify(out.ledger),before);
-});
-
-test('changed party/item/quantity/price fields fail closed even when receipt fingerprints are recomputed but replay evidence is original',()=>{
-  const original=canonicalReceipt(),ledger=createMerchantLedger(1),before=JSON.stringify(ledger);
-  const variants=[
-    {buyerId:3},{sellerId:3},{itemInstanceId:78,itemIds:[78]},{quantity:2,itemIds:[77,78],totalPrice:140},{unitPrice:71,totalPrice:71},
-  ];
-  for(const patch of variants){
-    const tampered=canonicalReceipt(patch),out=applyTradeKernelCommitToLedger(ledger,committed(tampered,{stateReceipt:original}));
-    assert.equal(out.state,'VIOL');assert.equal(JSON.stringify(out.ledger),before);
+test('changed buyer/seller with recomputed hashes and matching forged replay still cannot change Ledger',()=>{
+  const ledger=createMerchantLedger(1),before=JSON.stringify(ledger);
+  for(const patch of [{buyerId:4},{sellerId:4}]){
+    const forged=canonicalReceipt(patch),out=applyTradeKernelCommitToLedger(ledger,committed(forged));
+    assert.equal(out.state,'UNKNOWN');assert.equal(out.reason,'trade-commit-provenance');assert.equal(JSON.stringify(out.ledger),before);
   }
+});
+
+test('changed item identity with recomputed hashes and matching forged replay still cannot change Ledger',()=>{
+  const ledger=createMerchantLedger(1),before=JSON.stringify(ledger);
+  for(const patch of [{itemInstanceId:88,itemIds:[88]},{itemInstanceId:88,itemIds:[88,89],quantity:2,totalPrice:140}]){
+    const forged=canonicalReceipt(patch),out=applyTradeKernelCommitToLedger(ledger,committed(forged));
+    assert.equal(out.state,'UNKNOWN');assert.equal(out.reason,'trade-commit-provenance');assert.equal(JSON.stringify(out.ledger),before);
+  }
+});
+
+test('tampered fingerprint and integrityFingerprint remain structural VIOL and immutable',()=>{
+  const ledger=createMerchantLedger(1),before=JSON.stringify(ledger);
+  const badFp=canonicalReceipt();badFp.fingerprint='tampered';
+  const a=applyTradeKernelCommitToLedger(ledger,committed(badFp));assert.equal(a.state,'VIOL');assert.equal(JSON.stringify(a.ledger),before);
+  const badIntegrity=canonicalReceipt();badIntegrity.integrityFingerprint='tampered';
+  const b=applyTradeKernelCommitToLedger(ledger,committed(badIntegrity));assert.equal(b.state,'VIOL');assert.equal(JSON.stringify(b.ledger),before);
 });
 
 test('raw proposal, failed result, UNKNOWN result and canonical duplicate replay never increment accounting',()=>{
@@ -157,41 +200,50 @@ test('raw proposal, failed result, UNKNOWN result and canonical duplicate replay
   assert.equal(dup.state,'SAT');assert.equal(dup.duplicate,true);assert.equal(JSON.stringify(dup.ledger),before);
 });
 
-test('Trade Kernel success is normalized to VERIFIED + COMMITTED accounting evidence',()=>{
-  const assessed=assessTradeKernelResult(committed(canonicalReceipt()));
-  assert.equal(assessed.state,'SAT');assert.equal(assessed.verification,'VERIFIED');assert.equal(assessed.commitStatus,'COMMITTED');assert.equal(assessed.duplicate,false);
+test('self-trade, malformed receipt, unsafe integer and total mismatch are VIOL',()=>{
+  const ledger=createMerchantLedger(1),before=JSON.stringify(ledger);
+  const badRows=[
+    canonicalReceipt({buyerId:2,sellerId:2}),
+    canonicalReceipt({unitPrice:Number.MAX_SAFE_INTEGER,totalPrice:Number.MAX_SAFE_INTEGER,quantity:2,itemIds:[77,78]}),
+    canonicalReceipt({totalPrice:71}),
+  ];
+  for(const r of badRows){
+    const out=applyTradeKernelCommitToLedger(ledger,committed(r));assert.equal(out.state,'VIOL');assert.equal(JSON.stringify(out.ledger),before);
+  }
 });
 
-test('Revenue != Profit regression: buy Pickaxe 70 then sell 100 => Revenue 100 COGS 70 Profit 30',()=>{
-  const result=applyTradeKernelCommitToLedger(buyPickaxe(),committed(saleReceipt()));assert.equal(result.state,'SAT');
-  assert.equal(result.ledger.revenue,100);assert.equal(result.ledger.costOfGoodsSold,70);assert.equal(result.ledger.realizedProfit,30);
-  assert.equal(result.ledger.sales[0].costBasisSource,'purchase');assert.deepEqual(result.ledger.purchases[0].remainingItemIds,[]);
+test('Revenue/COGS/Profit math remains SAT without treating a plain Trade result as authority',()=>{
+  const ledger=ledgerWithPurchase(),sale=saleReceipt(),basis=resolveCostBasis(ledger,sale);
+  assert.equal(basis.state,'SAT');assert.equal(basis.cogs,70);assert.equal(basis.source,'purchase');
+  const accounting=calculateSaleAccounting({revenueBefore:ledger.revenue,costOfGoodsSoldBefore:ledger.costOfGoodsSold,totalPrice:sale.totalPrice,cogs:basis.cogs});
+  assert.deepEqual(accounting,{state:'SAT',revenue:100,costOfGoodsSold:70,realizedProfit:30});
 });
 
-test('same committed transaction cannot increment accounting twice',()=>{
-  const sold=applyTradeKernelCommitToLedger(buyPickaxe(),committed(saleReceipt()));const snapshot=JSON.stringify(sold.ledger);
-  const replay=applyTradeKernelCommitToLedger(sold.ledger,committed(saleReceipt()));assert.equal(replay.state,'SAT');assert.equal(replay.duplicate,true);assert.equal(JSON.stringify(replay.ledger),snapshot);
-});
-
-test('self-produced sale without verified cost stays UNKNOWN; verified evidence preserves Revenue/COGS/Profit',()=>{
-  const sale=saleReceipt({itemInstanceId:500,itemIds:[500]});
-  const noBasis=applyTradeKernelCommitToLedger(createMerchantLedger(1),committed(sale));assert.equal(noBasis.state,'UNKNOWN');
+test('verified production cost evidence still produces deterministic cost basis and accounting math',()=>{
+  const ledger=createMerchantLedger(1),sale=saleReceipt({itemInstanceId:500,itemIds:[500]});
+  const missing=resolveCostBasis(ledger,sale);assert.equal(missing.state,'UNKNOWN');
   const productionEvidence={verification:'VERIFIED',evidenceId:'production-cost:500',itemInstanceId:500,totalCost:55,sourceEvidenceIds:['craft-order:9','material-receipt:9']};
-  const result=applyTradeKernelCommitToLedger(createMerchantLedger(1),committed(sale),{productionEvidence});
-  assert.equal(result.state,'SAT');assert.equal(result.ledger.revenue,100);assert.equal(result.ledger.costOfGoodsSold,55);assert.equal(result.ledger.realizedProfit,45);
+  const basis=resolveCostBasis(ledger,sale,{productionEvidence});assert.equal(basis.state,'SAT');assert.equal(basis.cogs,55);assert.equal(basis.source,'production');
+  const accounting=calculateSaleAccounting({totalPrice:100,cogs:55});assert.deepEqual(accounting,{state:'SAT',revenue:100,costOfGoodsSold:55,realizedProfit:45});
 });
 
-test('multi-item purchase preserves item-level cost basis and exact COGS',()=>{
-  const buy=canonicalReceipt({itemIds:[77,78],quantity:2,unitPrice:70,totalPrice:140});
-  const purchased=applyTradeKernelCommitToLedger(createMerchantLedger(1),committed(buy));assert.equal(purchased.state,'SAT');
-  const sell=saleReceipt({itemInstanceId:78,itemIds:[78],quantity:1,unitPrice:100,totalPrice:100});
-  const sold=applyTradeKernelCommitToLedger(purchased.ledger,committed(sell));assert.equal(sold.state,'SAT');assert.equal(sold.ledger.costOfGoodsSold,70);assert.deepEqual(sold.ledger.purchases[0].remainingItemIds,[77]);
+test('multi-item purchase preserves exact item-level cost basis',()=>{
+  const ledger=ledgerWithPurchase({itemIds:[77,78],unitPrice:70});
+  const sale=saleReceipt({itemInstanceId:78,itemIds:[78],quantity:1,unitPrice:100,totalPrice:100});
+  const basis=resolveCostBasis(ledger,sale);assert.equal(basis.state,'SAT');assert.equal(basis.cogs,70);assert.equal(basis.parts.length,1);assert.equal(basis.parts[0].itemId,78);
 });
 
-test('merchant ledger save/load preserves item-level cost basis and totals byte-for-byte',()=>{
-  const bought=buyPickaxe(),wire=serializeMerchantLedger(bought),restored=restoreMerchantLedger(wire);assert.equal(serializeMerchantLedger(restored),wire);
-  const sold=applyTradeKernelCommitToLedger(restored,committed(saleReceipt()));assert.equal(sold.state,'SAT');
-  const soldWire=serializeMerchantLedger(sold.ledger),soldRestored=restoreMerchantLedger(soldWire);assert.equal(serializeMerchantLedger(soldRestored),soldWire);assert.equal(soldRestored.realizedProfit,30);assert.deepEqual(validateMerchantLedger(soldRestored),[]);
+test('Merchant Ledger save/load preserves acquisition basis and completed accounting byte-for-byte',()=>{
+  const bought=ledgerWithPurchase(),wire=serializeMerchantLedger(bought),restored=restoreMerchantLedger(wire);
+  assert.equal(serializeMerchantLedger(restored),wire);assert.deepEqual(validateMerchantLedger(restored),[]);
+  const sold=completedLedger();assert.deepEqual(validateMerchantLedger(sold),[]);
+  const soldWire=serializeMerchantLedger(sold),soldRestored=restoreMerchantLedger(soldWire);
+  assert.equal(serializeMerchantLedger(soldRestored),soldWire);assert.equal(soldRestored.realizedProfit,30);
+});
+
+test('accounting arithmetic rejects unsafe overflow',()=>{
+  assert.equal(calculateSaleAccounting({revenueBefore:Number.MAX_SAFE_INTEGER,totalPrice:1,cogs:0}).state,'VIOL');
+  assert.equal(calculateSaleAccounting({costOfGoodsSoldBefore:Number.MAX_SAFE_INTEGER,totalPrice:1,cogs:1}).state,'VIOL');
 });
 
 test('RC4 pricing/ledger modules stay pure and outside forbidden authorities',()=>{
