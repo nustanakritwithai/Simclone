@@ -21,7 +21,8 @@ import {rustTradeItemAdapter} from './trade-rust-adapter.mjs?v=0.5.0';
 import {migrateTradeReplayState,validateTradeReplayState,settleTradeAtomic} from './trade-kernel.mjs?v=0.5.0';
 import {tradableRustItemIds} from './rust-possessions.mjs?v=0.5.0';
 import {
-  createMerchantLedger,validateMerchantLedgerCollection,migrateMerchantLedgerCollection,applyCanonicalTradeExecutionToLedger
+  validateMerchantLedgerCollection,migrateMerchantLedgerCollection,applyCanonicalTradeExecutionToLedger,
+  ensureMerchantLedgerInCollection,replaceMerchantLedgerInCollection,merchantLedgerFromCollection
 } from './merchant-ledger.mjs?v=0.5.0';
 import {
   evaluateMerchantQualification,adoptMerchantProfession,noteVerifiedCommittedMerchantTransaction,validateMerchantProgression
@@ -47,14 +48,10 @@ const fail=(reason,message=reason,extra={})=>({ok:false,reason,message,...extra}
 
 function ledgerIndex(world,merchantId){return world.merchantLedgers?.ledgers?.findIndex(x=>x.merchantId===merchantId)??-1;}
 function ensureLedger(world,merchantId){
-  if(validateMerchantLedgerCollection(world.merchantLedgers).length)return {ok:false,reason:'ledger-root'};
-  let index=ledgerIndex(world,merchantId);
-  if(index>=0)return {ok:true,index,ledger:world.merchantLedgers.ledgers[index]};
-  const ledger=createMerchantLedger(merchantId);
-  world.merchantLedgers.ledgers.push(ledger);
-  world.merchantLedgers.ledgers.sort((a,b)=>a.merchantId-b.merchantId);
-  index=ledgerIndex(world,merchantId);
-  return {ok:true,index,ledger:world.merchantLedgers.ledgers[index]};
+  const ensured=ensureMerchantLedgerInCollection(world.merchantLedgers,merchantId);
+  if(ensured.state!=='SAT')return {ok:false,reason:ensured.reason??'ledger-root',detail:ensured};
+  world.merchantLedgers=ensured.collection;
+  return {ok:true,index:ledgerIndex(world,merchantId),ledger:ensured.ledger};
 }
 
 export function migrateRc4EconomyState(world){
@@ -118,8 +115,9 @@ export function ensureRc4AccountForAgent(world,agentId){
 function merchantQualificationSnapshot(world,agent){
   const home=homeOf(world,agent.id,{completeOnly:true});
   const balance=getBalance(world,agent.id);
-  const produced=(world.rustPossessions?.items??[]).filter(i=>i?.createdBy===agent.id).length;
-  const evidenceId='MERCHANT:'+agent.id+':'+(home?.houseId??'NOHOME')+':'+produced;
+  const market=ownMarket(world,agent.id);
+  const intentCount=(market?.listingIds?.length??0)+(market?.buyOfferIds?.length??0);
+  const evidenceId='MERCHANT:'+agent.id+':'+(market?.marketId??'NOMARKET')+':'+intentCount;
   return {
     agentId:agent.id,
     alive:agent.alive===true,
@@ -127,7 +125,7 @@ function merchantQualificationSnapshot(world,agent){
     professionTransitionAllowed:agent.profession!=='adventurer',
     homeControl:home?{status:'CONFIRMED',houseId:home.houseId,evidenceId:'HOME:'+home.houseId}:{status:'ABSENT'},
     operatingCapital:Number.isSafeInteger(balance)?{status:'CONFIRMED',amount:balance}:{status:'UNKNOWN'},
-    tradeKnowledge:produced>0?{status:'CONFIRMED',evidenceCount:produced}:{status:'ABSENT',evidenceCount:0},
+    tradeKnowledge:intentCount>0?{status:'CONFIRMED',evidenceCount:intentCount}:{status:'UNKNOWN',evidenceCount:0},
     evidenceId
   };
 }
@@ -150,22 +148,6 @@ function canonicalMarketAdapter(){
   });
 }
 
-function productionCostEvidence(world,receipt,merchantId){
-  const rows=[];
-  for(const itemId of receipt.itemIds){
-    const item=world.rustPossessions?.items?.find(i=>i.id===itemId);
-    if(!item||item.createdBy!==merchantId)continue;
-    rows.push({
-      verification:'VERIFIED',
-      evidenceId:'PROD:'+item.id,
-      itemInstanceId:item.id,
-      totalCost:0,
-      sourceEvidenceIds:['RUST:'+item.id+':'+item.createdTick]
-    });
-  }
-  return rows.length?rows:null;
-}
-
 function applyMerchantAccounting(staged,context){
   const receipt=context.receipt;
   const parties=[receipt.buyerId,receipt.sellerId];
@@ -174,10 +156,11 @@ function applyMerchantAccounting(staged,context){
     if(!agent)continue;
     const ensured=ensureLedger(staged,merchantId);if(!ensured.ok)return ensured;
     const index=ledgerIndex(staged,merchantId),ledger=staged.merchantLedgers.ledgers[index];
-    const productionEvidence=receipt.sellerId===merchantId?productionCostEvidence(staged,receipt,merchantId):null;
-    const applied=applyCanonicalTradeExecutionToLedger(ledger,staged,context,{productionEvidence});
+    const applied=applyCanonicalTradeExecutionToLedger(ledger,staged,context);
     if(applied.state!=='SAT')return {ok:false,reason:'ledger-'+applied.reason,detail:applied};
-    staged.merchantLedgers.ledgers[index]=applied.ledger;
+    const replaced=replaceMerchantLedgerInCollection(staged.merchantLedgers,applied.ledger);
+    if(replaced.state!=='SAT')return {ok:false,reason:replaced.reason??'ledger-replace',detail:replaced};
+    staged.merchantLedgers=replaced.collection;
     const progress=noteVerifiedCommittedMerchantTransaction(agent,applied);
     if(progress.status!=='SAT')return {ok:false,reason:'career-'+progress.reason,detail:progress};
   }
@@ -314,8 +297,8 @@ function acceptBuyOffer(world,{producerId,offerId,itemId}={}){
 
 export function rc4Command(world,type,data={}){
   if(typeof type!=='string'||!type.startsWith('RC4_'))return null;
-  const migration=migrateRc4EconomyState(world);
-  if(migration.state!=='SAT')return fail(migration.reason,'RC4 state ไม่พร้อม');
+  const stateErrors=validateRc4EconomyState(world);
+  if(stateErrors.length)return fail('rc4-state','RC4 state ไม่พร้อม',{errors:stateErrors});
 
   if(type==='RC4_BECOME_MERCHANT'){
     const agent=world.agents.find(a=>a.id===data.agentId&&a.alive);if(!agent)return fail('agent','ไม่พบ Clone');
@@ -329,16 +312,20 @@ export function rc4Command(world,type,data={}){
   }
 
   if(type==='RC4_CREATE_MARKET'){
-    const agent=world.agents.find(a=>a.id===data.agentId&&a.alive&&a.profession==='merchant');if(!agent)return fail('merchant','ต้องเป็น Merchant');
+    const agent=world.agents.find(a=>a.id===data.agentId&&a.alive);if(!agent)return fail('agent','ไม่พบ Clone');
+    if(agent.profession==='adventurer')return fail('profession-locked','Adventurer เปิดสาย Merchant ไม่ได้');
     const home=homeOf(world,agent.id,{completeOnly:true});if(!home)return fail('home','ต้องมีบ้านส่วนตัวที่สร้างเสร็จ');
     const made=createHomeMarket(world,world.homeMarkets,{ownerAgentId:agent.id,homeId:home.houseId});
     if(!made.ok)return fail(made.reason,made.message);
     world.homeMarkets=made.marketState;
-    return {ok:true,marketId:made.market.marketId,eventType:'market',eventText:agent.name+' เปิด Home Market'};
+    return {ok:true,marketId:made.market.marketId,eventType:'market',eventText:agent.name+' เตรียม Home Market'};
   }
 
   if(type==='RC4_OPEN_MARKET'||type==='RC4_CLOSE_MARKET'){
     const market=world.homeMarkets.markets.find(m=>m.marketId===data.marketId);if(!market)return fail('market','ไม่พบตลาด');
+    const owner=world.agents.find(a=>a.id===market.ownerAgentId&&a.alive);
+    if(!owner)return fail('owner','เจ้าของตลาดไม่พร้อม');
+    if(type==='RC4_OPEN_MARKET'&&owner.profession!=='merchant')return fail('merchant','ต้องเป็น Merchant ก่อนเปิดร้าน');
     const changed=(type==='RC4_OPEN_MARKET'?openHomeMarket:closeHomeMarket)(world,world.homeMarkets,{marketId:data.marketId,ownerAgentId:market.ownerAgentId});
     if(!changed.ok)return fail(changed.reason,changed.message);
     world.homeMarkets=changed.marketState;
@@ -361,8 +348,9 @@ export function rc4Command(world,type,data={}){
   }
 
   if(type==='RC4_CREATE_BUY_OFFER'){
-    const agent=world.agents.find(a=>a.id===data.agentId&&a.alive&&a.profession==='merchant');if(!agent)return fail('merchant','ต้องเป็น Merchant');
-    const market=ownMarket(world,agent.id);if(!market)return fail('market','Merchant ยังไม่มี Home Market');
+    const agent=world.agents.find(a=>a.id===data.agentId&&a.alive);if(!agent)return fail('agent','ไม่พบ Clone');
+    const market=ownMarket(world,agent.id);if(!market)return fail('market','ยังไม่มี Home Market');
+    if(agent.profession!=='merchant'&&market.status!=='closed')return fail('merchant','ตลาดเตรียมการต้องปิดก่อนเป็น Merchant');
     if(typeof data.itemKind!=='string'||!data.itemKind||!validMoney(data.unitPrice))return fail('offer','ข้อมูล Buy Offer ไม่ถูกต้อง');
     const made=createBuyOfferInCollection(world.merchantBuyOffers,{marketId:market.marketId,buyerId:agent.id,itemKind:data.itemKind,quantityWanted:1,unitPrice:data.unitPrice,createdTick:world.tick});
     if(made.state!=='SAT')return fail(made.reason,'สร้าง Buy Offer ไม่ได้');
@@ -395,7 +383,7 @@ export function rc4MarketReadModel(world,selectedAgentId=null){
   const home=selected?homeOf(world,selected.id,{completeOnly:true}):null;
   const balance=selected?getBalance(world,selected.id):null;
   const own=selected?ownMarket(world,selected.id):null;
-  const ledger=(selected&&world.merchantLedgers?.ledgers?.find(l=>l.merchantId===selected.id))??null;
+  const ledger=selected?merchantLedgerFromCollection(world.merchantLedgers,selected.id):null;
   const bag=(world.rustPossessions?.items??[]).filter(i=>selected&&i.location?.kind==='bag'&&i.location.agentId===selected.id)
     .map(i=>({id:i.id,kind:i.kind,createdBy:i.createdBy,tradable:tradableRustItemIds(world,{agentId:selected.id,itemKind:i.kind}).includes(i.id)}));
   const markets=(world.homeMarkets?.markets??[]).map(m=>{
