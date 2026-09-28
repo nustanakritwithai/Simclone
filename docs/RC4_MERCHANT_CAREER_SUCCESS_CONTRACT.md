@@ -10,7 +10,7 @@ RC4 Merchant Career owns only:
 - pure Merchant qualification
 - canonical profession transition through existing `adoptProfession(...)`
 - Merchant profession continuity
-- bounded Merchant transaction progression hooks
+- Merchant transaction progression hooks sourced from canonical committed transaction evidence
 - tests and verification evidence
 
 RC4 Merchant Career does **not** own or implement:
@@ -134,30 +134,110 @@ Prepared progression hooks:
 - `merchantRealizedProfit` — read-only projection from canonical Merchant Ledger
 - `merchantExperience` — Career-owned non-monetary counter
 
-Only a fact with all of these may count:
+Career does **not** accept caller assertions such as:
+
+```js
+{ transactionId, verified:true, committed:true }
+```
+
+That shape is not canonical transaction evidence and MUST NOT increment progression.
+
+### Canonical transaction evidence
+
+Career consumes the exact projection vocabulary emitted by RC4 Merchant Ledger PR #179 function
+`assessTradeKernelResult()`, which itself consumes the RC4 Trade Kernel committed result from PR #177.
+
+A new committed transaction is eligible only when the projection has:
 
 ```js
 {
-  transactionId,
-  verified: true,
-  committed: true
+  state: 'SAT',
+  duplicate: false,
+  verification: 'VERIFIED',
+  commitStatus: 'COMMITTED',
+  receipt: {
+    transactionId,
+    fingerprint,
+    eventId,
+    marketId,
+    listingId,
+    reservationId,
+    buyerId,
+    sellerId,
+    itemKind,
+    itemIds,
+    quantity,
+    unitPrice,
+    totalPrice
+  }
 }
 ```
 
-Rules:
+A replay projected by the canonical transaction path is:
 
-- Merchant profession is required.
-- `verified !== true` does not count.
-- `committed !== true` does not count.
-- missing verification/commit evidence is UNKNOWN.
-- one accepted committed transaction increments `merchantTransactions` by 1.
-- `merchantExperience` increments by 1 per accepted committed transaction.
-- recent transaction IDs are retained only for bounded replay protection.
+```js
+{
+  state: 'SAT',
+  duplicate: true,
+  receipt: { ...canonical committed receipt... }
+}
+```
+
+and MUST be a no-op for Career progression.
+
+Career validates the compatible committed-receipt structure before consuming it, but Career does not create,
+upgrade or infer transaction truth. In particular it does not turn arbitrary `verified:true` or
+`committed:true` booleans into canonical evidence.
+
+### Merchant party lock
+
+Before progression can increase:
+
+```text
+agent.id === receipt.buyerId
+OR
+agent.id === receipt.sellerId
+```
+
+If neither is true, the evidence is VIOL and progression state remains unchanged.
+
+### Replay authority
+
+Transaction uniqueness, commit status and duplicate/replay status belong to the Trade Kernel / canonical transaction authority.
+
+Career MUST NOT independently determine transaction uniqueness.
+
+A bounded local transaction-id collection, if present on a legacy/candidate save, is diagnostics/audit projection only.
+It is never an idempotency authority and is never consulted by `noteVerifiedCommittedMerchantTransaction()`.
+
+Long-horizon behavior:
+
+```text
+>32 canonical unique commits
+→ progression counts each canonical new commit once
+→ canonical replay of the oldest transaction returns duplicate:true
+→ Career progression remains byte-stable
+```
+
+The same rule MUST survive save/load.
+
+### Monetary separation
+
 - Career MUST NOT store or accumulate Revenue, COGS or Realized Profit on the agent.
 - `merchantRealizedProfit` progression support is satisfied only by a read-only projection of a valid Merchant Ledger snapshot.
 - absent ledger evidence makes the projected profit UNKNOWN/null; malformed or mismatched ledger evidence is VIOL.
 - a persisted `agent.merchantRealizedProfit` field is explicitly rejected as a duplicate monetary authority.
 - authoritative monetary accounting belongs to the RC4 Merchant Ledger workstream.
+
+### Progression mutation
+
+Only canonical `state:'SAT'` + `duplicate:false` + `verification:'VERIFIED'` +
+`commitStatus:'COMMITTED'` evidence for which the Merchant is a real party may:
+
+- increment `merchantTransactions` by 1
+- increment `merchantExperience` by 1
+
+Canonical `duplicate:true` never increments either field.
 
 ## Required tests
 
@@ -165,15 +245,25 @@ Rules:
 - dead agent does not qualify
 - no home-control evidence does not qualify
 - capital below threshold does not qualify
-- UNKNOWN evidence does not qualify
+- UNKNOWN qualification evidence does not qualify
 - replayed qualification does not duplicate career history
 - Merchant profession survives save/load
 - Merchant does not overwrite locked Adventurer
 - ordinary worker actions do not overwrite Merchant
 - automatic Adventurer qualification does not overwrite Merchant
 - Merchant module contains no direct profession assignment
-- progression counts only verified + committed transactions
-- retained transaction replay does not double-count progression
+- canonical VERIFIED + COMMITTED + duplicate:false Merchant buyer counts once
+- canonical VERIFIED + COMMITTED + duplicate:false Merchant seller counts once
+- canonical duplicate:true is a no-op
+- transaction where Merchant is neither buyer nor seller is VIOL
+- missing canonical verification is UNKNOWN / no mutation
+- missing canonical commit status is UNKNOWN / no mutation
+- malformed canonical receipt is rejected
+- forged plain `transactionId + verified:true + committed:true` object cannot increment progression
+- more than 32 canonical unique commits are accepted without using a bounded replay gate
+- replay of the first transaction after more than 32 commits is a no-op
+- save/load followed by canonical replay of an old transaction is a no-op
+- any legacy/recent transaction-id list is audit projection only, not idempotency authority
 - Career exposes `merchantRealizedProfit` only from a read-only Merchant Ledger projection
 - Career does not create a second Revenue / COGS / Realized Profit authority
 - absent ledger evidence stays UNKNOWN/null
@@ -194,14 +284,17 @@ Result interpretation:
 - failing assertion, direct Merchant profession writer, or forbidden subsystem edit → VIOL
 - missing CI / unverified exact head / ambiguous evidence → UNKNOWN
 
-## Known limitations
+## Known limitations / integration dependencies
 
 1. RC4 does not project runtime home, wallet/capital, or trade-knowledge state into the qualification snapshot. Integration must supply those authoritative facts later.
 2. RC4 does not add a command or autonomous policy that triggers Merchant qualification in production.
-3. Transaction replay protection is bounded to the most recent 32 transaction IDs; long-horizon settlement idempotency remains the Trade Kernel / Merchant Ledger responsibility.
-4. Merchant progression fields are non-monetary additive save data and are not yet wired into engine-wide validation because shared runtime integration is outside this slice.
-5. Revenue, COGS and Realized Profit are intentionally absent from Career state; Merchant Ledger is the accounting authority.
-6. No pricing, market, wallet, inventory transfer or Home Market behavior is implied by Merchant profession SAT.
+3. Career depends on the canonical transaction projection contract from PR #179 `assessTradeKernelResult()`, sourced from PR #177 Trade Kernel committed results. Career does not duplicate those authorities.
+4. Shared runtime integration must pass that canonical projection into Career; fabricating an equivalent-looking object outside the approved transaction path is an integration violation.
+5. Merchant progression fields are non-monetary additive save data and are not yet wired into engine-wide validation because shared runtime integration is outside this slice.
+6. Revenue, COGS and Realized Profit are intentionally absent from Career state; Merchant Ledger is the accounting authority.
+7. No pricing, market, wallet, inventory transfer or Home Market behavior is implied by Merchant profession SAT.
+
+Long-horizon replay is **not** an accepted limitation. A canonical replay of an old committed transaction MUST never increment Career progression.
 
 ## Definition of Done
 
@@ -211,10 +304,12 @@ RC4 Merchant Career is SAT only when:
 - Merchant profession is registered in the existing profession authority
 - Merchant adoption uses canonical `adoptProfession`
 - qualification tests prove required VIOL/UNKNOWN cases
-- replay and save/load continuity tests pass
-- progression only accepts verified + committed facts
+- qualification replay, >32 transaction replay and save/load old-replay tests pass
+- progression only accepts canonical Merchant Ledger transaction projection with VERIFIED + COMMITTED + duplicate:false
 - Career contains no monetary profit accumulator
 - `merchantRealizedProfit` hook is available from a validated read-only Merchant Ledger projection
 - duplicate persisted `merchantRealizedProfit` state is rejected
+- Career does not use bounded recent transaction ids as replay authority
+- Merchant party lock is proven for buyer/seller/non-party paths
 - `npm test` passes on the exact head
 - PR is opened and remains unmerged
