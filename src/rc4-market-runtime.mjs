@@ -86,6 +86,9 @@ export function migrateRc4EconomyState(world){
   const knownPeople=new Set([...(world.agents??[]),...(world.archive??[])].map(a=>a.id));
   if(world.merchantLedgers.ledgers.some(l=>!knownPeople.has(l.merchantId)))return {state:'VIOL',reason:'ledger-agent'};
   for(const a of [...(world.agents??[]),...(world.archive??[])])if(validateMerchantProgression(a).length)return {state:'VIOL',reason:'merchant-progression',agentId:a.id};
+  // Navigation arrival provenance is runtime-ephemeral. A JSON-restored lookalike
+  // is not in the Navigation module's private identity set and must never survive as proof.
+  for(const a of world.agents??[])if(a?.task?.rc4MarketTravel&&!isCanonicalMarketTravelTask(a.task)){a.task=null;a.moveTick=0;}
   world.rc4EconomyVersion=RC4_ECONOMY_ROOT_VERSION;
   return {state:'SAT',migrated:true};
 }
@@ -199,7 +202,9 @@ function postSettlementAdapter(){
       if(!accounting.ok)return accounting;
 
       const buyer=staged.agents.find(a=>a.id===r.buyerId);
-      if(buyer&&isCanonicalMarketTravelTask(buyer.task)){buyer.task=null;buyer.moveTick=0;}
+      // Arrival was proven on the live canonical task before settlement. The staged
+      // clone intentionally does not inherit WeakSet identity, so clear by RC4 metadata here.
+      if(buyer?.task?.rc4MarketTravel){buyer.task=null;buyer.moveTick=0;}
       return {ok:true};
     },
     verify:(staged,context)=>{
