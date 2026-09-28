@@ -150,6 +150,19 @@ test('RC4 deterministic twin state + proposal produces byte-identical next state
   assert.equal(a.ok,true);assert.equal(b.ok,true);assert.equal(JSON.stringify(a.state),JSON.stringify(b.state));
 });
 
+test('RC4 replay validates committed receipt state before returning duplicate',()=>{
+  const first=settleTradeAtomic(fixture(),proposal(),adapters);assert.equal(first.ok,true);
+  const corrupt=clone(first.state);corrupt.tradeReplay.receipts[0].eventId='bad event';const before=clone(corrupt);
+  const r=settleTradeAtomic(corrupt,proposal(),adapters);
+  assert.equal(r.ok,false);assert.equal(r.reason,'replay-state');assert.deepEqual(corrupt,before);
+});
+
+test('RC4 maximum transaction id remains valid with deterministic TRADE event prefix',()=>{
+  const tx='T'.repeat(80),p=proposal({transactionId:tx}),r=settleTradeAtomic(fixture(),p,adapters);
+  assert.equal(r.ok,true);assert.equal(r.receipt.eventId,'TRADE:'+tx);
+  assert.deepEqual(validateTradeReplayState(r.state),[]);
+});
+
 test('RC4 replay state validator rejects duplicate transaction receipts',()=>{
   const first=settleTradeAtomic(fixture(),proposal(),adapters);assert.equal(first.ok,true);
   const corrupt=clone(first.state);corrupt.tradeReplay.receipts.push(clone(corrupt.tradeReplay.receipts[0]));
