@@ -67,7 +67,7 @@ Each listing visibly exposes:
 - unit price;
 - stock available.
 
-UI must not decrement any field optimistically.
+The read model must preserve canonical Listing `revision`, canonical purchasable status is `OPEN`, and purchase intents must include the current listing revision. UI must not invent an `ACTIVE` listing authority or decrement any field optimistically.
 
 ### UI-4 — Buy Offer UI
 
@@ -99,7 +99,7 @@ A verified result presentation contains:
 - quantity;
 - total price.
 
-Success feedback is forbidden before a VERIFIED transaction result. Intent submission alone cannot render a successful sale.
+Success feedback is forbidden unless the authoritative result is `VERIFIED` + `COMMITTED` + `duplicate:false`, with positive safe-integer quantity and total price. VERIFIED-but-failed/rejected, UNKNOWN, duplicate replay, or intent submission alone cannot render a successful sale.
 
 ### UI-7 — Authority lock
 
@@ -155,7 +155,7 @@ Required artifacts exist:
 |---|---|---|
 | UI-1 | world screenshot + prototype DOM | SAT only when Home + Market remains visibly a home |
 | UI-2–5 | inspector screenshots + DOM | all required fields visible |
-| UI-6 | verified-transaction screenshot | no optimistic success |
+| UI-6 | verified committed transaction proof | require VERIFIED + COMMITTED + duplicate:false; reject failed/replay/UNKNOWN |
 | UI-7 | source review of JS + interaction notes | no domain mutation path |
 | UI-8 | 915×412 screenshot | world visible + panel scroll/close/touch layout |
 | UI-9 | changed-file diff | no production file touched |
