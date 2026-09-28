@@ -22,6 +22,7 @@ function freeNear(){
 }
 const tableItem=craft('CRAFTING_TABLE_LV1'),tablePos=freeNear();
 const table=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:tableItem.id,...tablePos});if(!table.ok)throw new Error('fixture table '+JSON.stringify(table));
+a.x=tablePos.x;a.y=tablePos.y;
 const furnaceItem=craft('FURNACE'),furnacePos=freeNear();
 const furnace=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:furnaceItem.id,...furnacePos});if(!furnace.ok)throw new Error('fixture furnace '+JSON.stringify(furnace));
 a.x=tablePos.x;a.y=tablePos.y;
