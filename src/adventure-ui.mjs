@@ -1,3 +1,5 @@
+import {verifiedAdventureLootProposal} from './adventure-loot-commit.mjs?v=0.5.0';
+import {recipeById} from './crafting-catalog.mjs?v=0.5.0';
 import {adventureProgressionSnapshot} from './adventure-progression.mjs?v=0.5.0';
 import {ADVENTURE_ZONES,canEnterAdventureZone,adventureZoneById} from './adventure-zones.mjs?v=0.5.0';
 import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
@@ -164,10 +166,13 @@ export function installAdventureUI({read,openDialog,closeDialog,execute,select,c
         '<div class="adv-health monster"><label>Monster HP <b>'+monsterHpCurrent+' / '+monsterHpMax+'</b></label><i><em style="width:'+monsterPct+'%"></em></i></div>'+
         '<button type="button" class="adv-primary" data-adv-action="attack" data-agent="'+agent.id+'">Attack</button>';
     }else if(combat?.status==='VICTORY'){
-      const def=monsterDefinition(combat.monsterId),fire=def?.types?.[0]==='Fire',claim=combat.lootClaim;
-      const loot=claim?'<div class="adv-loot-done">Loot '+claim.itemIds.length+' ชิ้น · กระเป๋า '+claim.bagged+' · ตกพื้น '+claim.dropped+'</div>':
-        fire?'<button type="button" class="adv-primary" data-adv-action="claim-loot" data-agent="'+agent.id+'">รับ Loot</button>':'<div class="adv-notice compact">Loot profile ของธาตุนี้ยังไม่เปิดใน V1</div>';
-      const continueLabel=fire&&!claim?'เดินทางต่อ · ข้าม Loot':'เดินทางต่อ';
+      const claim=combat.lootClaim;let proposal=null;
+      try{proposal=verifiedAdventureLootProposal(state,agent,combat);}catch{/* Unsupported legacy or invalid evidence: never show a fabricated reward. */}
+      const bp=proposal?.items.find(i=>i.itemKind==='RECIPE_BLUEPRINT'),recipe=bp?recipeById(bp.blueprint.offer.recipeId):null;
+      const blueprint=recipe?'<p data-blueprint-drop="'+esc(recipe.id)+'">พิมพ์เขียว: '+esc(itemById(recipe.output)?.name??recipe.output)+' · T'+recipe.tier+'</p>':'';
+      const loot=claim?'<div class="adv-loot-done">Loot '+claim.itemIds.length+' ชิ้น · กระเป๋า '+claim.bagged+' · ตกพื้น '+claim.dropped+'</div>'+blueprint:
+        proposal?blueprint+'<button type="button" class="adv-primary" data-adv-action="claim-loot" data-agent="'+agent.id+'">'+(proposal.items.length?'รับ Loot':'ยืนยัน · ไม่มี Loot ในรอบนี้')+'</button>':'<div class="adv-notice compact">Loot profile หรือหลักฐานของผลนี้ยังไม่พร้อม</div>';
+      const continueLabel=proposal?.items.length&&!claim?'เดินทางต่อ · ข้าม Loot':'เดินทางต่อ';
       body='<div class="adv-hud-title"><span>VICTORY</span><b>'+esc(monsterLabel(combat.monsterId))+'</b></div>'+
         '<p>Adventure XP +'+(combat.reward?.xpAward??0)+'</p>'+loot+
         '<button type="button" class="adv-secondary" data-adv-action="finish-result" data-agent="'+agent.id+'">'+continueLabel+'</button>';

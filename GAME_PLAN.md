@@ -1,3 +1,9 @@
+> **RC3.1 candidate source update — 2026-09-28**
+>
+> Starting released main: `c1fdbcac92f61499507ef89eec8b207da5bab7cb` (RC2, Pages #110). PR #173 adds physical Blueprint loot and personal recipe learning through existing authorities.
+> Read `docs/RC3_1_BLUEPRINT_SUCCESS_CONTRACT.md` and `docs/RC3_1_BLUEPRINT_RELEASE.md`. Candidate implementation does not imply publication: exact-head Verify and exact-main Pages/native/public Blueprint + RC2 + SWA7 remain mandatory. Record actual results on #173.
+> Donor #168 stays read-only/unmerged. Iron/Steel, new stations, market and upgrades are not part of RC3.1. Earlier baseline notes below are historical where they conflict.
+
 # Autonomous Clone World — Master Game Plan
 
 > **Repository:** Simclone  

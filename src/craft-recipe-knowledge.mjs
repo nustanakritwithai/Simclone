@@ -3,6 +3,7 @@
  * grant of all catalog recipes. Reading knowledge never materializes state.
  */
 import {CRAFT_RECIPE_CATALOG,STARTER_RECIPE_IDS,recipeById} from './crafting-catalog.mjs?v=0.5.0';
+import {BLUEPRINT_ITEM_KIND,validBlueprintItem,validBlueprintLearning,validateBlueprintEvidence} from './craft-blueprints.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 
 export const RECIPE_KNOWLEDGE_VERSION='RC2-knowledge/1';
@@ -69,6 +70,8 @@ function structuralErrors(state,agent){
       if(!unlock||learned.sourceRecipeId!==unlock.recipeId||!integer(learned.sourceOrderId,1)||
         !integer(learned.sourceCompletions,unlock.completions)||learned.sourceOrderId<learned.sourceCompletions||
         learned.sourceOrderId>=state.rustPossessions.nextOrder||learned.tick<agent.bornTick)return ['Recipe knowledge source'];
+    }else if(learned.method==='blueprint'){
+      if(!validBlueprintLearning(state,agent,e.recipeId,learned))return ['Recipe blueprint source'];
     }else if(learned.method==='teaching'){
       if(!integer(learned.teacherId,1)||learned.teacherId===agent.id||learned.tick<agent.bornTick)return ['Recipe knowledge source'];
     }else return ['Recipe knowledge source'];
@@ -83,6 +86,7 @@ function structuralErrors(state,agent){
 function receiptLedgerErrors(state){
   const p=state?.rustPossessions;
   if(!p||!integer(p.nextOrder,1)||!integer(p.nextItem,1)||!Array.isArray(p.items)||!Array.isArray(p.orders))return ['Recipe evidence ledger'];
+  const blueprintErrors=validateBlueprintEvidence(state);if(blueprintErrors.length)return blueprintErrors;
   const orders=new Set(),items=new Set();let total=0;
   for(const a of [...(state.agents??[]),...(state.archive??[])]){
     const book=a?.knowledgeState?.recipes;if(book===undefined)continue;
@@ -127,6 +131,7 @@ function proven(state,agent,recipeId,visited){
   const e=entry(agent,recipeId);if(!e)return false;
   const l=e.learned;
   if(l.method==='baseline')return starters.has(recipeId);
+  if(l.method==='blueprint')return validBlueprintLearning(state,agent,recipeId,l);
   if(l.method==='mastery'){
     const source=entry(agent,l.sourceRecipeId);
     return masterySourceProven(agent,source,l)&&
@@ -210,4 +215,19 @@ export function recipeKnowledgeSnapshot(state,agent){
     known:coherent&&proven(state,agent,r.id,new Set()),completed:recipeMastery(agent,r.id),
     learned:entry(agent,r.id)?.learned?copy(entry(agent,r.id).learned):null,
     unlock:r.unlock?{...r.unlock,current:recipeMastery(agent,r.unlock.recipeId)}:null})));
+}
+
+/** Knowledge proposal only. Rust atomically consumes the checked physical item
+ * and installs this book; no craft receipts, mastery or XP are fabricated. */
+export function blueprintLearningProposal(state,agent,item){
+  if(!baseKnowledge(agent)||validateRecipeKnowledge(state,agent).length)return {ok:false,reason:'recipe-knowledge'};
+  if(item?.kind!==BLUEPRINT_ITEM_KIND||!validBlueprintItem(state,item))return {ok:false,reason:'blueprint-invalid'};
+  const recipeId=item.blueprint.offer.recipeId;
+  if(knowsCraftRecipe(state,agent,recipeId))return {ok:false,reason:'recipe-known'};
+  const book=writableBook(agent);if(book.entries.length>=RECIPE_KNOWLEDGE_LIMITS.recipes)return {ok:false,reason:'recipe-capacity'};
+  book.entries.push({recipeId,learned:{method:'blueprint',tick:state.tick,itemId:item.id,
+    createdBy:item.createdBy,acquiredTick:item.createdTick,sourceClaimKey:item.sourceClaimKey,blueprint:copy(item.blueprint)},
+    retiredCompletions:0,receipts:[]});
+  book.entries.sort((a,b)=>a.recipeId<b.recipeId?-1:a.recipeId>b.recipeId?1:0);
+  return {ok:true,recipeId,book};
 }

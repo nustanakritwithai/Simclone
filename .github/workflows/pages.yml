@@ -47,6 +47,9 @@ jobs:
       - name: Verify RC2 exact-main native crafting
         run: python tests/rc2-crafting-smoke.py --native
 
+      - name: Verify RC3.1 exact-main native physical Blueprint
+        run: python tests/blueprint-smoke.py --native
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -110,4 +113,20 @@ jobs:
           path: |
             evidence-public-rc2/
             evidence-ui/rc2-native/
+          if-no-files-found: warn
+
+      - name: Verify public RC3.1 physical Blueprint lifecycle
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: python tests/blueprint-smoke.py --public
+
+      - name: Upload RC3.1 public Blueprint evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blueprint-public-evidence-${{ github.sha }}
+          path: |
+            evidence-public-blueprint/
+            evidence-ui/blueprint-native/
           if-no-files-found: warn

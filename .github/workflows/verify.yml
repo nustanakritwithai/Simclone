@@ -66,3 +66,14 @@ jobs:
           name: rc2-candidate-evidence-${{ github.sha }}
           path: evidence-ui/rc2-native/
           if-no-files-found: warn
+
+      - name: Verify RC3.1 native physical Blueprint desktop and mobile
+        run: python tests/blueprint-smoke.py --native
+
+      - name: Upload RC3.1 candidate Blueprint evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blueprint-candidate-evidence-${{ github.sha }}
+          path: evidence-ui/blueprint-native/
+          if-no-files-found: warn

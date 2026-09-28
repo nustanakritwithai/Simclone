@@ -218,6 +218,7 @@ export function installUX(api){
     const result=api.execute(b.dataset.ux==='equip-craft-gear'?'EQUIP_ADVENTURE_GEAR':'UNEQUIP_ADVENTURE_GEAR',{agentId:api.read().selected,itemId:Number(b.dataset.item),slot:b.dataset.slot});
     api.toast(result.message);if(result.ok){api.save();openRust();}return;
   }
+  if(b.dataset.ux==='learn-blueprint'){const result=api.execute('LEARN_RECIPE_BLUEPRINT',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openRust();}return;}
   if(b.dataset.ux==='craft-item'){const result=api.execute('CRAFT_ITEM',{agentId:api.read().selected,recipeId:b.dataset.recipe,...(b.dataset.station?{stationId:Number(b.dataset.station)}:{})});api.toast(result.message);if(result.ok){api.save();const ref=$('dialog').dataset.structure??'';if($('dialog').dataset.kind==='structure'&&ref.startsWith('station:'))openStructure({type:'station',id:Number(ref.split(':')[1])});else openRust();}}
   if(b.dataset.ux==='equip-item'){const result=api.execute('EQUIP_ITEM',{agentId:api.read().selected,itemId:Number(b.dataset.item)});api.toast(result.message);if(result.ok){api.save();openRust();}}
   if(b.dataset.ux==='unequip-item'){const result=api.execute('UNEQUIP_ITEM',{agentId:api.read().selected});api.toast(result.message);if(result.ok){api.save();openRust();}}
