@@ -18,7 +18,7 @@ export function validateListing(row){
   if(!positiveInt(row.sellerId))e.push('sellerId');
   if(!validKind(row.itemKind))e.push('itemKind');
   if(!positiveInt(row.itemInstanceId))e.push('itemInstanceId');
-  if(!Number.isSafeInteger(row.quantity)||row.quantity<1||row.quantity>128)e.push('quantity');
+  if(!Number.isSafeInteger(row.quantity)||row.quantity<0||row.quantity>128||(row.status===LISTING_STATUS.FILLED?row.quantity!==0:row.quantity<1))e.push('quantity');
   if(!isCanonicalMoney(row.unitPrice,{allowZero:false}))e.push('unitPrice');
   if(!positiveInt(row.revision))e.push('revision');
   if(!Object.values(LISTING_STATUS).includes(row.status))e.push('status');
@@ -47,7 +47,8 @@ export function updateListing(listing,patch={}){
 export function transitionListing(listing,status){
   const errors=validateListing(listing);if(errors.length)return {state:'VIOL',reason:'listing',errors};
   if(listing.status===status)return {state:'SAT',duplicate:true,listing:Object.freeze({...listing})};
-  if(listing.status!==LISTING_STATUS.OPEN||![LISTING_STATUS.CLOSED,LISTING_STATUS.CANCELED,LISTING_STATUS.FILLED].includes(status))return {state:'VIOL',reason:'transition'};
+  // FILLED is settlement-owned. Generic lifecycle callers may only close/cancel.
+  if(listing.status!==LISTING_STATUS.OPEN||![LISTING_STATUS.CLOSED,LISTING_STATUS.CANCELED].includes(status))return {state:'VIOL',reason:'transition'};
   const revision=listing.revision+1;if(!Number.isSafeInteger(revision))return {state:'VIOL',reason:'revision-overflow'};
   return {state:'SAT',duplicate:false,listing:Object.freeze({...listing,status,revision})};
 }
@@ -108,6 +109,26 @@ export function transitionListingInCollection(collection,id,status){
   if(changed.state!=='SAT')return {...changed,collection:resultCollection(collection)};
   const next=resultCollection(collection);next.listings[index]={...changed.listing};
   return {state:'SAT',duplicate:false,listing:changed.listing,collection:next};
+}
+
+/**
+ * Canonical post-settlement Listing mutation.
+ * Quantity/revision/status change together on the staged collection only.
+ */
+export function applyListingSettlementInCollection(collection,id,{expectedRevision,quantity,unitPrice}={}){
+  const errors=validateListingCollection(collection);if(errors.length)return {state:'VIOL',reason:'listing-collection',errors,collection:resultCollection(collection)};
+  const index=collection.listings.findIndex(x=>x.id===id);if(index<0)return {state:'VIOL',reason:'listing-missing',collection:resultCollection(collection)};
+  const current=collection.listings[index];
+  if(current.status!==LISTING_STATUS.OPEN)return {state:'VIOL',reason:'listing-not-open',collection:resultCollection(collection)};
+  if(current.revision!==expectedRevision)return {state:'VIOL',reason:'listing-stale',collection:resultCollection(collection)};
+  if(current.unitPrice!==unitPrice)return {state:'VIOL',reason:'listing-price-mismatch',collection:resultCollection(collection)};
+  if(!Number.isSafeInteger(quantity)||quantity<1||quantity>current.quantity)return {state:'VIOL',reason:'listing-fill-quantity',collection:resultCollection(collection)};
+  const revision=current.revision+1;if(!Number.isSafeInteger(revision))return {state:'VIOL',reason:'revision-overflow',collection:resultCollection(collection)};
+  const remaining=current.quantity-quantity;
+  const listing={...current,quantity:remaining,revision,status:remaining===0?LISTING_STATUS.FILLED:LISTING_STATUS.OPEN};
+  const post=validateListing(listing);if(post.length)return {state:'VIOL',reason:'listing-postcondition',errors:post,collection:resultCollection(collection)};
+  const next=resultCollection(collection);next.listings[index]=listing;
+  return {state:'SAT',duplicate:false,listing:Object.freeze({...listing}),collection:next};
 }
 
 export function freezeListingReservationSnapshot(listing){
