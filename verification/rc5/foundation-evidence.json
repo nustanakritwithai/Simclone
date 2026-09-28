@@ -1,0 +1,49 @@
+{
+  "schema": "RC5-foundation-evidence/1",
+  "scope": "DESIGN_MODEL_ONLY",
+  "auditDate": "2026-09-29",
+  "baseMain": "1b60b13394c11bd7b03d10227919f4bb509b02df",
+  "rc4": {
+    "pr": 194,
+    "observedHead": "44e61dec7ad42c41e77a9198a234c6da43e9eedb",
+    "state": "OPEN_DRAFT_UNMERGED",
+    "releaseGate": "HOLD"
+  },
+  "localFocused": {
+    "command": "node --test tests/rc5-crafter-model.test.mjs",
+    "node": "v22.16.0",
+    "tests": 57,
+    "pass": 57,
+    "fail": 0,
+    "skipped": 0,
+    "verdict": "SAT",
+    "claim": "Focused arithmetic/rule, canonical catalog compatibility and outcome-isolation tests only"
+  },
+  "canonicalFilesUsedLocally": {
+    "src/material-schema.mjs": "81fa84b4243d31d667aff84b902c8e76306594ef",
+    "src/crafting-catalog.mjs": "a34c5d669023a0685e62745f55638cc66bf0bd54",
+    "src/craft-outcome.mjs": "c2afbed7ebf7c0582c62b452c63034d393446ec8"
+  },
+  "candidateFiles": {
+    "docs/wip/rc5-crafter/model.mjs": "1fa38cff7f93cfd17268cc2ec39f5e41e8b84a3d",
+    "docs/wip/rc5-crafter/README.md": "a7b470bfcadf0c723ec64fb7deb600d60ad9c69f",
+    "tests/rc5-crafter-model.test.mjs": "e6e77e6689d5b1105c17d91c2dea382979629685"
+  },
+  "fullRepositoryLocal": "NOT_RUN: only three exact-hash canonical source files were materialized locally; no full checkout",
+  "exactHeadCI": "UNKNOWN",
+  "nativeBrowser": "NOT_RUN",
+  "publicBrowser": "NOT_RUN",
+  "productionQualification": "UNKNOWN",
+  "productionTierGate": "UNKNOWN",
+  "productionQuality": "UNCHANGED_RC2_OUTCOME_1",
+  "migration": "NOT_IMPLEMENTED",
+  "productionIntegration": "HOLD",
+  "productionWrites": false,
+  "notes": [
+    "No src, index, workflow, package, profession, inventory, wallet or persistence changes.",
+    "All model decisions permanently report productionVerdict UNKNOWN and commitAllowed false.",
+    "Quality probabilities assume uniform uint32 model input; not measured production rates.",
+    "Local synthetic progression is not a real construction, materials, pathfinding or autonomous survival proof.",
+    "Do not reuse these focused results as exact-head CI or merged-main production evidence."
+  ]
+}
