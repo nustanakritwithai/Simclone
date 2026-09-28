@@ -11,31 +11,38 @@ recipe masquerading as a legacy order; unknown marked order; copied cross-person
 receipts; impossible unlock chronology; and 60008 completions with nextOrder9.
 The existing two-real-craft unlock control remains SAT.
 
-`node --test tests/craft-evidence-hardening.test.mjs`: 16/16 PASS, no skipped tests.
-`npm test`: 799/799 PASS, no skipped tests (49.24 seconds in this environment).
+Post-push adversarial review held b566ad3 before merge and found a further unused
+historical order-ID replay. It now rejects before progress using the same person's
+completed-order/tick watermark. Compacted boundary certificates also check surviving
+outputs; retired counts must precede the first retained receipt even in old books.
+
+`node --test tests/craft-evidence-hardening.test.mjs`: 16/16 PASS.
+`node --test tests/craft-order-watermark.test.mjs`: 3/3 PASS.
+`npm test`: 802/802 PASS, no skipped tests.
 The original canonical recipe suite remains 16/16 PASS.
 
-The new suite additionally exercises canonical work/escrow/station/timing,
+The new suites additionally exercise canonical work/escrow/station/timing,
 no-mutation rejection, receipt output identity, consumed-output absence, duplicate
 pending IDs, 24-craft bounded compaction, byte-identical old compacted saves,
 fractional work, two simultaneous crafters, and actual Same-World 4000-tick
 simulation/save continuation for both seed230926 and seed42.
 
-Independent offline Chromium mobile390x844 and desktop1440x1000: 31/31 PASS.
-Actual Rust controls accept two crafts, the normal scheduler finishes them,
-only the crafter learns T1, the real Save button persists the book/items and
-reload preserves them. Zero uncaught JS errors; screenshots inspected. This uses
-the repository's exact-module offline fixture and explicit Storage double. It is
-NOT native HTTP/storage or public Pages evidence, and it does not claim the
-advanced recipe/quality UI is implemented.
+Independent offline Chromium mobile390x844 and desktop1440x1000: 31/31 PASS,
+repeated after the watermark repair. Actual Rust controls accept two crafts, the
+normal scheduler finishes them, only the crafter learns T1, the real Save button
+persists the book/items and reload preserves them. Zero uncaught JS errors;
+screenshots inspected. This uses the repository's exact-module offline fixture
+and explicit Storage double. It is NOT native HTTP/storage or public Pages
+proof, and it does not claim advanced recipe/quality UI is implemented.
 
 ## Exact locally tested Git blob hashes
 
-- src/craft-recipe-knowledge.mjs: 10a251037bc0d6906d084b3b24d0029b37337ca5
-- src/rust-possessions.mjs: f3aa4daefc87a38d2d5c90e16d910c7d35045e33
+- src/craft-recipe-knowledge.mjs: 1c3a7e25b2a71bf436465e4f9d81e68db596b3fd
+- src/rust-possessions.mjs: d8849c788e84419e275bcc89893c453c59b2ee49
 - src/rust-runtime.mjs: a7084b2ee1204c1c7d286ad16a773fec6a3546b0
-- index.html: 805d5a70621de6ced7b122e69ee41d9a19f55b11
+- index.html: c345db4db867d52b6e798e09dfdd0b8f8f0375ef
 - tests/craft-evidence-hardening.test.mjs: 9c84a350653384ef102f43f99b8ad2ae706767d9
+- tests/craft-order-watermark.test.mjs: ec0dbe24c4d56077ab9e22b4c1045a00ed13ea53
 
 ## Compatibility boundary
 

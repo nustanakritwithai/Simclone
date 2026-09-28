@@ -36,17 +36,19 @@ function structuralErrors(state,agent){
       !integer(e.retiredCompletions)||!Array.isArray(e.receipts)||e.receipts.length>RECIPE_KNOWLEDGE_LIMITS.receipts||
       e.retiredCompletions+e.receipts.length>RECIPE_KNOWLEDGE_LIMITS.completions)return ['Recipe knowledge'];
     seen.add(e.recipeId);
-    if(e.retiredCompletions>0&&e.receipts.length!==RECIPE_KNOWLEDGE_LIMITS.receipts)return ['Recipe mastery'];
+    if(e.retiredCompletions>0&&(e.receipts.length!==RECIPE_KNOWLEDGE_LIMITS.receipts||e.receipts[0]?.orderId<=e.retiredCompletions))return ['Recipe mastery'];
     if(e.retiredThrough!==undefined){
       const last=e.retiredThrough,first=e.receipts[0];
       if(!record(last)||e.retiredCompletions===0||!integer(last.orderId,e.retiredCompletions)||!integer(last.itemId,1)||
         !integer(last.tick)||last.crafterId!==agent.id||!first||last.orderId>=first.orderId||last.tick>=first.tick||
-        last.itemId>=state.rustPossessions.nextItem||last.tick<e.learned.tick)return ['Recipe mastery boundary'];
+        last.itemId>=state.rustPossessions.nextItem||last.tick<Math.max(e.learned.tick,agent.bornTick))return ['Recipe mastery boundary'];
+      const output=outputs.get(last.itemId);
+      if(output&&(output.createdBy!==agent.id||output.createdTick!==last.tick||output.kind!==recipeById(e.recipeId).output))return ['Recipe mastery output'];
     }
     let lastOrder=0,lastTick=e.learned.tick;
     for(const receipt of e.receipts){
       if(!record(receipt)||!integer(receipt.orderId,1)||receipt.orderId<=lastOrder||orders.has(receipt.orderId)||
-        !integer(receipt.itemId,1)||items.has(receipt.itemId)||!integer(receipt.tick)||receipt.tick<lastTick||receipt.tick>state.tick||
+        !integer(receipt.itemId,1)||items.has(receipt.itemId)||!integer(receipt.tick)||receipt.tick<Math.max(lastTick,agent.bornTick)||receipt.tick>state.tick||
         (receipt.crafterId!==undefined&&receipt.crafterId!==agent.id)||
         (state.rustPossessions&&(!integer(state.rustPossessions.nextOrder,1)||receipt.orderId>=state.rustPossessions.nextOrder||receipt.itemId>=state.rustPossessions.nextItem)))return ['Recipe mastery'];
       const output=outputs.get(receipt.itemId);

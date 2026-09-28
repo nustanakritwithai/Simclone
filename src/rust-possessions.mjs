@@ -20,6 +20,8 @@ export function validateCraftOrder(s,o){
   if(o.recipeKnowledge===undefined)return STARTER_RECIPE_IDS.includes(o.recipe)?[]:['Rust craft legacy recipe'];
   if(o.recipeKnowledge!==RECIPE_KNOWLEDGE_VERSION)return ['Rust craft knowledge version'];
   if(validateRecipeKnowledge(s,a).length||!knowsCraftRecipe(s,a,o.recipe))return ['Rust craft permission'];
+  const receipts=(a.knowledgeState.recipes?.entries??[]).flatMap(e=>[...e.receipts,...(e.retiredThrough?[e.retiredThrough]:[])]);
+  if(receipts.some(done=>done.orderId>=o.id||done.tick>o.startedTick))return ['Rust craft watermark'];
   if(o.required!==r.work||Object.keys(o.reserved).length!==Object.keys(r.materials).length||
     Object.entries(r.materials).some(([k,n])=>o.reserved[k]!==n))return ['Rust craft escrow'];
   if(!Number.isSafeInteger(o.startedTick)||o.startedTick<a.bornTick||o.startedTick>s.tick||
