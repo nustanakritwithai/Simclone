@@ -182,6 +182,53 @@
       "canonical persistent BuyOffer collection/procurement matching unproven",
       "post-settlement Listing/Reservation semantics unproven",
       "production persistence ownership for all RC4 collections unproven"
+    ],
+    "resolvedPrerequisites": [
+      "#179 repaired Pricing/Listing/Ledger head da82d2178e605283fabf76b80c91cd731da4ad49 is based on current RC3.2 main and has exact-head Verify #1978 SUCCESS plus PR Verify #1979 SUCCESS.",
+      "#180 repaired UI prototype head 0aa5a824d7da70172a267dbf1f440e69d44ef271 has Verify #1990 SUCCESS and canonical OPEN/listing-revision/SAT+VERIFIED+COMMITTED+duplicate:false presentation vocabulary; production wiring remains UNKNOWN."
     ]
+  },
+  "donorSnapshot": {
+    "auditedAt": "2026-09-28",
+    "main": "1b60b13394c11bd7b03d10227919f4bb509b02df",
+    "donors": {
+      "175": {
+        "head": "51f3c9727429ecfb055548c8bf0ffed09a70b0d9",
+        "base": "a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e",
+        "verify": "#1946 SUCCESS"
+      },
+      "176": {
+        "head": "79ae6792063f8c70a9e676028646f2cd05a62d0a",
+        "base": "a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e",
+        "verify": "#1861 SUCCESS"
+      },
+      "177": {
+        "head": "73be1764130978f529632aa955bf3a7adf931e29",
+        "base": "a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e",
+        "verify": "#1898 SUCCESS"
+      },
+      "178": {
+        "head": "8c6c4ffb506cd192e2f81558880a7480ccf13932",
+        "base": "a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e",
+        "verify": "#1864 SUCCESS"
+      },
+      "179": {
+        "head": "da82d2178e605283fabf76b80c91cd731da4ad49",
+        "base": "1b60b13394c11bd7b03d10227919f4bb509b02df",
+        "verify": "#1978 push SUCCESS; #1979 PR SUCCESS",
+        "note": "current-main merge-forward repair"
+      },
+      "180": {
+        "head": "0aa5a824d7da70172a267dbf1f440e69d44ef271",
+        "base": "a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e",
+        "verify": "#1990 SUCCESS",
+        "note": "docs/prototype only"
+      },
+      "181": {
+        "head": "6d9eb098333eccc72e2352e605e5364d25e97768",
+        "base": "a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e",
+        "verify": "#1959 SUCCESS"
+      }
+    }
   }
 }
