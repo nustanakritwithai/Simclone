@@ -1,21 +1,23 @@
 /** RC4 canonical merchant Listing. References Rust item authority; owns no item. */
 import {isCanonicalMoney} from './merchant-pricing.mjs';
 
-export const MERCHANT_LISTING_VERSION='RC4-listing/1';
+export const MERCHANT_LISTING_VERSION='RC4-listing/2';
 export const LISTING_STATUS=Object.freeze({OPEN:'OPEN',CLOSED:'CLOSED',CANCELED:'CANCELED',FILLED:'FILLED'});
-const validId=v=>(Number.isSafeInteger(v)&&v>0)||(typeof v==='string'&&v.length>0&&v.length<=160);
-const validKind=v=>typeof v==='string'&&v.length>0&&v.length<=128;
+const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+const validRefId=v=>typeof v==='string'&&v.length>0&&v.length<=80&&idPattern.test(v);
+const positiveInt=v=>Number.isSafeInteger(v)&&v>0;
+const validKind=validRefId;
 
 export function validateListing(row){
   const e=[];
   if(!row||typeof row!=='object'||Array.isArray(row))return ['listing'];
-  if(!validId(row.listingId))e.push('listingId');
-  if(!validId(row.marketId))e.push('marketId');
-  if(!validId(row.sellerId))e.push('sellerId');
+  if(!validRefId(row.listingId))e.push('listingId');
+  if(!validRefId(row.marketId))e.push('marketId');
+  if(!positiveInt(row.sellerId))e.push('sellerId');
   if(!validKind(row.itemKind))e.push('itemKind');
-  if(!validId(row.itemInstanceId))e.push('itemInstanceId');
-  if(!Number.isSafeInteger(row.quantity)||row.quantity<1)e.push('quantity');
-  if(!isCanonicalMoney(row.unitPrice))e.push('unitPrice');
+  if(!positiveInt(row.itemInstanceId))e.push('itemInstanceId');
+  if(!Number.isSafeInteger(row.quantity)||row.quantity<1||row.quantity>128)e.push('quantity');
+  if(!isCanonicalMoney(row.unitPrice,{allowZero:false}))e.push('unitPrice');
   if(!Number.isSafeInteger(row.createdTick)||row.createdTick<0)e.push('createdTick');
   if(!Object.values(LISTING_STATUS).includes(row.status))e.push('status');
   return e;
