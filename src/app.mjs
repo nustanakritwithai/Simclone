@@ -536,23 +536,36 @@ function market(){
  const q=m.qualification,checks=q?.checks??{};
  const blocked=Object.entries(checks).filter(([,v])=>v?.status!=='SAT').map(([k,v])=>'<li>'+esc(k)+' · '+esc(v?.detail??v?.status)+'</li>').join('');
  let body='<section class="visual-menu-status"><div class="visual-menu-status-icon">¤</div><div><small>SELECTED CLONE</small><b>'+esc(sel.name)+'</b><span>'+esc(sel.profession??'ยังไม่มีอาชีพ')+' · เงิน '+esc(sel.balance??'—')+'</span></div></section>';
+
+ if(!m.ownMarket){
+   body+='<div class="help-block"><b>เริ่มสาย Merchant</b><p>ต้องมีบ้านส่วนตัวที่สร้างเสร็จ แล้วเตรียม Home Market แบบปิดก่อน</p></div>'+
+     '<div class="dialog-actions"><button class="primary" data-action="rc4-create-market" data-agent="'+sel.id+'">เตรียม Home Market ที่บ้าน</button></div>';
+ }else{
+   const open=m.ownMarket.status==='open';
+   body+='<div class="help-block"><b>Home Market '+esc(m.ownMarket.marketId)+'</b><br>สถานะ '+esc(m.ownMarket.status)+' · บ้าน '+esc(m.ownMarket.homeId)+'</div>';
+   if(sel.profession==='merchant'){
+     body+='<div class="dialog-actions"><button class="'+(open?'secondary':'primary')+'" data-action="'+(open?'rc4-close-market':'rc4-open-market')+'" data-market="'+esc(m.ownMarket.marketId)+'">'+(open?'ปิดร้าน':'เปิดร้าน')+'</button></div>';
+   }else{
+     body+='<p class="source-note">ตลาดเตรียมการยังปิดอยู่ · ตั้ง BuyOffer/Listing intent เพื่อสร้าง trade knowledge ก่อน</p>';
+   }
+ }
+
+ if(m.ownMarket){
+   const kinds=[...new Set((state.rustPossessions?.items??[]).map(i=>i.kind))].sort().slice(0,8);
+   body+='<h3>Buy Offer · Trade Knowledge</h3>'+(kinds.length?kinds.map(k=>'<button class="secondary" data-action="rc4-create-offer" data-agent="'+sel.id+'" data-kind="'+esc(k)+'" data-price="70">รับซื้อ '+esc(k)+' · 70</button>').join(' '):'<p>ยังไม่มีชนิดสินค้าในโลก</p>');
+ }
+
  if(sel.profession!=='merchant'){
    body+=q?.qualified
      ?'<div class="dialog-actions"><button class="primary" data-action="rc4-become-merchant" data-agent="'+sel.id+'">เป็น Merchant</button></div>'
-     :'<div class="help-block"><b>ยังเป็น Merchant ไม่ได้</b><ul>'+(blocked||'<li>ต้องมีบ้าน เงินทุน และหลักฐานการผลิตสินค้าอย่างน้อย 1 ชิ้น</li>')+'</ul></div>';
- }else if(!m.ownMarket){
-   body+='<div class="dialog-actions"><button class="primary" data-action="rc4-create-market" data-agent="'+sel.id+'">เปิด Home Market ที่บ้าน</button></div>';
- }else{
-   const open=m.ownMarket.status==='open';
-   body+='<div class="help-block"><b>Home Market '+esc(m.ownMarket.marketId)+'</b><br>สถานะ '+esc(m.ownMarket.status)+' · บ้าน '+esc(m.ownMarket.homeId)+'</div>'+
-     '<div class="dialog-actions"><button class="'+(open?'secondary':'primary')+'" data-action="'+(open?'rc4-close-market':'rc4-open-market')+'" data-market="'+esc(m.ownMarket.marketId)+'">'+(open?'ปิดร้าน':'เปิดร้าน')+'</button></div>';
+     :'<div class="help-block"><b>ยังเป็น Merchant ไม่ได้</b><ul>'+(blocked||'<li>ต้องมีบ้าน เงินทุน และ Home Market intent อย่างน้อย 1 รายการ</li>')+'</ul></div>';
  }
+
  if(sel.profession==='merchant'&&m.ownMarket){
    const tradable=m.bag.filter(i=>i.tradable);
    body+='<h3>ของในกระเป๋าที่ลงขายได้</h3>'+(tradable.length?tradable.map(i=>'<div class="help-block"><b>'+esc(i.kind)+'</b> · #'+i.id+'<div class="dialog-actions"><button data-action="rc4-list-item" data-agent="'+sel.id+'" data-item="'+i.id+'" data-price="100">ลงขาย 100</button></div></div>').join(''):'<p>ยังไม่มี item ที่ลงขายได้</p>');
-   const kinds=[...new Set((state.rustPossessions?.items??[]).map(i=>i.kind))].sort().slice(0,8);
-   body+='<h3>Buy Offer</h3>'+(kinds.length?kinds.map(k=>'<button class="secondary" data-action="rc4-create-offer" data-agent="'+sel.id+'" data-kind="'+esc(k)+'" data-price="70">รับซื้อ '+esc(k)+' · 70</button>').join(' '):'<p>ยังไม่มีชนิดสินค้าในโลก</p>');
  }
+
  body+='<h3>ตลาดในโลก</h3>';
  if(!m.markets.length)body+='<p>ยังไม่มี Home Market</p>';
  for(const marketRow of m.markets){
@@ -575,7 +588,7 @@ function market(){
      for(const o of marketRow.offers){
        body+='<div>'+esc(o.itemKind)+' · '+o.quantityWanted+' ชิ้น · '+o.unitPrice+' · '+esc(o.status);
        const owned=m.bag.find(i=>i.tradable&&i.kind===o.itemKind);
-       if(sel.id!==o.buyerId&&owned&&o.status==='OPEN')body+=' <button data-action="rc4-accept-offer" data-agent="'+sel.id+'" data-offer="'+esc(o.offerId)+'" data-item="'+owned.id+'">ขายให้ร้าน</button>';
+       if(sel.id!==o.buyerId&&owned&&o.status==='OPEN')body+=' <button data-action="rc4-accept-offer" data-agent="'+sel.id+'" data-offer="'+esc(o.offerId)+'" data-item="'+owned.id+'">ตอบรับ BuyOffer</button>';
        body+='</div>';
      }
    }
