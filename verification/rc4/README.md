@@ -57,7 +57,7 @@ Before the Integration Lead supplies one assembled exact candidate:
 
 Current Master Gate locks:
 
-- #179 repaired exact head must gain exact-head Verify evidence and remain contract/source aligned;
+- #179 donor selection must stay pinned to verified head `da82d2178e605283fabf76b80c91cd731da4ad49` (or a later independently re-verified head); old #179 evidence cannot be reused after head drift;
 - Home Market must own Listing/BuyOffer reference mutation;
 - market `tradeRange` must have a canonical source;
 - Navigation must own verified arrival/position evidence;
@@ -66,13 +66,18 @@ Current Master Gate locks:
 - post-settlement Listing/Reservation transitions must be defined;
 - outer commit must stage authoritative mutations and replace the live root once.
 
+Latest donor refresh:
+
+- #179 current verified head: `da82d2178e605283fabf76b80c91cd731da4ad49` — current-main based, Verify #1978 SUCCESS, PR Verify #1979 SUCCESS.
+- #180 current prototype donor: `0aa5a824d7da70172a267dbf1f440e69d44ef271` — Verify #1990 SUCCESS; canonical OPEN + listing revision + SAT/VERIFIED/COMMITTED/non-duplicate success vocabulary, but still docs/prototype only.
+
 Known preparation-time contract attack:
 
 - Trade Kernel #177 requires `listing.id`, `listing.revision`, and `reservation.listingRevision`.
 - Prior Pricing/Listing #179 head `ba435943aa7a877fa7f9ff65cc74a961b34f3241` used `listingId` and had no revision.
-- Latest observed repaired #179 head `964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f` now exposes canonical `id`/`revision`, revision mutation rules, uniqueness and stale-revision checks.
+- Current verified #179 head `da82d2178e605283fabf76b80c91cd731da4ad49` is merge-forwarded onto current RC3.2 main, exposes canonical `id`/`revision`, revision mutation rules, uniqueness and stale-revision checks, and has Verify #1978 SUCCESS plus PR Verify #1979 SUCCESS.
 - Preflight deliberately keeps the old mismatch as a regression attack and rejects it if it reappears in the integration candidate.
-- This donor repair is not integration SAT. An alias/workaround in integration or tests remains forbidden.
+- This donor repair is still not integration SAT. An alias/workaround in integration or tests remains forbidden.
 
 ## Browser proof
 
