@@ -157,7 +157,7 @@ Before settlement RC4 revalidates all of the following against the current state
 12. listing exists, is OPEN and matches market/seller/item/price/quantity;
 13. reservation exists, is ACTIVE and exactly matches proposal + listing revision;
 14. listing is not stale;
-15. no reserved item is held by another active reservation;
+15. a global active-reservation view includes the current reservation and no exact reserved item is held by any other active reservation in any market;
 16. seller still owns every exact reserved Rust item instance and every instance is tradable;
 17. buyer balance is sufficient;
 18. seller credit cannot overflow.
@@ -204,6 +204,7 @@ Each committed receipt stores:
 - `transactionId`
 - deterministic proposal fingerprint
 - deterministic `eventId = 'TRADE:' + transactionId`
+- exact `itemInstanceId`
 - market/listing/reservation ids
 - buyer/seller ids
 - item kind
@@ -214,6 +215,8 @@ Rules:
 
 - exact same `transactionId` + same proposal fingerprint returns the existing receipt with `duplicate:true` and performs zero writes;
 - same `transactionId` + different proposal is `transaction-conflict`;
+- every stored receipt is re-fingerprinted from its own transaction/party/item/price/reference fields before replay is trusted;
+- tampered `eventId`, party, market/listing/reservation, item kind, `itemInstanceId`, price, quantity or `itemIds` makes replay state invalid and fails closed;
 - a committed id is never pruned by this kernel;
 - replay storage is bounded at 512 receipts and fails closed when full rather than evicting old ids and making old replays spendable again;
 - one transaction produces one receipt/event id only.
@@ -250,7 +253,9 @@ Tests must cover at least:
 - buyer = seller;
 - buyer dead before commit;
 - seller dead before commit;
-- overlapping reservation on item;
+- overlapping reservation on item in the same market;
+- overlapping reservation on the same item in another market;
+- incomplete/malformed global reservation evidence;
 - total price mismatch;
 - buyer outside trade range;
 - wallet credit failure after staged debit leaves source unchanged;
@@ -260,6 +265,7 @@ Tests must cover at least:
 - equipped/open-loot items are not tradable;
 - buyer Rust bag overflow is immutable failure;
 - twin deterministic inputs produce byte-identical next states;
+- replay receipt field/item tampering is rejected;
 - source audit finds no random/wall-clock gameplay rule.
 
 ## Acceptance / verification state
