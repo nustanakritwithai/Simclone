@@ -192,7 +192,7 @@
     },
     {
       "id": "B7",
-      "state": "UNKNOWN",
+      "state": "VIOL",
       "subject": "Production persistence ownership for RC4 state",
       "owner": "Persistence owner + each owning RC4 domain",
       "phase0Rows": [
@@ -223,54 +223,20 @@
         "old-save migration ownership per component",
         "corrupt/missing replay evidence fails closed where replay safety would otherwise reset",
         "one-shot migration proof",
-        "save/load old-transaction replay no-op"
+        "save/load old-transaction replay no-op",
+        "Home Market must distinguish field-absent old save from present-but-malformed component; `{}` and malformed present records must fail closed",
+        "focused corruption tests for `{}`, wrong version, missing/invalid markets array and duplicate authority state"
       ],
       "forbiddenWorkarounds": [
         "silent fresh replay ledger after load",
         "duplicate wallet/listing/reservation/ledger containers",
         "UI/localStorage shadow becoming authority"
-      ]
-    },
-    {
-      "id": "B8",
-      "state": "UNKNOWN",
-      "subject": "Exact assembled RC4 integration candidate and one-root commit orchestration",
-      "owner": "RC4 Merchant Economy Integration Lead",
-      "phase0Rows": [
-        "P0-01",
-        "P0-02",
-        "P0-03",
-        "P0-12",
-        "P0-13"
       ],
-      "downstreamRows": [
-        "P1-01",
-        "P3-03",
-        "P7-05",
-        "P8-01",
-        "P9-01",
-        "P14-D-01",
-        "P14-M-01",
-        "P15-01"
+      "evidence": [
+        "B7 is incomplete across RC4 domains.",
+        "PR #184 Home Market source accepts present `{}` as an empty valid component because validateHomeMarketState({}) normalizes it; this contradicts corrupt-present-state fail-closed requirement."
       ],
-      "requiredDeliverables": [
-        "one exact integration head SHA based on audited current main",
-        "explicit donor selection manifest with exact heads",
-        "documented non-hidden adapters only",
-        "staged root candidate and single live-root replacement",
-        "full 171-row execution report tied to exact SHA",
-        "desktop/mobile real-click browser proof",
-        "retained regression evidence",
-        "independent Red Team SAT",
-        "bind exact B4 Reservation donor c4d1b544a1203459aa78ef55b83a28db6077056c (or later independently verified head) into #177 market adapter",
-        "trusted canonical Trade execution provenance reaches #179 Ledger and #175 Career without a forgeable plain-object promotion"
-      ],
-      "forbiddenWorkarounds": [
-        "partial integration branches counted as final candidate",
-        "donor CI reused as integrated CI",
-        "UNKNOWN defaulted to a value",
-        "shared runtime edited solely to bypass acceptance"
-      ]
+      "violation": "Home Market present-but-corrupt empty object can be normalized to fresh empty authority state instead of failing closed; persistence ownership is also incomplete across the remaining RC4 roots."
     }
   ],
   "auditUpdate": {
@@ -283,6 +249,48 @@
       "B3 exact-head CI is green but source-level provenance attack is VIOL.",
       "B4 exact-head donor prerequisite is green (#2025/#2027) and moved to resolved donor prerequisites.",
       "B1/B2, B5/B6 trade/listing candidates still need exact-head/rebase verification as applicable; B7 remains open; B8 not started."
+    ]
+  },
+  "lockedNextGate": {
+    "id": "B8",
+    "state": "LOCKED_NOT_STARTED",
+    "subject": "Exact assembled RC4 integration candidate and one-root commit orchestration",
+    "owner": "RC4 Merchant Economy Integration Lead",
+    "prerequisite": "B1-B7 donor/domain closure must be accepted before B8 starts.",
+    "phase0Rows": [
+      "P0-01",
+      "P0-02",
+      "P0-03",
+      "P0-12",
+      "P0-13"
+    ],
+    "downstreamRows": [
+      "P1-01",
+      "P3-03",
+      "P7-05",
+      "P8-01",
+      "P9-01",
+      "P14-D-01",
+      "P14-M-01",
+      "P15-01"
+    ],
+    "requiredDeliverables": [
+      "one exact integration head SHA based on audited current main",
+      "explicit donor selection manifest with exact heads",
+      "documented non-hidden adapters only",
+      "staged root candidate and single live-root replacement",
+      "full 171-row execution report tied to exact SHA",
+      "desktop/mobile real-click browser proof",
+      "retained regression evidence",
+      "independent Red Team SAT",
+      "bind exact B4 Reservation donor c4d1b544a1203459aa78ef55b83a28db6077056c (or later independently verified head) into #177 market adapter",
+      "trusted canonical Trade execution provenance reaches #179 Ledger and #175 Career without a forgeable plain-object promotion"
+    ],
+    "forbiddenWorkarounds": [
+      "partial integration branches counted as final candidate",
+      "donor CI reused as integrated CI",
+      "UNKNOWN defaulted to a value",
+      "shared runtime edited solely to bypass acceptance"
     ]
   }
 }
