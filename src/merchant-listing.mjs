@@ -10,6 +10,16 @@ const validRefId=v=>typeof v==='string'&&v.length>0&&v.length<=80&&idPattern.tes
 const positiveInt=v=>Number.isSafeInteger(v)&&v>0;
 const validKind=validRefId;
 const clone=v=>structuredClone(v);
+function stableHash(text){
+  let h=0x811c9dc5;
+  for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}
+  return h.toString(16).padStart(8,'0');
+}
+export function listingIdFor({marketId,sellerId,itemInstanceId}={}){
+  if(!validRefId(marketId)||!positiveInt(sellerId)||!positiveInt(itemInstanceId))return null;
+  const text=marketId+'|'+sellerId+'|'+itemInstanceId;
+  return 'L:'+stableHash(text)+stableHash(text+'|RC4');
+}
 
 export function validateListing(row){
   const e=[];
