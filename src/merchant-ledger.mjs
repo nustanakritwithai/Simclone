@@ -12,6 +12,8 @@ import {isCanonicalMoney,multiplyMoney} from './merchant-pricing.mjs?v=0.5.0';
 import {isCanonicalTradeExecutionContext} from './trade-kernel.mjs?v=0.5.0';
 
 export const MERCHANT_LEDGER_VERSION='RC4-ledger/4';
+export const MERCHANT_LEDGER_COLLECTION_VERSION='RC4-ledger-collection/1';
+export const MERCHANT_LEDGER_ROOT_KEY='merchantLedgers';
 export const TRADE_KERNEL_COMPAT=Object.freeze({
   maxQuantity:128,
   maxIdLength:80,
@@ -238,4 +240,39 @@ export function restoreMerchantLedger(serialized){
   const ledger=JSON.parse(serialized),errors=validateMerchantLedger(ledger);
   if(errors.length)throw new Error('merchant-ledger-invalid:'+errors.join(','));
   return ledger;
+}
+
+
+export function createMerchantLedgerCollection(){
+  return {version:MERCHANT_LEDGER_COLLECTION_VERSION,ledgers:[]};
+}
+
+export function validateMerchantLedgerCollection(collection){
+  if(!collection||collection.version!==MERCHANT_LEDGER_COLLECTION_VERSION||!Array.isArray(collection.ledgers))return ['merchant-ledger-collection'];
+  const ids=new Set();
+  for(const row of collection.ledgers){
+    const errors=validateMerchantLedger(row);
+    if(errors.length||ids.has(row?.merchantId))return ['merchant-ledger-collection'];
+    ids.add(row.merchantId);
+  }
+  return [];
+}
+
+export function migrateMerchantLedgerCollection(raw){
+  if(raw===undefined||raw===null)return {state:'SAT',migrated:true,duplicate:false,collection:createMerchantLedgerCollection()};
+  const errors=validateMerchantLedgerCollection(raw);
+  if(errors.length)return {state:'VIOL',reason:'merchant-ledger-collection',errors,collection:null};
+  return {state:'SAT',migrated:false,duplicate:true,collection:clone(raw)};
+}
+
+export function serializeMerchantLedgerCollection(collection){
+  const errors=validateMerchantLedgerCollection(collection);
+  if(errors.length)throw new Error('merchant-ledger-collection-invalid:'+errors.join(','));
+  return JSON.stringify(collection);
+}
+
+export function restoreMerchantLedgerCollection(serialized){
+  const collection=JSON.parse(serialized),errors=validateMerchantLedgerCollection(collection);
+  if(errors.length)throw new Error('merchant-ledger-collection-invalid:'+errors.join(','));
+  return collection;
 }
