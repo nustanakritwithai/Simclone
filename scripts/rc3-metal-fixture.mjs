@@ -2,8 +2,10 @@
 import {createWorld,command,serialize,validate,walkable} from '../src/engine.mjs';
 import {advanceCraft} from '../src/rust-possessions.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
+import {craftFixtureHome} from '../tests/fixtures/rc2-world.mjs';
 
-const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0],stock=resourceStock(s,a);
+const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0];
+let stock=resourceStock(s,a);
 Object.assign(stock,{food:100,wood:300,stone:300,charcoal:20,ironOre:20,ironIngot:10,steelIngot:10});
 a.satiety=100;a.energy=100;a.hp=100;a.task=null;
 function finishCraft(){
@@ -26,6 +28,11 @@ a.x=tablePos.x;a.y=tablePos.y;
 const furnaceItem=craft('FURNACE'),furnacePos=freeNear();
 const furnace=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:furnaceItem.id,...furnacePos});if(!furnace.ok)throw new Error('fixture furnace '+JSON.stringify(furnace));
 a.x=tablePos.x;a.y=tablePos.y;
+// Finish one canonical personal home during scenario preparation so the real-button metal proof
+// is not racing the unrelated Independent autonomous housing planner while Furnace work advances.
+craftFixtureHome(s,a);
+stock=resourceStock(s,a);
+Object.assign(stock,{food:100,wood:300,stone:300,charcoal:20,ironOre:20,ironIngot:10,steelIngot:10});
 craft('STONE_AXE');craft('STONE_AXE');craft('STONE_AXE_T1');craft('STONE_AXE_T1');
 Object.assign(stock,{food:100,wood:300,stone:300,charcoal:20,ironOre:20,ironIngot:10,steelIngot:10});
 a.task=null;a.satiety=100;a.energy=100;a.hp=100;
