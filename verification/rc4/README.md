@@ -49,9 +49,10 @@ Before the Integration Lead supplies one assembled exact candidate:
 Known preparation-time contract attack:
 
 - Trade Kernel #177 requires `listing.id`, `listing.revision`, and `reservation.listingRevision`.
-- Observed Pricing/Listing #179 head `ba435943aa7a877fa7f9ff65cc74a961b34f3241` used `listingId` and had no revision.
-- Preflight therefore rejects that shape as VIOL if it appears unchanged in the integration candidate.
-- Repair belongs to the Pricing/Listing owner. An alias/workaround in integration or tests is forbidden.
+- Prior Pricing/Listing #179 head `ba435943aa7a877fa7f9ff65cc74a961b34f3241` used `listingId` and had no revision.
+- Latest observed repaired #179 head `964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f` now exposes canonical `id`/`revision`, revision mutation rules, uniqueness and stale-revision checks.
+- Preflight deliberately keeps the old mismatch as a regression attack and rejects it if it reappears in the integration candidate.
+- This donor repair is not integration SAT. An alias/workaround in integration or tests remains forbidden.
 
 ## Browser proof
 
