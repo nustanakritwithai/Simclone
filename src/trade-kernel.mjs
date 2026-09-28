@@ -4,7 +4,7 @@ export const TRADE_LIMITS=Object.freeze({maxReceipts:512,maxQuantity:128,maxIdLe
 
 const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const safePositiveInt=n=>Number.isSafeInteger(n)&&n>0;
-const validId=v=>typeof v==='string'&&v.length>0&&v.length<=TRADE_LIMITS.maxIdLength&&idPattern.test(v);
+const validId=(v,max=TRADE_LIMITS.maxIdLength)=>typeof v==='string'&&v.length>0&&v.length<=max&&idPattern.test(v);
 const clone=v=>structuredClone(v);
 const stableItemIds=ids=>Array.isArray(ids)?ids.slice().sort((a,b)=>a-b):[];
 
@@ -17,7 +17,7 @@ export function validateTradeReplayState(state){
   const seen=new Set();
   for(const r of replay.receipts){
     if(!r||!validId(r.transactionId)||seen.has(r.transactionId)||typeof r.fingerprint!=='string'||!r.fingerprint||
-      !validId(r.eventId)||!validId(r.marketId)||!validId(r.listingId)||!validId(r.reservationId)||
+      !validId(r.eventId,TRADE_LIMITS.maxIdLength+6)||!validId(r.marketId)||!validId(r.listingId)||!validId(r.reservationId)||
       !Number.isSafeInteger(r.buyerId)||!Number.isSafeInteger(r.sellerId)||r.buyerId===r.sellerId||
       !safePositiveInt(r.quantity)||!safePositiveInt(r.unitPrice)||!safePositiveInt(r.totalPrice)||
       r.totalPrice!==r.unitPrice*r.quantity||!Array.isArray(r.itemIds)||r.itemIds.length!==r.quantity||
@@ -67,7 +67,7 @@ function resolveValidation(state,proposal,{wallet,item,market}={}){
   if(p.buyerId===p.sellerId)return fail('same-party');
   const buyer=aliveAgent(state,p.buyerId);if(!buyer)return fail('buyer-dead');
   const seller=aliveAgent(state,p.sellerId);if(!seller)return fail('seller-dead');
-  if(typeof p.itemKind!=='string'||!p.itemKind||p.itemKind.length>96)return fail('item-kind');
+  if(!validId(p.itemKind))return fail('item-kind');
   if(!safePositiveInt(p.itemInstanceId))return fail('item-instance');
   if(!safePositiveInt(p.quantity)||p.quantity>TRADE_LIMITS.maxQuantity)return fail('quantity');
   if(!safePositiveInt(p.unitPrice))return fail('unit-price');
@@ -143,6 +143,7 @@ function appendReceipt(state,receipt){
 export function settleTradeAtomic(state,proposal,adapters={}){
   const txid=proposal?.transactionId;
   if(validId(txid)&&state?.tradeReplay?.receipts){
+    if(validateTradeReplayState(state).length)return {ok:false,reason:'replay-state'};
     const prior=findReceipt(state,txid);
     if(prior){
       const fp=tradeProposalFingerprint(proposal);
