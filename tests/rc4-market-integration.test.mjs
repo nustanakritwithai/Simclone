@@ -43,6 +43,7 @@ function craftItem(s,a,recipeId='STONE_AXE'){
   assert.ok(item&&item.createdBy===a.id&&item.location?.kind==='bag'&&item.location.agentId===a.id);
   return item;
 }
+const actor=(s,id)=>s.agents.find(a=>a.id===id);
 function runToMarket(s,a,max=500){
   for(let i=0;i<max&&a.task?.path?.length;i++)step(s,1);
   assert.ok(a.task,'market arrival task is held at destination');
@@ -80,6 +81,7 @@ test('RC4 forged receipt + matching replay + recomputed hashes stays UNKNOWN',()
 
 test('RC4 playable vertical A->B->C: Producer -> Merchant -> Customer with 100/70/30 accounting',()=>{
   let s=createWorld(230926),producer=s.agents[0],merchant=s.agents[1],customer=s.agents[2];
+  const producerId=producer.id,merchantId=merchant.id,customerId=customer.id;
   for(const a of [producer,merchant,customer]){a.satiety=100;a.energy=100;a.task=null;a.moveTick=0;}
   completeHome(s,merchant);
   const sale=craftItem(s,producer,'STONE_AXE');
@@ -92,7 +94,8 @@ test('RC4 playable vertical A->B->C: Producer -> Merchant -> Customer with 100/7
   assert.equal(offer.ok,true,JSON.stringify(offer));
   const promoted=command(s,'RC4_BECOME_MERCHANT',{agentId:merchant.id});
   assert.equal(promoted.ok,true,JSON.stringify(promoted));
-  assert.equal(s.agents.find(a=>a.id===merchant.id).profession,'merchant');
+  producer=actor(s,producerId);merchant=actor(s,merchantId);customer=actor(s,customerId);
+  assert.equal(merchant.profession,'merchant');
   assert.equal(command(s,'RC4_OPEN_MARKET',{marketId:market.marketId}).ok,true);
 
   // Producer accepts BuyOffer, producing a canonical procurement Listing at Merchant's market.
@@ -109,7 +112,8 @@ test('RC4 playable vertical A->B->C: Producer -> Merchant -> Customer with 100/7
   merchant.task=structuredClone(canonicalTask);
   const marketProjection=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:market.marketId}).market;
   assert.equal(verifyCanonicalMarketArrival(s,{agentId:merchant.id,market:marketProjection}).state,'VIOL');
-  merchant.task=null;merchant.moveTick=0;
+  actor(s,merchantId).task=null;actor(s,merchantId).moveTick=0;
+  merchant=actor(s,merchantId);
 
   // Merchant travels through canonical path and buys exact Producer item for 70.
   const travel1=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:merchant.id,marketId:market.marketId});
@@ -117,6 +121,7 @@ test('RC4 playable vertical A->B->C: Producer -> Merchant -> Customer with 100/7
   assert.equal(verifyCanonicalMarketArrival(s,{agentId:merchant.id,market:marketProjection}).state,'SAT');
   const buy70=command(s,'RC4_BUY_LISTING',{buyerId:merchant.id,listingId:procurement.id});
   assert.equal(buy70.ok,true,JSON.stringify(buy70));
+  producer=actor(s,producerId);merchant=actor(s,merchantId);customer=actor(s,customerId);
   assert.equal(s.rustPossessions.items.find(i=>i.id===sale.id).location.agentId,merchant.id);
   assert.equal(getBalance(s,merchant.id),30);
   assert.equal(getBalance(s,producer.id),170);
@@ -129,11 +134,12 @@ test('RC4 playable vertical A->B->C: Producer -> Merchant -> Customer with 100/7
 
   // Customer must physically walk to the market before purchase.
   const travel2=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:customer.id,marketId:market.marketId});
-  assert.equal(travel2.ok,true,JSON.stringify(travel2));runToMarket(s,customer);
+  assert.equal(travel2.ok,true,JSON.stringify(travel2));customer=actor(s,customerId);runToMarket(s,customer);
   assert.equal(verifyCanonicalMarketArrival(s,{agentId:customer.id,market:marketProjection}).state,'SAT');
 
   const bought=command(s,'RC4_BUY_LISTING',{buyerId:customer.id,listingId:listed.id});
   assert.equal(bought.ok,true,JSON.stringify(bought));
+  producer=actor(s,producerId);merchant=actor(s,merchantId);customer=actor(s,customerId);
   assert.equal(getBalance(s,merchant.id),130);
   assert.equal(getBalance(s,customer.id),0);
   assert.equal(totalCurrency(s),beforeTotal);
