@@ -243,16 +243,17 @@ test('forged legacy plain object cannot increase Merchant progression',()=>{
   assert.equal(JSON.stringify(a),before);
 });
 
-test('legacy recent transaction ids are audit-only and never decide canonical uniqueness',()=>{
+test('legacy recent transaction ids are ignored and never decide canonical uniqueness',()=>{
   const a=worker(16);
   assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:16,evidenceId:'merchant-proof-16'}),1).changed,true);
-  a.merchantTransactionReceipts=['tx-audit'];
+  a.merchantTransactionReceipts=Array.from({length:100},(_,i)=>'legacy-audit-'+i);
+  const legacy=JSON.stringify(a.merchantTransactionReceipts);
   assert.deepEqual(validateMerchantProgression(a),[]);
   const result=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({
     transactionId:'tx-audit',buyerId:16,sellerId:2,itemId:890,
   }));
   assert.equal(result.counted,true);
-  assert.deepEqual(a.merchantTransactionReceipts,['tx-audit']);
+  assert.equal(JSON.stringify(a.merchantTransactionReceipts),legacy);
   assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:1,merchantRealizedProfit:null,merchantExperience:1});
 });
 
