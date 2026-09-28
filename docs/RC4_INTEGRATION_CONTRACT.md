@@ -1590,7 +1590,8 @@ Contract defects/dependencies have been returned to their owners:
 - #179 Pricing/Ledger — provenance freeze + BuyOffer persistence separation — comment 5874649093;
 - #182 Acceptance Suite — forged matching replay attack + downstream failure boundary correction — comment 5874647470;
 - #176 Home Market — canonical Listing/BuyOffer reference writer — comment 5874659646;
-- #177 Trade Kernel — retain Reservation consumer boundary + post-root provenance semantics — comment 5874660272.
+- #177 Trade Kernel — retain Reservation consumer boundary + post-root provenance semantics — comment 5874660272;
+- #181 Canonical Wallet — post-RC3.2 merge-forward/rebuild + exact-head Verify — comment 5874713790.
 
 A comment/update timestamp without a new exact donor SHA is not repair evidence.
 
