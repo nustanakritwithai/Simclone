@@ -352,3 +352,25 @@ Focused attacks cover:
 - live source bytes stay identical on every injected failure.
 
 This branch defines the atomic extension point only. It does not assemble #179 + B4 into production runtime and therefore does not start B8. Exact-head repository Verify remains required. UNKNOWN is never PASS.
+
+
+## B7 stacked persistence repair — Trade replay
+
+The Trade Kernel owns the canonical production root key `tradeReplay` for committed transaction replay evidence.
+
+This stacked repair adds:
+
+- `TRADE_REPLAY_ROOT_KEY = 'tradeReplay'`
+- `migrateTradeReplayState(raw)`
+- `serializeTradeReplayState(tradeReplay)`
+- `restoreTradeReplayState(serialized)`
+
+Persistence rules:
+
+- a pre-RC4 save with no replay component migrates once to the empty canonical replay component;
+- a valid replay component round-trips byte-stably;
+- corrupt present replay state fails closed and is never replaced by an empty replay ledger;
+- an old committed transaction remains duplicate/no-op after restore;
+- production root wiring remains B8-owned and is not added here.
+
+UNKNOWN is never PASS. Exact-head Verify is required.

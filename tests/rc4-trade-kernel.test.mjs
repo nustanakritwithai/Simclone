@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
   TRADE_KERNEL_VERSION,createTradeReplayState,validateTradeReplayState,
+  migrateTradeReplayState,serializeTradeReplayState,restoreTradeReplayState,
   validateTradeProposal,buildTradeSettlementProposal,settleTradeAtomic
 } from '../src/trade-kernel.mjs';
 
@@ -290,4 +291,26 @@ test('RC4 B6: exact replay does not re-run Listing/Reservation transitions',()=>
   assert.equal(second.ok,true);assert.equal(second.duplicate,true);assert.equal(JSON.stringify(second.state),bytes);
   assert.equal(second.state.testMarket.listings[0].revision,2);
   assert.equal(second.state.testMarket.reservations[0].status,'COMMITTED');
+});
+
+
+test('RC4 B7: tradeReplay save/load preserves committed replay and old transaction remains duplicate',()=>{
+  const first=settleTradeAtomic(fixture(),proposal(),adapters);assert.equal(first.ok,true);
+  const wire=serializeTradeReplayState(first.state.tradeReplay),restored=restoreTradeReplayState(wire);
+  assert.equal(serializeTradeReplayState(restored),wire);
+  const state=clone(first.state);state.tradeReplay=restored;const before=JSON.stringify(state);
+  const replay=settleTradeAtomic(state,proposal(),adapters);
+  assert.equal(replay.ok,true);assert.equal(replay.duplicate,true);assert.equal(JSON.stringify(replay.state),before);
+});
+
+test('RC4 B7: missing tradeReplay migrates once; corrupt present replay never resets',()=>{
+  const missing=migrateTradeReplayState(undefined);
+  assert.equal(missing.state,'SAT');assert.equal(missing.migrated,true);assert.equal(missing.duplicate,false);
+  assert.deepEqual(missing.tradeReplay,createTradeReplayState());
+  const again=migrateTradeReplayState(missing.tradeReplay);
+  assert.equal(again.state,'SAT');assert.equal(again.migrated,false);assert.equal(again.duplicate,true);
+  const corrupt={version:'RC4-trade-replay-1',receipts:[{transactionId:'bad'}]};
+  const bad=migrateTradeReplayState(corrupt);
+  assert.equal(bad.state,'VIOL');assert.equal(bad.tradeReplay,null);
+  assert.throws(()=>restoreTradeReplayState(JSON.stringify(corrupt)),/trade-replay-invalid/);
 });
