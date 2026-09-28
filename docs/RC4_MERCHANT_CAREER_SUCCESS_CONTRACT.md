@@ -1,5 +1,44 @@
 # RC4 Merchant Career V1 — Success Contract
 
+## Provenance repair override — hardened #179 compatibility (2026-09-29)
+
+This section supersedes conflicting transaction-progression wording below.
+
+Hardened Pricing/Ledger PR #179 exact head `9b5e63e386f0543f9700237242b2c4f0745a8c2d` correctly proves that a caller can forge both a canonical-looking receipt and a matching `tradeReplay` object graph. Therefore Merchant Career MUST NOT treat plain non-duplicate `VERIFIED/COMMITTED`-looking evidence as transaction truth.
+
+Locked Career behavior:
+
+- structurally valid `duplicate:true` evidence remains a safe no-op;
+- malformed/tampered receipt remains VIOL;
+- Merchant party lock remains required;
+- every non-duplicate caller-supplied transaction evidence object returns `UNKNOWN / trade-commit-provenance`;
+- `noteVerifiedCommittedMerchantTransaction()` must not mutate `merchantTransactions` or `merchantExperience` from such evidence;
+- no local nonce, signature, replay list, callback, `verified:true`, `committed:true`, or matching caller-provided `tradeReplay` may promote the evidence;
+- Career remains non-monetary and never owns Revenue / COGS / Realized Profit.
+
+A new pure `calculateMerchantProgressionAfterCommit(agent, receipt)` may calculate the next non-monetary counters without mutating state. It is NOT provenance authority. B8 Integration may use that calculation only after the trusted post-root orchestration has looked up the exact committed receipt from the authoritative live/persisted root.
+
+Required integration sequence:
+
+```text
+canonical Trade staged settlement
+→ approved market postconditions
+→ ONE authoritative root replacement
+→ authoritative-root receipt lookup
+→ Ledger catch-up
+→ pure Career progression calculation
+→ trusted Career state commit
+```
+
+UI, AI, command payloads and arbitrary alternate state objects must have no route to make Career count a transaction.
+
+Current-main sync for this repair must retain RC3.2 authority files byte-for-byte and requires new exact-head Verify including RC3.2 Iron/Steel smoke.
+
+UNKNOWN is never PASS. This donor does not authorize B8 or merge.
+
+---
+
+
 Status vocabulary: **SAT / VIOL / UNKNOWN**.  
 **UNKNOWN is never PASS.**
 

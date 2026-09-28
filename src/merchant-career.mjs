@@ -6,7 +6,7 @@
  */
 import {adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
 
-export const MERCHANT_CAREER_VERSION='RC4-merchant-v1';
+export const MERCHANT_CAREER_VERSION='RC4-merchant-v2-provenance';
 export const MERCHANT_QUALIFICATION_POLICY=Object.freeze({
   minOperatingCapital:1,
   minTradeEvidence:1,
@@ -199,15 +199,17 @@ function validateCanonicalCommittedReceipt(receipt){
 }
 
 /**
- * Consumes the exact canonical projection vocabulary emitted by
- * PR #179 merchant-ledger.mjs::assessTradeKernelResult().
- * Career never upgrades caller assertions into VERIFIED/COMMITTED evidence.
+ * Structural assessment only.
+ *
+ * A plain caller-supplied object cannot prove that the authoritative trade root was
+ * replaced. Even VERIFIED/COMMITTED-looking non-duplicate evidence therefore remains
+ * UNKNOWN here. duplicate:true is a harmless no-op after receipt + party validation.
  */
 export function assessMerchantCareerTransactionEvidence(agent,evidence){
   if(!evidence||typeof evidence!=='object'||Array.isArray(evidence))return {status:UNKNOWN,reason:'transaction-evidence'};
   if(evidence.state!=='SAT'){
     if(evidence.state==='VIOL')return {status:VIOL,reason:evidence.reason??'transaction-evidence'};
-    return {status:UNKNOWN,reason:'transaction-evidence'};
+    return {status:UNKNOWN,reason:evidence.reason??'transaction-evidence'};
   }
   const receiptErrors=validateCanonicalCommittedReceipt(evidence.receipt);
   if(receiptErrors.length)return {status:VIOL,reason:'trade-receipt',errors:receiptErrors};
@@ -216,17 +218,39 @@ export function assessMerchantCareerTransactionEvidence(agent,evidence){
     return {status:VIOL,reason:'merchant-not-party',receipt};
   if(evidence.duplicate===true)return {status:SAT,reason:'canonical-duplicate',duplicate:true,receipt};
   if(evidence.duplicate!==false)return {status:UNKNOWN,reason:'duplicate-status',receipt};
-  if(evidence.verification!=='VERIFIED')
-    return {status:evidence.verification===undefined?UNKNOWN:VIOL,reason:'verification',receipt};
-  if(evidence.commitStatus!=='COMMITTED')
-    return {status:evidence.commitStatus===undefined?UNKNOWN:VIOL,reason:'commit-status',receipt};
-  return {status:SAT,reason:'verified-committed',duplicate:false,receipt};
+  return {status:UNKNOWN,reason:'trade-commit-provenance',duplicate:false,receipt};
 }
 
 /**
- * Progression consumes canonical committed transaction projection only.
- * Trade Kernel/canonical transaction authority owns transaction identity,
- * commit/replay status and parties. Career never determines uniqueness itself.
+ * Pure post-commit progression calculation. This does not authorize or mutate a
+ * transaction. Integration may use it only AFTER authoritative-root receipt lookup
+ * proves the transaction was canonically committed.
+ */
+export function calculateMerchantProgressionAfterCommit(agent,receipt){
+  if(!agent||typeof agent!=='object'||Array.isArray(agent))return {status:UNKNOWN,reason:'agent'};
+  if(agent.profession!=='merchant')return {status:VIOL,reason:'profession'};
+  const progressionErrors=validateMerchantProgression(agent);
+  if(progressionErrors.length)return {status:VIOL,reason:'progression-state',errors:progressionErrors};
+  const receiptErrors=validateCanonicalCommittedReceipt(receipt);
+  if(receiptErrors.length)return {status:VIOL,reason:'trade-receipt',errors:receiptErrors};
+  if(receipt.buyerId!==agent.id&&receipt.sellerId!==agent.id)return {status:VIOL,reason:'merchant-not-party'};
+  const merchantTransactions=Number.isInteger(agent.merchantTransactions)&&agent.merchantTransactions>=0?agent.merchantTransactions:0;
+  const merchantExperience=Number.isInteger(agent.merchantExperience)&&agent.merchantExperience>=0?agent.merchantExperience:0;
+  if(!Number.isSafeInteger(merchantTransactions+1)||!Number.isSafeInteger(merchantExperience+1))
+    return {status:VIOL,reason:'progression-overflow'};
+  return Object.freeze({
+    status:SAT,
+    reason:'authoritative-post-commit-calculation',
+    transactionId:receipt.transactionId,
+    merchantTransactions:merchantTransactions+1,
+    merchantExperience:merchantExperience+1,
+  });
+}
+
+/**
+ * Legacy donor entry point retained fail-closed for compatibility.
+ * It may acknowledge canonical duplicate replay as a no-op, but it never mutates
+ * progression from a non-duplicate caller-supplied evidence object.
  */
 export function noteVerifiedCommittedMerchantTransaction(agent,evidence){
   const before=merchantProgressionSnapshot(agent);
@@ -234,16 +258,8 @@ export function noteVerifiedCommittedMerchantTransaction(agent,evidence){
   if(!agent||typeof agent!=='object'||Array.isArray(agent))return skip(UNKNOWN,'agent');
   if(agent.profession!=='merchant')return skip(VIOL,'profession');
   if(validateMerchantProgression(agent).length)return skip(UNKNOWN,'progression-state');
-
   const assessed=assessMerchantCareerTransactionEvidence(agent,evidence);
   if(assessed.status!==SAT)return skip(assessed.status,assessed.reason,{errors:assessed.errors});
   if(assessed.duplicate===true)return skip(SAT,'canonical-duplicate',{transactionId:assessed.receipt.transactionId});
-
-  if(agent.merchantTransactions===undefined){
-    agent.merchantTransactions=0;
-    agent.merchantExperience=0;
-  }
-  agent.merchantTransactions+=1;
-  agent.merchantExperience+=1;
-  return {counted:true,status:SAT,reason:'verified-committed',transactionId:assessed.receipt.transactionId,...merchantProgressionSnapshot(agent)};
+  return skip(UNKNOWN,'trade-commit-provenance');
 }
