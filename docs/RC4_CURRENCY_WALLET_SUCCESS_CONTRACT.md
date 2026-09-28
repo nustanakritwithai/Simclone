@@ -193,11 +193,30 @@ debit(state, agentId, amount)
 credit(state, agentId, amount)
 ```
 
-`src/trade-wallet-adapter.mjs` exports `createTradeWalletAdapter({transactionId,evidence})`.
+`src/trade-wallet-adapter.mjs` exports:
 
-The returned facade matches those signatures while every actual balance mutation still routes through `currency-wallet.mjs`.
+```js
+createTradeWalletAdapter({
+  transactionId,
+  fromAgentId,
+  toAgentId,
+  amount,
+  evidence
+})
+```
 
-The adapter captures the caller's canonical trade transaction ID and records deterministic `:D` / `:C` monetary-leg receipts. It does not create a second wallet.
+The returned facade matches #177's three method signatures while every actual balance mutation still routes through `currency-wallet.mjs`.
+
+Authority repair rule:
+
+- `debit(state,buyerId,amount)` is validation-only and performs **zero monetary mutation**;
+- `credit(state,sellerId,amount)` must match the transaction-bound seller and amount, then commits exactly one canonical `transfer()`;
+- the adapter cannot expose a unilateral trade debit or trade credit that destroys or creates currency;
+- calling `credit()` without a preceding `debit()` is still safe because it performs the complete conserved transfer, never a mint;
+- redirected buyer/seller/amount values fail closed;
+- exact replay is handled by the canonical transfer receipt.
+
+This shape matches #177's actual staged call order: validate → debit → credit → item transfer → trade receipt → wallet postconditions. The intermediate debit step leaves balances unchanged; after credit, buyer and seller balances already equal the final conserved result expected by #177.
 
 Final end-to-end Trade Kernel compatibility is still **UNKNOWN** until RC4 Integration Lead combines this donor with the accepted #177 candidate and reruns the integrated atomic settlement proof.
 
@@ -247,8 +266,11 @@ Focused tests cover:
 27. duplicate-wallet corruption fail-closed;
 28. dead-sender lock with estate balance retained;
 29. receipt tamper detection;
-30. thin #177 adapter mutation path;
-31. no random/wall-clock source rule.
+30. thin #177 adapter routes mutation through canonical transfer;
+31. adapter debit alone cannot alter supply or balance;
+32. redirected adapter party/amount fails without mutation;
+33. adapter credit without prior debit remains conserved and cannot mint;
+34. no random/wall-clock source rule.
 
 Red-team fixture:
 
@@ -260,6 +282,18 @@ Total before = 600
 multiple transfers
 Total after = 600
 ```
+
+## Repair note — Verify #1948
+
+The first exact-head GitHub Verify (#1948 / run `36441744460`) failed **only** the runtime cache-pin invariant:
+
+```text
+currency-wallet.mjs: regenerate source cache pins
+expected rev=f46d37f1cf9391fa
+candidate rev=0e7a0d899055c8f1
+```
+
+The pin was corrected from the exact source SHA-256. During this repair the adapter authority boundary was also tightened so trade debit/credit can no longer change currency supply independently. A new exact-head Verify is required; UNKNOWN is not PASS.
 
 ## RC3.2 dependency / merge rule
 
