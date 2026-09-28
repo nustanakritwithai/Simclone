@@ -117,3 +117,39 @@ Therefore:
 ## Acceptance
 
 The Home Market workstream may report candidate SAT only for evidence actually executed against the exact candidate SHA. Any unexecuted integration, persistence, browser, or release behavior remains **UNKNOWN**. The PR remains unmerged.
+
+
+## Master Gate closure repair — B1 / B2
+
+This branch now owns the missing pre-integration contracts without wiring shared runtime.
+
+### B1 — Home Market reference authority
+
+Canonical owner-controlled APIs are:
+
+- `attachHomeMarketListingReference`
+- `detachHomeMarketListingReference`
+- `attachHomeMarketBuyOfferReference`
+- `detachHomeMarketBuyOfferReference`
+
+They reconcile current Home/owner truth before mutation, reject dead/invalid/archived/wrong-owner markets, mutate references only, and make duplicate attach plus missing detach replay-idempotent. Integration/UI/AI must not push/splice `listingIds` or `buyOfferIds` directly.
+
+### B2 — Home Market -> Trade Market projection
+
+`projectHomeMarketForTrade()` is the canonical projection source:
+
+```js
+{ id, open, x, y, tradeRange }
+```
+
+- `id` = Home Market `marketId`.
+- `open` = exact Home Market lifecycle state.
+- `x/y` = physical doorway storefront trade cell derived from the canonical Rust doorway socket/facing.
+- `tradeRange` = `HOME_MARKET_TRADE_RANGE`, owned by Home Market policy, currently one tile at/adjacent to the storefront.
+- UI coordinates and integration defaults are not inputs.
+- invalid/archived/missing physical storefront fails closed.
+- closed markets project `open:false` so Trade Kernel rejects them without inventing a second lifecycle authority.
+
+Focused tests prove duplicate attach/detach replay, owner/lifecycle locks, reference save/load continuity, deterministic projection, physical x/y provenance, positive safe-integer range and UI-coordinate non-authority.
+
+Exact-head repo Verify is still required before this repair can be called donor SAT. UNKNOWN is never PASS.
