@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>RC4 Home Market UI Prototype</title>
+  <link rel="stylesheet" href="prototype.css" />
+</head>
+<body>
+  <main class="prototype-shell" aria-label="RC4 market UI prototype">
+    <header class="top-hud">
+      <div class="brand-block">
+        <span class="eyebrow">SIMCLONE · RC4 PROTOTYPE</span>
+        <strong>Independent Valley</strong>
+      </div>
+      <div class="world-stats" aria-label="world snapshot">
+        <span>☀ Day 118</span><span>👥 14</span><span>🪵 126</span><span>🪨 94</span><span>◎ 438</span>
+      </div>
+      <button class="hud-button" data-open="merchant">Merchant</button>
+    </header>
+
+    <section class="world" id="world" aria-label="world view">
+      <div class="terrain terrain-a"></div>
+      <div class="terrain terrain-b"></div>
+      <div class="path path-a"></div>
+      <div class="path path-b"></div>
+
+      <button class="home home-plain" aria-label="Home 09, ordinary home">
+        <span class="roof"></span><span class="wall"></span><span class="door"></span><span class="window w1"></span><span class="window w2"></span>
+        <span class="home-label"><b>Home 09</b><small>Residence</small></span>
+      </button>
+
+      <button class="home market-home open" data-market="market-mira" aria-label="Mira's home market, open">
+        <span class="roof"></span><span class="wall"></span><span class="door"></span><span class="window w1"></span><span class="window w2"></span>
+        <span class="awning"></span>
+        <span class="market-sign"><span class="sign-icon">◫</span> MIRA'S GOODS</span>
+        <span class="status-badge"><i></i> OPEN</span>
+        <span class="display-crate"><span>🪓</span><span>🧱</span><span>🔥</span></span>
+        <span class="home-label"><b>Home 12</b><small>Home + Market</small></span>
+      </button>
+
+      <button class="home market-home closed" data-market="market-arin" aria-label="Arin's home market, closed">
+        <span class="roof"></span><span class="wall"></span><span class="door"></span><span class="window w1"></span><span class="window w2"></span>
+        <span class="awning"></span>
+        <span class="market-sign"><span class="sign-icon">◫</span> ARIN'S FORGE</span>
+        <span class="status-badge"><i></i> CLOSED</span>
+        <span class="display-crate"><span>⛏</span><span>⚙</span></span>
+        <span class="home-label"><b>Home 17</b><small>Home + Market</small></span>
+      </button>
+
+      <div class="agent agent-a"><span>👤</span><small>Nok · Customer</small></div>
+      <div class="agent agent-b"><span>👤</span><small>Mira · Merchant</small></div>
+      <div class="agent agent-c"><span>👤</span><small>Arin · Merchant</small></div>
+
+      <div class="world-legend">
+        <span><i class="dot home-dot"></i> Home</span>
+        <span><i class="dot open-dot"></i> Open market</span>
+        <span><i class="dot closed-dot"></i> Closed market</span>
+      </div>
+    </section>
+
+    <aside class="inspector" id="inspector" aria-label="market inspector">
+      <div class="inspector-handle"></div>
+      <header class="inspector-header">
+        <div>
+          <span class="eyebrow" id="panel-kicker">HOME MARKET</span>
+          <h1 id="panel-title">Mira's Goods</h1>
+          <p id="panel-subtitle">Home 12 · owner Mira</p>
+        </div>
+        <button class="icon-button" id="closeInspector" aria-label="Close inspector">×</button>
+      </header>
+
+      <div class="tabs" role="tablist" aria-label="market views">
+        <button class="tab active" data-tab="market">Market</button>
+        <button class="tab" data-tab="merchant">Merchant</button>
+        <button class="tab" data-tab="intent">Intent log</button>
+      </div>
+
+      <div class="panel-scroll" id="panelScroll">
+        <section class="panel-view active" data-view="market">
+          <div class="status-line">
+            <span class="pill open-pill">● OPEN</span>
+            <span class="muted">Market ID · market-mira</span>
+          </div>
+
+          <div class="metric-grid">
+            <article><span>Stock</span><strong>17</strong><small>canonical item refs</small></article>
+            <article><span>Revenue</span><strong>◎ 268</strong><small>verified sales</small></article>
+            <article><span>COGS</span><strong>◎ 171</strong><small>realized only</small></article>
+            <article><span>Profit</span><strong>◎ 97</strong><small>revenue − COGS</small></article>
+          </div>
+
+          <div class="section-title"><h2>Listings</h2><span>3 active</span></div>
+          <div class="card-list">
+            <button class="listing-card" data-intent="PURCHASE_INTENT" data-item="IRON_PICKAXE" data-price="38">
+              <span class="item-icon">⛏</span><span class="item-copy"><b>Iron Pickaxe</b><small>qty 3 · stock 3</small></span><span class="price">◎ 38 <small>/ ea</small></span>
+            </button>
+            <button class="listing-card" data-intent="PURCHASE_INTENT" data-item="CHARCOAL" data-price="7">
+              <span class="item-icon">◆</span><span class="item-copy"><b>Charcoal</b><small>qty 8 · stock 8</small></span><span class="price">◎ 7 <small>/ ea</small></span>
+            </button>
+            <button class="listing-card" data-intent="PURCHASE_INTENT" data-item="HIDE_ARMOR" data-price="64">
+              <span class="item-icon">🛡</span><span class="item-copy"><b>Hide Armor</b><small>qty 1 · stock 1</small></span><span class="price">◎ 64 <small>/ ea</small></span>
+            </button>
+          </div>
+
+          <div class="section-title"><h2>Buy offers</h2><span>2 open</span></div>
+          <div class="offer-list">
+            <article><span class="item-icon small">🪨</span><span><b>Iron Ore</b><small>want 10</small></span><strong>◎ 6 bid</strong></article>
+            <article><span class="item-icon small">🪵</span><span><b>Wood</b><small>want 20</small></span><strong>◎ 2 bid</strong></article>
+          </div>
+
+          <div class="authority-note">
+            <b>UI authority lock</b>
+            <span>Snapshot → display. Tap → command intent. No wallet, item, ledger, profession or market-state writes here.</span>
+          </div>
+        </section>
+
+        <section class="panel-view" data-view="merchant">
+          <div class="merchant-hero">
+            <div class="portrait">M</div>
+            <div><span class="eyebrow">PROFESSION</span><h2>Mira · Merchant</h2><p>Home 12 · Market owner</p></div>
+          </div>
+          <div class="metric-grid merchant-metrics">
+            <article><span>Transactions</span><strong>19</strong><small>verified commits</small></article>
+            <article><span>Revenue</span><strong>◎ 268</strong><small>ledger snapshot</small></article>
+            <article><span>COGS</span><strong>◎ 171</strong><small>ledger snapshot</small></article>
+            <article><span>Profit</span><strong>◎ 97</strong><small>realized</small></article>
+          </div>
+          <div class="section-title"><h2>Current stock</h2><span>17 items</span></div>
+          <div class="stock-chips"><span>⛏ Pickaxe ×3</span><span>◆ Charcoal ×8</span><span>🛡 Armor ×1</span><span>🪓 Axe ×5</span></div>
+          <div class="goal-card"><span class="goal-icon">◎</span><div><small>CURRENT MERCHANT GOAL</small><b>Restock Iron Pickaxe</b><p>Observed local demand > available listing stock.</p></div></div>
+          <button class="intent-button" data-intent="MARKET_CLOSE_INTENT">Request close shop</button>
+          <p class="intent-hint">Prototype emits intent only; visible status remains unchanged until an authoritative snapshot returns.</p>
+        </section>
+
+        <section class="panel-view" data-view="intent">
+          <div class="section-title"><h2>Prototype intent log</h2><span>UI-local</span></div>
+          <div id="intentLog" class="intent-log">
+            <article><span class="intent-type">DISPLAY_ONLY</span><p>No command intent submitted yet.</p></article>
+          </div>
+          <div class="authority-note"><b>Integration rule</b><span>The production adapter must map UI actions to Integration Lead-approved command names. This prototype intentionally owns no domain mutation.</span></div>
+        </section>
+      </div>
+    </aside>
+
+    <div class="transaction-toast" id="transactionToast" role="status" aria-live="polite">
+      <div class="tx-check">✓</div>
+      <div><span>VERIFIED TRANSACTION</span><b>Nok → Mira · Iron Pickaxe ×1</b><small>Total ◎ 38 · transaction tx-041</small></div>
+      <button id="closeToast" aria-label="Dismiss transaction">×</button>
+    </div>
+
+    <nav class="mobile-dock" aria-label="prototype mobile controls">
+      <button data-open="market">▦<span>Market</span></button>
+      <button data-open="merchant">♙<span>Merchant</span></button>
+      <button data-demo="transaction">✓<span>Transaction</span></button>
+    </nav>
+  </main>
+  <script src="prototype.js"></script>
+</body>
+</html>
