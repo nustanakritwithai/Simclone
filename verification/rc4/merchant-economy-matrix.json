@@ -39,11 +39,11 @@
       "id": "P0-04",
       "phase": 0,
       "kind": "master-gate",
-      "objective": "#179 Listing source/tests/Success Contract agree on canonical id+revision vocabulary and repaired exact head is verified",
-      "evidenceRequired": "exact #179 head source + contract + CI",
+      "objective": "#179 selected Listing/Pricing/Ledger donor is pinned to verified current-main head and preserves canonical id+revision + receipt-integrity semantics",
+      "evidenceRequired": "selected exact head da82d2178e605283fabf76b80c91cd731da4ad49 (or later independently re-verified head) + source/contract + exact-head CI",
       "immutableOnFail": false,
       "result": "UNKNOWN",
-      "reason": "Master Gate not open / no exact integrated candidate evidence"
+      "reason": "Donor prerequisite is SAT at da82d2178e605283fabf76b80c91cd731da4ad49 (#1978/#1979 SUCCESS), but Phase-0 row remains UNKNOWN until the exact integration candidate pins and re-proves that donor semantics."
     },
     {
       "id": "P0-05",
@@ -1719,6 +1719,32 @@
   "masterGate": {
     "requiredPhase": 0,
     "rule": "Every P0 row must be SAT before Phase 1 integrated execution is accepted. Any P0 UNKNOWN or VIOL keeps Master Gate closed.",
-    "currentResult": "UNKNOWN"
+    "currentResult": "UNKNOWN",
+    "resolvedPrerequisites": [
+      "#179 current-main donor da82d2178e605283fabf76b80c91cd731da4ad49: exact-head Verify #1978 SUCCESS + PR Verify #1979 SUCCESS.",
+      "#180 UI prototype donor 0aa5a824d7da70172a267dbf1f440e69d44ef271: Verify #1990 SUCCESS; production wiring remains UNKNOWN."
+    ]
+  },
+  "donorSnapshot": {
+    "main": "1b60b13394c11bd7b03d10227919f4bb509b02df",
+    "exactHeads": {
+      "175": "51f3c9727429ecfb055548c8bf0ffed09a70b0d9",
+      "176": "79ae6792063f8c70a9e676028646f2cd05a62d0a",
+      "177": "73be1764130978f529632aa955bf3a7adf931e29",
+      "178": "8c6c4ffb506cd192e2f81558880a7480ccf13932",
+      "179": "da82d2178e605283fabf76b80c91cd731da4ad49",
+      "180": "0aa5a824d7da70172a267dbf1f440e69d44ef271",
+      "181": "6d9eb098333eccc72e2352e605e5364d25e97768"
+    },
+    "evidence": {
+      "175": "Verify #1946 SUCCESS",
+      "176": "Verify #1861 SUCCESS",
+      "177": "Verify #1898 SUCCESS",
+      "178": "Verify #1864 SUCCESS",
+      "179": "Verify #1978 push SUCCESS; Verify #1979 PR SUCCESS; base=current RC3.2 main",
+      "180": "Verify #1990 SUCCESS; docs/prototype donor only",
+      "181": "Verify #1959 SUCCESS"
+    },
+    "rule": "Any donor head drift invalidates its pinned evidence until the new exact head is independently re-audited."
   }
 }
