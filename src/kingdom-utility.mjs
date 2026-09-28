@@ -8,6 +8,7 @@ export const KINGDOM_PROFESSIONS=Object.freeze({
   miner:'คนขุดหิน',
   builder:'ช่างก่อสร้าง',
   adventurer:'นักผจญภัย',
+  merchant:'พ่อค้า',
 });
 const ACTION_TO_PROFESSION=Object.freeze({
   FORAGE:'forager',
@@ -87,29 +88,41 @@ function explicitAdventurer(transition){
   const keys=Object.keys(transition);
   return keys.length===2&&Object.hasOwn(transition,'qualifiedProfession')&&Object.hasOwn(transition,'qualification')&&transition.qualifiedProfession==='adventurer'&&transition.qualification==='explore-3';
 }
-export function adoptProfession(agent,kind,tick,transition){
-  if(transition!==undefined){
-    const ready=kind==='EXPLORE'&&explicitAdventurer(transition)&&agent?.adventurerQualification?.version===1&&agent.adventurerQualification.accepted===ADVENTURER_QUALIFICATION&&Number.isInteger(tick)&&tick>=0;
-    if(!ready)return {changed:false,profession:isKingdomProfession(agent?.profession)?agent.profession:undefined};
-    const previous=ensureProfession(agent,tick);
-    if(previous==='adventurer')return {changed:false,profession:previous};
-    agent.profession='adventurer';
-    agent.professionSinceTick=tick;
-    if(!Array.isArray(agent.career))agent.career=[];
-    agent.career.push({tick,profession:'adventurer'});
-    if(agent.career.length>8)agent.career.splice(0,agent.career.length-8);
-    return {changed:true,previous,profession:'adventurer'};
-  }
-  const next=professionForAction(kind);
-  if(!next)return {changed:false,profession:ensureProfession(agent,tick)};
-  const previous=ensureProfession(agent,tick);
-  if(previous==='adventurer'||previous===next)return {changed:false,profession:previous};
+function explicitMerchant(transition){
+  if(!transition||typeof transition!=='object'||Array.isArray(transition))return false;
+  const keys=Object.keys(transition);
+  return keys.length===3&&Object.hasOwn(transition,'qualifiedProfession')&&Object.hasOwn(transition,'qualification')&&Object.hasOwn(transition,'evidenceId')&&
+    transition.qualifiedProfession==='merchant'&&transition.qualification==='merchant-v1'&&typeof transition.evidenceId==='string'&&transition.evidenceId.length>0&&transition.evidenceId.length<=120;
+}
+function recordProfessionTransition(agent,previous,next,tick){
   agent.profession=next;
   agent.professionSinceTick=tick;
   if(!Array.isArray(agent.career))agent.career=[];
   agent.career.push({tick,profession:next});
   if(agent.career.length>8)agent.career.splice(0,agent.career.length-8);
   return {changed:true,previous,profession:next};
+}
+export function adoptProfession(agent,kind,tick,transition){
+  if(transition!==undefined){
+    const tickValid=Number.isInteger(tick)&&tick>=0;
+    if(kind==='EXPLORE'&&explicitAdventurer(transition)&&agent?.adventurerQualification?.version===1&&agent.adventurerQualification.accepted===ADVENTURER_QUALIFICATION&&tickValid){
+      const previous=ensureProfession(agent,tick);
+      if(previous==='adventurer'||previous==='merchant')return {changed:false,profession:previous,reason:'profession-locked'};
+      return recordProfessionTransition(agent,previous,'adventurer',tick);
+    }
+    if(kind==='MERCHANT'&&explicitMerchant(transition)&&tickValid){
+      const previous=ensureProfession(agent,tick);
+      if(previous==='merchant')return {changed:false,profession:previous};
+      if(previous==='adventurer')return {changed:false,profession:previous,reason:'profession-locked'};
+      return recordProfessionTransition(agent,previous,'merchant',tick);
+    }
+    return {changed:false,profession:isKingdomProfession(agent?.profession)?agent.profession:undefined};
+  }
+  const next=professionForAction(kind);
+  if(!next)return {changed:false,profession:ensureProfession(agent,tick)};
+  const previous=ensureProfession(agent,tick);
+  if(previous==='adventurer'||previous==='merchant'||previous===next)return {changed:false,profession:previous};
+  return recordProfessionTransition(agent,previous,next,tick);
 }
 
 function blankQualification(){return {version:1,accepted:0,recent:[]};}
