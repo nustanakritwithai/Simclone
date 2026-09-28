@@ -255,14 +255,21 @@
       "pr": 194,
       "exactHead": "32bd1a1619dc39ad8be77f585585fbe2a55b3dc1",
       "note": "Assembled candidate exists. This does not promote any Phase-0 row to SAT."
+    },
+    "candidateGate": {
+      "at": "2026-09-29",
+      "pr": 194,
+      "exactHead": "e615c2fbff7d26bd0d04e8ac4d2d381758cfa75c",
+      "verify": "#2120 SUCCESS",
+      "note": "Playable integration candidate SAT. Do not convert unexecuted acceptance rows to SAT."
     }
   },
   "lockedNextGate": {
     "id": "B8",
-    "state": "IN_PROGRESS_UNKNOWN",
+    "state": "CANDIDATE_SAT_ACCEPTANCE_PENDING",
     "subject": "Exact assembled RC4 integration candidate and one-root commit orchestration",
     "owner": "RC4 Merchant Economy Integration Lead",
-    "prerequisite": "B1-B7 domain closures have been assembled into the candidate, but their integration rows remain UNKNOWN until exact-head Verify + full acceptance evidence complete.",
+    "prerequisite": "Exact assembled candidate is green. Full Master Gate / 171-row acceptance / independent Red Team remain required before production merge.",
     "phase0Rows": [
       "P0-01",
       "P0-02",
@@ -301,10 +308,11 @@
     "candidate": {
       "pr": 194,
       "branch": "integration/rc4-merchant-economy-v1",
-      "exactHead": "32bd1a1619dc39ad8be77f585585fbe2a55b3dc1",
+      "exactHead": "e615c2fbff7d26bd0d04e8ac4d2d381758cfa75c",
       "base": "1b60b13394c11bd7b03d10227919f4bb509b02df",
-      "verifyRun": "#2087 / 36472182986",
-      "verifyState": "IN_PROGRESS"
+      "verifyRun": "#2120 / 36487690404",
+      "verifyState": "SUCCESS",
+      "scopeVerdict": "PLAYABLE_INTEGRATION_CANDIDATE_SAT"
     }
   }
 }
