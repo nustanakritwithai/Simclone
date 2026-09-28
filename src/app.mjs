@@ -14,6 +14,7 @@ import {installAdventureUI} from './adventure-ui.mjs?v=0.5.0';
 import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
 import {worldReadabilityRegions} from './display-world-readability.mjs?v=0.5.0';
 import {worldHitCandidate,resolveWorldHit,worldSelection,selectionFromWorldHit} from './read-models/world-hit-resolver.mjs?v=0.5.0';
+import {rc4MarketReadModel,rc4WorldMarketMarkers} from './rc4-market-runtime.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let ux=null,independentUI=null,adventureUI=null,nav=null,worldMapView=null;
@@ -463,6 +464,17 @@ function structureRenderContext(){
  };
  return {hasFoundation,roofOptionsFor};
 }
+function drawRc4MarketMarkers(c,time){
+  for(const m of rc4WorldMarketMarkers(state)){
+    const p=proj(m.x,m.y),open=m.open===true,label=(open?'OPEN · ':'CLOSED · ')+m.ownerName;
+    c.save();c.translate(p.x,p.y-18);
+    c.fillStyle='#1b3b31e8';c.beginPath();c.roundRect(-24,-13,48,22,5);c.fill();
+    c.fillStyle=open?'#e8cfa0':'#b7b9ae';c.font='bold 9px system-ui';c.textAlign='center';c.fillText('¤ MARKET',0,-2);
+    c.font='8px system-ui';c.fillStyle='#f3ebd2';c.fillText(label,0,7);
+    if(open){c.globalAlpha=.45+.2*Math.sin(time*.006);c.strokeStyle='#e8cfa0';c.strokeRect(-26,-15,52,26);}
+    c.restore();
+  }
+}
 function render(time){
  ctx.setTransform(dpr,0,0,dpr,0,0);
  const bg=ctx.createLinearGradient(0,0,cw,ch);bg.addColorStop(0,'#4c654b');bg.addColorStop(1,'#314b3d');ctx.fillStyle=bg;ctx.fillRect(0,0,cw,ch);
@@ -482,6 +494,7 @@ function render(time){
  for(const burst of recentLifeBursts(state))drawLifeBurst(ctx,burst,time);
  for(const burst of recentAchievementBursts(state))drawAchievementBurst(ctx,burst,time);
  for(const h of houseFeedback(state))drawHouseFeedback(ctx,h,time);
+ drawRc4MarketMarkers(ctx,time);
  if(isIndependent(state))for(const h of individualHouses(state)){
   const p=proj(h.origin.x,h.origin.y),owner=findPerson(state,h.ownerId),label=(h.complete?'⌂ ':'… ')+(owner?.name??'UNKNOWN');
   ctx.font='10px system-ui';ctx.textAlign='center';const width=ctx.measureText(label).width+12;
@@ -517,6 +530,62 @@ function openDialog(title,kicker,body){$('dialog').dataset.kind='other';$('dialo
 function roster(){ux?.openRoster();}
 function history(){ux?.openHistory();}
 function systems(){ux?.openSystems();}
+function market(){
+ const m=rc4MarketReadModel(state,activeAgentId),sel=m.selected;
+ if(!sel){openDialog('ตลาด RC4','MERCHANT ECONOMY','<p>เลือก Clone จากประชากรก่อน แล้วเปิดตลาดอีกครั้ง</p>');return;}
+ const q=m.qualification,checks=q?.checks??{};
+ const blocked=Object.entries(checks).filter(([,v])=>v?.status!=='SAT').map(([k,v])=>'<li>'+esc(k)+' · '+esc(v?.detail??v?.status)+'</li>').join('');
+ let body='<section class="visual-menu-status"><div class="visual-menu-status-icon">¤</div><div><small>SELECTED CLONE</small><b>'+esc(sel.name)+'</b><span>'+esc(sel.profession??'ยังไม่มีอาชีพ')+' · เงิน '+esc(sel.balance??'—')+'</span></div></section>';
+ if(sel.profession!=='merchant'){
+   body+=q?.qualified
+     ?'<div class="dialog-actions"><button class="primary" data-action="rc4-become-merchant" data-agent="'+sel.id+'">เป็น Merchant</button></div>'
+     :'<div class="help-block"><b>ยังเป็น Merchant ไม่ได้</b><ul>'+(blocked||'<li>ต้องมีบ้าน เงินทุน และหลักฐานการผลิตสินค้าอย่างน้อย 1 ชิ้น</li>')+'</ul></div>';
+ }else if(!m.ownMarket){
+   body+='<div class="dialog-actions"><button class="primary" data-action="rc4-create-market" data-agent="'+sel.id+'">เปิด Home Market ที่บ้าน</button></div>';
+ }else{
+   const open=m.ownMarket.status==='open';
+   body+='<div class="help-block"><b>Home Market '+esc(m.ownMarket.marketId)+'</b><br>สถานะ '+esc(m.ownMarket.status)+' · บ้าน '+esc(m.ownMarket.homeId)+'</div>'+
+     '<div class="dialog-actions"><button class="'+(open?'secondary':'primary')+'" data-action="'+(open?'rc4-close-market':'rc4-open-market')+'" data-market="'+esc(m.ownMarket.marketId)+'">'+(open?'ปิดร้าน':'เปิดร้าน')+'</button></div>';
+ }
+ if(sel.profession==='merchant'&&m.ownMarket){
+   const tradable=m.bag.filter(i=>i.tradable);
+   body+='<h3>ของในกระเป๋าที่ลงขายได้</h3>'+(tradable.length?tradable.map(i=>'<div class="help-block"><b>'+esc(i.kind)+'</b> · #'+i.id+'<div class="dialog-actions"><button data-action="rc4-list-item" data-agent="'+sel.id+'" data-item="'+i.id+'" data-price="100">ลงขาย 100</button></div></div>').join(''):'<p>ยังไม่มี item ที่ลงขายได้</p>');
+   const kinds=[...new Set((state.rustPossessions?.items??[]).map(i=>i.kind))].sort().slice(0,8);
+   body+='<h3>Buy Offer</h3>'+(kinds.length?kinds.map(k=>'<button class="secondary" data-action="rc4-create-offer" data-agent="'+sel.id+'" data-kind="'+esc(k)+'" data-price="70">รับซื้อ '+esc(k)+' · 70</button>').join(' '):'<p>ยังไม่มีชนิดสินค้าในโลก</p>');
+ }
+ body+='<h3>ตลาดในโลก</h3>';
+ if(!m.markets.length)body+='<p>ยังไม่มี Home Market</p>';
+ for(const marketRow of m.markets){
+   body+='<section class="help-block"><b>¤ '+esc(marketRow.ownerName)+' · '+esc(marketRow.status)+'</b><br><small>'+esc(marketRow.marketId)+'</small>';
+   if(marketRow.listings.length){
+     body+='<div><b>Listings</b></div>';
+     for(const l of marketRow.listings){
+       body+='<div>'+esc(l.itemKind)+' · '+l.quantity+' ชิ้น · '+l.unitPrice+' · '+esc(l.status);
+       if(sel.id!==l.sellerId&&l.status==='OPEN'&&marketRow.status==='open'){
+         const arrived=m.arrival?.state==='SAT'&&m.arrival?.marketId===marketRow.marketId;
+         body+=arrived
+           ?' <button class="primary" data-action="rc4-buy-listing" data-agent="'+sel.id+'" data-listing="'+esc(l.id)+'">ซื้อ</button>'
+           :' <button data-action="rc4-travel-market" data-agent="'+sel.id+'" data-market="'+esc(marketRow.marketId)+'">เดินไปซื้อ</button>';
+       }
+       body+='</div>';
+     }
+   }
+   if(marketRow.offers.length){
+     body+='<div><b>Buy Offers</b></div>';
+     for(const o of marketRow.offers){
+       body+='<div>'+esc(o.itemKind)+' · '+o.quantityWanted+' ชิ้น · '+o.unitPrice+' · '+esc(o.status);
+       const owned=m.bag.find(i=>i.tradable&&i.kind===o.itemKind);
+       if(sel.id!==o.buyerId&&owned&&o.status==='OPEN')body+=' <button data-action="rc4-accept-offer" data-agent="'+sel.id+'" data-offer="'+esc(o.offerId)+'" data-item="'+owned.id+'">ขายให้ร้าน</button>';
+       body+='</div>';
+     }
+   }
+   body+='</section>';
+ }
+ if(m.ledger)body+='<h3>Merchant Ledger</h3><div class="help-block">Revenue '+m.ledger.revenue+' · COGS '+m.ledger.costOfGoodsSold+' · Profit '+m.ledger.realizedProfit+'<br>ซื้อ '+m.ledger.purchases.length+' · ขาย '+m.ledger.sales.length+'</div>';
+ if(m.arrival?.state==='UNKNOWN')body+='<p class="source-note">กำลังเดินไปตลาด…</p>';
+ if(m.arrival?.state==='SAT')body+='<p class="source-note">NAVIGATION VERIFIED · ถึงตลาดแล้ว</p>';
+ openDialog('ตลาด RC4','MERCHANT ECONOMY',body);
+}
 function cloneDialog(){ux?.openClone();}
 function menu(){
  const status=store.status(),protectedSave=status.protected&&store.originalText()!==null;
@@ -525,6 +594,7 @@ function menu(){
   '<section class="visual-menu-status"><div class="visual-menu-status-icon" aria-hidden="true">◈</div><div><small>SAVE</small><b>'+esc(saveLabel(status))+'</b><span>Local browser</span></div></section>'+
   '<div class="visual-menu-grid">'+
    card('systems','◇','ระบบโลก','AI / Systems')+
+   card('market','¤','ตลาด RC4','Merchant Economy')+
    card('survival','♥','การอยู่รอด','World / Needs')+
    card('save','↓','บันทึก','Local')+
    card('export','↗','ส่งออก','JSON')+
@@ -544,7 +614,25 @@ $('dialog-body').addEventListener('click',e=>{
  if(b.dataset.story){ux?.openEvent(Number(b.dataset.story));return;}
  const action=b.dataset.action;
  if(action==='systems'){ux.openSystems();return;}
+ if(action==='market'){market();return;}
  if(action==='survival'){ux.openSurvival();return;}
+ if(action&&action.startsWith('rc4-')){
+  let result;
+  if(action==='rc4-become-merchant')result=command(state,'RC4_BECOME_MERCHANT',{agentId:Number(b.dataset.agent)});
+  else if(action==='rc4-create-market')result=command(state,'RC4_CREATE_MARKET',{agentId:Number(b.dataset.agent)});
+  else if(action==='rc4-open-market')result=command(state,'RC4_OPEN_MARKET',{marketId:b.dataset.market});
+  else if(action==='rc4-close-market')result=command(state,'RC4_CLOSE_MARKET',{marketId:b.dataset.market});
+  else if(action==='rc4-list-item')result=command(state,'RC4_CREATE_LISTING',{agentId:Number(b.dataset.agent),itemId:Number(b.dataset.item),unitPrice:Number(b.dataset.price)});
+  else if(action==='rc4-create-offer')result=command(state,'RC4_CREATE_BUY_OFFER',{agentId:Number(b.dataset.agent),itemKind:b.dataset.kind,unitPrice:Number(b.dataset.price)});
+  else if(action==='rc4-accept-offer')result=command(state,'RC4_ACCEPT_BUY_OFFER',{producerId:Number(b.dataset.agent),offerId:b.dataset.offer,itemId:Number(b.dataset.item)});
+  else if(action==='rc4-travel-market')result=command(state,'RC4_TRAVEL_TO_MARKET',{agentId:Number(b.dataset.agent),marketId:b.dataset.market});
+  else if(action==='rc4-buy-listing')result=command(state,'RC4_BUY_LISTING',{buyerId:Number(b.dataset.agent),listingId:b.dataset.listing});
+  else result={ok:false,message:'คำสั่งตลาดไม่ถูกต้อง'};
+  toast(result.message??result.reason??(result.ok?'สำเร็จ':'ไม่สำเร็จ'));
+  if(result.ok)save();
+  if(action==='rc4-travel-market'&&result.ok){dialog.close();selectAgent(Number(b.dataset.agent),true);updateUI();return;}
+  market();updateUI();return;
+ }
  if(action==='hunt-monster'){
   const agentId=Number(b.dataset.agent),worldMonsterId=b.dataset.monster;
   const result=command(state,'START_ADVENTURE_HUNT',{agentId,worldMonsterId});
@@ -573,7 +661,7 @@ $('import-file').addEventListener('change',async e=>{const file=e.target.files[0
 $('inspector').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.ui==='close'){activeAgentId=null;selection=null;follow=false;}else if(b.dataset.tab){tab=b.dataset.tab;frameSelected();}else if(b.dataset.ui==='follow'){follow=!follow;const a=state.agents.find(a=>a.id===activeAgentId);if(a){focus={x:a.x,y:a.y};pan={x:0,y:0};}}updateUI();});
 $('pause').onclick=()=>{paused=!paused;accumulator=0;updateUI();};
 for(const b of document.querySelectorAll('[data-speed]'))b.onclick=()=>{speed=Number(b.dataset.speed);document.querySelectorAll('[data-speed]').forEach(x=>x.classList.toggle('active',x===b));};
-$('systems').onclick=systems;$('roster').onclick=roster;$('history').onclick=history;$('open-chronicle').onclick=history;$('menu').onclick=menu;
+$('systems').onclick=systems;if($('market'))$('market').onclick=market;$('roster').onclick=roster;$('history').onclick=history;$('open-chronicle').onclick=history;$('menu').onclick=menu;
 function observe(){mode='observe';$('mode-hint').hidden=true;$('observe').classList.add('active');updateUI();}
 $('observe').onclick=observe;
 $('recent-events').onclick=e=>{const id=e.target.closest('[data-event]')?.dataset.event;if(!id)return;const ev=state.events.find(e=>e.id===Number(id));if(ev?.agentId)selectAgent(ev.agentId,true);else history();};
