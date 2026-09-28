@@ -70,7 +70,9 @@
       "Directly push/splice HomeMarket listingIds or buyOfferIds from integration/test code instead of using the canonical Home Market writer.",
       "Invent or hardcode tradeRange in integration/test code without a named canonical source.",
       "Construct verified arrival/position evidence outside the approved Navigation evidence producer.",
-      "Create a Reservation in fixture/test code when the production Reservation authority/lifecycle is absent."
+      "Create a Reservation in fixture/test code when the production Reservation authority/lifecycle is absent.",
+      "Fabricate a complete Navigation arrival evidence object and recompute its deterministic evidenceId instead of resolving canonical Navigation journey/execution provenance.",
+      "Forge a matching Trade receipt + tradeReplay graph + recomputed hashes and promote it to committed Ledger/Career evidence."
     ],
     "browser": {
       "primaryInteraction": "real clicks/taps -> command intent -> runtime -> canonical validation -> authoritative mutation -> visible result",
@@ -174,17 +176,18 @@
       "navigationArrivalEvidenceModule": "RC4_ARRIVAL_EVIDENCE_MODULE"
     },
     "currentHardStops": [
-      "canonical Home Market listing/buy-offer reference mutation API unproven",
-      "canonical market tradeRange source unproven",
-      "canonical Navigation-derived arrival evidence producer unproven",
-      "canonical Reservation authority/lifecycle/persistence/ID rule unproven",
-      "canonical persistent BuyOffer collection/procurement matching unproven",
-      "post-settlement Listing/Reservation semantics unproven",
-      "production persistence ownership for all RC4 collections unproven"
+      "B1/B2 candidate #184 lacks exact-head Verify and is diverged from current main.",
+      "B3 candidate #185 is source-level VIOL: complete caller-fabricated arrival evidence can recompute its evidenceId without canonical journey provenance.",
+      "B5/B6 market-domain candidate #187 lacks exact-head Verify.",
+      "B6 Trade candidate #188 lacks exact-head Verify and is diverged from current main.",
+      "B7 persistence is incomplete; Home Market present `{}` currently normalizes as empty instead of fail-closed.",
+      "#179 head 9b5e63e386f0543f9700237242b2c4f0745a8c2d requires trusted canonical Trade execution provenance before non-duplicate Ledger/Career mutation.",
+      "B8 is LOCKED_NOT_STARTED until B1-B7 domain closure is accepted."
     ],
     "resolvedPrerequisites": [
-      "#179 repaired Pricing/Listing/Ledger head da82d2178e605283fabf76b80c91cd731da4ad49 is based on current RC3.2 main and has exact-head Verify #1978 SUCCESS plus PR Verify #1979 SUCCESS.",
-      "#180 repaired UI prototype head 0aa5a824d7da70172a267dbf1f440e69d44ef271 has Verify #1990 SUCCESS and canonical OPEN/listing-revision/SAT+VERIFIED+COMMITTED+duplicate:false presentation vocabulary; production wiring remains UNKNOWN."
+      "#180 repaired UI prototype head 0aa5a824d7da70172a267dbf1f440e69d44ef271 has Verify #1990 SUCCESS and canonical OPEN/listing-revision/SAT+VERIFIED+COMMITTED+duplicate:false presentation vocabulary; production wiring remains UNKNOWN.",
+      "#179 provenance-boundary repair 9b5e63e386f0543f9700237242b2c4f0745a8c2d passed Verify #2013/#2015; it intentionally keeps non-duplicate plain results UNKNOWN.",
+      "B4 Reservation donor c4d1b544a1203459aa78ef55b83a28db6077056c passed Verify #2025/#2027 and is donor-scope SAT; assembled P0-08 remains UNKNOWN."
     ]
   },
   "donorSnapshot": {
