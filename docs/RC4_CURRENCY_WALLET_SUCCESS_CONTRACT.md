@@ -332,3 +332,26 @@ Keep the PR Draft. Do not merge from this workstream.
 | post-RC3.2 integration candidate | UNKNOWN |
 
 UNKNOWN is not PASS.
+
+
+## B7 stacked persistence repair — Currency Wallet
+
+Canonical root key: `currencyWallet`.
+
+This stacked repair adds explicit component persistence APIs:
+
+- `serializeCurrencyWallet(state)`
+- `restoreCurrencyWallet(state, serialized)`
+
+The existing `migrateLegacyCurrencyWallet()` remains the one-shot old-save/bootstrap owner.
+
+Rules:
+
+- restore validates account identities and replay receipts before mutation;
+- exact restore replay is idempotent;
+- conflicting existing wallet refuses overwrite;
+- corrupt payload never creates a fresh wallet;
+- committed wallet replay receipt survives restore, so an old transaction remains duplicate/no-op;
+- production root wiring remains B8-owned.
+
+UNKNOWN is never PASS. Exact-head Verify is required.

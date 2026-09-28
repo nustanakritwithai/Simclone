@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
   CURRENCY_WALLET_BOOTSTRAP_BALANCE,createCurrencyWalletState,validateCurrencyWallet,totalCurrency,getBalance,
-  createCurrencyAccount,credit,debit,transfer,migrateLegacyCurrencyWallet,canonicalCurrencyBytes
+  createCurrencyAccount,credit,debit,transfer,migrateLegacyCurrencyWallet,canonicalCurrencyBytes,serializeCurrencyWallet,restoreCurrencyWallet
 } from '../src/currency-wallet.mjs';
 import {createTradeWalletAdapter} from '../src/trade-wallet-adapter.mjs';
 
@@ -56,3 +56,28 @@ test('trade adapter debit is validation-only and credit commits one conserved ca
 test('trade adapter rejects redirected party or amount without mutation',()=>{const s=explicit([100,20,0]),wallet=createTradeWalletAdapter({transactionId:'TRADE-LOCK',fromAgentId:1,toAgentId:2,amount:30}),before=JSON.stringify(s);for(const r of [wallet.debit(s,3,30),wallet.debit(s,1,29),wallet.credit(s,3,30),wallet.credit(s,2,29)])assert.equal(r.ok,false);assert.equal(JSON.stringify(s),before);assert.equal(totalCurrency(s),120);});
 test('trade adapter credit without prior debit still moves conserved money rather than minting',()=>{const s=explicit([100,20,0]),wallet=createTradeWalletAdapter({transactionId:'TRADE-DIRECT',fromAgentId:1,toAgentId:2,amount:30}),before=totalCurrency(s),r=wallet.credit(s,2,30);assert.equal(r.ok,true);assert.equal(getBalance(s,1),70);assert.equal(getBalance(s,2),50);assert.equal(totalCurrency(s),before);});
 test('source forbids random and wall clock rules',()=>{for(const f of ['../src/currency-wallet.mjs','../src/trade-wallet-adapter.mjs']){const src=readFileSync(new URL(f,import.meta.url),'utf8');assert.equal(src.includes('Math.random'),false);assert.equal(src.includes('Date.now'),false);assert.equal(/new\s+Date\s*\(/.test(src),false);}});
+
+
+test('B7 explicit wallet serializer/restore preserves balance and replay protection',()=>{
+  const s=explicit([100,20,0]),p={transactionId:'B7-RESTORE',fromAgentId:1,toAgentId:2,amount:30};
+  assert.equal(transfer(s,p).ok,true);
+  const wire=serializeCurrencyWallet(s),loaded=base();
+  const restored=restoreCurrencyWallet(loaded,wire);
+  assert.equal(restored.ok,true);assert.equal(restored.duplicate,false);
+  assert.equal(getBalance(loaded,1),70);assert.equal(getBalance(loaded,2),50);
+  const before=JSON.stringify(loaded),replay=transfer(loaded,p);
+  assert.equal(replay.ok,true);assert.equal(replay.duplicate,true);assert.equal(JSON.stringify(loaded),before);
+  assert.equal(serializeCurrencyWallet(loaded),wire);
+});
+
+test('B7 wallet restore is idempotent and corrupt/conflicting present state fails closed',()=>{
+  const s=migrated(),wire=serializeCurrencyWallet(s),target=base();
+  assert.equal(restoreCurrencyWallet(target,wire).ok,true);
+  const bytes=JSON.stringify(target),again=restoreCurrencyWallet(target,wire);
+  assert.equal(again.ok,true);assert.equal(again.duplicate,true);assert.equal(JSON.stringify(target),bytes);
+  const conflict=JSON.parse(wire);conflict.accounts[0].balance+=1;
+  const before=JSON.stringify(target),r=restoreCurrencyWallet(target,JSON.stringify(conflict));
+  assert.equal(r.ok,false);assert.equal(r.reason,'wallet-restore-conflict');assert.equal(JSON.stringify(target),before);
+  const corrupt=base(),bad=restoreCurrencyWallet(corrupt,JSON.stringify({version:'RC4-wallet-1',accounts:[],receipts:[{transactionId:'bad'}],bootstrap:null}));
+  assert.equal(bad.ok,false);assert.equal(corrupt.currencyWallet,undefined);
+});
