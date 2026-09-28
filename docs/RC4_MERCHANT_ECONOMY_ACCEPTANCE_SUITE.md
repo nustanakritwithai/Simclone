@@ -499,6 +499,7 @@ The Integration Lead receives:
 - this Success Contract;
 - verification/rc4/merchant-economy-matrix.json;
 - verification/rc4/merchant-economy-fixture-contract.json;
-- verification/rc4/preflight.mjs.
+- verification/rc4/preflight.mjs;
+- tests/rc4-acceptance-suite.test.mjs, which validates the harness itself under normal `npm test`.
 
 The Integration Lead must provide one exact integrated candidate SHA and production command/UI wiring. Acceptance Owner then binds executable end-to-end and browser proofs to those real public interfaces without creating a hidden test authority.
