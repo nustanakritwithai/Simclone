@@ -1,9 +1,6 @@
 export const TRADE_KERNEL_VERSION='RC4-trade-kernel-1';
 export const TRADE_REPLAY_VERSION='RC4-trade-replay-1';
-export const TRADE_REPLAY_ROOT_KEY='tradeReplay';
 export const TRADE_LIMITS=Object.freeze({maxReceipts:512,maxQuantity:128,maxIdLength:80});
-const CANONICAL_TRADE_EXECUTION=Symbol('RC4_CANONICAL_TRADE_EXECUTION');
-export const isCanonicalTradeExecutionContext=context=>!!context&&context[CANONICAL_TRADE_EXECUTION]===true;
 
 const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const safePositiveInt=n=>Number.isSafeInteger(n)&&n>0;
@@ -12,25 +9,6 @@ const clone=v=>structuredClone(v);
 const stableItemIds=ids=>Array.isArray(ids)?ids.slice().sort((a,b)=>a-b):[];
 
 export const createTradeReplayState=()=>({version:TRADE_REPLAY_VERSION,receipts:[]});
-
-export function migrateTradeReplayState(raw){
-  if(raw===undefined||raw===null)return {state:'SAT',migrated:true,duplicate:false,tradeReplay:createTradeReplayState()};
-  const errors=validateTradeReplayState({tradeReplay:raw});
-  if(errors.length)return {state:'VIOL',reason:'trade-replay',errors,tradeReplay:null};
-  return {state:'SAT',migrated:false,duplicate:true,tradeReplay:clone(raw)};
-}
-
-export function serializeTradeReplayState(tradeReplay){
-  const errors=validateTradeReplayState({tradeReplay});
-  if(errors.length)throw new Error('trade-replay-invalid:'+errors.join(','));
-  return JSON.stringify(tradeReplay);
-}
-
-export function restoreTradeReplayState(serialized){
-  const tradeReplay=JSON.parse(serialized),errors=validateTradeReplayState({tradeReplay});
-  if(errors.length)throw new Error('trade-replay-invalid:'+errors.join(','));
-  return tradeReplay;
-}
 
 function normalizedProposal(p={}){
   return {
@@ -226,7 +204,6 @@ export function settleTradeAtomic(state,proposal,adapters={}){
     if(!post||typeof post.apply!=='function'||typeof post.verify!=='function')
       return {ok:false,reason:'post-settlement-authority'};
     const context=Object.freeze({
-      [CANONICAL_TRADE_EXECUTION]:true,
       provenance:'CANONICAL_TRADE_SETTLEMENT_EXECUTION',
       proposal:Object.freeze(clone(normalizedProposal(proposal))),
       receipt:Object.freeze(clone(settlement.receipt))
