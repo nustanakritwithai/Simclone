@@ -11,6 +11,13 @@ const clone=v=>structuredClone(v);
 const stableItemIds=ids=>Array.isArray(ids)?ids.slice().sort((a,b)=>a-b):[];
 
 export const createTradeReplayState=()=>({version:TRADE_REPLAY_VERSION,receipts:[]});
+export function migrateTradeReplayState(raw){
+  if(raw===undefined||raw===null)return {state:'SAT',migrated:true,duplicate:false,tradeReplay:createTradeReplayState()};
+  const probe={tradeReplay:structuredClone(raw)};
+  const errors=validateTradeReplayState(probe);
+  if(errors.length)return {state:'VIOL',reason:'trade-replay',errors,tradeReplay:null};
+  return {state:'SAT',migrated:false,duplicate:true,tradeReplay:structuredClone(raw)};
+}
 
 function normalizedProposal(p={}){
   return {
