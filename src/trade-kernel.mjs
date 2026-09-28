@@ -196,6 +196,23 @@ export function settleTradeAtomic(state,proposal,adapters={}){
     if(!adapterResultOk(adapters.wallet.credit(staged,settlement.wallet.credit.agentId,settlement.wallet.credit.amount)))return {ok:false,reason:'wallet-credit'};
     if(!adapterResultOk(adapters.item.transfer(staged,{fromAgentId:settlement.items.fromAgentId,toAgentId:settlement.items.toAgentId,itemIds:settlement.items.itemIds.slice()})))return {ok:false,reason:'item-transfer'};
     const receiptResult=appendReceipt(staged,settlement.receipt);if(!receiptResult.ok)return receiptResult;
+
+    // B6 outer atomic boundary: every authoritative post-settlement mutation
+    // (Ledger / Listing / Reservation as selected by integration) must happen
+    // on this same staged root before any caller can replace the live root.
+    const post=adapters.postSettlement;
+    if(!post||typeof post.apply!=='function'||typeof post.verify!=='function')
+      return {ok:false,reason:'post-settlement-authority'};
+    const context=Object.freeze({
+      provenance:'CANONICAL_TRADE_SETTLEMENT_EXECUTION',
+      proposal:Object.freeze(clone(normalizedProposal(proposal))),
+      receipt:Object.freeze(clone(settlement.receipt))
+    });
+    const applied=post.apply(staged,context);
+    if(!adapterResultOk(applied))return {ok:false,reason:applied?.reason||'post-settlement-apply'};
+    const verified=post.verify(staged,context);
+    if(!adapterResultOk(verified))return {ok:false,reason:verified?.reason||'post-settlement-postcondition'};
+
     const afterBuyer=adapters.wallet.balance(staged,settlement.wallet.debit.agentId);
     const afterSeller=adapters.wallet.balance(staged,settlement.wallet.credit.agentId);
     if(afterBuyer!==beforeBuyer-settlement.wallet.debit.amount||afterSeller!==beforeSeller+settlement.wallet.credit.amount)return {ok:false,reason:'wallet-postcondition'};
