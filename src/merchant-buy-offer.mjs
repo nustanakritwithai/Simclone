@@ -101,29 +101,30 @@ export function transitionBuyOfferInCollection(collection,offerId,status){
  * V1 matches one exact physical item to a one-unit BuyOffer; canonical Listing,
  * Reservation and Trade authorities remain separate.
  */
-export function proposeProducerBuyOfferMatch(offer,{producerId,itemInstanceId}={}){
+export function proposeProducerBuyOfferMatch(offer,{producerId,itemInstanceId,itemInstanceIds}={}){
   const errors=validateBuyOffer(offer);if(errors.length)return {state:'VIOL',reason:'buy-offer',errors};
   if(offer.status!==BUY_OFFER_STATUS.OPEN)return {state:'VIOL',reason:'offer-not-open'};
-  if(offer.quantityWanted!==1)return {state:'UNKNOWN',reason:'v1-exact-single-item-only'};
   if(!positiveInt(producerId)||producerId===offer.buyerId)return {state:'VIOL',reason:'producer'};
-  if(!positiveInt(itemInstanceId))return {state:'VIOL',reason:'itemInstanceId'};
-  const key=stableText({offerId:offer.offerId,producerId,itemInstanceId});
+  const raw=Array.isArray(itemInstanceIds)?itemInstanceIds:(itemInstanceId===undefined?[]:[itemInstanceId]);
+  const ids=[...raw].sort((a,b)=>a-b);
+  if(ids.length!==offer.quantityWanted||ids.some(id=>!positiveInt(id))||new Set(ids).size!==ids.length)return {state:'VIOL',reason:'itemIds'};
+  const key=stableText({offerId:offer.offerId,producerId,itemIds:ids});
   const matchId='BOM:'+hash32(key)+hash32(key,0x9e3779b9);
   const listingId='PROC:'+hash32(matchId+'|LISTING')+hash32(matchId+'|LISTING',0x9e3779b9);
   return {state:'SAT',proposal:Object.freeze({
     authoritative:false,
     kind:'BUY_OFFER_PRODUCER_MATCH',
     matchId,buyOfferId:offer.offerId,marketId:offer.marketId,buyerId:offer.buyerId,producerId,
-    itemKind:offer.itemKind,itemInstanceId,quantity:1,unitPrice:offer.unitPrice,
+    itemKind:offer.itemKind,itemInstanceId:ids[0],itemIds:Object.freeze(ids),quantity:ids.length,unitPrice:offer.unitPrice,
     listingRequest:Object.freeze({
       authority:'MERCHANT_LISTING',
       id:listingId,marketId:offer.marketId,sellerId:producerId,itemKind:offer.itemKind,
-      itemInstanceId,quantity:1,unitPrice:offer.unitPrice,status:'OPEN'
+      itemInstanceId:ids[0],quantity:ids.length,unitPrice:offer.unitPrice,status:'OPEN'
     }),
     reservationRequest:Object.freeze({
       authority:'CANONICAL_RESERVATION',
       buyerId:offer.buyerId,
-      exactItemIds:Object.freeze([itemInstanceId]),
+      exactItemIds:Object.freeze(ids),
       listingSnapshotRequired:true
     }),
     homeMarketListingReferenceRequest:Object.freeze({
