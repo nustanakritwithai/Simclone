@@ -567,10 +567,12 @@ export function installUX(api){
    $('dialog').dataset.kind='structure';$('dialog').dataset.structure='station:'+st.id;renderHUD();return;
   }
   if(st.kind==='FURNACE'){
-   const process=s.rustMaterials?.orders?.find(o=>o.agentId===selected),craft=s.rustPossessions?.orders?.find(o=>o.agentId===selected),m=actor?materialSnapshot(s,actor):{wood:0,charcoal:0,ironOre:0,ironIngot:0,steelIngot:0},busy=!actor||craft||process;
+   const m=actor?materialSnapshot(s,actor):{wood:0,charcoal:0,ironOre:0,ironIngot:0,steelIngot:0};
+   const preview=type=>actor?api.preview(type,{agentId:actor.id,stationId:st.id}):{ok:false};
+   const charcoal=preview('PROCESS_CHARCOAL'),iron=preview('PROCESS_IRON'),steel=preview('PROCESS_STEEL');
    api.openDialog('เตาหลอม','FURNACE · #'+st.id,'<section class="structure-hero">'+visualToken('fire')+'<div><small>PROCESSING</small><h3>เตาหลอม</h3><span>Ore '+m.ironOre+' · Iron '+m.ironIngot+' · Steel '+m.steelIngot+'</span></div></section>'+
     '<div class="menu-metrics" data-furnace-materials="'+st.id+'">'+menuMetric('wood','ไม้',m.wood)+menuMetric('fire','ถ่าน',m.charcoal)+menuMetric('stone','แร่เหล็ก',m.ironOre)+menuMetric('hammer','เหล็กกล้า',m.steelIngot)+'</div>'+
-    '<div class="structure-actions"><button class="primary visual-policy-action" data-ux="process-charcoal" data-station="'+st.id+'" '+(busy||m.wood<2?'disabled':'')+'>'+icon('fire')+'<span>ไม้ 2 → ถ่าน 1</span></button><button class="primary visual-policy-action" data-ux="process-iron" data-station="'+st.id+'" '+(busy||m.ironOre<2||m.charcoal<1?'disabled':'')+'>'+icon('hammer')+'<span>แร่เหล็ก 2 + ถ่าน 1 → เหล็ก 1</span></button><button class="primary visual-policy-action" data-ux="process-steel" data-station="'+st.id+'" '+(busy||m.ironIngot<2||m.charcoal<2?'disabled':'')+'>'+icon('hammer')+'<span>เหล็ก 2 + ถ่าน 2 → เหล็กกล้า 1</span></button></div>');
+    '<div class="structure-actions"><button class="primary visual-policy-action" data-ux="process-charcoal" data-station="'+st.id+'" '+(charcoal.ok?'':'disabled')+'>'+icon('fire')+'<span>ไม้ 2 → ถ่าน 1</span></button><button class="primary visual-policy-action" data-ux="process-iron" data-station="'+st.id+'" '+(iron.ok?'':'disabled')+'>'+icon('hammer')+'<span>แร่เหล็ก 2 + ถ่าน 1 → เหล็ก 1</span></button><button class="primary visual-policy-action" data-ux="process-steel" data-station="'+st.id+'" '+(steel.ok?'':'disabled')+'>'+icon('hammer')+'<span>เหล็ก 2 + ถ่าน 2 → เหล็กกล้า 1</span></button></div>');
    $('dialog').dataset.kind='structure';$('dialog').dataset.structure='station:'+st.id;renderHUD();return;
   }
   const house=houses.find(h=>h.cells.some(cell=>cell.x===st.x&&cell.y===st.y));
