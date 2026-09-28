@@ -23,7 +23,7 @@ Every selected market re-renders from its own snapshot:
 - COGS
 - realized profit
 
-A listing can submit `PURCHASE_INTENT` only when the selected market is `OPEN`, the listing is `ACTIVE`, and stock evidence is positive. CLOSED and UNKNOWN render listing controls disabled. Clicking a listing never decrements buyer money, seller stock, reservations or ledger values.
+A listing can submit `PURCHASE_INTENT` only when the selected market is `OPEN`, the canonical listing is `OPEN`, its positive `revision` is retained in the intent, and stock evidence is positive. CLOSED/CANCELED/FILLED/UNKNOWN listings render controls disabled. Clicking a listing never decrements buyer money, seller stock, reservations or ledger values.
 
 Buy Offer rows are read-only in this prototype. A future accepted command may create/modify offers, but that command remains domain-authoritative outside UI.
 
@@ -49,12 +49,15 @@ The UI exposes one receive-only boundary:
 
 ```text
 rc4:transaction-result event
-→ validate complete result
+→ validate complete canonical result
 → require verificationStatus === VERIFIED
+→ require commitStatus === COMMITTED
+→ require duplicate === false
+→ require positive safe-integer quantity / totalPrice
 → render success feedback
 ```
 
-The feedback contains buyer, seller, item, quantity, total price and transaction ID. Missing fields, UNKNOWN, SAT-like strings, ACCEPTED intents, failures and unverified results are rejected without showing success.
+The feedback contains buyer, seller, item, quantity, total price and transaction ID. Missing fields, UNKNOWN, SAT-like strings, ACCEPTED intents, FAILED/REJECTED outcomes, duplicate replays, zero/fractional trade values and unverified/uncommitted results are rejected without showing success.
 
 ## Required state semantics
 
