@@ -503,7 +503,20 @@ The Integration Lead receives:
 - this Success Contract;
 - verification/rc4/merchant-economy-matrix.json;
 - verification/rc4/merchant-economy-fixture-contract.json;
+- verification/rc4/master-gate-blockers.json;
 - verification/rc4/preflight.mjs;
 - tests/rc4-acceptance-suite.test.mjs, which validates the harness itself under normal `npm test`.
 
 The Integration Lead must provide one exact integrated candidate SHA and production command/UI wiring. Acceptance Owner then binds executable end-to-end and browser proofs to those real public interfaces without creating a hidden test authority.
+
+
+## Master Gate blocker handoff
+
+`verification/rc4/master-gate-blockers.json` is the execution handoff for unresolved Phase-0 work. It maps each blocker to:
+
+- the owning domain/workstream;
+- exact Phase-0 and downstream acceptance rows;
+- required deliverables/evidence;
+- forbidden Integration Lead workarounds.
+
+A blocker is removed from the unresolved set only after its owning domain supplies exact-head proof and the assembled integration candidate re-proves the mapped Phase-0 row. Donor-local SAT alone does not close an integration blocker.
