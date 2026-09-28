@@ -22,13 +22,13 @@ Observed donor heads at preparation time:
 | #176 | Home Market | 79ae6792063f8c70a9e676028646f2cd05a62d0a |
 | #177 | Trade Kernel | 73be1764130978f529632aa955bf3a7adf931e29 |
 | #178 | Merchant / Customer AI | 8c6c4ffb506cd192e2f81558880a7480ccf13932 |
-| #179 | Pricing / Merchant Ledger | ba435943aa7a877fa7f9ff65cc74a961b34f3241 |
+| #179 | Pricing / Merchant Ledger | 964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f |
 | #180 | Market UI prototype | 1bb01790e9af627588504af226759f5aff79b80c |
 | #181 | Canonical Wallet | 6d9eb098333eccc72e2352e605e5364d25e97768 |
 
 All #175-#181 donor branches were based on pre-RC3.2 main a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e at this audit. None of those donor heads is itself an RC4 integration candidate.
 
-Important current incompatibility to attack, not hide: #177 requires authoritative listing.id plus listing.revision and reservation.listingRevision. Observed #179 head ba435943... exposes listingId and no revision in src/merchant-listing.mjs. An integration that keeps that mismatch is VIOL. The acceptance suite MUST NOT create an alias adapter that makes the mismatch appear SAT.
+Compatibility attack retained: #177 requires authoritative listing.id plus listing.revision and reservation.listingRevision. During preparation, prior #179 head ba435943aa7a877fa7f9ff65cc74a961b34f3241 exposed listingId and no revision; that shape is VIOL and MUST NOT be hidden by an alias adapter. Latest observed repaired #179 head 964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f now exposes canonical id/revision, increments revision on authoritative mutation, enforces one OPEN listing per physical item at collection level, and checks stale reservation revision. This donor-level repair remains unmerged and does not constitute integration SAT.
 
 ## Master Gate rule
 
@@ -151,7 +151,7 @@ Attack cases:
 - save/load preserves id, revision and uniqueness;
 - CLOSED / CANCELED / FILLED lifecycle releases the listing lock exactly once.
 
-Observed #179 pre-repair listingId-only vocabulary is not accepted as canonical proof.
+Any pre-repair #179 listingId-only/no-revision vocabulary is not accepted as canonical proof. The latest observed #179 repair must still be re-proven after assembly on the exact integration SHA.
 
 ## PHASE 5 — Customer Discovery
 
