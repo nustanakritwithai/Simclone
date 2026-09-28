@@ -8,6 +8,7 @@ import {
   evaluateMerchantQualification,
   adoptMerchantProfession,
   merchantProgressionSnapshot,
+  projectMerchantRealizedProfit,
   noteVerifiedCommittedMerchantTransaction,
   validateMerchantProgression,
 } from '../src/merchant-career.mjs';
@@ -131,7 +132,7 @@ test('Merchant profession and career continuity survive engine save/load',()=>{
   const restored=restore(serialize(s)),b=restored.agents.find(row=>row.id===a.id);
   assert.equal(b.profession,'merchant');
   assert.equal(b.career.at(-1).profession,'merchant');
-  assert.deepEqual(merchantProgressionSnapshot(b),{merchantTransactions:1,merchantExperience:1});
+  assert.deepEqual(merchantProgressionSnapshot(b),{merchantTransactions:1,merchantRealizedProfit:null,merchantExperience:1});
   assert.deepEqual(validateMerchantProgression(b),[]);
   assert.deepEqual(validate(restored),[]);
 });
@@ -143,11 +144,11 @@ test('Merchant progression counts only verified and committed transactions and i
   assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',verified:false,committed:true}).counted,false);
   assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',verified:true,committed:false}).counted,false);
   assert.equal(noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-0',committed:true}).status,'UNKNOWN');
-  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:0,merchantExperience:0});
+  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:0,merchantRealizedProfit:null,merchantExperience:0});
 
   const first=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-1',verified:true,committed:true});
   assert.equal(first.counted,true);
-  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:1,merchantExperience:1});
+  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:1,merchantRealizedProfit:null,merchantExperience:1});
 
   const replay=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-1',verified:true,committed:true});
   assert.equal(replay.counted,false);
@@ -155,8 +156,30 @@ test('Merchant progression counts only verified and committed transactions and i
 
   const second=noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-2',verified:true,committed:true});
   assert.equal(second.counted,true);
-  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:2,merchantExperience:2});
+  assert.deepEqual(merchantProgressionSnapshot(a),{merchantTransactions:2,merchantRealizedProfit:null,merchantExperience:2});
   assert.deepEqual(validateMerchantProgression(a),[]);
+});
+
+test('Merchant realized profit progression hook is a read-only projection of Merchant Ledger',()=>{
+  const a=worker(9);
+  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:9,evidenceId:'merchant-proof-9'}),1).changed,true);
+  noteVerifiedCommittedMerchantTransaction(a,{transactionId:'tx-ledger-1',verified:true,committed:true});
+  const ledger={merchantId:9,purchases:[],sales:[],revenue:100,costOfGoodsSold:70,realizedProfit:30};
+
+  const projection=projectMerchantRealizedProfit(a,ledger);
+  assert.deepEqual(projection,{status:'SAT',reason:'ledger-projection',merchantRealizedProfit:30,authority:'merchant-ledger'});
+  assert.deepEqual(merchantProgressionSnapshot(a,{ledger}),{
+    merchantTransactions:1,
+    merchantRealizedProfit:30,
+    merchantExperience:1,
+  });
+  assert.equal(Object.hasOwn(a,'merchantRealizedProfit'),false);
+
+  assert.equal(projectMerchantRealizedProfit(a,null).status,'UNKNOWN');
+  assert.equal(projectMerchantRealizedProfit(a,{...ledger,merchantId:10}).status,'VIOL');
+  assert.equal(projectMerchantRealizedProfit(a,{...ledger,realizedProfit:31}).status,'VIOL');
+  assert.equal(merchantProgressionSnapshot(a,{ledger:{...ledger,realizedProfit:31}}).merchantRealizedProfit,null);
+  assert.equal(Object.hasOwn(a,'merchantRealizedProfit'),false);
 });
 
 test('Merchant career rejects a duplicate monetary profit field and never stores realized profit',()=>{
