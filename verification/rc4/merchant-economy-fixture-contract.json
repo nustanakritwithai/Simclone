@@ -182,12 +182,13 @@
       "B6 Trade candidate #188 lacks exact-head Verify and is diverged from current main.",
       "B7 persistence is incomplete; Home Market present `{}` currently normalizes as empty instead of fail-closed.",
       "#179 head 9b5e63e386f0543f9700237242b2c4f0745a8c2d requires trusted canonical Trade execution provenance before non-duplicate Ledger/Career mutation.",
-      "B8 assembled candidate PR #194 exists but exact-head Verify failed; repaired exact SHA must re-run all gates before any Phase-0 promotion."
+      "PR #194 exact-head Verify #2120 is SUCCESS, but full 171-row acceptance and independent Red Team are not yet recorded; production merge remains closed."
     ],
     "resolvedPrerequisites": [
       "#180 repaired UI prototype head 0aa5a824d7da70172a267dbf1f440e69d44ef271 has Verify #1990 SUCCESS and canonical OPEN/listing-revision/SAT+VERIFIED+COMMITTED+duplicate:false presentation vocabulary; production wiring remains UNKNOWN.",
       "#179 provenance-boundary repair 9b5e63e386f0543f9700237242b2c4f0745a8c2d passed Verify #2013/#2015; it intentionally keeps non-duplicate plain results UNKNOWN.",
-      "B4 Reservation donor c4d1b544a1203459aa78ef55b83a28db6077056c passed Verify #2025/#2027 and is donor-scope SAT; assembled P0-08 remains UNKNOWN."
+      "B4 Reservation donor c4d1b544a1203459aa78ef55b83a28db6077056c passed Verify #2025/#2027 and is donor-scope SAT; assembled P0-08 remains UNKNOWN.",
+      "B8 assembled playable candidate PR #194 @ e615c2fbff7d26bd0d04e8ac4d2d381758cfa75c passed Verify #2120; full acceptance remains pending."
     ]
   },
   "donorSnapshot": {
