@@ -19,9 +19,9 @@
         stock:17,
         ledger:Object.freeze({revenue:268,cogs:171,profit:97}),
         listings:Object.freeze([
-          Object.freeze({listingId:'listing-mira-pickaxe',itemKind:'IRON_PICKAXE',name:'Iron Pickaxe',icon:'⛏',quantity:3,stockAvailable:3,unitPrice:38,status:'ACTIVE'}),
-          Object.freeze({listingId:'listing-mira-charcoal',itemKind:'CHARCOAL',name:'Charcoal',icon:'◆',quantity:8,stockAvailable:8,unitPrice:7,status:'ACTIVE'}),
-          Object.freeze({listingId:'listing-mira-armor',itemKind:'HIDE_ARMOR',name:'Hide Armor',icon:'🛡',quantity:1,stockAvailable:1,unitPrice:64,status:'ACTIVE'})
+          Object.freeze({listingId:'listing-mira-pickaxe',itemKind:'IRON_PICKAXE',name:'Iron Pickaxe',icon:'⛏',quantity:3,stockAvailable:3,unitPrice:38,revision:1,status:'OPEN'}),
+          Object.freeze({listingId:'listing-mira-charcoal',itemKind:'CHARCOAL',name:'Charcoal',icon:'◆',quantity:8,stockAvailable:8,unitPrice:7,revision:1,status:'OPEN'}),
+          Object.freeze({listingId:'listing-mira-armor',itemKind:'HIDE_ARMOR',name:'Hide Armor',icon:'🛡',quantity:1,stockAvailable:1,unitPrice:64,revision:1,status:'OPEN'})
         ]),
         buyOffers:Object.freeze([
           Object.freeze({offerId:'offer-mira-ore',name:'Iron Ore',icon:'🪨',quantityWanted:10,unitPrice:6,status:'OPEN'}),
@@ -39,8 +39,8 @@
         stock:4,
         ledger:Object.freeze({revenue:92,cogs:61,profit:31}),
         listings:Object.freeze([
-          Object.freeze({listingId:'listing-arin-pickaxe',itemKind:'STONE_PICKAXE',name:'Stone Pickaxe',icon:'⛏',quantity:2,stockAvailable:2,unitPrice:16,status:'ACTIVE'}),
-          Object.freeze({listingId:'listing-arin-gear',itemKind:'GEAR_PART',name:'Gear Part',icon:'⚙',quantity:2,stockAvailable:2,unitPrice:9,status:'ACTIVE'})
+          Object.freeze({listingId:'listing-arin-pickaxe',itemKind:'STONE_PICKAXE',name:'Stone Pickaxe',icon:'⛏',quantity:2,stockAvailable:2,unitPrice:16,revision:1,status:'OPEN'}),
+          Object.freeze({listingId:'listing-arin-gear',itemKind:'GEAR_PART',name:'Gear Part',icon:'⚙',quantity:2,stockAvailable:2,unitPrice:9,revision:1,status:'OPEN'})
         ]),
         buyOffers:Object.freeze([]),
         merchant:Object.freeze({
@@ -82,7 +82,7 @@
 
   function canPurchase(market, listing){
     return market.status === 'OPEN' &&
-      listing.status === 'ACTIVE' &&
+      listing.status === 'OPEN' &&
       Number.isFinite(listing.stockAvailable) &&
       listing.stockAvailable > 0;
   }
@@ -200,15 +200,21 @@
     toast.classList.remove('show');
     const valid = result &&
       result.verificationStatus === 'VERIFIED' &&
-      typeof result.transactionId === 'string' &&
-      typeof result.buyerDisplayName === 'string' &&
-      typeof result.sellerDisplayName === 'string' &&
-      typeof result.itemDisplayName === 'string' &&
-      Number.isFinite(result.quantity) && result.quantity > 0 &&
-      Number.isFinite(result.totalPrice) && result.totalPrice >= 0;
+      result.commitStatus === 'COMMITTED' &&
+      result.duplicate === false &&
+      typeof result.transactionId === 'string' && result.transactionId.length > 0 &&
+      typeof result.buyerDisplayName === 'string' && result.buyerDisplayName.length > 0 &&
+      typeof result.sellerDisplayName === 'string' && result.sellerDisplayName.length > 0 &&
+      typeof result.itemDisplayName === 'string' && result.itemDisplayName.length > 0 &&
+      Number.isSafeInteger(result.quantity) && result.quantity > 0 &&
+      Number.isSafeInteger(result.totalPrice) && result.totalPrice > 0;
 
     if(!valid){
-      appendLog('TRANSACTION_RESULT_REJECTED', {verificationStatus: result?.verificationStatus || 'UNKNOWN'});
+      appendLog('TRANSACTION_RESULT_REJECTED', {
+        verificationStatus:result?.verificationStatus || 'UNKNOWN',
+        commitStatus:result?.commitStatus || 'UNKNOWN',
+        duplicate:result?.duplicate ?? 'UNKNOWN'
+      });
       return false;
     }
 
@@ -230,6 +236,7 @@
     emitIntent('PURCHASE_INTENT', {
       marketId:selectedMarket.marketId,
       listingId:listing.listingId,
+      listingRevision:listing.revision,
       itemKind:listing.itemKind,
       unitPrice:listing.unitPrice
     });
