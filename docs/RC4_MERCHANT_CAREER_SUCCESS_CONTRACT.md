@@ -207,8 +207,8 @@ Transaction uniqueness, commit status and duplicate/replay status belong to the 
 
 Career MUST NOT independently determine transaction uniqueness.
 
-A bounded local transaction-id collection, if present on a legacy/candidate save, is diagnostics/audit projection only.
-It is never an idempotency authority and is never consulted by `noteVerifiedCommittedMerchantTransaction()`.
+A legacy/recent local transaction-id collection, if present on an older candidate save, is ignored by Career progression.
+It is neither validated as progression state nor consulted by `noteVerifiedCommittedMerchantTransaction()` and has zero idempotency authority.
 
 Long-horizon behavior:
 
@@ -263,7 +263,7 @@ Canonical `duplicate:true` never increments either field.
 - more than 32 canonical unique commits are accepted without using a bounded replay gate
 - replay of the first transaction after more than 32 commits is a no-op
 - save/load followed by canonical replay of an old transaction is a no-op
-- any legacy/recent transaction-id list is audit projection only, not idempotency authority
+- any legacy/recent transaction-id list is ignored by progression and has zero idempotency authority
 - Career exposes `merchantRealizedProfit` only from a read-only Merchant Ledger projection
 - Career does not create a second Revenue / COGS / Realized Profit authority
 - absent ledger evidence stays UNKNOWN/null
@@ -309,7 +309,7 @@ RC4 Merchant Career is SAT only when:
 - Career contains no monetary profit accumulator
 - `merchantRealizedProfit` hook is available from a validated read-only Merchant Ledger projection
 - duplicate persisted `merchantRealizedProfit` state is rejected
-- Career does not use bounded recent transaction ids as replay authority
+- Career does not use or validate recent transaction ids as replay/progression authority
 - Merchant party lock is proven for buyer/seller/non-party paths
 - `npm test` passes on the exact head
 - PR is opened and remains unmerged
