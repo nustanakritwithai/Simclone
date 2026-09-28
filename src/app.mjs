@@ -592,6 +592,7 @@ function market(){
        body+='</div>';
      }
    }
+   if(marketRow.ledger)body+='<div><b>Ledger</b> · Revenue '+marketRow.ledger.revenue+' · COGS '+marketRow.ledger.costOfGoodsSold+' · Profit '+marketRow.ledger.realizedProfit+'</div>';
    body+='</section>';
  }
  if(m.ledger)body+='<h3>Merchant Ledger</h3><div class="help-block">Revenue '+m.ledger.revenue+' · COGS '+m.ledger.costOfGoodsSold+' · Profit '+m.ledger.realizedProfit+'<br>ซื้อ '+m.ledger.purchases.length+' · ขาย '+m.ledger.sales.length+'</div>';
