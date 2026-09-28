@@ -1,5 +1,5 @@
 /** RC4 canonical merchant Listing. References Rust item authority; owns no item. */
-import {isCanonicalMoney} from './merchant-pricing.mjs';
+import {isCanonicalMoney} from './merchant-pricing.mjs?v=0.5.0';
 
 export const MERCHANT_LISTING_VERSION='RC4-listing/2';
 export const LISTING_STATUS=Object.freeze({OPEN:'OPEN',CLOSED:'CLOSED',CANCELED:'CANCELED',FILLED:'FILLED'});
