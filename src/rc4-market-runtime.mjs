@@ -399,7 +399,8 @@ export function rc4MarketReadModel(world,selectedAgentId=null){
     return {
       marketId:m.marketId,homeId:m.homeId,ownerAgentId:m.ownerAgentId,ownerName:owner?.name??'UNKNOWN',
       status:m.status,listingIds:[...m.listingIds],buyOfferIds:[...m.buyOfferIds],
-      trade:projection.ok?clone(projection.market):null,listings,offers
+      trade:projection.ok?clone(projection.market):null,listings,offers,
+      ledger:owner?merchantLedgerFromCollection(world.merchantLedgers,owner.id):null
     };
   });
   let arrival=null;
