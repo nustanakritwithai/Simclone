@@ -31,6 +31,9 @@ function receiptFingerprint(r={}){
     totalPrice:r.totalPrice,listingId:r.listingId,reservationId:r.reservationId
   });
 }
+function receiptIntegrityFingerprint(r={}){
+  return receiptFingerprint(r)+'|ITEMS|'+stableItemIds(r.itemIds).join(',');
+}
 
 export function validateTradeReplayState(state){
   const replay=state?.tradeReplay;
@@ -39,13 +42,15 @@ export function validateTradeReplayState(state){
   const seen=new Set();
   for(const r of replay.receipts){
     if(!r||!validId(r.transactionId)||seen.has(r.transactionId)||typeof r.fingerprint!=='string'||!r.fingerprint||
+      typeof r.integrityFingerprint!=='string'||!r.integrityFingerprint||
       r.eventId!=='TRADE:'+r.transactionId||!validId(r.eventId,TRADE_LIMITS.maxIdLength+6)||
       !validId(r.marketId)||!validId(r.listingId)||!validId(r.reservationId)||!validId(r.itemKind)||
       !safePositiveInt(r.itemInstanceId)||!Number.isSafeInteger(r.buyerId)||!Number.isSafeInteger(r.sellerId)||r.buyerId===r.sellerId||
       !safePositiveInt(r.quantity)||!safePositiveInt(r.unitPrice)||!safePositiveInt(r.totalPrice)||
       r.totalPrice!==r.unitPrice*r.quantity||!Array.isArray(r.itemIds)||r.itemIds.length!==r.quantity||
       new Set(r.itemIds).size!==r.itemIds.length||r.itemIds.some(id=>!safePositiveInt(id))||
-      !r.itemIds.includes(r.itemInstanceId)||r.fingerprint!==receiptFingerprint(r))return ['Trade replay receipt'];
+      r.itemIds.join(',')!==stableItemIds(r.itemIds).join(',')||!r.itemIds.includes(r.itemInstanceId)||
+      r.fingerprint!==receiptFingerprint(r)||r.integrityFingerprint!==receiptIntegrityFingerprint(r))return ['Trade replay receipt'];
     seen.add(r.transactionId);
   }
   return [];
@@ -149,7 +154,8 @@ export function buildTradeSettlementProposal(state,proposal,adapters={}){
     version:TRADE_KERNEL_VERSION,transactionId:p.transactionId,fingerprint:tradeProposalFingerprint(p),
     wallet:Object.freeze({debit:Object.freeze({agentId:p.buyerId,amount:p.totalPrice}),credit:Object.freeze({agentId:p.sellerId,amount:p.totalPrice})}),
     items:Object.freeze({fromAgentId:p.sellerId,toAgentId:p.buyerId,itemKind:p.itemKind,itemIds:Object.freeze(r.itemIds.slice())}),
-    receipt:Object.freeze({transactionId:p.transactionId,fingerprint:tradeProposalFingerprint(p),eventId:'TRADE:'+p.transactionId,
+    receipt:Object.freeze({transactionId:p.transactionId,fingerprint:tradeProposalFingerprint(p),
+      integrityFingerprint:tradeProposalFingerprint(p)+'|ITEMS|'+r.itemIds.join(','),eventId:'TRADE:'+p.transactionId,
       marketId:p.marketId,listingId:p.listingId,reservationId:p.reservationId,buyerId:p.buyerId,sellerId:p.sellerId,
       itemKind:p.itemKind,itemInstanceId:p.itemInstanceId,itemIds:Object.freeze(r.itemIds.slice()),
       quantity:p.quantity,unitPrice:p.unitPrice,totalPrice:p.totalPrice})
