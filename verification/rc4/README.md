@@ -6,7 +6,7 @@ It is intentionally non-production.
 
 Files:
 
-- `merchant-economy-matrix.json` — machine-readable 15-phase acceptance/attack matrix. Every prepared row starts UNKNOWN.
+- `merchant-economy-matrix.json` — machine-readable Phase 0–15 acceptance/attack matrix. Every prepared row starts UNKNOWN.
 - `merchant-economy-fixture-contract.json` — legal scenario setup and anti-injection rules for A=Producer, B=Merchant, C=Customer.
 - `preflight.mjs` — exact-head/static fail-closed check for an assembled integration candidate.
 - `tests/rc4-acceptance-suite.test.mjs` — meta-test that syntax-checks preflight, validates matrix/fixture structure and proves the preparation branch remains fail-closed UNKNOWN.
@@ -104,6 +104,6 @@ Capture the new merged-main SHA and rerun:
 - exact deployed-byte checks;
 - required public desktop/mobile browser proof.
 
-Machine-readable matrix now contains **171** checks including 13 Phase-0 Master Gate readiness rows. All unexecuted rows remain UNKNOWN.
+Machine-readable matrix contains **171** checks including 13 Phase-0 Master Gate readiness rows. Latest pinned donor refresh: #179 `da82d217…` (#1978/#1979 SUCCESS) and #180 `0aa5a824…` (#1990 SUCCESS). All unexecuted rows remain UNKNOWN.
 
 UNKNOWN is never PASS.
