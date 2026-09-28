@@ -296,3 +296,59 @@ Tests must cover at least:
 **Overall RC4 production status is UNKNOWN until the missing canonical authorities are supplied and a later integration gate proves them. UNKNOWN is never PASS.**
 
 The RC4 PR must remain unmerged while overall state is UNKNOWN.
+
+
+## Master Gate closure repair — B6 outer staged post-settlement boundary
+
+This section supersedes any older wording that allowed a successful Trade candidate to return before Listing / Reservation / Ledger post-settlement authorities completed.
+
+### Required staged sequence
+
+`settleTradeAtomic()` now keeps the entire transaction on one cloned root:
+
+```text
+clone root
+→ validate proposal/market/listing/reservation/range/wallet/items
+→ wallet debit + credit on staged root
+→ exact Rust item transfer on staged root
+→ append canonical Trade receipt/replay on staged root
+→ postSettlement.apply(staged, canonical execution context)
+→ postSettlement.verify(staged, canonical execution context)
+→ wallet/item/trade replay postconditions
+→ return staged root candidate
+```
+
+The live input root is never mutated by the kernel. The caller still owns the later single live-root replacement.
+
+The post-settlement execution context is emitted only from inside the canonical settlement path and includes:
+
+```js
+{
+  provenance: 'CANONICAL_TRADE_SETTLEMENT_EXECUTION',
+  proposal,
+  receipt
+}
+```
+
+The future B8 explicit adapter must use that hook to stage the accepted Merchant Ledger write plus B6 Listing transition plus B4 Reservation terminal transition. The hook may not become a second Trade authority.
+
+### Fail-closed behavior
+
+A non-duplicate settlement cannot return success without an explicit `postSettlement.apply` and `postSettlement.verify` authority.
+
+If apply or verify fails after wallet/item/receipt mutations have occurred on the staged clone, the function returns failure and the caller-supplied live root remains byte-identical. No compensating rollback is used or counted as atomicity.
+
+Exact transaction replay returns the already committed root unchanged and does not re-run post-settlement transitions.
+
+### Proof
+
+Focused attacks cover:
+
+- missing post-settlement authority;
+- injected post-settlement apply failure after staged money/item/receipt writes;
+- injected postcondition failure after staged Listing/Reservation mutation;
+- successful partial Listing fill and Reservation COMMITTED state;
+- duplicate replay leaves Listing revision / Reservation terminal state unchanged;
+- live source bytes stay identical on every injected failure.
+
+This branch defines the atomic extension point only. It does not assemble #179 + B4 into production runtime and therefore does not start B8. Exact-head repository Verify remains required. UNKNOWN is never PASS.
