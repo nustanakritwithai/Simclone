@@ -1,7 +1,7 @@
 import {knowsCraftRecipe,validateRecipeKnowledge,recipeCompletionProposal,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
-import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
+import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,STARTER_RECIPE_IDS,recipeById,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
 import {availableStationKinds,stationForRecipe} from './rust-stations.mjs?v=0.5.0';
 export const RUST_POSSESSIONS_VERSION='RS2-0.2';
 export const RUST_POSSESSION_LIMITS=Object.freeze({bag:4,items:128,orders:12});
@@ -10,8 +10,29 @@ const living=(s,id)=>s.agents?.find(a=>a.id===id&&a.alive);
 const bag=(p,id)=>p.items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===id);
 export const RUST_EQUIPMENT_SLOTS=Object.freeze(['hand','WEAPON','ARMOR','ACCESSORY']);
 export const equipmentSlotOf=e=>e?.slot??'hand';
+/** Pure pending-order check shared by restore and the live executor. */
+export function validateCraftOrder(s,o){
+  const p=s?.rustPossessions,a=living(s,o?.agentId),r=recipeById(o?.recipe);
+  if(!p||!a||!r||!Number.isSafeInteger(o?.id)||o.id<1||o.id>=p.nextOrder||
+    p.orders.filter(x=>x?.id===o.id).length!==1||p.orders.filter(x=>x?.agentId===o.agentId).length!==1||
+    !Number.isFinite(o.work)||o.work<0||!Number.isFinite(o.required)||o.required<1||o.work>=o.required||
+    !o.reserved||typeof o.reserved!=='object'||Array.isArray(o.reserved))return ['Rust craft order'];
+  if(o.recipeKnowledge===undefined)return STARTER_RECIPE_IDS.includes(o.recipe)?[]:['Rust craft legacy recipe'];
+  if(o.recipeKnowledge!==RECIPE_KNOWLEDGE_VERSION)return ['Rust craft knowledge version'];
+  if(validateRecipeKnowledge(s,a).length||!knowsCraftRecipe(s,a,o.recipe))return ['Rust craft permission'];
+  const receipts=(a.knowledgeState.recipes?.entries??[]).flatMap(e=>[...e.receipts,...(e.retiredThrough?[e.retiredThrough]:[])]);
+  if(receipts.some(done=>done.orderId>=o.id||done.tick>o.startedTick))return ['Rust craft watermark'];
+  if(o.required!==r.work||Object.keys(o.reserved).length!==Object.keys(r.materials).length||
+    Object.entries(r.materials).some(([k,n])=>o.reserved[k]!==n))return ['Rust craft escrow'];
+  if(!Number.isSafeInteger(o.startedTick)||o.startedTick<a.bornTick||o.startedTick>s.tick||
+    !Number.isSafeInteger(o.lastWorkedTick)||o.lastWorkedTick<o.startedTick||o.lastWorkedTick>s.tick||
+    o.work>o.lastWorkedTick-o.startedTick)return ['Rust craft chronology'];
+  if(r.station===CRAFT_STATIONS.HAND){if(o.stationId!==null)return ['Rust craft station'];}
+  else if(!Number.isSafeInteger(o.stationId)||!(s.rustStations?.stations??[]).some(st=>st.id===o.stationId&&st.complete&&st.kind===r.station))return ['Rust craft station'];
+  return [];
+}
 export function queueCraft(s,{agentId,recipeId,stationId=null}={}){
-  const p=s.rustPossessions,a=living(s,agentId),r=RECIPE_CATALOG[recipeId];
+  const p=s.rustPossessions,a=living(s,agentId),r=recipeById(recipeId);
   if(isIndependent(s)&&a&&!canPerformProductiveWork(s,a))return {ok:false,reason:'stage'};
   if(!p||!a||!r)return {ok:false,reason:'actor-or-recipe'};
   if(validateRecipeKnowledge(s,a).length)return {ok:false,reason:'recipe-knowledge'};
@@ -32,15 +53,17 @@ export function queueCraft(s,{agentId,recipeId,stationId=null}={}){
 export function advanceCraft(s,agentId,{workRate=1}={}){
   const p=s.rustPossessions,a=living(s,agentId),o=p?.orders.find(o=>o.agentId===agentId);
   if(!p||!a||!o)return {ok:false,reason:'order'};
+  if(validateCraftOrder(s,o).length)return {ok:false,reason:'craft-order'};
   const r=RECIPE_CATALOG[o.recipe];if(!r)return {ok:false,reason:'recipe'};
   const st=stationForRecipe(s,o.recipe,a,o.stationId);
   if(r.station!==CRAFT_STATIONS.HAND&&(!st||a.x!==st.x||a.y!==st.y))return {ok:false,reason:'not-at-station'};
   if(s.tick<=o.lastWorkedTick)return {ok:false,reason:'already-worked'};
   if(!Number.isFinite(workRate)||workRate<=0||workRate>1)return {ok:false,reason:'work-rate'};
-  o.lastWorkedTick=s.tick;o.work+=workRate;
-  if(o.work<o.required)return {ok:true,completed:false,orderId:o.id,work:o.work,required:o.required};
+  const nextWork=o.work+workRate;
+  if(nextWork<o.required){o.lastWorkedTick=s.tick;o.work=nextWork;return {ok:true,completed:false,orderId:o.id,work:o.work,required:o.required};}
   const itemId=p.nextItem;
-  const mastery=recipeCompletionProposal(s,a,o,itemId);
+  // Resolve the full commit before changing the live order, item counter or book.
+  const mastery=recipeCompletionProposal(s,a,o,itemId,nextWork);
   p.nextItem++;p.items.push({id:itemId,kind:r.output,createdBy:agentId,createdTick:s.tick,location:{kind:'bag',agentId}});
   if(mastery)a.knowledgeState.recipes=mastery.book;
   p.orders=p.orders.filter(x=>x.id!==o.id);
