@@ -22,14 +22,14 @@ test('RC4 acceptance artifacts are parseable, unique and fail-closed before Mast
   assert.deepEqual([...new Set(matrix.rows.map(row=>row.phase))].sort((a,b)=>a-b),Array.from({length:16},(_,i)=>i));
   assert.ok(matrix.rows.every(row=>['SAT','VIOL','UNKNOWN'].includes(row.result)));
   assert.equal(matrix.rows.filter(row=>row.result!=='UNKNOWN').length,0,'unexecuted prepared rows may not be pre-promoted');
-  assert.equal(matrix.donorSnapshot?.exactHeads?.['179'],'da82d2178e605283fabf76b80c91cd731da4ad49');
+  assert.equal(matrix.donorSnapshot?.exactHeads?.['179'],'9b5e63e386f0543f9700237242b2c4f0745a8c2d');
   assert.equal(matrix.donorSnapshot?.exactHeads?.['180'],'0aa5a824d7da70172a267dbf1f440e69d44ef271');
-  assert.match(matrix.donorSnapshot?.evidence?.['179']??'',/#1978.*SUCCESS.*#1979.*SUCCESS/);
+  assert.match(matrix.donorSnapshot?.evidence?.['179']??'',/#2013.*SUCCESS.*#2015.*SUCCESS/);
 
   assert.equal(fixture.schema,'RC4-merchant-economy-fixture-contract/1');
   assert.equal(fixture.verdict,'UNKNOWN');
   assert.equal(fixture.masterGate?.result,'UNKNOWN');
-  assert.equal(fixture.donorSnapshot?.donors?.['179']?.head,'da82d2178e605283fabf76b80c91cd731da4ad49');
+  assert.equal(fixture.donorSnapshot?.donors?.['179']?.head,'9b5e63e386f0543f9700237242b2c4f0745a8c2d');
   assert.equal(fixture.donorSnapshot?.donors?.['180']?.head,'0aa5a824d7da70172a267dbf1f440e69d44ef271');
   assert.ok(!(fixture.masterGate?.currentHardStops??[]).some(x=>/#179.*exact-head|exact-head.*#179/i.test(x)),'resolved #179 exact-head blocker must not remain in current hard stops');
   assert.equal(blockers.schema,'RC4-master-gate-blockers/1');
@@ -39,7 +39,7 @@ test('RC4 acceptance artifacts are parseable, unique and fail-closed before Mast
   assert.ok(blockers.blockers.some(x=>x.id==='B3'&&x.state==='VIOL'));
   assert.ok(blockers.blockers.some(x=>x.id==='B7'&&x.state==='VIOL'));
   assert.equal(blockers.lockedNextGate?.id,'B8');
-  assert.equal(blockers.lockedNextGate?.state,'LOCKED_NOT_STARTED');
+  assert.ok(['LOCKED_NOT_STARTED','IN_PROGRESS_UNKNOWN'].includes(blockers.lockedNextGate?.state),'B8 may start only as UNKNOWN, never pre-promoted to SAT');
   assert.ok(blockers.resolved.some(x=>x.id==='R1'&&x.head==='9b5e63e386f0543f9700237242b2c4f0745a8c2d'));
   assert.ok(blockers.resolved.some(x=>x.id==='R2'&&x.head==='0aa5a824d7da70172a267dbf1f440e69d44ef271'));
   assert.ok(blockers.resolved.some(x=>x.id==='R4'&&x.head==='c4d1b544a1203459aa78ef55b83a28db6077056c'));
