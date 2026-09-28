@@ -457,7 +457,7 @@ This pricing/ledger branch does not modify PR #175 because Profession/Career is 
 | save/load cost basis no drift | SAT |
 | forbidden authority imports/writes absent | SAT |
 | focused test suite | SAT — 15/15 |
-| Merchant Career duplicate `merchantRealizedProfit` authority | VIOL at integration boundary |
+| Merchant Career duplicate `merchantRealizedProfit` authority | REPAIRED on PR #175 head `3a6d095556b55317d7dfe76e98fba8add85a25f7`; exact-head Career CI pending |
 | prior exact-head Verify #1866 | VIOL — 887/889; two runtime pin/version failures only |
 | runtime pin/version repair | SAT by source inspection — 112 pins and versioned merchant imports |
 | repaired exact-head repository CI / `npm test` | UNKNOWN until new Actions run finishes |
