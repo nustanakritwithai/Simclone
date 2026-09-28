@@ -11,6 +11,7 @@ const readJson=rel=>JSON.parse(fs.readFileSync(path.join(ROOT,rel),'utf8'));
 test('RC4 acceptance artifacts are parseable, unique and fail-closed before Master Gate',()=>{
   const matrix=readJson('verification/rc4/merchant-economy-matrix.json');
   const fixture=readJson('verification/rc4/merchant-economy-fixture-contract.json');
+  const blockers=readJson('verification/rc4/master-gate-blockers.json');
 
   assert.equal(matrix.schema,'RC4-merchant-economy-acceptance-matrix/1');
   assert.equal(matrix.masterGate?.requiredPhase,0);
@@ -31,6 +32,12 @@ test('RC4 acceptance artifacts are parseable, unique and fail-closed before Mast
   assert.equal(fixture.donorSnapshot?.donors?.['179']?.head,'da82d2178e605283fabf76b80c91cd731da4ad49');
   assert.equal(fixture.donorSnapshot?.donors?.['180']?.head,'0aa5a824d7da70172a267dbf1f440e69d44ef271');
   assert.ok(!(fixture.masterGate?.currentHardStops??[]).some(x=>/#179.*exact-head|exact-head.*#179/i.test(x)),'resolved #179 exact-head blocker must not remain in current hard stops');
+  assert.equal(blockers.schema,'RC4-master-gate-blockers/1');
+  assert.equal(blockers.blockers.length,8);
+  assert.equal(new Set(blockers.blockers.map(x=>x.id)).size,8);
+  assert.ok(blockers.blockers.every(x=>x.state==='UNKNOWN'));
+  assert.ok(blockers.resolved.some(x=>x.id==='R1'&&x.head==='da82d2178e605283fabf76b80c91cd731da4ad49'));
+  assert.ok(blockers.resolved.some(x=>x.id==='R2'&&x.head==='0aa5a824d7da70172a267dbf1f440e69d44ef271'));
   assert.ok(fixture.setupPolicy?.forbiddenPrimaryEvidence?.some(x=>x.includes('tradeRange')));
   assert.ok(fixture.setupPolicy?.forbiddenPrimaryEvidence?.some(x=>x.includes('Reservation')));
 });
