@@ -48,7 +48,9 @@ export function createCanonicalMarketTravelTask(world,agent,market,path){
       startedTick:world.tick
     }
   };
-  const canonicalTask=Object.freeze(clone(task));
+  const canonicalTask=clone(task);
+  Object.freeze(canonicalTask.rc4MarketTravel);
+  Object.freeze(canonicalTask);
   canonicalMarketTravelTasks.add(canonicalTask);
   return {state:'SAT',task:canonicalTask};
 }
@@ -63,10 +65,13 @@ export function verifyCanonicalMarketArrival(world,{agentId,market}={}){
   if(!agent)return {state:'VIOL',reason:'agent'};
   const task=agent.task,meta=task?.rc4MarketTravel;
   if(!isCanonicalMarketTravelTask(task))return {state:'VIOL',reason:'canonical-task'};
-  if(!taskValid(world,agent))return {state:'VIOL',reason:'navigation-task'};
   if(meta.marketId!==market.id||meta.marketX!==market.x||meta.marketY!==market.y||meta.tradeRange!==market.tradeRange)
     return {state:'VIOL',reason:'market-mismatch'};
-  if(task.path.length!==0)return {state:'UNKNOWN',reason:'still-travelling'};
+  if(!Array.isArray(task.path))return {state:'VIOL',reason:'navigation-task'};
+  if(task.path.length!==0){
+    // The same private-identity task must also remain a valid in-flight Survival task.
+    return taskValid(world,agent)?{state:'UNKNOWN',reason:'still-travelling'}:{state:'VIOL',reason:'navigation-task'};
+  }
   if(agent.x!==task.x||agent.y!==task.y||agent.x!==market.x||agent.y!==market.y)return {state:'VIOL',reason:'position'};
   if(distance(agent,market)>market.tradeRange)return {state:'VIOL',reason:'out-of-range'};
   return {state:'SAT',verification:'NAVIGATION_VERIFIED',agentId,marketId:market.id,x:agent.x,y:agent.y,tick:world.tick,startedTick:task.started};
