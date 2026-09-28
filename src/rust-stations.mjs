@@ -1,5 +1,5 @@
 import {isIndependent,resourceAccount} from './individual-resources.mjs?v=0.5.0';
-import {CRAFT_STATIONS,ITEM_CATALOG,RECIPE_CATALOG,PLACEABLE_KINDS} from './crafting-catalog.mjs?v=0.5.0';
+import {CRAFT_STATIONS,ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,PLACEABLE_KINDS} from './crafting-catalog.mjs?v=0.5.0';
 import {LEGACY_WORLD_BOUNDS,worldBounds} from './world-bounds.mjs?v=0.5.0';
 export const RUST_STATIONS_VERSION='RS3-0.3';
 export const STATION_LIMITS=Object.freeze({maxStations:64,independentMaxStations:512,interactionRange:1});
