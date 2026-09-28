@@ -73,7 +73,7 @@ Therefore isolated donor Verify SUCCESS remains evidence for that donor head onl
 | #176 | Home Market | 79ae6792063f8c70a9e676028646f2cd05a62d0a | Verify #1861 SUCCESS | UNKNOWN post-RC3.2 |
 | #177 | Trade Kernel | 73be1764130978f529632aa955bf3a7adf931e29 | Verify #1898 SUCCESS | UNKNOWN post-RC3.2 and missing market/reservation bindings |
 | #178 | Merchant / Customer AI | 8c6c4ffb506cd192e2f81558880a7480ccf13932 | Verify #1864 SUCCESS on isolated donor | VIOL vs repaired #179: Customer AI still consumes legacy listingId + createdTick/snapshotVersion and carries no canonical Listing revision |
-| #179 | Pricing / Listing / Buy Offer / Ledger | da82d2178e605283fabf76b80c91cd731da4ad49 | Verify #1979 SUCCESS; ahead 25 / behind 0 from RC3.2 main | SAT donor for Pricing/Listing/Ledger contract; integration bindings/persistence remain separate gates |
+| #179 | Pricing / Listing / Buy Offer / Ledger | last frozen SAT head `da82d2178e605283fabf76b80c91cd731da4ad49`; PR branch has moved beyond it | #1979 SUCCESS proves repaired Listing/Pricing/Ledger shape at da82d; later provenance-hardening work reopened Ledger ingestion | MIXED: Listing/Pricing semantics retained SAT; Ledger commit-provenance = UNKNOWN until later head freezes + exact-head Verify + cross-donor audit |
 | #180 | Market UI prototype | 0aa5a824d7da70172a267dbf1f440e69d44ef271 | Verify #1990 SUCCESS; docs-only changed files | SAT as docs/prototype donor; canonical OPEN + Listing revision read-model repair retained; production wiring UNKNOWN |
 | #181 | Canonical Wallet | 6d9eb098333eccc72e2352e605e5364d25e97768 | Verify #1959 SUCCESS | UNKNOWN post-RC3.2; donor contract explicitly requires post-RC3.2 re-audit/rebuild |
 
@@ -85,7 +85,15 @@ Post-sync proof is now available:
     → Verify #1979 SUCCESS
     → RC3.2 ancestry aligned (ahead 25 / behind 0)
 
-The current #179 Success Contract starts with a Repair override that supersedes older conflicting Listing / receipt wording below it. That override and current source/tests agree on canonical `id + revision`. Therefore Pricing/Listing/Ledger is SAT as a donor on this exact head; runtime binding, Reservation, persistence root ownership, and end-to-end settlement remain separate integration gates.
+At the last frozen verified head `da82d217...`, the #179 Repair override/source/tests agree on canonical `id + revision`; those Listing/Pricing semantics remain the selected proven baseline.
+
+After that head, #179 reopened Merchant Ledger commit ingestion because a caller can forge both a structurally valid receipt and a matching caller-supplied `tradeReplay` state. The hardened Ledger correctly refuses to upgrade an arbitrary non-duplicate object into VERIFIED/COMMITTED accounting evidence and returns UNKNOWN until a trusted authoritative-root provenance path exists.
+
+Therefore:
+- Listing/Pricing semantics: SAT donor baseline at `da82d217...`;
+- Ledger structural validation: retained;
+- Ledger non-duplicate commit provenance: UNKNOWN / HARD STOP;
+- any later #179 head must freeze and pass exact-head verification before replacing this split status.
 
 Cross-donor re-audit still finds #178 head 8c6c4ff... using the pre-repair Listing vocabulary (`listingId`, `createdTick` / `snapshotVersion`). This remains a donor compatibility VIOL, not an Integration Lead mapping task.
 
@@ -776,7 +784,66 @@ The committed Trade Receipt remains transaction truth.
 
 For purchased stock, the Merchant buyer's acquisition cost is the committed purchase unit price per exact item ID.
 
-Career progression and UI success must use the canonical receipt assessment only. Realized-profit display must remain UNKNOWN until the Ledger itself is valid.
+Career progression and UI success must use canonical committed-root evidence only. Realized-profit display must remain UNKNOWN until the Ledger itself is valid.
+
+### 5.4 Canonical commit-provenance binding
+
+A structurally valid JavaScript object is not proof that a trade actually committed.
+
+Therefore the production wiring MUST NOT expose a Ledger/Career path that accepts caller-supplied:
+
+    { ok, duplicate, receipt, state }
+
+as authoritative commit truth.
+
+The trust boundary is the authoritative root commit path itself:
+
+    #177 staged settlement result
+    → validate exact staged tradeReplay receipt
+    → apply all approved settlement-domain postconditions
+    → replace live authoritative root once
+    → downstream reads the committed transaction back from that authoritative root
+
+Canonical downstream lookup rule:
+
+    authoritative root + transactionId
+    → exact tradeReplay receipt from live root
+    → Ledger accounting
+    → Career non-monetary progression
+
+The caller/UI/AI/test fixture MUST NOT be able to supply an alternate root object or manufacture a matching tradeReplay and have it treated as production commit provenance.
+
+No downstream component creates VERIFIED/COMMITTED truth. If a read-model vocabulary still uses those labels, they are projections of the already-committed authoritative-root receipt, never assertions from Ledger, Career, AI or UI.
+
+Required production reachability lock:
+
+- no public command accepts a Trade Kernel result object for Ledger/Career mutation;
+- Ledger/Career mutation is reachable only from the internal post-commit orchestration path or deterministic catch-up from the authoritative persisted root;
+- retry uses transactionId/root receipt identity and remains idempotent;
+- forged receipt + forged matching replay state supplied outside the authoritative root must not mutate Ledger or Career.
+
+### 5.5 Downstream failure and retry
+
+Ledger and Career are downstream of the trade root commit and do not participate in settlement rollback.
+
+If Ledger or Career processing fails after canonical trade commit:
+
+    money/item/tradeReplay + approved Listing/Reservation settlement state stay committed
+    Ledger/Career stay unchanged or UNKNOWN
+    no compensating rollback
+    retry later from authoritative root
+
+Required retry proof:
+
+1. commit one canonical trade;
+2. force Ledger/Career downstream processing failure;
+3. verify committed trade authorities remain unchanged and valid;
+4. retry from authoritative root + transactionId;
+5. Ledger accounts exactly once;
+6. Career progresses exactly once;
+7. repeated retry is a no-op.
+
+This requirement overrides any acceptance test that expects a post-root Ledger/Career failure to undo the already committed trade.
 
 ---
 
@@ -964,9 +1031,9 @@ The Integration Lead MUST follow this sequence. No later step may begin if a req
 | 4 | Listings | #179 RC3.2-synced exact-head Verify #1979 SUCCESS + canonical Repair override/source retained | SAT donor; integration proceeds only after Steps 1–3 dependencies are SAT |
 | 5 | Buy Offers | canonical persistence + reference ownership | UNKNOWN |
 | 6 | Reservation authority/binding | owner, schema, ID, lifecycle, persistence, global active view | UNKNOWN — HARD STOP |
-| 7 | Merchant Career | post-RC3.2 #175 compatibility + canonical evidence path | UNKNOWN post-RC3.2 |
+| 7 | Merchant Career | post-RC3.2 #175 compatibility + authoritative-root commit provenance compatible with #179 | VIOL/UNKNOWN: current #175 expects a VERIFIED/COMMITTED projection that current hardened #179 no longer issues from arbitrary results |
 | 8 | Pricing | #179 exact-head Verify #1979 SUCCESS; deterministic pure pricing retained | SAT donor; runtime inputs still depend on accepted evidence sources |
-| 9 | Merchant Ledger | #179 exact-head receipt validation SAT; production ledger container/persistence binding still required | UNKNOWN integrated |
+| 9 | Merchant Ledger | structural receipt validation + authoritative-root provenance + persistence container | UNKNOWN / HARD STOP: non-duplicate ingestion must not trust caller-supplied result/state |
 | 10 | Merchant AI | accepted authority snapshots only; #178 exact-head cross-donor repair complete | VIOL until #178 is repaired/reverified |
 | 11 | Customer AI | canonical #179 Listing id+revision + local knowledge/current Wallet + verified arrival | VIOL until #178 is repaired/reverified |
 | 12 | Navigation / arrival | real Navigation-derived evidence producer + final current position check | UNKNOWN — HARD STOP |
@@ -990,8 +1057,8 @@ Depends on:
 
 - existing adoptProfession;
 - authoritative home/capital/trade-knowledge projections for qualification;
-- #179 assessTradeKernelResult-compatible canonical transaction assessment;
-- #177 canonical committed receipt;
+- authoritative-root committed transaction evidence derived from #177 tradeReplay after root replacement;
+- a #179 Ledger assessment that does not trust caller-supplied result/state provenance;
 - #179 Merchant Ledger for realized-profit read projection.
 
 Writes only:
@@ -1063,13 +1130,16 @@ Owns:
 - pricing;
 - Merchant Ledger.
 
-Current exact-head state:
+Selected proven baseline and reopened work:
 
-- head `da82d217...` is merge-forwarded onto RC3.2 main;
-- the top-level Repair override declares `id + revision` canonical and current source/tests match it;
-- exact-head Verify #1979 = SUCCESS;
-- donor Pricing/Listing/Ledger scope is SAT;
-- lower historical text still contains a stale sibling-Career observation about an older #175 candidate, but the explicit Repair override/current source precedence prevents that historical paragraph from becoming canonical. Current #175 exact head/contract wins.
+- `da82d217...` is merge-forwarded onto RC3.2 main;
+- Repair override + source/tests prove canonical Listing `id + revision`;
+- Verify #1979 = SUCCESS;
+- Listing/Pricing semantics remain SAT from that frozen head;
+- later #179 commits reopened Ledger ingestion to fix forged-provenance attacks;
+- hardened Ledger correctly treats a non-duplicate caller-supplied result as UNKNOWN until trusted root provenance is supplied;
+- current moving #179 branch is not automatically accepted over the frozen SAT head;
+- current #175 progression contract must be reconciled with this provenance boundary before Career integration can be SAT.
 
 ## #180 UI Prototype
 
@@ -1121,6 +1191,7 @@ Contract explicitly requires post-RC3.2 re-audit/rebuild before production integ
 | --- | --- | --- | --- |
 | U1 | #175–#178 and #180–#181 still diverge from RC3.2 main; #179 is the current RC3.2-synced RC4 donor | UNKNOWN | Compatibility Auditor / each stale-base runtime donor rebuilds or proves post-RC3.2 compatibility; #180 is docs-only and does not claim runtime compatibility |
 | V2 | #178 head 8c6c4ff Customer AI still consumes legacy listingId + createdTick/snapshotVersion and does not bind purchase intent to canonical #179 revision | VIOL | #178 owner aligns to repaired #179 canonical Listing vocabulary/revision and reruns exact-head Verify |
+| V3 | #175 Career expects #179-style VERIFIED+COMMITTED non-duplicate evidence, while hardened #179 correctly refuses to promote caller-supplied result/state because both receipt and matching tradeReplay can be forged | VIOL cross-donor / provenance contract unresolved | #175 + #179 + Integration Lead align on authoritative-root-derived commit evidence; no downstream self-verification |
 | U3 | #176 owns listingIds/buyOfferIds but exposes no canonical attach/detach reference mutation API | UNKNOWN | #176 owner |
 | U4 | No canonical Reservation writer/lifecycle/persistence/ID rule is supplied | UNKNOWN | market/reservation owner + #177 contract |
 | U5 | #176 does not define #177-required tradeRange source | UNKNOWN | market/trade contract owner |
@@ -1129,6 +1200,7 @@ Contract explicitly requires post-RC3.2 re-audit/rebuild before production integ
 | U8 | post-settlement Listing decrement/FILLED/revision and Reservation COMMITTED/release behavior is undefined | UNKNOWN | #179 + Reservation/#177 owner |
 | U9 | canonical persistent BuyOffer collection is not defined by current source | UNKNOWN | #179 owner |
 | U10 | production root collection shape for Merchant Ledgers is not defined | UNKNOWN | #179 / persistence owner |
+| U16 | trusted post-root commit provenance/retry binding for Ledger/Career is not frozen; caller-supplied matching tradeReplay is not sufficient proof | UNKNOWN — HARD STOP | Integration Lead + #179 + #175 define root-derived lookup/retry contract and Red Team forgery attacks |
 | U11 | tradeReplay old-save migration/root wiring is not integrated | UNKNOWN | #177 / persistence owner |
 | U12 | #178 consumes an intent journal but does not define canonical persistence ownership for it | UNKNOWN | #178 / persistence owner |
 | U13 | authoritative monetary production-cost evidence for final self-produced items is absent on current main | UNKNOWN | production-cost authority owner; direct self-produced Merchant sales remain accounting-UNKNOWN |
@@ -1457,11 +1529,43 @@ Must freeze:
 - partial-fill quantity/revision;
 - Reservation terminal state;
 - reference cleanup/reconciliation;
-- all required market-state transitions inside the accepted staged outer boundary;
+- all required settlement-domain market-state transitions inside the accepted staged trade boundary;
 - production root keys/collections for Home Market, Listings, BuyOffers, Reservations, tradeReplay and Merchant Ledgers;
-- old-save defaults without replay loss.
+- old-save defaults without replay loss;
+- downstream Ledger/Career catch-up cursor/idempotency from authoritative committed receipts.
 
 No compensating live-state rollback is accepted.
+
+Important boundary:
+- wallet/item/tradeReplay + approved Listing/Reservation settlement state must pass before live root replacement;
+- Merchant Ledger and Merchant Career run **after** the canonical trade root commit;
+- downstream Ledger/Career failure must not roll back the committed trade;
+- downstream retry must derive from authoritative root, never a caller-supplied forged result object.
+
+## G — Ledger/Career commit provenance alignment — PRIORITY 1 / HARD STOP
+
+Owners: #179 Ledger + #175 Career + Integration Lead.
+
+Problem:
+
+    receipt shape can be valid
+    + caller can fabricate matching tradeReplay state
+    ≠ proof of canonical production commit
+
+Required contract:
+
+- root commit path is the trust boundary;
+- downstream accounting/progression looks up committed receipt from authoritative live/persisted root by transactionId;
+- no public command accepts arbitrary TradeResult/root objects to mutate Ledger/Career;
+- no Ledger/Career/UI/AI component manufactures VERIFIED/COMMITTED truth;
+- failed downstream projection never rolls back canonical trade;
+- deterministic post-commit retry/catch-up is idempotent across save/load;
+- forged receipt + forged matching replay object remains no-op/UNKNOWN outside authoritative root;
+- #175 transaction progression vocabulary is repaired or wrapped only through an explicit audited root-derived projection; hidden normalization is forbidden.
+
+Acceptance owner must attack both:
+1. forged result with no matching replay;
+2. forged result with attacker-created matching replay state.
 
 ## Queue close rule
 
