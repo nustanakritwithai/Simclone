@@ -274,3 +274,21 @@ export function projectHomeMarketForTrade(world,raw,{marketId}={}){
   const provenance=Object.freeze({authority:'HomeMarket',homeId:market.homeId,doorwayStationId:socket.doorwayStationId,status:market.status});
   return {ok:true,market:projection,provenance,marketState:state};
 }
+
+
+/** B7 component persistence: missing old-save field migrates once; corrupt present state never resets. */
+export function migrateHomeMarketState(raw){
+  if(raw===undefined||raw===null)return {state:'SAT',migrated:true,duplicate:false,marketState:{version:HOME_MARKET_VERSION,markets:[]}};
+  const errors=validateHomeMarketState(raw);
+  if(errors.length)return {state:'VIOL',reason:'market-state-invalid',errors,marketState:structuredClone(raw)};
+  return {state:'SAT',migrated:false,duplicate:true,marketState:cloneState(raw)};
+}
+export function serializeHomeMarketState(raw){
+  const errors=validateHomeMarketState(raw);if(errors.length)throw new Error('market-state-invalid:'+errors.join(','));
+  return JSON.stringify(raw);
+}
+export function restoreHomeMarketState(serialized){
+  const raw=JSON.parse(serialized),errors=validateHomeMarketState(raw);
+  if(errors.length)throw new Error('market-state-invalid:'+errors.join(','));
+  return cloneState(raw);
+}
