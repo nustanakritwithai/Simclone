@@ -1,0 +1,286 @@
+{
+  "schema": "RC4-master-gate-blockers/1",
+  "repository": "nustanakritwithai/Simclone",
+  "acceptancePr": 182,
+  "acceptanceRule": "UNKNOWN is never PASS. A blocker closes only when its owning domain supplies the required exact-head evidence and the assembled integration candidate re-proves the corresponding Phase-0 row.",
+  "auditedMain": "1b60b13394c11bd7b03d10227919f4bb509b02df",
+  "resolved": [
+    {
+      "id": "R1",
+      "subject": "#179 Pricing/Listing/Ledger current-main compatibility",
+      "state": "SAT_DONOR_PREREQUISITE_ONLY",
+      "head": "da82d2178e605283fabf76b80c91cd731da4ad49",
+      "evidence": [
+        "Verify #1978 push SUCCESS",
+        "Verify #1979 PR SUCCESS",
+        "base = current RC3.2 main"
+      ],
+      "note": "P0-04 remains UNKNOWN until the exact assembled integration candidate pins and re-proves these semantics."
+    },
+    {
+      "id": "R2",
+      "subject": "#180 UI prototype canonical read-model vocabulary",
+      "state": "SAT_PROTOTYPE_ONLY",
+      "head": "0aa5a824d7da70172a267dbf1f440e69d44ef271",
+      "evidence": [
+        "Verify #1990 SUCCESS"
+      ],
+      "note": "Production UI wiring remains UNKNOWN."
+    }
+  ],
+  "blockers": [
+    {
+      "id": "B1",
+      "state": "UNKNOWN",
+      "subject": "Home Market canonical Listing/BuyOffer reference mutation",
+      "owner": "#176 Home Market domain owner",
+      "phase0Rows": [
+        "P0-05"
+      ],
+      "downstreamRows": [
+        "P3-09",
+        "P4-12"
+      ],
+      "requiredDeliverables": [
+        "canonical add/remove or attach/detach APIs for listingIds and buyOfferIds",
+        "idempotent duplicate-reference handling",
+        "ownership/lifecycle validation",
+        "save/load continuity for references",
+        "exact-head focused tests and repo Verify"
+      ],
+      "forbiddenWorkarounds": [
+        "Integrator pushes/splices listingIds or buyOfferIds directly",
+        "UI/AI writes Home Market references"
+      ]
+    },
+    {
+      "id": "B2",
+      "state": "UNKNOWN",
+      "subject": "Canonical market projection and tradeRange source",
+      "owner": "Home Market / Trade contract owner",
+      "phase0Rows": [
+        "P0-06"
+      ],
+      "downstreamRows": [
+        "P6-05",
+        "P7-04",
+        "P7-09",
+        "P11-17"
+      ],
+      "requiredDeliverables": [
+        "documented mapping marketId -> id",
+        "documented mapping Home Market status -> open boolean",
+        "canonical physical x/y source",
+        "canonical positive safe-integer tradeRange source",
+        "tests proving no guessed/default tradeRange and closed/invalid markets fail closed"
+      ],
+      "forbiddenWorkarounds": [
+        "hard-coded tradeRange in integration",
+        "distance-derived value invented by adapter",
+        "UI coordinates treated as world authority"
+      ]
+    },
+    {
+      "id": "B3",
+      "state": "UNKNOWN",
+      "subject": "Navigation-owned verified arrival/position evidence",
+      "owner": "Navigation authority / #178 integration owner",
+      "phase0Rows": [
+        "P0-07"
+      ],
+      "downstreamRows": [
+        "P6-01",
+        "P6-02",
+        "P6-03",
+        "P6-04",
+        "P6-08"
+      ],
+      "requiredDeliverables": [
+        "canonical evidence producer owned by Navigation/current-position authority",
+        "agentId + marketId + coordinates/tick provenance contract",
+        "fail-closed stale/mismatched evidence rules",
+        "tests proving forged verified:true cannot satisfy purchase gate",
+        "save/load rule if arrival evidence persists"
+      ],
+      "forbiddenWorkarounds": [
+        "Integration/AI/UI fabricates verified:true",
+        "distance comparison alone is upgraded into canonical arrival evidence",
+        "teleport to satisfy arrival"
+      ]
+    },
+    {
+      "id": "B4",
+      "state": "UNKNOWN",
+      "subject": "Canonical Reservation authority",
+      "owner": "Market/Reservation domain owner with #177 compatibility",
+      "phase0Rows": [
+        "P0-08"
+      ],
+      "downstreamRows": [
+        "P7-02",
+        "P7-03",
+        "P10-15",
+        "P11-11",
+        "P11-12",
+        "P11-13",
+        "P11-14",
+        "P11-15",
+        "P12-07",
+        "P13-06"
+      ],
+      "requiredDeliverables": [
+        "single Reservation writer",
+        "deterministic reservation ID rule",
+        "ACTIVE lifecycle and terminal/release vocabulary",
+        "listingRevision freeze + exact itemIds freeze",
+        "complete global activeReservations projection",
+        "cross-market overlap rejection",
+        "persistence + old-save migration + cleanup/reconciliation",
+        "exact-head adversarial tests and repo Verify"
+      ],
+      "forbiddenWorkarounds": [
+        "test-only reservation object",
+        "AI-created reservation truth",
+        "second reservation ledger inside Trade Kernel/integration"
+      ]
+    },
+    {
+      "id": "B5",
+      "state": "UNKNOWN",
+      "subject": "BuyOffer persistence and Producer procurement matching",
+      "owner": "#179 BuyOffer owner + Trade/market matching owner",
+      "phase0Rows": [
+        "P0-09"
+      ],
+      "downstreamRows": [
+        "P3-01",
+        "P3-03",
+        "P3-08",
+        "P3-09",
+        "P3-10",
+        "P12-06"
+      ],
+      "requiredDeliverables": [
+        "canonical BuyOffer collection/serializer/restore",
+        "idempotent create/conflict rules",
+        "Home Market reference integration through B1 authority",
+        "defined Producer acceptance/matching path",
+        "approved transition from BuyOffer match to canonical Listing/Reservation/TradeProposal or equivalent contract",
+        "save/load and replay tests"
+      ],
+      "forbiddenWorkarounds": [
+        "BuyOffer holds/reserves spendable money",
+        "BuyOffer directly transfers item",
+        "Integrator invents hidden matching state"
+      ]
+    },
+    {
+      "id": "B6",
+      "state": "UNKNOWN",
+      "subject": "Post-settlement Listing/Reservation semantics inside outer atomic boundary",
+      "owner": "#179 Listing owner + Reservation/#177 integration owner",
+      "phase0Rows": [
+        "P0-10",
+        "P0-13"
+      ],
+      "downstreamRows": [
+        "P4-07",
+        "P4-10",
+        "P7-10",
+        "P11-20"
+      ],
+      "requiredDeliverables": [
+        "partial-fill quantity rule",
+        "Listing revision/status transition rule after settlement",
+        "Reservation terminal/release transition rule",
+        "all market postconditions staged before live-root replacement",
+        "failure injection proving live root byte-identical if any postcondition fails"
+      ],
+      "forbiddenWorkarounds": [
+        "commit money/item first then decrement Listing later",
+        "cleanup Reservation in a second live mutation",
+        "compensating rollback counted as atomicity"
+      ]
+    },
+    {
+      "id": "B7",
+      "state": "UNKNOWN",
+      "subject": "Production persistence ownership for RC4 state",
+      "owner": "Persistence owner + each owning RC4 domain",
+      "phase0Rows": [
+        "P0-11"
+      ],
+      "downstreamRows": [
+        "P12-01",
+        "P12-02",
+        "P12-04",
+        "P12-05",
+        "P12-06",
+        "P12-07",
+        "P12-08",
+        "P12-09",
+        "P12-10",
+        "P12-11",
+        "P13-01",
+        "P13-02",
+        "P13-03",
+        "P13-05",
+        "P13-06",
+        "P13-07",
+        "P13-08"
+      ],
+      "requiredDeliverables": [
+        "canonical root keys/containers for Home Market, Listings, BuyOffers, Reservations, tradeReplay, Wallet, Merchant Ledgers and Career progression",
+        "deterministic restore validation",
+        "old-save migration ownership per component",
+        "corrupt/missing replay evidence fails closed where replay safety would otherwise reset",
+        "one-shot migration proof",
+        "save/load old-transaction replay no-op"
+      ],
+      "forbiddenWorkarounds": [
+        "silent fresh replay ledger after load",
+        "duplicate wallet/listing/reservation/ledger containers",
+        "UI/localStorage shadow becoming authority"
+      ]
+    },
+    {
+      "id": "B8",
+      "state": "UNKNOWN",
+      "subject": "Exact assembled RC4 integration candidate and one-root commit orchestration",
+      "owner": "RC4 Merchant Economy Integration Lead",
+      "phase0Rows": [
+        "P0-01",
+        "P0-02",
+        "P0-03",
+        "P0-12",
+        "P0-13"
+      ],
+      "downstreamRows": [
+        "P1-01",
+        "P3-03",
+        "P7-05",
+        "P8-01",
+        "P9-01",
+        "P14-D-01",
+        "P14-M-01",
+        "P15-01"
+      ],
+      "requiredDeliverables": [
+        "one exact integration head SHA based on audited current main",
+        "explicit donor selection manifest with exact heads",
+        "documented non-hidden adapters only",
+        "staged root candidate and single live-root replacement",
+        "full 171-row execution report tied to exact SHA",
+        "desktop/mobile real-click browser proof",
+        "retained regression evidence",
+        "independent Red Team SAT"
+      ],
+      "forbiddenWorkarounds": [
+        "partial integration branches counted as final candidate",
+        "donor CI reused as integrated CI",
+        "UNKNOWN defaulted to a value",
+        "shared runtime edited solely to bypass acceptance"
+      ]
+    }
+  ]
+}
