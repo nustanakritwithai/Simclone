@@ -276,3 +276,33 @@ export function restoreMerchantLedgerCollection(serialized){
   if(errors.length)throw new Error('merchant-ledger-collection-invalid:'+errors.join(','));
   return collection;
 }
+
+
+export function merchantLedgerFromCollection(collection,merchantId){
+  const errors=validateMerchantLedgerCollection(collection);
+  if(errors.length||!positiveInt(merchantId))return null;
+  const row=collection.ledgers.find(x=>x.merchantId===merchantId);
+  return row?clone(row):null;
+}
+
+export function ensureMerchantLedgerInCollection(collection,merchantId){
+  const errors=validateMerchantLedgerCollection(collection);
+  if(errors.length)return {state:'VIOL',reason:'merchant-ledger-collection',errors,collection:null};
+  if(!positiveInt(merchantId))return {state:'VIOL',reason:'merchantId',collection:clone(collection)};
+  const existing=collection.ledgers.find(x=>x.merchantId===merchantId);
+  if(existing)return {state:'SAT',duplicate:true,ledger:clone(existing),collection:clone(collection)};
+  const next=clone(collection),ledger=createMerchantLedger(merchantId);
+  next.ledgers.push(ledger);next.ledgers.sort((a,b)=>a.merchantId-b.merchantId);
+  return {state:'SAT',duplicate:false,ledger:clone(ledger),collection:next};
+}
+
+export function replaceMerchantLedgerInCollection(collection,ledger){
+  const errors=validateMerchantLedgerCollection(collection),ledgerErrors=validateMerchantLedger(ledger);
+  if(errors.length||ledgerErrors.length)return {state:'VIOL',reason:'merchant-ledger',errors:[...errors,...ledgerErrors],collection:clone(collection)};
+  const index=collection.ledgers.findIndex(x=>x.merchantId===ledger.merchantId);
+  if(index<0)return {state:'VIOL',reason:'merchant-ledger-missing',collection:clone(collection)};
+  const next=clone(collection);next.ledgers[index]=clone(ledger);
+  const post=validateMerchantLedgerCollection(next);
+  if(post.length)return {state:'VIOL',reason:'merchant-ledger-collection',errors:post,collection:clone(collection)};
+  return {state:'SAT',duplicate:false,ledger:clone(ledger),collection:next};
+}
