@@ -250,7 +250,7 @@ export function prepareRc4MarketTravel(world,{agentId,marketId}={}){
   if(path===null)return fail('no-path','ไม่มีเส้นทางไปตลาด');
   const built=createCanonicalMarketTravelTask(world,agent,marketResult.market,path);
   if(built.state!=='SAT')return fail(built.reason,'สร้างเส้นทางตลาดไม่ได้');
-  return {ok:true,agent,task:clone(built.task),market:marketResult.market};
+  return {ok:true,agent,task:built.task,market:marketResult.market};
 }
 
 function buyListing(world,{buyerId,listingId}={}){
@@ -339,10 +339,11 @@ export function rc4Command(world,type,data={}){
 
   if(type==='RC4_OPEN_MARKET'||type==='RC4_CLOSE_MARKET'){
     const market=world.homeMarkets.markets.find(m=>m.marketId===data.marketId);if(!market)return fail('market','ไม่พบตลาด');
-    const owner=world.agents.find(a=>a.id===market.ownerAgentId&&a.alive);
+    if(!positive(data.agentId)||data.agentId!==market.ownerAgentId)return fail('owner','เฉพาะเจ้าของ Home Market เท่านั้น');
+    const owner=world.agents.find(a=>a.id===data.agentId&&a.alive);
     if(!owner)return fail('owner','เจ้าของตลาดไม่พร้อม');
     if(type==='RC4_OPEN_MARKET'&&owner.profession!=='merchant')return fail('merchant','ต้องเป็น Merchant ก่อนเปิดร้าน');
-    const changed=(type==='RC4_OPEN_MARKET'?openHomeMarket:closeHomeMarket)(world,world.homeMarkets,{marketId:data.marketId,ownerAgentId:market.ownerAgentId});
+    const changed=(type==='RC4_OPEN_MARKET'?openHomeMarket:closeHomeMarket)(world,world.homeMarkets,{marketId:data.marketId,ownerAgentId:data.agentId});
     if(!changed.ok)return fail(changed.reason,changed.message);
     world.homeMarkets=changed.marketState;
     return {ok:true,marketId:data.marketId,status:changed.market.status,eventType:'market',eventText:'ตลาด '+changed.market.status};
