@@ -544,7 +544,7 @@ function market(){
    const open=m.ownMarket.status==='open';
    body+='<div class="help-block"><b>Home Market '+esc(m.ownMarket.marketId)+'</b><br>สถานะ '+esc(m.ownMarket.status)+' · บ้าน '+esc(m.ownMarket.homeId)+'</div>';
    if(sel.profession==='merchant'){
-     body+='<div class="dialog-actions"><button class="'+(open?'secondary':'primary')+'" data-action="'+(open?'rc4-close-market':'rc4-open-market')+'" data-market="'+esc(m.ownMarket.marketId)+'">'+(open?'ปิดร้าน':'เปิดร้าน')+'</button></div>';
+     body+='<div class="dialog-actions"><button class="'+(open?'secondary':'primary')+'" data-action="'+(open?'rc4-close-market':'rc4-open-market')+'" data-agent="'+sel.id+'" data-market="'+esc(m.ownMarket.marketId)+'">'+(open?'ปิดร้าน':'เปิดร้าน')+'</button></div>';
    }else{
      body+='<p class="source-note">ตลาดเตรียมการยังปิดอยู่ · ตั้ง BuyOffer/Listing intent เพื่อสร้าง trade knowledge ก่อน</p>';
    }
@@ -634,8 +634,8 @@ $('dialog-body').addEventListener('click',e=>{
   let result;
   if(action==='rc4-become-merchant')result=command(state,'RC4_BECOME_MERCHANT',{agentId:Number(b.dataset.agent)});
   else if(action==='rc4-create-market')result=command(state,'RC4_CREATE_MARKET',{agentId:Number(b.dataset.agent)});
-  else if(action==='rc4-open-market')result=command(state,'RC4_OPEN_MARKET',{marketId:b.dataset.market});
-  else if(action==='rc4-close-market')result=command(state,'RC4_CLOSE_MARKET',{marketId:b.dataset.market});
+  else if(action==='rc4-open-market')result=command(state,'RC4_OPEN_MARKET',{agentId:Number(b.dataset.agent),marketId:b.dataset.market});
+  else if(action==='rc4-close-market')result=command(state,'RC4_CLOSE_MARKET',{agentId:Number(b.dataset.agent),marketId:b.dataset.market});
   else if(action==='rc4-list-item')result=command(state,'RC4_CREATE_LISTING',{agentId:Number(b.dataset.agent),itemId:Number(b.dataset.item),unitPrice:Number(b.dataset.price)});
   else if(action==='rc4-create-offer')result=command(state,'RC4_CREATE_BUY_OFFER',{agentId:Number(b.dataset.agent),itemKind:b.dataset.kind,unitPrice:Number(b.dataset.price)});
   else if(action==='rc4-accept-offer')result=command(state,'RC4_ACCEPT_BUY_OFFER',{producerId:Number(b.dataset.agent),offerId:b.dataset.offer,itemId:Number(b.dataset.item)});
