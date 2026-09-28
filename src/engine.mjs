@@ -43,6 +43,7 @@ import {regionalRiverCenter,regionalResourceDecision} from './world-regions.mjs?
 import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventure-annex.mjs?v=0.5.0';
 import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement,defeatWildMonster,stepWildMonsterLifecycle,migrateWildMonsterLifecycleState} from './adventure-world-monsters.mjs?v=0.5.0';
 import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adventure-autonomy.mjs?v=0.5.0';
+import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -184,6 +185,7 @@ export function command(s,type,data={}){
     }
     return mentorship;
   }
+  const training=craftTrainingCommand(s,type,data);if(training)return training;
   const production=productionCommand(s,type,data);if(production)return production;
   const rust=rustCommand(s,type,data,walkable);
   if(rust){
@@ -640,7 +642,9 @@ export function step(s,count=1,options={}){
       priority(x.a)-priority(y.a)||(priority(x.a)===0?x.a.satiety-y.a.satiety:priority(x.a)===1?x.a.energy-y.a.energy:0)||x.order-y.order);
     for(const {a} of order){
       if(a.task&&(!taskValid(s,a)||!adventureExpeditionTaskValid(s,a,a.task,{walkable}))){release(book,a,a.task);a.task=null;}
-      if(stepAutonomousAdventure(s,a))continue;
+      const practice=craftTrainingIntent(s,a);
+      const practiceAccepted=practice?command(s,'CRAFT_ITEM',practice).ok:false;
+      if(!practiceAccepted&&stepAutonomousAdventure(s,a))continue;
       if(!a.task)decide(s,a,book);
       const task=a.task;
       if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
@@ -719,6 +723,7 @@ export function validate(s){
     for(const e of validateAdventureCombatRewardState(s,a))bad(e);
     for(const e of validateAdventureLootClaimState(s,a))bad(e);
     for(const e of validateKnowledgeState(a))bad(e);
+    for(const e of validateCraftTraining(s,a))bad(e);
     if(!a.appearance||['coat','skin','hair'].some(k=>!/^#[a-fA-F0-9]{6}$/.test(a.appearance[k]))||![0,1,2].includes(a.appearance.style))bad('Appearance');
     if(!Array.isArray(a.memory)||a.memory.length>8||a.memory.some(m=>typeof m.text!=='string'||!finite(m.tick)))bad('Memory');
     if(!Array.isArray(a.trace)||a.trace.length>30||a.trace.some(t=>!LABELS[t.kind]||!finite(t.score)||!t.factors||Object.values(t.factors).some(v=>!finite(v))))bad('Trace');

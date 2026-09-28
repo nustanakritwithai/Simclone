@@ -1,3 +1,4 @@
+import {equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
 import {isIndependent,resourceStock} from './individual-resources.mjs?v=0.5.0';
 import {personalHomeSite,homeOf} from './individual-housing.mjs?v=0.5.0';
 /** RP1 — deterministic autonomous Rust production coordinator.
@@ -67,7 +68,7 @@ function equipForWork(s,isWalkable){
   for(const a of eligible(s)){
     const tools=bagItems(s).filter(i=>i.location.agentId===a.id&&ITEM_CATALOG[i.kind]?.category==='tool').sort((x,y)=>x.id-y.id);
     if(!tools.length)continue;
-    const equipped=s.rustPossessions.equipment.find(e=>e.agentId===a.id);
+    const equipped=s.rustPossessions.equipment.find(e=>e.agentId===a.id&&equipmentSlotOf(e)==='hand');
     const current=tools.find(i=>i.id===equipped?.itemId);
     const desired=tools.find(i=>ITEM_CATALOG[i.kind].workAction===a.task?.kind)??current??tools[0];
     if(current?.id===desired.id)continue;
@@ -113,7 +114,7 @@ function stepHousePlan(s,p,isWalkable){
   const piece=raw.socket.type==='edge'?{...raw,socket:canonicalEdge(raw.socket.x,raw.socket.y,raw.socket.side)}:raw;
   const carrying=bagItems(s,piece.pieceKind).some(i=>i.location.agentId===builder.id);
   if(carrying){note('place-house-piece','waiting',builder.id);return {ok:true,waiting:true};}
-  const equipped=s.rustPossessions.equipment.find(e=>e.agentId===builder.id),hammer=bagItems(s,'HAMMER').find(i=>i.location.agentId===builder.id);
+  const equipped=s.rustPossessions.equipment.find(e=>e.agentId===builder.id&&equipmentSlotOf(e)==='hand'),hammer=bagItems(s,'HAMMER').find(i=>i.location.agentId===builder.id);
   if(equipped?.itemId!==hammer.id){
     const r=rustCommand(s,'EQUIP_ITEM',{agentId:builder.id,itemId:hammer.id},isWalkable);
     record(p,s.tick,'equip-HAMMER-house',r?.ok?'completed':(r?.reason??'blocked'),builder.id);if(!r?.ok)return r;

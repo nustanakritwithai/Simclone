@@ -1,3 +1,4 @@
+import {equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
 import {materialStock} from './individual-resources.mjs?v=0.5.0';
 /** Pure IC2 per-person next intention. This is not an executor. */
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
@@ -16,7 +17,7 @@ export function personalHomeIntent(s,a,isWalkable=()=>true){
  const bag=(s.rustPossessions?.items??[]).filter(i=>i.location?.kind==='bag'&&i.location.agentId===a.id).sort((x,y)=>x.id-y.id);
  const hammer=bag.find(i=>i.kind==='HAMMER');
  if(!hammer)return {...context,kind:'NEED_HAMMER',station:'CRAFTING_TABLE_LV1'};
- if(s.rustPossessions.equipment.find(e=>e.agentId===a.id)?.itemId!==hammer.id)return {...context,kind:'EQUIP_HAMMER',itemId:hammer.id};
+ if(s.rustPossessions.equipment.find(e=>e.agentId===a.id&&equipmentSlotOf(e)==='hand')?.itemId!==hammer.id)return {...context,kind:'EQUIP_HAMMER',itemId:hammer.id};
  const carried=bag.find(i=>i.kind===piece.pieceKind);
  if(carried)return {...context,kind:'PLACE_PIECE',itemInstanceId:carried.id,pieceKind:piece.pieceKind,socket:{...piece.socket}};
  const recipe=RECIPE_CATALOG[piece.pieceKind];if(!recipe)return {...base,kind:'NO_SITE'};

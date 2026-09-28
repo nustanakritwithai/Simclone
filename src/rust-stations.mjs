@@ -22,7 +22,7 @@ export function stationForRecipe(s,recipeId,agent,preferredId=null){
   return xs.sort((a,b)=>dist(agent,a)-dist(agent,b)||a.id-b.id)[0]??null;
 }
 const equippedHammer=(s,agentId)=>{
-  const e=s.rustPossessions?.equipment?.find(e=>e.agentId===agentId),item=e&&s.rustPossessions?.items.find(i=>i.id===e.itemId);
+  const e=s.rustPossessions?.equipment?.find(e=>e.agentId===agentId&&(e.slot??'hand')==='hand'),item=e&&s.rustPossessions?.items.find(i=>i.id===e.itemId);
   return item?.kind==='HAMMER';
 };
 const STRUCTURE_KINDS=new Set(['WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF']);
