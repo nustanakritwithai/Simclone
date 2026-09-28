@@ -27,7 +27,7 @@ import {
 import {
   evaluateMerchantQualification,adoptMerchantProfession,noteVerifiedCommittedMerchantTransaction,validateMerchantProgression
 } from './merchant-career.mjs?v=0.5.0';
-import {createCanonicalMarketTravelTask,verifyCanonicalMarketArrival,isCanonicalMarketTravelTask} from './navigation-arrival-evidence.mjs?v=0.5.0';
+import {createCanonicalMarketTravelTask,verifyCanonicalMarketArrival,isCanonicalMarketTravelTask,canPreemptForCanonicalMarketTravel} from './navigation-arrival-evidence.mjs?v=0.5.0';
 
 export const RC4_ECONOMY_ROOT_VERSION='RC4-economy-root/1';
 
@@ -245,7 +245,7 @@ export function prepareRc4MarketTravel(world,{agentId,marketId}={}){
   if(!marketResult.ok||marketResult.market.open!==true)return fail('market-closed','ตลาดยังไม่เปิด');
   const agent=world.agents.find(a=>a.id===agentId&&a.alive);
   if(!agent)return fail('agent','ไม่พบ Clone');
-  if(agent.task)return fail('busy','Clone กำลังทำงานอื่น');
+  if(!canPreemptForCanonicalMarketTravel(agent.task))return fail('busy','Clone กำลังทำงานที่หยุดไม่ได้');
   const path=pathTo(world,agent,marketResult.market);
   if(path===null)return fail('no-path','ไม่มีเส้นทางไปตลาด');
   const built=createCanonicalMarketTravelTask(world,agent,marketResult.market,path);
