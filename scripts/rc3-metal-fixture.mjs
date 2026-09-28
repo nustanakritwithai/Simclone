@@ -33,6 +33,7 @@ a.x=tablePos.x;a.y=tablePos.y;
 craftFixtureHome(s,a);
 stock=resourceStock(s,a);
 Object.assign(stock,{food:100,wood:300,stone:300,charcoal:20,ironOre:20,ironIngot:10,steelIngot:10});
+a.x=tablePos.x;a.y=tablePos.y;
 craft('STONE_AXE');craft('STONE_AXE');craft('STONE_AXE_T1');craft('STONE_AXE_T1');
 Object.assign(stock,{food:100,wood:300,stone:300,charcoal:20,ironOre:20,ironIngot:10,steelIngot:10});
 a.task=null;a.satiety=100;a.energy=100;a.hp=100;
