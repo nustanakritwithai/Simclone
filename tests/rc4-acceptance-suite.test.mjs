@@ -39,10 +39,15 @@ test('RC4 acceptance artifacts are parseable, unique and fail-closed before Mast
   assert.ok(blockers.blockers.some(x=>x.id==='B3'&&x.state==='VIOL'));
   assert.ok(blockers.blockers.some(x=>x.id==='B7'&&x.state==='VIOL'));
   assert.equal(blockers.lockedNextGate?.id,'B8');
-  assert.ok(['LOCKED_NOT_STARTED','IN_PROGRESS_UNKNOWN'].includes(blockers.lockedNextGate?.state),'B8 may start only as UNKNOWN, never pre-promoted to SAT');
+  assert.ok(['LOCKED_NOT_STARTED','IN_PROGRESS_UNKNOWN','CANDIDATE_SAT_ACCEPTANCE_PENDING'].includes(blockers.lockedNextGate?.state),'B8 may become candidate-SAT only while full acceptance remains pending; never pre-promote production SAT');
   assert.ok(blockers.resolved.some(x=>x.id==='R1'&&x.head==='9b5e63e386f0543f9700237242b2c4f0745a8c2d'));
   assert.ok(blockers.resolved.some(x=>x.id==='R2'&&x.head==='0aa5a824d7da70172a267dbf1f440e69d44ef271'));
   assert.ok(blockers.resolved.some(x=>x.id==='R4'&&x.head==='c4d1b544a1203459aa78ef55b83a28db6077056c'));
+  if(blockers.lockedNextGate?.state==='CANDIDATE_SAT_ACCEPTANCE_PENDING'){
+    assert.equal(blockers.lockedNextGate?.candidate?.exactHead,'e615c2fbff7d26bd0d04e8ac4d2d381758cfa75c');
+    assert.equal(blockers.lockedNextGate?.candidate?.verifyState,'SUCCESS');
+    assert.equal(blockers.lockedNextGate?.candidate?.scopeVerdict,'PLAYABLE_INTEGRATION_CANDIDATE_SAT');
+  }
   assert.ok(fixture.setupPolicy?.forbiddenPrimaryEvidence?.some(x=>x.includes('tradeRange')));
   assert.ok(fixture.setupPolicy?.forbiddenPrimaryEvidence?.some(x=>x.includes('Reservation')));
 });
