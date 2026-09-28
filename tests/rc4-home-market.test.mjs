@@ -16,7 +16,10 @@ import {
   detachHomeMarketListingReference,
   attachHomeMarketBuyOfferReference,
   detachHomeMarketBuyOfferReference,
-  projectHomeMarketForTrade
+  projectHomeMarketForTrade,
+  migrateHomeMarketState,
+  serializeHomeMarketState,
+  restoreHomeMarketState
 } from '../src/home-market.mjs';
 import {homeOf} from '../src/individual-housing.mjs';
 import {housingCapacity} from '../src/housing.mjs';
@@ -185,4 +188,17 @@ test('RC4 B2: invalid/missing physical storefront projection fails closed',()=>{
   s.rustStations.stations=s.rustStations.stations.filter(st=>st.kind!=='WOOD_DOORWAY');
   const r=projectHomeMarketForTrade(s,created.marketState,{marketId:id});
   assert.equal(r.ok,false);assert.equal(r.reason,'market-invalid');
+});
+
+
+test('RC4 B7/HomeMarket: authoritative restore preserves refs and corrupt present state fails closed',()=>{
+  const s=marketWorld(),created=createHomeMarket(s,undefined,{ownerAgentId:1,homeId:'H1'}),id=created.market.marketId;
+  const attached=attachHomeMarketListingReference(s,created.marketState,{marketId:id,ownerAgentId:1,referenceId:'LISTING-PERSIST'});
+  const wire=serializeHomeMarketState(attached.marketState),restored=restoreHomeMarketState(wire);
+  assert.equal(JSON.stringify(restored),wire);assert.deepEqual(restored.markets[0].listingIds,['LISTING-PERSIST']);
+  const old=migrateHomeMarketState(undefined);assert.equal(old.state,'SAT');assert.equal(old.migrated,true);
+  const again=migrateHomeMarketState(old.marketState);assert.equal(again.state,'SAT');assert.equal(again.migrated,false);assert.equal(again.duplicate,true);
+  const corrupt={version:HOME_MARKET_VERSION,markets:[{...structuredClone(attached.marketState.markets[0]),listingIds:['X','X']}]};
+  assert.equal(migrateHomeMarketState(corrupt).state,'VIOL');
+  assert.throws(()=>restoreHomeMarketState(JSON.stringify(corrupt)),/market-state-invalid/);
 });
