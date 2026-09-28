@@ -1,0 +1,22 @@
+diff --git a/src/app.mjs b/src/app.mjs
+index c668872..534410c 100644
+--- a/src/app.mjs
++++ b/src/app.mjs
+@@ -554 +554 @@ function market(){
+-   const kinds=[...new Set((state.rustPossessions?.items??[]).map(i=>i.kind))].sort().slice(0,8);
++   const kinds=[...new Set([...m.bag.map(i=>i.kind),...m.markets.flatMap(x=>x.listings.map(l=>l.itemKind)),'STONE_AXE','STONE_PICKAXE','HAMMER'])].sort().slice(0,8);
+@@ -569 +569 @@ function market(){
+- body+='<h3>ตลาดในโลก</h3>';
++ body+='<h3>ตลาดที่ Clone เคยพบ</h3>';
+@@ -577 +577 @@ function market(){
+-       if(sel.id!==l.sellerId&&l.status==='OPEN'&&marketRow.status==='open'){
++       if(sel.id!==l.sellerId&&l.needed&&l.status==='OPEN'&&marketRow.status==='open'){
+@@ -580 +580 @@ function market(){
+-           ?' <button class="primary" data-action="rc4-buy-listing" data-agent="'+sel.id+'" data-listing="'+esc(l.id)+'">ซื้อ</button>'
++           ?' <button class="primary" data-action="rc4-buy-listing" data-agent="'+sel.id+'" data-listing="'+esc(l.id)+'" data-listing-revision="'+l.revision+'">ซื้อ</button>'
+@@ -639 +639 @@ $('dialog-body').addEventListener('click',e=>{
+-  else if(action==='rc4-list-item')result=command(state,'RC4_CREATE_LISTING',{agentId:Number(b.dataset.agent),itemId:Number(b.dataset.item),unitPrice:Number(b.dataset.price)});
++  else if(action==='rc4-list-item')result=command(state,'RC4_CREATE_LISTING',{agentId:Number(b.dataset.agent),itemId:Number(b.dataset.item),unitPrice:Number(b.dataset.price),requestId:'ui-'+state.tick});
+@@ -643 +643 @@ $('dialog-body').addEventListener('click',e=>{
+-  else if(action==='rc4-buy-listing')result=command(state,'RC4_BUY_LISTING',{buyerId:Number(b.dataset.agent),listingId:b.dataset.listing});
++  else if(action==='rc4-buy-listing')result=command(state,'RC4_BUY_LISTING',{buyerId:Number(b.dataset.agent),listingId:b.dataset.listing,listingRevision:Number(b.dataset.listingRevision)});

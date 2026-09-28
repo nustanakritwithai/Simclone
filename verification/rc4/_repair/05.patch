@@ -1,0 +1,26 @@
+diff --git a/src/merchant-ledger.mjs b/src/merchant-ledger.mjs
+index 707c86d..9685cca 100644
+--- a/src/merchant-ledger.mjs
++++ b/src/merchant-ledger.mjs
+@@ -27,0 +28 @@ const clone=v=>structuredClone(v);
++const progressionGrants=new WeakMap();
+@@ -210 +211 @@ export function applyCanonicalTradeExecutionToLedger(ledger,stagedState,context,
+-  if(!isCanonicalTradeExecutionContext(context))return {state:'UNKNOWN',reason:'trade-commit-provenance',ledger:clone(ledger)};
++  if(!isCanonicalTradeExecutionContext(context,stagedState))return {state:'UNKNOWN',reason:'trade-commit-provenance',ledger:clone(ledger)};
+@@ -231 +232,3 @@ export function applyCanonicalTradeExecutionToLedger(ledger,stagedState,context,
+-  return {state:'SAT',duplicate:false,verification:'VERIFIED',commitStatus:'COMMITTED',receipt:r,ledger:next};
++  const result=Object.freeze({state:'SAT',duplicate:false,verification:'VERIFIED',commitStatus:'COMMITTED',receipt:r,ledger:next});
++  progressionGrants.set(result,{context,stagedState,merchantId:next.merchantId,consumed:false});
++  return result;
+@@ -308,0 +312,11 @@ export function replaceMerchantLedgerInCollection(collection,ledger){
++
++/** Career consumes a Ledger-issued grant once, within this exact staged Trade call. */
++export function consumeCanonicalMerchantProgressionGrant(agent,result){
++  const grant=result&&typeof result==='object'?progressionGrants.get(result):null;
++  if(!grant||!isCanonicalTradeExecutionContext(grant.context,grant.stagedState)||
++    grant.merchantId!==agent?.id||grant.stagedState.agents?.find(a=>a.id===agent.id)!==agent||
++    result.receipt!==grant.context.receipt)return {state:'UNKNOWN',reason:'trade-commit-provenance'};
++  if(grant.consumed)return {state:'SAT',duplicate:true};
++  grant.consumed=true;
++  return {state:'SAT',duplicate:false};
++}

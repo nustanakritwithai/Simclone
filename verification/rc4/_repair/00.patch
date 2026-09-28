@@ -1,0 +1,7 @@
+diff --git a/scripts/rc4-market-fixture.mjs b/scripts/rc4-market-fixture.mjs
+index 4697140..e856ffa 100644
+--- a/scripts/rc4-market-fixture.mjs
++++ b/scripts/rc4-market-fixture.mjs
+@@ -35 +35 @@ place('WOOD_ROOF',{type:'cell',x,y});
+-const order=command(s,'CRAFT_ITEM',{agentId:producer.id,recipeId:'STONE_AXE'});
++const order=command(s,'CRAFT_ITEM',{agentId:producer.id,recipeId:'STONE_PICKAXE'});

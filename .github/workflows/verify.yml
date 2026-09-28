@@ -3,6 +3,7 @@ name: Verify Simclone candidates
 on:
   push:
     branches:
+      - "main"
       - "feature/**"
       - "fix/**"
       - "ci/**"

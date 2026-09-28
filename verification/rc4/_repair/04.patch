@@ -1,0 +1,10 @@
+diff --git a/src/merchant-career.mjs b/src/merchant-career.mjs
+index 90d6db2..934baf9 100644
+--- a/src/merchant-career.mjs
++++ b/src/merchant-career.mjs
+@@ -7,0 +8 @@ import {adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
++import {consumeCanonicalMerchantProgressionGrant} from './merchant-ledger.mjs?v=0.5.0';
+@@ -240,0 +242,3 @@ export function noteVerifiedCommittedMerchantTransaction(agent,evidence){
++  const grant=consumeCanonicalMerchantProgressionGrant(agent,evidence);
++  if(grant.state!==SAT)return skip(UNKNOWN,grant.reason);
++  if(grant.duplicate)return skip(SAT,'canonical-duplicate',{transactionId:assessed.receipt.transactionId});

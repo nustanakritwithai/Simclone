@@ -1,0 +1,45 @@
+diff --git a/src/merchant-listing.mjs b/src/merchant-listing.mjs
+index 102d837..da8082c 100644
+--- a/src/merchant-listing.mjs
++++ b/src/merchant-listing.mjs
+@@ -5 +5 @@ export const MERCHANT_LISTING_VERSION='RC4-listing/3';
+-export const MERCHANT_LISTING_COLLECTION_VERSION='RC4-listing-collection/1';
++export const MERCHANT_LISTING_COLLECTION_VERSION='RC4-listing-collection/2';
+@@ -18 +18 @@ function stableHash(text){
+-export function listingIdFor({marketId,sellerId,itemInstanceId}={}){
++export function listingIdFor({marketId,sellerId,itemInstanceId,requestId=null}={}){
+@@ -20 +20,2 @@ export function listingIdFor({marketId,sellerId,itemInstanceId}={}){
+-  const text=marketId+'|'+sellerId+'|'+itemInstanceId;
++  if(requestId!==null&&!validRefId(requestId))return null;
++  const text=marketId+'|'+sellerId+'|'+itemInstanceId+(requestId===null?'':'|REQUEST|'+requestId);
+@@ -34,0 +36 @@ export function validateListing(row){
++  if(row.buyOfferId!==undefined&&!validRefId(row.buyOfferId))e.push('buyOfferId');
+@@ -39,2 +41,2 @@ export function validateListing(row){
+-export function createListing({id,marketId,sellerId,itemKind,itemInstanceId,quantity,unitPrice,status=LISTING_STATUS.OPEN}={}){
+-  const listing={id,marketId,sellerId,itemKind,itemInstanceId,quantity,unitPrice,revision:1,status};
++export function createListing({id,marketId,sellerId,itemKind,itemInstanceId,quantity,unitPrice,status=LISTING_STATUS.OPEN,buyOfferId}={}){
++  const listing={id,marketId,sellerId,itemKind,itemInstanceId,quantity,unitPrice,revision:1,status,...(buyOfferId===undefined?{}:{buyOfferId})};
+@@ -67 +69 @@ export function transitionListing(listing,status){
+-export function createListingCollection(){return {version:MERCHANT_LISTING_COLLECTION_VERSION,listings:[]};}
++export function createListingCollection(){return {version:MERCHANT_LISTING_COLLECTION_VERSION,listings:[],creations:[]};}
+@@ -70 +72 @@ export function validateListingCollection(collection){
+-  if(!collection||collection.version!==MERCHANT_LISTING_COLLECTION_VERSION||!Array.isArray(collection.listings))return ['listing-collection'];
++  if(!collection||collection.version!==MERCHANT_LISTING_COLLECTION_VERSION||!Array.isArray(collection.listings)||!Array.isArray(collection.creations))return ['listing-collection'];
+@@ -78,0 +81,7 @@ export function validateListingCollection(collection){
++  const requests=new Map();
++  for(const r of collection.creations){
++    if(!r||!validRefId(r.id)||!r.input||r.input.id!==r.id||validateListing(r.input).length||r.input.revision!==1||requests.has(r.id))e.push('creation-receipt');
++    else requests.set(r.id,r.input);
++  }
++  for(const row of collection.listings){const original=requests.get(row.id);if(!original||!sameIdentity(original,row))e.push('creation-receipt');}
++  if(requests.size!==collection.listings.length)e.push('creation-receipt');
+@@ -82 +91 @@ export function validateListingCollection(collection){
+-const sameIdentity=(a,b)=>a.marketId===b.marketId&&a.sellerId===b.sellerId&&a.itemKind===b.itemKind&&a.itemInstanceId===b.itemInstanceId;
++const sameIdentity=(a,b)=>a.marketId===b.marketId&&a.sellerId===b.sellerId&&a.itemKind===b.itemKind&&a.itemInstanceId===b.itemInstanceId&&a.buyOfferId===b.buyOfferId;
+@@ -90 +99,2 @@ export function createListingInCollection(collection,input={}){
+-    if(!sameIdentity(existing,made.listing))return {state:'VIOL',reason:'listing-id-conflict',collection:resultCollection(collection)};
++    const original=collection.creations.find(r=>r.id===existing.id)?.input;
++    if(!original||JSON.stringify(original)!==JSON.stringify(made.listing))return {state:'VIOL',reason:'listing-id-conflict',collection:resultCollection(collection)};
+@@ -95 +105 @@ export function createListingInCollection(collection,input={}){
+-  const next=resultCollection(collection);next.listings.push({...made.listing});
++  const next=resultCollection(collection);next.listings.push({...made.listing});next.creations.push({id:made.listing.id,input:{...made.listing}});

@@ -1,0 +1,60 @@
+diff --git a/tests/merchant-career.test.mjs b/tests/merchant-career.test.mjs
+index 5659adb..3d57602 100644
+--- a/tests/merchant-career.test.mjs
++++ b/tests/merchant-career.test.mjs
+@@ -0,0 +1,2 @@
++import {productionMarketFixture,commitRealTrades} from './fixtures/rc4-production-world.mjs';
++import {progressThroughCanonicalTrade} from './fixtures/rc4-career-execution.mjs';
+@@ -161,5 +163,3 @@ test('Merchant profession and career continuity survive engine save/load',()=>{
+-  const s=createWorld(230926),a=s.agents[0];
+-  const adopted=adoptMerchantProfession(a,validSnapshot({agentId:a.id,evidenceId:'save-load-merchant'}),s.tick);
+-  assert.equal(adopted.changed,true);
+-  const tx=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-save-1',buyerId:a.id,sellerId:2,itemId:701}));
+-  assert.equal(tx.counted,true);
++  const f=productionMarketFixture(),s=f.world;
++  commitRealTrades(f,1);
++  const a=s.agents.find(a=>a.id===f.merchantId);
+@@ -179 +179 @@ test('canonical VERIFIED + COMMITTED Merchant buyer counts exactly once',()=>{
+-  const result=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-buyer',buyerId:7,sellerId:2,itemId:801}));
++  const result=progressThroughCanonicalTrade(a,canonicalEvidence({transactionId:'tx-buyer',buyerId:7,sellerId:2,itemId:801}));
+@@ -188 +188 @@ test('canonical VERIFIED + COMMITTED Merchant seller counts exactly once',()=>{
+-  const result=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-seller',buyerId:2,sellerId:8,itemId:802}));
++  const result=progressThroughCanonicalTrade(a,canonicalEvidence({transactionId:'tx-seller',buyerId:2,sellerId:8,itemId:802}));
+@@ -197 +197 @@ test('canonical duplicate:true is a no-op and Career does not determine replay u
+-  const first=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-replay',buyerId:10,sellerId:2,itemId:803}));
++  const first=progressThroughCanonicalTrade(a,canonicalEvidence({transactionId:'tx-replay',buyerId:10,sellerId:2,itemId:803}));
+@@ -200 +200 @@ test('canonical duplicate:true is a no-op and Career does not determine replay u
+-  const replay=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-replay',buyerId:10,sellerId:2,itemId:803,duplicate:true}));
++  const replay=progressThroughCanonicalTrade(a,canonicalEvidence({transactionId:'tx-replay',buyerId:10,sellerId:2,itemId:803,duplicate:true}));
+@@ -211 +211 @@ test('Merchant party lock rejects another party transaction',()=>{
+-  const result=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-other',buyerId:2,sellerId:3,itemId:804}));
++  const result=progressThroughCanonicalTrade(a,canonicalEvidence({transactionId:'tx-other',buyerId:2,sellerId:3,itemId:804}));
+@@ -270 +270 @@ test('legacy recent transaction ids are ignored and never decide canonical uniqu
+-  const result=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({
++  const result=progressThroughCanonicalTrade(a,canonicalEvidence({
+@@ -282 +282 @@ test('more than 32 unique commits then replay of the first transaction stays a n
+-    const result=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({
++    const result=progressThroughCanonicalTrade(a,canonicalEvidence({
+@@ -290 +290 @@ test('more than 32 unique commits then replay of the first transaction stays a n
+-  const replay=noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({
++  const replay=progressThroughCanonicalTrade(a,canonicalEvidence({
+@@ -299,5 +299,3 @@ test('save/load then old canonical duplicate replay cannot increase progression'
+-  const s=createWorld(991),a=s.agents[0];
+-  assert.equal(adoptMerchantProfession(a,validSnapshot({agentId:a.id,evidenceId:'merchant-save-replay'}),s.tick).changed,true);
+-  for(let i=1;i<=33;i++)assert.equal(noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({
+-    transactionId:'tx-save-long-'+i,buyerId:a.id,sellerId:2,itemId:1000+i,
+-  })).counted,true);
++  const f=productionMarketFixture(),s=f.world;
++  const {first}=commitRealTrades(f,33);
++  const a=s.agents.find(a=>a.id===f.merchantId);
+@@ -306,3 +304 @@ test('save/load then old canonical duplicate replay cannot increase progression'
+-  const replay=noteVerifiedCommittedMerchantTransaction(b,canonicalEvidence({
+-    transactionId:'tx-save-long-1',buyerId:b.id,sellerId:2,itemId:1001,duplicate:true,
+-  }));
++  const replay=noteVerifiedCommittedMerchantTransaction(b,{state:'SAT',duplicate:true,receipt:first.receipt});
+@@ -318 +314 @@ test('Merchant realized profit progression hook is a read-only projection of Mer
+-  noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-ledger-1',buyerId:9,sellerId:2,itemId:1201}));
++  progressThroughCanonicalTrade(a,canonicalEvidence({transactionId:'tx-ledger-1',buyerId:9,sellerId:2,itemId:1201}));
+@@ -340 +336 @@ test('Merchant career rejects a duplicate monetary profit field and never stores
+-  assert.equal(noteVerifiedCommittedMerchantTransaction(a,canonicalEvidence({transactionId:'tx-money-1',buyerId:8,sellerId:2,itemId:1202})).counted,true);
++  assert.equal(progressThroughCanonicalTrade(a,canonicalEvidence({transactionId:'tx-money-1',buyerId:8,sellerId:2,itemId:1202})).counted,true);
