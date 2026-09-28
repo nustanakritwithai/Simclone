@@ -174,7 +174,6 @@
       "navigationArrivalEvidenceModule": "RC4_ARRIVAL_EVIDENCE_MODULE"
     },
     "currentHardStops": [
-      "repaired #179 exact-head workflow evidence missing at latest audit",
       "canonical Home Market listing/buy-offer reference mutation API unproven",
       "canonical market tradeRange source unproven",
       "canonical Navigation-derived arrival evidence producer unproven",
