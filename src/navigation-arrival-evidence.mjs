@@ -9,6 +9,15 @@ const int=v=>Number.isSafeInteger(v);
 const positive=v=>Number.isSafeInteger(v)&&v>0;
 const distance=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y);
 const clone=v=>structuredClone(v);
+const MARKET_TRAVEL_PREEMPTIBLE=new Set(['IDLE','FORAGE','WOODCUT','MINE','EAT','REST','EXPLORE']);
+
+export function canPreemptForCanonicalMarketTravel(task){
+  if(task===null||task===undefined)return true;
+  if(!task||typeof task!=='object')return false;
+  if(task.rc4MarketTravel||task.adventureExpedition||task.adventureHunt||task.placement)return false;
+  if(['CRAFT','PROCESS','BUILD'].includes(task.kind))return false;
+  return MARKET_TRAVEL_PREEMPTIBLE.has(task.kind);
+}
 
 function marketOk(m){
   return !!m&&validId(m.id)&&typeof m.open==='boolean'&&int(m.x)&&int(m.y)&&positive(m.tradeRange);
