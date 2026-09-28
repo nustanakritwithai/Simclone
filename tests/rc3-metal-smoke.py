@@ -13,6 +13,11 @@ SAVED=subprocess.check_output(['node','scripts/rc3-metal-fixture.mjs'],cwd=ROOT,
 checks=[];errors=[];server=None;browser=None;pw=None;page=None;failure=None;success=False
 def check(name,ok=True): assert ok,name;checks.append(name);print('PASS',name,flush=True)
 def snap(): return page.evaluate('simclone.snapshot()')
+def metal_store(s,aid):
+    if s.get('worldMode',{}).get('kind')!='independent': return s['rustMaterials']
+    household=next((x for x in s['rustMaterials'].get('householdStores',[]) if x.get('ownerId')==aid),None)
+    if household is not None: return household
+    return next(x for x in s['rustMaterials']['personalStores'] if x.get('ownerId')==aid)
 def pause():
     if page.locator('#pause').inner_text()!='▶': page.locator('#pause').click()
 def close():
@@ -69,20 +74,20 @@ try:
             from browser_fixture import fixture,storage
             storage(page,SAVED);page.set_content(fixture(default_mode='independent'),wait_until='load');page.wait_for_function("window.simclone?.uiVersion==='0.5.0'");pause()
         s=snap();a=s['agents'][0];aid=a['id'];furnace=next(x for x in s['rustStations']['stations'] if x['kind']=='FURNACE')
-        before=(s['rustMaterials']['personalStores'][0] if s.get('worldMode',{}).get('kind')=='independent' else s['rustMaterials'])
+        before=metal_store(s,aid)
         check(f'{width}: seeded real metal balances',before['ironOre']>=2 and before['charcoal']>=2 and before['ironIngot']>=2)
         select_actor(aid);click_station(furnace);check(f'{width}: Furnace shows Iron and Steel controls',page.locator('[data-ux="process-iron"]').is_visible() and page.locator('[data-ux="process-steel"]').is_visible())
         check(f'{width}: Furnace fits viewport',no_overflow());page.screenshot(path=str(OUT/f'{width}-furnace.png'))
         ore0=before['ironOre'];iron0=before['ironIngot'];char0=before['charcoal'];page.locator('[data-ux="process-iron"]').click();wait_process()
-        now=snap();store=now['rustMaterials']['personalStores'][0];check(f'{width}: real Iron process commits once',store['ironOre']==ore0-2 and store['ironIngot']==iron0+1 and store['charcoal']==char0-1)
+        now=snap();store=metal_store(now,aid);check(f'{width}: real Iron process commits once',store['ironOre']==ore0-2 and store['ironIngot']==iron0+1 and store['charcoal']==char0-1)
         click_station(furnace);iron1=store['ironIngot'];steel0=store['steelIngot'];char1=store['charcoal'];page.locator('[data-ux="process-steel"]').click();wait_process()
-        now=snap();store=now['rustMaterials']['personalStores'][0];check(f'{width}: real Steel process commits once',store['ironIngot']==iron1-2 and store['steelIngot']==steel0+1 and store['charcoal']==char1-2)
+        now=snap();store=metal_store(now,aid);check(f'{width}: real Steel process commits once',store['ironIngot']==iron1-2 and store['steelIngot']==steel0+1 and store['charcoal']==char1-2)
         open_rust(aid);group=page.locator('[data-craft-tier="2"]')
         if group.get_attribute('open') is None: group.locator('summary').click()
         card=page.locator('[data-recipe-id="STONE_AXE_T2"]');card.scroll_into_view_if_needed()
         check(f'{width}: T2 is visibly Iron-backed',card.is_visible() and card.get_attribute('data-known')=='true' and 'ขวานเหล็ก' in card.inner_text() and 'เหล็กแท่ง ×2' in card.inner_text())
         check(f'{width}: Rust material HUD visible',page.locator(f'[data-metal-economy="{aid}"]').is_visible());check(f'{width}: Rust dialog fits viewport',no_overflow());page.screenshot(path=str(OUT/f'{width}-t2-iron.png'))
-        pre=snap();prestore=pre['rustMaterials']['personalStores'][0];page.locator('[data-recipe-id="STONE_AXE_T2"] [data-ux="craft-item"]').click();accepted=snap();astore=accepted['rustMaterials']['personalStores'][0]
+        pre=snap();prestore=metal_store(pre,aid);page.locator('[data-recipe-id="STONE_AXE_T2"] [data-ux="craft-item"]').click();accepted=snap();astore=metal_store(accepted,aid)
         check(f'{width}: T2 accepts and reserves Iron once',astore['ironIngot']==prestore['ironIngot']-2 and accepted['rustPossessions']['orders'][0]['reservedProcessed']['ironIngot']==2)
         wait_craft();final=snap();item=max([i for i in final['rustPossessions']['items'] if i.get('craft',{}).get('recipeId')=='STONE_AXE_T2'],key=lambda x:x['id'])
         check(f'{width}: physical T2 crafted item keeps outcome identity',item['craft']['tier']==2 and item['createdBy']==aid)
