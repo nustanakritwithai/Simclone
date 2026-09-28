@@ -1,3 +1,4 @@
+import {createBlueprintOffer,blueprintSessionErrors} from './craft-blueprints.mjs?v=0.5.0';
 import {neutralAdventurerCombatProfile} from './adventure-human-combat.mjs?v=0.5.0';
 import {monsterStatsAtLevel} from './adventure-monster-stats.mjs?v=0.5.0';
 import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
@@ -60,6 +61,7 @@ export function startAdventureCombatSession(state,agent,encounter){
     adventureLevel:encounter.adventureLevel,x:encounter.x,y:encounter.y,startedTick:state.tick,turn:0,
     monsterHpMax:monster.stats.hp,
     loadout,lastTurn:null,
+    blueprintOffer:createBlueprintOffer({acceptedTick:state.tick,worldSeed:state.seed,agentId:agent.id,combatId,monsterId:encounter.monsterId,monsterLevel:encounter.monsterLevel,rank:encounter.rank}),
     ...(encounter.control==='autonomous'?{control:'autonomous'}:{}),
   };
   if(worldMonster)return freeze({...base,worldMonsterId:worldMonster.worldMonsterId});
@@ -70,6 +72,7 @@ export function validateAdventureCombatState(state,agent){
   const c=agent?.adventureCombat;
   if(c===undefined||c===null)return [];
   const bad=['Adventure combat'];
+  const blueprintErrors=blueprintSessionErrors(state,agent,c);if(blueprintErrors.length)return blueprintErrors;
   if(!c||c.version!==ADVENTURE_COMBAT_SESSION_VERSION||!ADVENTURE_COMBAT_SESSION_STATUSES.includes(c.status))return bad;
   if(typeof c.combatId!=='string'||typeof c.encounterId!=='string'||typeof c.expeditionId!=='string'||
     (c.control!==undefined&&c.control!=='autonomous'))return bad;

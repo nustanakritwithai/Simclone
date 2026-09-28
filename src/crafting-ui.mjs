@@ -1,7 +1,8 @@
 /** Read-only RC2 presentation. Commands remain in the existing engine/UI bridge. */
+import {BLUEPRINT_ITEM_KIND,validBlueprintItem} from './craft-blueprints.mjs?v=0.5.0';
 import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG,recipeById} from './crafting-catalog.mjs?v=0.5.0';
 import {recipeKnowledgeSnapshot,RECIPE_KNOWLEDGE_LIMITS} from './craft-recipe-knowledge.mjs?v=0.5.0';
-import {craftPreview,equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
+import {craftPreview,equipmentSlotOf,blueprintLearningPreview} from './rust-possessions.mjs?v=0.5.0';
 import {craftTrainingSnapshot} from './craft-training.mjs?v=0.5.0';
 import {validateCraftedItem} from './craft-outcome.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
@@ -11,6 +12,7 @@ const names={wood:'ไม้',stone:'หิน',food:'อาหาร'};
 const stations={HAND:'ทำด้วยมือ',CRAFTING_TABLE_LV1:'โต๊ะคราฟต์ Lv1',FURNACE:'เตาหลอม'};
 const tiers=['Primitive','Basic','Advanced','Rare','Epic','Masterwork'];
 export const craftReasonLabel=reason=>({
+  'blueprint-invalid':'หลักฐานพิมพ์เขียวไม่ถูกต้อง','recipe-known':'รู้สูตรนี้แล้ว · เก็บใบนี้ไว้ได้','loot-result-open':'กด Continue ปิดผลต่อสู้ก่อนเรียนสูตร','recipe-capacity':'สมุดสูตรเต็ม',
   ready:'พร้อมคราฟต์',off:'ไม่ได้เปิดฝึก', 'quota-complete':'ครบเป้าหมายแล้ว · ไม่รับงานเพิ่ม',
   'recipe-unknown':'ยังไม่รู้สูตร', 'recipe-knowledge':'หลักฐานสูตรไม่ถูกต้อง', 'training-state':'ข้อมูลแผนฝึกไม่ถูกต้อง',
   stage:'ช่วงวัยนี้ทำงานไม่ได้','actor-or-recipe':'เลือก Clone และสูตรก่อน',
@@ -33,6 +35,7 @@ export function craftBookSnapshot(s,a,{stationId=null}={}){
 }
 function learnedLabel(s,row){
   if(!row.known)return row.unlock?'ฝึก '+title(recipeById(row.unlock.recipeId))+' '+row.unlock.current+'/'+row.unlock.completions+' ครั้ง หรือเรียนจากช่าง':'ยังไม่รู้สูตร';
+  if(row.learned?.method==='blueprint')return 'เรียนจากพิมพ์เขียว #'+row.learned.itemId;
   return row.learned?.method==='teaching'?'เรียนจาก '+nameOf(s,row.learned.teacherId):
     row.learned?.method==='mastery'?'ปลดจากการลงมือทำ':'สูตรพื้นฐานเพื่อเอาตัวรอด';
 }
@@ -57,6 +60,12 @@ export function renderCraftRecipeBook(s,a,{stationKind=null,stationId=null}={}){
     '<p class="source-note">รู้สูตร + สถานี + วัสดุ + ช่องกระเป๋า จึงคราฟต์ได้ · ของที่ใส่อยู่ไม่ถูกใช้เป็นวัตถุดิบ · ปิดหน้าต่างเพื่อให้คิวเดินต่อ</p>'+groups+'</section>';
 }
 export function renderCraftItemInfo(s,item){
+  if(item.kind===BLUEPRINT_ITEM_KIND){
+    if(!validBlueprintItem(s,item))return '<div class="rc2-item-meta">หลักฐานพิมพ์เขียวไม่ถูกต้อง</div>';
+    const r=recipeById(item.blueprint.offer.recipeId);
+    return '<div class="rc2-item-meta" data-blueprint-recipe="'+esc(r.id)+'"><div class="rc2-item-score"><b>T'+r.tier+'</b><strong>'+esc(title(r))+'</strong></div>'+
+      '<small>พบโดย '+esc(nameOf(s,item.createdBy))+' · '+esc(item.blueprint.offer.monsterId)+'</small><small>ใช้ 1 ใบเพื่อเรียนสูตร · ไม่เพิ่ม Mastery</small></div>';
+  }
   const creator=Number.isSafeInteger(item.createdBy)?'สร้างโดย '+nameOf(s,item.createdBy):'ไม่ระบุผู้สร้าง';
   if(item.craft===undefined)return '<div class="rc2-item-meta" data-craft-quality="legacy"><small>'+esc(creator)+'</small><small>Legacy / ของเดิม · ไม่ระบุคุณภาพ</small></div>';
   if(!validateCraftedItem(item,s.seed))return '<div class="rc2-item-meta" data-craft-quality="invalid">คุณสมบัติไอเทมไม่ผ่านการตรวจสอบ</div>';
@@ -67,6 +76,11 @@ export function renderCraftItemInfo(s,item){
 }
 export function renderCraftItemActions(s,a,item){
   const def=ITEM_CATALOG[item.kind];if(!a.alive||!def)return '';
+  if(item.kind===BLUEPRINT_ITEM_KIND){
+    const check=blueprintLearningPreview(s,{agentId:a.id,itemId:item.id});
+    return '<button class="secondary" data-ux="learn-blueprint" data-item="'+item.id+'" '+(!check.ok?'disabled':'')+'>ใช้พิมพ์เขียวเรียนสูตร</button>'+
+      (!check.ok?'<small class="rc2-reason">'+esc(craftReasonLabel(check.reason))+'</small>':'');
+  }
   const equip=s.rustPossessions.equipment.find(e=>e.agentId===a.id&&e.itemId===item.id);
   if(def.category==='tool')return equip&&equipmentSlotOf(equip)==='hand'?
     '<button class="secondary" data-ux="unequip-item">ถอดจากมือ</button>':

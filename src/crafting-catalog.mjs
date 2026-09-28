@@ -6,9 +6,10 @@ const deepFreeze=value=>{
 };
 export const RUST_CRAFTING_VERSION='RS1-0.3';
 export const CRAFT_STATIONS=deepFreeze({HAND:'HAND',CRAFTING_TABLE_LV1:'CRAFTING_TABLE_LV1',FURNACE:'FURNACE'});
-export const CRAFT_CATEGORIES=deepFreeze({TOOL:'tool',BUILD:'build',MATERIAL:'material',GEAR:'gear'});
+export const CRAFT_CATEGORIES=deepFreeze({TOOL:'tool',BUILD:'build',MATERIAL:'material',GEAR:'gear',BLUEPRINT:'blueprint'});
 export const PLACEABLE_KINDS=deepFreeze(['CRAFTING_TABLE_LV1','FURNACE','WOOD_FOUNDATION','WOOD_WALL','WOOD_DOORWAY','WOOD_ROOF']);
 export const ITEM_CATALOG=deepFreeze({
+  RECIPE_BLUEPRINT:{id:'RECIPE_BLUEPRINT',name:'พิมพ์เขียวสูตร',category:'blueprint',rarity:'RARE',adventureLoot:true},
   FIRE_CORE:{id:'FIRE_CORE',name:'แกนไฟ',category:'material',rarity:'UNCOMMON',adventureLoot:true,donorId:'fire_core'},
   HIDE:{id:'HIDE',name:'หนังมอนสเตอร์',category:'material',rarity:'COMMON',adventureLoot:true,donorId:'hide'},
   EMBER_SHARD:{id:'EMBER_SHARD',name:'เศษเถ้าเพลิง',category:'material',rarity:'RARE',adventureLoot:true,donorId:'ember_shard'},

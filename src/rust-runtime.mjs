@@ -1,7 +1,7 @@
 import {validateCraftedItem} from './craft-outcome.mjs?v=0.5.0';
 import {teachCraftRecipe,validateAllRecipeKnowledge} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,PLACEABLE_KINDS,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
-import {createRustPossessions,queueCraft,advanceCraft,validateCraftOrder,equipTool,unequipTool,equipAdventureGear,unequipAdventureGear,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,grantAdventureLoot,equipmentSlotOf,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
+import {learnRecipeBlueprint,createRustPossessions,queueCraft,advanceCraft,validateCraftOrder,equipTool,unequipTool,equipAdventureGear,unequipAdventureGear,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,grantAdventureLoot,equipmentSlotOf,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
 import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS,stationLimit} from './rust-stations.mjs?v=0.5.0';
 import {completedHouseIds} from './housing.mjs?v=0.5.0';
 import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
@@ -17,6 +17,7 @@ export function ensureRustState(s){
   return s;
 }
 const msg=r=>({
+  'blueprint-invalid':'หลักฐานพิมพ์เขียวไม่ถูกต้อง','recipe-known':'รู้สูตรนี้แล้ว · ไม่ใช้พิมพ์เขียว','recipe-capacity':'สมุดสูตรเต็ม','loot-result-open':'กด Continue ปิดผลต่อสู้ก่อน แล้วจึงใช้พิมพ์เขียว',
   'item-materials':'ของวัตถุดิบไม่ครบ หรือยังสวม/ติดผลต่อสู้อยู่','output-capacity':'กระเป๋าเต็ม งานที่เสร็จรอช่องว่าง','craft-order-invalid':'หลักฐานงานคราฟต์ไม่ถูกต้อง','craft-item-invalid':'คุณสมบัติของวัตถุดิบไม่ถูกต้อง',
   'recipe-unknown':'คนนี้ยังไม่รู้สูตร ต้องฝึกหรือเรียนจากผู้ที่รู้สูตรก่อน','recipe-knowledge':'ข้อมูลสูตรของคนนี้ไม่ถูกต้อง','recipe-actors':'เลือกครูและผู้เรียนที่ยังมีชีวิตคนละคน',
   'actor-or-recipe':'เลือกคนที่มีชีวิตและสูตรที่ถูกต้อง','craft-busy':'คนนี้มีงานคราฟต์ค้างอยู่','bag-full':'กระเป๋าเต็ม','capacity':'พื้นที่เก็บของเต็ม',
@@ -29,7 +30,8 @@ const msg=r=>({
 }[r.reason]??'คำสั่ง Rust Survival ใช้ไม่ได้');
 export function rustCommand(s,type,data={},isWalkable){
   ensureRustState(s);let r=null;
-  if(type==='TEACH_CRAFT_RECIPE')r=teachCraftRecipe(s,data);
+  if(type==='LEARN_RECIPE_BLUEPRINT')r=learnRecipeBlueprint(s,data);
+  else if(type==='TEACH_CRAFT_RECIPE')r=teachCraftRecipe(s,data);
   else if(type==='CRAFT_ITEM')r=queueCraft(s,data);
   else if(type==='EQUIP_ITEM')r=equipTool(s,data.agentId,data.itemId);
   else if(type==='UNEQUIP_ITEM')r=unequipTool(s,data.agentId);
@@ -56,7 +58,7 @@ export function rustCommand(s,type,data={},isWalkable){
   else if(type==='PROCESS_CHARCOAL')r=queueProcessing(s,{...data,processId:'CHARCOAL'});
   else return null;
   if(!r.ok)return {...r,message:msg(r)};
-  const text=type==='TEACH_CRAFT_RECIPE'?(r.changed?'ถ่ายทอดสูตรให้ผู้เรียนแล้ว':'ผู้เรียนรู้สูตรนี้อยู่แล้ว'):type==='CRAFT_ITEM'?'รับงานคราฟต์แล้ว · วัสดุถูกกันเข้า order และจะไม่หักซ้ำ':
+  const text=type==='LEARN_RECIPE_BLUEPRINT'?'เรียนสูตรแล้ว · ใช้พิมพ์เขียว 1 ใบ ไม่เพิ่ม Mastery':type==='TEACH_CRAFT_RECIPE'?(r.changed?'ถ่ายทอดสูตรให้ผู้เรียนแล้ว':'ผู้เรียนรู้สูตรนี้อยู่แล้ว'):type==='CRAFT_ITEM'?'รับงานคราฟต์แล้ว · วัสดุถูกกันเข้า order และจะไม่หักซ้ำ':
     type==='EQUIP_ADVENTURE_GEAR'?'สวมอุปกรณ์ผจญภัยแล้ว':type==='UNEQUIP_ADVENTURE_GEAR'?'ถอดอุปกรณ์ผจญภัยแล้ว':
     type==='EQUIP_ITEM'?'สวมอุปกรณ์ช่องมือแล้ว':type==='UNEQUIP_ITEM'?(r.changed?'ถอดอุปกรณ์ช่องมือแล้ว':'ช่องมือว่างอยู่แล้ว'):type==='PICKUP_ITEM'?'เก็บของขึ้นกระเป๋าแล้ว':
     type==='PLACE_STATION'?'วางสิ่งปลูกสร้างสำเร็จ': 'รับงานเผาถ่านแล้ว · ไม้ถูกกันเข้า order';

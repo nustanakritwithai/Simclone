@@ -1,5 +1,7 @@
+import {verifyAdventureCombatTerminalEvidence,validateAdventureCombatRewardState} from './adventure-combat-reward.mjs?v=0.5.0';
+import {BLUEPRINT_ITEM_KIND,validBlueprintPayload,sameBlueprintPayload,blueprintSessionErrors,consumedBlueprintEvidence,validateBlueprintEvidence} from './craft-blueprints.mjs?v=0.5.0';
 import {createCraftSpec,validateCraftSpec,resolveCraftOutcome,validateCraftedItem,craftedToolMultiplier} from './craft-outcome.mjs?v=0.5.0';
-import {knowsCraftRecipe,validateRecipeKnowledge,recipeCompletionProposal,craftFamilyMastery,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
+import {knowsCraftRecipe,validateRecipeKnowledge,recipeCompletionProposal,blueprintLearningProposal,craftFamilyMastery,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,STARTER_RECIPE_IDS,recipeById,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
@@ -129,27 +131,43 @@ export function advanceCraft(s,agentId,{workRate=1}={}){
 export function grantAdventureLoot(s,{agentId,claimKey,items}={}){
   const p=s.rustPossessions,a=living(s,agentId);
   if(!p||!a||typeof claimKey!=='string'||claimKey.length===0||!Array.isArray(items)||items.length===0)return {ok:false,reason:'loot-input'};
-  let total=0;
+  if(consumedBlueprintEvidence(s).some(e=>e.learned.sourceClaimKey===claimKey))return {ok:false,reason:'loot-claim-consumed'};
+  if(validateBlueprintEvidence(s).length)return {ok:false,reason:'blueprint-invalid'};
+  let total=0,blueprints=0;
   const expected=new Map();
   for(const row of items){
     if(!row||typeof row.itemKind!=='string'||!ITEM_CATALOG[row.itemKind]?.adventureLoot||!Number.isSafeInteger(row.quantity)||row.quantity<1)return {ok:false,reason:'loot-item'};
     if(typeof row.rarity!=='string'||ITEM_CATALOG[row.itemKind].rarity!==row.rarity)return {ok:false,reason:'loot-rarity'};
+    if(row.itemKind===BLUEPRINT_ITEM_KIND){
+      blueprints+=row.quantity;
+      if(blueprints!==1||!validBlueprintPayload(row.blueprint,{worldSeed:s.seed,agentId})||
+        claimKey!=='ADVENTURE_LOOT:'+row.blueprint.outcomeId)return {ok:false,reason:'blueprint-invalid'};
+    }else if(row.blueprint!==undefined)return {ok:false,reason:'blueprint-invalid'};
     total+=row.quantity;if(!Number.isSafeInteger(total))return {ok:false,reason:'capacity'};
     expected.set(row.itemKind,(expected.get(row.itemKind)??0)+row.quantity);
   }
   const existing=p.items.filter(i=>i.sourceClaimKey===claimKey).sort((x,y)=>x.id-y.id);
   if(existing.length){
     const actual=new Map();for(const item of existing)actual.set(item.kind,(actual.get(item.kind)??0)+1);
+    if(existing.some(i=>i.createdBy!==agentId||i.kind===BLUEPRINT_ITEM_KIND&&
+      !sameBlueprintPayload(i.blueprint,items.find(r=>r.itemKind===BLUEPRINT_ITEM_KIND)?.blueprint)))return {ok:false,reason:'loot-claim-conflict'};
     if(existing.length!==total||[...expected].some(([kind,n])=>actual.get(kind)!==n))return {ok:false,reason:'loot-claim-conflict'};
     return {ok:true,duplicate:true,claimKey,itemIds:existing.map(i=>i.id),bagged:existing.filter(i=>i.location?.kind==='bag').length,dropped:existing.filter(i=>i.location?.kind==='drop').length};
   }
-  if(!Number.isSafeInteger(p.nextItem)||p.items.length+total>RUST_POSSESSION_LIMITS.items||p.nextItem+total>Number.MAX_SAFE_INTEGER)return {ok:false,reason:'capacity'};
+  if(blueprints){
+    const session=a.adventureCombat,evidence=verifyAdventureCombatTerminalEvidence(session),payload=items.find(r=>r.itemKind===BLUEPRINT_ITEM_KIND).blueprint;
+    if(session?.status!=='VICTORY'||evidence.evidence!=='VERIFIED'||evidence.outcomeId!==payload.outcomeId||
+      session.reward?.status!=='COMMITTED'||validateAdventureCombatRewardState(s,a).length||blueprintSessionErrors(s,a).length||
+      !sameBlueprintPayload(payload,{version:payload.version,offer:session.blueprintOffer,outcomeId:evidence.outcomeId,terminalTurn:session.turn}))
+      return {ok:false,reason:'blueprint-unverified'};
+  }
+  if(!Number.isSafeInteger(p.nextItem)||p.items.length+p.orders.length+total>RUST_POSSESSION_LIMITS.items||p.nextItem+total>Number.MAX_SAFE_INTEGER)return {ok:false,reason:'capacity'};
   const bagFree=Math.max(0,RUST_POSSESSION_LIMITS.bag-bag(p,agentId).length);
   const created=[];let bagged=0,dropped=0,index=0;
   for(const row of items)for(let q=0;q<row.quantity;q++){
     const itemId=p.nextItem++,toBag=index<bagFree;
     const location=toBag?{kind:'bag',agentId}:{kind:'drop',sourceAgentId:agentId,tick:s.tick,x:a.x,y:a.y};
-    p.items.push({id:itemId,kind:row.itemKind,createdBy:agentId,createdTick:s.tick,sourceClaimKey:claimKey,location});
+    p.items.push({id:itemId,kind:row.itemKind,createdBy:agentId,createdTick:s.tick,sourceClaimKey:claimKey,...(row.blueprint?{blueprint:JSON.parse(JSON.stringify(row.blueprint))}:{}),location});
     created.push(itemId);if(toBag)bagged++;else dropped++;index++;
   }
   return {ok:true,duplicate:false,claimKey,itemIds:created,bagged,dropped};
@@ -223,3 +241,25 @@ export const rustPossessionsSnapshot=(s,agentId)=>{
   for(const e of s.rustPossessions?.equipment??[])if(e.agentId===agentId&&Object.hasOwn(equipment,equipmentSlotOf(e)))equipment[equipmentSlotOf(e)]=e.itemId;
   return JSON.parse(JSON.stringify({bag:bag(s.rustPossessions,agentId),capacity:RUST_POSSESSION_LIMITS.bag,equippedItemId:equipment.hand,equipment,order:s.rustPossessions?.orders.find(o=>o.agentId===agentId)??null}));
 };
+
+function checkBlueprintLearning(s,{agentId,itemId}={}){
+  const p=s.rustPossessions,a=living(s,agentId),item=p?.items.find(i=>i.id===itemId);
+  if(!p||!a||!item||item.kind!==BLUEPRINT_ITEM_KIND||item.location?.kind!=='bag'||item.location.agentId!==agentId)return {ok:false,reason:'item'};
+  if(!canPerformProductiveWork(s,a))return {ok:false,reason:'stage'};
+  if(a.adventureCombat?.status==='ACTIVE')return {ok:false,reason:'combat-active'};
+  if(reservedLootItemIds(s).has(itemId))return {ok:false,reason:'loot-result-open'};
+  if(p.equipment.some(e=>e.itemId===itemId))return {ok:false,reason:'blueprint-invalid'};
+  const proposed=blueprintLearningProposal(s,a,item);
+  return proposed.ok?{...proposed,p,a,item}:proposed;
+}
+export function blueprintLearningPreview(s,data={}){
+  const r=checkBlueprintLearning(s,data);
+  return r.ok?{ok:true,recipeId:r.recipeId,itemId:r.item.id}:{ok:false,reason:r.reason};
+}
+export function learnRecipeBlueprint(s,data={}){
+  const r=checkBlueprintLearning(s,data);if(!r.ok)return r;
+  // No mutation before every inventory and knowledge precondition has passed.
+  r.p.items=r.p.items.filter(i=>i.id!==r.item.id);
+  r.a.knowledgeState.recipes=r.book;
+  return {ok:true,changed:true,recipeId:r.recipeId,consumedItemId:r.item.id};
+}
