@@ -50,7 +50,7 @@ const market={
   market:(s,id)=>s.testMarket.markets.find(x=>x.id===id)??null,
   listing:(s,id)=>s.testMarket.listings.find(x=>x.id===id)??null,
   reservation:(s,id)=>s.testMarket.reservations.find(x=>x.id===id)??null,
-  activeReservations:(s,marketId)=>s.testMarket.reservations.filter(x=>x.marketId===marketId&&x.status==='ACTIVE'),
+  activeReservations:s=>s.testMarket.reservations.filter(x=>x.status==='ACTIVE'),
 };
 const adapters={wallet,item,market};
 const proposal=(overrides={})=>({
@@ -70,6 +70,7 @@ test('RC4 contract builds deterministic settlement proposal',()=>{
   assert.deepEqual(r.settlement.wallet,{debit:{agentId:1,amount:50},credit:{agentId:2,amount:50}});
   assert.deepEqual(r.settlement.items.itemIds,[101,102]);
   assert.equal(r.settlement.receipt.eventId,'TRADE:TX-1');
+  assert.equal(r.settlement.receipt.itemInstanceId,101);
 });
 
 test('RC4 atomic success moves money and exact existing item instances once',()=>{
@@ -128,6 +129,23 @@ test('RC4 rejects item reserved by another active reservation',()=>rejectedWitho
   s.testMarket.reservations.push({id:'R2',status:'ACTIVE',marketId:'M1',listingId:'L2',listingRevision:1,sellerId:2,buyerId:3,itemKind:'IRON_SWORD',unitPrice:30,quantity:1,itemIds:[102]});
 },'item-reserved'));
 
+test('RC4 global reservation lock rejects the same item reserved in another market',()=>rejectedWithoutMutation(s=>{
+  s.testMarket.markets.push({id:'M2',open:true,x:8,y:8,tradeRange:2});
+  s.testMarket.reservations.push({id:'R2',status:'ACTIVE',marketId:'M2',listingId:'L2',listingRevision:1,sellerId:2,buyerId:3,itemKind:'IRON_SWORD',unitPrice:30,quantity:1,itemIds:[102]});
+},'item-reserved'));
+
+test('RC4 fails closed when global active-reservation view omits current reservation',()=>{
+  const s=fixture(),before=clone(s),incompleteMarket={...market,activeReservations:()=>[]};
+  const r=settleTradeAtomic(s,proposal(),{wallet,item,market:incompleteMarket});
+  assert.equal(r.ok,false);assert.equal(r.reason,'market-view-incomplete');assert.deepEqual(s,before);
+});
+
+test('RC4 fails closed on malformed global active reservation evidence',()=>{
+  const s=fixture();s.testMarket.reservations.push({id:'R2',status:'ACTIVE',marketId:'M2',itemIds:[NaN]});
+  const before=clone(s),r=settleTradeAtomic(s,proposal(),adapters);
+  assert.equal(r.ok,false);assert.equal(r.reason,'market-view-incomplete');assert.deepEqual(s,before);
+});
+
 test('RC4 missing canonical wallet authority fails closed',()=>{
   const s=fixture(),before=clone(s),r=settleTradeAtomic(s,proposal(),{item,market});
   assert.equal(r.ok,false);assert.equal(r.reason,'wallet-authority');assert.deepEqual(s,before);
@@ -155,6 +173,35 @@ test('RC4 replay validates committed receipt state before returning duplicate',(
   const corrupt=clone(first.state);corrupt.tradeReplay.receipts[0].eventId='bad event';const before=clone(corrupt);
   const r=settleTradeAtomic(corrupt,proposal(),adapters);
   assert.equal(r.ok,false);assert.equal(r.reason,'replay-state');assert.deepEqual(corrupt,before);
+});
+
+test('RC4 replay rejects receipt field tampering even when stored fingerprint is unchanged',()=>{
+  const fields=[
+    ['buyerId',3],
+    ['sellerId',3],
+    ['marketId','M9'],
+    ['listingId','L9'],
+    ['reservationId','R9'],
+    ['itemKind','OTHER_ITEM'],
+    ['itemInstanceId',102],
+    ['unitPrice',24],
+    ['totalPrice',48],
+  ];
+  for(const [key,value] of fields){
+    const first=settleTradeAtomic(fixture(),proposal(),adapters);assert.equal(first.ok,true);
+    const corrupt=clone(first.state);corrupt.tradeReplay.receipts[0][key]=value;
+    assert.deepEqual(validateTradeReplayState(corrupt),['Trade replay receipt'],key);
+    const before=clone(corrupt),r=settleTradeAtomic(corrupt,proposal(),adapters);
+    assert.equal(r.ok,false,key);assert.equal(r.reason,'replay-state',key);assert.deepEqual(corrupt,before,key);
+  }
+});
+
+test('RC4 replay rejects itemIds tampering and requires itemInstanceId to remain represented',()=>{
+  const first=settleTradeAtomic(fixture(),proposal(),adapters);assert.equal(first.ok,true);
+  for(const itemIds of [[101,103],[102,103]]){
+    const corrupt=clone(first.state);corrupt.tradeReplay.receipts[0].itemIds=itemIds;
+    assert.deepEqual(validateTradeReplayState(corrupt),['Trade replay receipt']);
+  }
 });
 
 test('RC4 maximum transaction id remains valid with deterministic TRADE event prefix',()=>{
