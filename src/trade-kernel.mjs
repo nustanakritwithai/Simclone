@@ -106,12 +106,22 @@ function resolveValidation(state,proposal,{wallet,item,market}={}){
   // by another market, not merely another listing in this market.
   const active=market.activeReservations(state);
   if(!Array.isArray(active))return fail('market-view-incomplete');
-  const malformed=active.some(x=>x?.status==='ACTIVE'&&(
-    !validId(x.id)||!validId(x.marketId)||!Array.isArray(x.itemIds)||x.itemIds.length===0||
-    new Set(x.itemIds).size!==x.itemIds.length||x.itemIds.some(id=>!safePositiveInt(id))
-  ));
-  if(malformed||!active.some(x=>x?.status==='ACTIVE'&&x.id===p.reservationId))return fail('market-view-incomplete');
-  const reservedByOther=new Set(active.filter(x=>x.status==='ACTIVE'&&x.id!==p.reservationId).flatMap(x=>x.itemIds));
+  const activeRows=active.filter(x=>x?.status==='ACTIVE'),activeIds=activeRows.map(x=>x?.id);
+  const malformed=activeRows.some(x=>
+    !validId(x.id)||!validId(x.marketId)||!validId(x.listingId)||!validId(x.itemKind)||
+    !Number.isSafeInteger(x.sellerId)||x.sellerId<1||!Number.isSafeInteger(x.buyerId)||x.buyerId<1||
+    !Number.isSafeInteger(x.listingRevision)||x.listingRevision<1||!safePositiveInt(x.unitPrice)||!safePositiveInt(x.quantity)||
+    !Array.isArray(x.itemIds)||x.itemIds.length!==x.quantity||new Set(x.itemIds).size!==x.itemIds.length||
+    x.itemIds.some(id=>!safePositiveInt(id))
+  );
+  const currentRows=activeRows.filter(x=>x.id===p.reservationId),current=currentRows[0];
+  const currentMismatch=currentRows.length!==1||!current||
+    current.marketId!==r.marketId||current.listingId!==r.listingId||current.listingRevision!==r.listingRevision||
+    current.sellerId!==r.sellerId||current.buyerId!==r.buyerId||current.itemKind!==r.itemKind||
+    current.unitPrice!==r.unitPrice||current.quantity!==r.quantity||
+    stableItemIds(current.itemIds).join(',')!==itemIds.join(',');
+  if(malformed||new Set(activeIds).size!==activeIds.length||currentMismatch)return fail('market-view-incomplete');
+  const reservedByOther=new Set(activeRows.filter(x=>x.id!==p.reservationId).flatMap(x=>x.itemIds));
   if(itemIds.some(id=>reservedByOther.has(id)))return fail('item-reserved');
 
   const tradable=item.tradableItemIds(state,{agentId:p.sellerId,itemKind:p.itemKind});
