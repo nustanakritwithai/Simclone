@@ -22,13 +22,13 @@ Observed donor heads at preparation time:
 | #176 | Home Market | 79ae6792063f8c70a9e676028646f2cd05a62d0a | Verify #1861 SUCCESS |
 | #177 | Trade Kernel | 73be1764130978f529632aa955bf3a7adf931e29 | Verify #1898 SUCCESS |
 | #178 | Merchant / Customer AI | 8c6c4ffb506cd192e2f81558880a7480ccf13932 | Verify #1864 SUCCESS |
-| #179 | Pricing / Merchant Ledger | 964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f | UNKNOWN — no exact-head workflow observed for repaired head |
-| #180 | Market UI prototype | 1bb01790e9af627588504af226759f5aff79b80c | Verify #1893 SUCCESS |
+| #179 | Pricing / Merchant Ledger | da82d2178e605283fabf76b80c91cd731da4ad49 | Verify #1978 push SUCCESS + #1979 PR SUCCESS; based on current RC3.2 main |
+| #180 | Market UI prototype | 0aa5a824d7da70172a267dbf1f440e69d44ef271 | Verify #1990 SUCCESS; docs/prototype donor only |
 | #181 | Canonical Wallet | 6d9eb098333eccc72e2352e605e5364d25e97768 | Verify #1959 SUCCESS |
 
-All #175-#181 donor branches were based on pre-RC3.2 main a3c98ecd4023e0b7e8dbec2a1e2d8970f594d19e at this audit. None of those donor heads is itself an RC4 integration candidate.
+#179 has now been merge-forwarded onto current RC3.2 main `1b60b13394c11bd7b03d10227919f4bb509b02df` and exact-head verification is green. #175, #176, #177, #178, #180 and #181 remain isolated donors rooted on the earlier pre-RC3.2 base unless separately rebuilt. No donor head by itself is the RC4 integration candidate.
 
-Compatibility attack retained: #177 requires authoritative listing.id plus listing.revision and reservation.listingRevision. During preparation, prior #179 head ba435943aa7a877fa7f9ff65cc74a961b34f3241 exposed listingId and no revision; that shape is VIOL and MUST NOT be hidden by an alias adapter. Latest observed repaired #179 head 964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f now exposes canonical id/revision, increments revision on authoritative mutation, enforces one OPEN listing per physical item at collection level, and checks stale reservation revision. This donor-level repair remains unmerged and does not constitute integration SAT.
+Compatibility attack retained: #177 requires authoritative `listing.id`, `listing.revision`, and `reservation.listingRevision`. Prior #179 head `ba435943aa7a877fa7f9ff65cc74a961b34f3241` exposed `listingId` and no revision; that shape remains a permanent regression VIOL. Current #179 head `da82d2178e605283fabf76b80c91cd731da4ad49` is merge-forwarded onto RC3.2 main, exposes canonical id/revision, increments revision on authoritative mutation, enforces one OPEN listing per physical item, checks stale reservation revision, and has exact-head Verify #1978 SUCCESS plus PR Verify #1979 SUCCESS. This closes the isolated #179 exact-head/base prerequisite, but it does not constitute integrated RC4 SAT.
 
 ## Master Gate rule
 
@@ -47,7 +47,7 @@ Required before Master Gate opens:
 - one exact integration head SHA is supplied and matches the checked-out candidate;
 - integration base is the current audited merged-main, or compatibility is explicitly re-audited after any main movement;
 - every selected donor exact head is frozen and has exact-head evidence; old-head CI cannot be reused;
-- #179 repaired Listing source/tests/Success Contract agree on `id + revision` and the repaired exact head has successful verification;
+- selected #179 source must be pinned to the verified repaired head `da82d2178e605283fabf76b80c91cd731da4ad49` (or a later independently re-verified head) and preserve canonical `id + revision` semantics;
 - Home Market exposes canonical owner-controlled mutation for `listingIds` / `buyOfferIds`; the Integrator may not push/splice those arrays directly;
 - the #177 market projection has documented canonical sources for `id/open/x/y/tradeRange`; `tradeRange` may not be guessed;
 - Navigation owns the verified position/arrival evidence consumed by #178; Integration/UI/AI may not fabricate `verified:true`;
@@ -66,9 +66,13 @@ Current audited blockers from the Integration Contract are therefore not ordinar
 - Reservation writer/lifecycle/persistence/ID rule is undefined;
 - BuyOffer procurement matching/persistence is undefined;
 - post-settlement Listing/Reservation transition semantics are undefined;
-- #179 repaired head still lacks exact-head workflow evidence at the latest audit.
 
-No Integration Lead assumption may convert any of these to SAT.
+Resolved donor prerequisite at latest audit:
+
+- #179 repaired Pricing/Listing/Ledger head `da82d2178e605283fabf76b80c91cd731da4ad49` is on current RC3.2 main and has Verify #1978 SUCCESS plus PR Verify #1979 SUCCESS.
+- #180 prototype head `0aa5a824d7da70172a267dbf1f440e69d44ef271` has Verify #1990 SUCCESS and now uses canonical OPEN/revision/VERIFIED+COMMITTED+duplicate:false presentation vocabulary. It remains a docs/prototype donor and is not production UI integration.
+
+No Integration Lead assumption may convert any remaining blocker to SAT.
 
 ## Non-negotiable authority locks
 
@@ -185,7 +189,7 @@ Attack cases:
 - save/load preserves id, revision and uniqueness;
 - CLOSED / CANCELED / FILLED lifecycle releases the listing lock exactly once.
 
-Any pre-repair #179 listingId-only/no-revision vocabulary is not accepted as canonical proof. The latest observed #179 repair must still be re-proven after assembly on the exact integration SHA.
+Any pre-repair #179 `listingId`-only/no-revision vocabulary is not accepted as canonical proof. The verified donor repair is pinned at `da82d2178e605283fabf76b80c91cd731da4ad49`; those semantics must still be re-proven after assembly on the exact integration SHA.
 
 The Listing itself remains reference/intention only: it cannot own money or a Rust item. The owning Home Market must reference the canonical Listing exactly once through the approved Home Market reference API; duplicate create/replay may not duplicate that reference.
 
