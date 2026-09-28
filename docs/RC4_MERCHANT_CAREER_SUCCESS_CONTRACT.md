@@ -128,10 +128,9 @@ No new save version is introduced by RC4 Merchant Career.
 
 ## Merchant progression hook
 
-Prepared fields:
+Prepared non-monetary progression fields:
 
 - `merchantTransactions`
-- `merchantRealizedProfit`
 - `merchantExperience`
 
 Only a fact with all of these may count:
@@ -140,8 +139,7 @@ Only a fact with all of these may count:
 {
   transactionId,
   verified: true,
-  committed: true,
-  realizedProfit
+  committed: true
 }
 ```
 
@@ -151,11 +149,12 @@ Rules:
 - `verified !== true` does not count.
 - `committed !== true` does not count.
 - missing verification/commit evidence is UNKNOWN.
-- realized profit is consumed as an already-authoritative fact; RC4 does not calculate price or settlement.
 - one accepted committed transaction increments `merchantTransactions` by 1.
-- `merchantRealizedProfit` accumulates supplied realized profit, including losses.
 - `merchantExperience` increments by 1 per accepted committed transaction.
 - recent transaction IDs are retained only for bounded replay protection.
+- Career MUST NOT store or accumulate Revenue, COGS or Realized Profit.
+- `merchantRealizedProfit` is explicitly rejected as a duplicate monetary authority.
+- authoritative monetary accounting belongs to the RC4 Merchant Ledger workstream.
 
 ## Required tests
 
@@ -172,6 +171,8 @@ Rules:
 - Merchant module contains no direct profession assignment
 - progression counts only verified + committed transactions
 - retained transaction replay does not double-count progression
+- Career does not create a second Revenue / COGS / Realized Profit authority
+- a forged/legacy `merchantRealizedProfit` field is rejected
 
 ## Verification contract
 
@@ -191,9 +192,10 @@ Result interpretation:
 
 1. RC4 does not project runtime home, wallet/capital, or trade-knowledge state into the qualification snapshot. Integration must supply those authoritative facts later.
 2. RC4 does not add a command or autonomous policy that triggers Merchant qualification in production.
-3. Transaction replay protection is bounded to the most recent 32 transaction IDs; long-horizon settlement idempotency remains the future settlement authority's responsibility.
-4. Merchant progression fields are additive save data but are not yet wired into engine-wide validation because shared runtime integration is outside this slice.
-5. No pricing, market, wallet, inventory transfer or Home Market behavior is implied by Merchant profession SAT.
+3. Transaction replay protection is bounded to the most recent 32 transaction IDs; long-horizon settlement idempotency remains the Trade Kernel / Merchant Ledger responsibility.
+4. Merchant progression fields are non-monetary additive save data and are not yet wired into engine-wide validation because shared runtime integration is outside this slice.
+5. Revenue, COGS and Realized Profit are intentionally absent from Career state; Merchant Ledger is the accounting authority.
+6. No pricing, market, wallet, inventory transfer or Home Market behavior is implied by Merchant profession SAT.
 
 ## Definition of Done
 
@@ -205,5 +207,7 @@ RC4 Merchant Career is SAT only when:
 - qualification tests prove required VIOL/UNKNOWN cases
 - replay and save/load continuity tests pass
 - progression only accepts verified + committed facts
+- Career contains no monetary profit accumulator
+- duplicate `merchantRealizedProfit` state is rejected
 - `npm test` passes on the exact head
 - PR is opened and remains unmerged
