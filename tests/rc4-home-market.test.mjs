@@ -10,7 +10,13 @@ import {
   closeHomeMarket,
   reconcileHomeMarkets,
   archiveHomeMarket,
-  removeArchivedHomeMarket
+  removeArchivedHomeMarket,
+  HOME_MARKET_TRADE_RANGE,
+  attachHomeMarketListingReference,
+  detachHomeMarketListingReference,
+  attachHomeMarketBuyOfferReference,
+  detachHomeMarketBuyOfferReference,
+  projectHomeMarketForTrade
 } from '../src/home-market.mjs';
 import {homeOf} from '../src/individual-housing.mjs';
 import {housingCapacity} from '../src/housing.mjs';
@@ -72,11 +78,13 @@ test('RC4 Home Market: duplicate create is idempotent and one home has at most o
 
 test('RC4 Home Market: closing a market preserves listing/buy-offer references and never touches physical items',()=>{
   const s=marketWorld(),created=createHomeMarket(s,undefined,{ownerAgentId:1,homeId:'H1'});
-  created.marketState.markets[0].listingIds=['LISTING-1',7];created.marketState.markets[0].buyOfferIds=['BUY-1'];
-  const itemsBefore=JSON.stringify(s.rustPossessions),opened=openHomeMarket(s,created.marketState,{marketId:created.market.marketId,ownerAgentId:1});
+  const l1=attachHomeMarketListingReference(s,created.marketState,{marketId:created.market.marketId,ownerAgentId:1,referenceId:'LISTING-1'});
+  const l2=attachHomeMarketListingReference(s,l1.marketState,{marketId:created.market.marketId,ownerAgentId:1,referenceId:'LISTING-2'});
+  const b1=attachHomeMarketBuyOfferReference(s,l2.marketState,{marketId:created.market.marketId,ownerAgentId:1,referenceId:'BUY-1'});
+  const itemsBefore=JSON.stringify(s.rustPossessions),opened=openHomeMarket(s,b1.marketState,{marketId:created.market.marketId,ownerAgentId:1});
   const closed=closeHomeMarket(s,opened.marketState,{marketId:created.market.marketId,ownerAgentId:1});
   assert.equal(closed.ok,true);assert.equal(closed.market.status,'closed');
-  assert.deepEqual(closed.market.listingIds,['LISTING-1',7]);assert.deepEqual(closed.market.buyOfferIds,['BUY-1']);
+  assert.deepEqual(closed.market.listingIds,['LISTING-1','LISTING-2']);assert.deepEqual(closed.market.buyOfferIds,['BUY-1']);
   assert.equal(JSON.stringify(s.rustPossessions),itemsBefore);
 });
 
@@ -122,4 +130,59 @@ test('RC4 Home Market: component schema rejects wallet/item authority fields',()
   bad.markets[0].wallet=100;bad.markets[0].items=[91];
   const errors=validateHomeMarketState(bad);assert.ok(errors.some(x=>x.includes('authority-field:wallet')));assert.ok(errors.some(x=>x.includes('authority-field:items')));
   const r=reconcileHomeMarkets(s,bad);assert.equal(r.ok,false);assert.equal(r.reason,'market-state-invalid');
+});
+
+
+test('RC4 B1: canonical Listing/BuyOffer reference writers are owner-controlled and replay-idempotent',()=>{
+  const s=marketWorld(),created=createHomeMarket(s,undefined,{ownerAgentId:1,homeId:'H1'}),id=created.market.marketId;
+  const l1=attachHomeMarketListingReference(s,created.marketState,{marketId:id,ownerAgentId:1,referenceId:'LISTING-1'});
+  assert.equal(l1.ok,true);assert.equal(l1.duplicate,false);assert.deepEqual(l1.market.listingIds,['LISTING-1']);
+  const replay=attachHomeMarketListingReference(s,l1.marketState,{marketId:id,ownerAgentId:1,referenceId:'LISTING-1'});
+  assert.equal(replay.ok,true);assert.equal(replay.duplicate,true);assert.equal(JSON.stringify(replay.marketState),JSON.stringify(l1.marketState));
+  const wrong=attachHomeMarketBuyOfferReference(s,l1.marketState,{marketId:id,ownerAgentId:2,referenceId:'BUY-1'});
+  assert.equal(wrong.ok,false);assert.equal(wrong.reason,'owner');
+  const b1=attachHomeMarketBuyOfferReference(s,l1.marketState,{marketId:id,ownerAgentId:1,referenceId:'BUY-1'});
+  assert.equal(b1.ok,true);assert.deepEqual(b1.market.buyOfferIds,['BUY-1']);
+  const bGone=detachHomeMarketBuyOfferReference(s,b1.marketState,{marketId:id,ownerAgentId:1,referenceId:'BUY-1'});
+  assert.equal(bGone.ok,true);assert.equal(bGone.duplicate,false);assert.deepEqual(bGone.market.buyOfferIds,[]);
+  const bReplay=detachHomeMarketBuyOfferReference(s,bGone.marketState,{marketId:id,ownerAgentId:1,referenceId:'BUY-1'});
+  assert.equal(bReplay.ok,true);assert.equal(bReplay.duplicate,true);
+  const lGone=detachHomeMarketListingReference(s,bReplay.marketState,{marketId:id,ownerAgentId:1,referenceId:'LISTING-1'});
+  assert.equal(lGone.ok,true);assert.deepEqual(lGone.market.listingIds,[]);
+  assert.equal('items' in lGone.market,false);assert.equal('wallet' in lGone.market,false);
+  const restored=normalizeHomeMarketState(JSON.parse(JSON.stringify(lGone.marketState)));
+  assert.equal(JSON.stringify(restored),JSON.stringify(lGone.marketState));
+});
+
+test('RC4 B1: dead/invalid/archived market reference writes fail closed',()=>{
+  const s=marketWorld(),created=createHomeMarket(s,undefined,{ownerAgentId:1,homeId:'H1'}),id=created.market.marketId;
+  s.agents[0].alive=false;
+  const dead=attachHomeMarketListingReference(s,created.marketState,{marketId:id,ownerAgentId:1,referenceId:'LISTING-1'});
+  assert.equal(dead.ok,false);assert.ok(['owner-dead','market-invalid'].includes(dead.reason));
+  s.agents[0].alive=true;
+  const archived=archiveHomeMarket(created.marketState,{marketId:id});
+  assert.equal(archived.ok,true);
+  const denied=attachHomeMarketBuyOfferReference(s,archived.marketState,{marketId:id,ownerAgentId:1,referenceId:'BUY-1'});
+  assert.equal(denied.ok,false);assert.equal(denied.reason,'market-archived');
+});
+
+test('RC4 B2: Home Market owns deterministic Trade Market projection and canonical tradeRange',()=>{
+  const s=marketWorld(),created=createHomeMarket(s,undefined,{ownerAgentId:1,homeId:'H1'}),id=created.market.marketId;
+  const closed=projectHomeMarketForTrade(s,created.marketState,{marketId:id});
+  assert.equal(closed.ok,true);assert.deepEqual(closed.market,{id,open:false,x:10,y:11,tradeRange:HOME_MARKET_TRADE_RANGE});
+  assert.equal(Number.isSafeInteger(closed.market.tradeRange)&&closed.market.tradeRange>0,true);
+  assert.deepEqual(closed.provenance,{authority:'HomeMarket',homeId:'H1',doorwayStationId:5,status:'closed'});
+  const opened=openHomeMarket(s,created.marketState,{marketId:id,ownerAgentId:1});
+  const a=projectHomeMarketForTrade(s,opened.marketState,{marketId:id}),b=projectHomeMarketForTrade(s,opened.marketState,{marketId:id});
+  assert.equal(a.ok,true);assert.equal(a.market.open,true);assert.equal(JSON.stringify(a),JSON.stringify(b));
+  s.uiMarketPosition={x:0,y:0,tradeRange:99};
+  const stillPhysical=projectHomeMarketForTrade(s,opened.marketState,{marketId:id});
+  assert.deepEqual(stillPhysical.market,{id,open:true,x:10,y:11,tradeRange:HOME_MARKET_TRADE_RANGE});
+});
+
+test('RC4 B2: invalid/missing physical storefront projection fails closed',()=>{
+  const s=marketWorld(),created=createHomeMarket(s,undefined,{ownerAgentId:1,homeId:'H1'}),id=created.market.marketId;
+  s.rustStations.stations=s.rustStations.stations.filter(st=>st.kind!=='WOOD_DOORWAY');
+  const r=projectHomeMarketForTrade(s,created.marketState,{marketId:id});
+  assert.equal(r.ok,false);assert.equal(r.reason,'market-invalid');
 });
