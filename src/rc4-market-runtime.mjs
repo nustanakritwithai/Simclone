@@ -73,6 +73,7 @@ function ensureLedger(world,merchantId){
 
 export function migrateRc4EconomyState(world){
   if(!world||typeof world!=='object'||!Array.isArray(world.agents))return {state:'VIOL',reason:'world'};
+  if(world.rc4EconomyVersion!==undefined&&world.rc4EconomyVersion!==RC4_ECONOMY_ROOT_VERSION)return {state:'VIOL',reason:'rc4-root-version'};
   const hm=migrateHomeMarketState(world.homeMarkets);
   if(hm.state!=='SAT')return {state:'VIOL',reason:'home-markets',detail:hm};
   world.homeMarkets=hm.marketState;
