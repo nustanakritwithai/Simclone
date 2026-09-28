@@ -212,7 +212,9 @@ export function validateRustStations(s){
   return e;
 }
 export const RUST_PROCESSING_CATALOG=Object.freeze({
-  CHARCOAL:Object.freeze({id:'CHARCOAL',station:'FURNACE',input:Object.freeze({wood:2}),output:Object.freeze({charcoal:1}),work:12,live:true}),
-  COOKED_MEAT:Object.freeze({id:'COOKED_MEAT',station:'FURNACE',input:Object.freeze({raw_meat:1}),output:Object.freeze({cooked_meat:1}),work:12,live:false,reason:'meat-ledger-not-authoritative'}),
-  CLEAN_WATER:Object.freeze({id:'CLEAN_WATER',station:'FURNACE',input:Object.freeze({dirty_water:1}),output:Object.freeze({clean_water:1}),work:12,live:false,reason:'water-ledger-not-authoritative'})
+  CHARCOAL:Object.freeze({id:'CHARCOAL',name:'ถ่านไม้',station:'FURNACE',input:Object.freeze({wood:2}),output:Object.freeze({charcoal:1}),work:12,live:true}),
+  IRON_INGOT:Object.freeze({id:'IRON_INGOT',name:'เหล็กแท่ง',station:'FURNACE',input:Object.freeze({ironOre:2,charcoal:1}),output:Object.freeze({ironIngot:1}),work:16,live:true}),
+  STEEL_INGOT:Object.freeze({id:'STEEL_INGOT',name:'เหล็กกล้า',station:'FURNACE',input:Object.freeze({ironIngot:2,charcoal:2}),output:Object.freeze({steelIngot:1}),work:22,live:true}),
+  COOKED_MEAT:Object.freeze({id:'COOKED_MEAT',name:'เนื้อสุก',station:'FURNACE',input:Object.freeze({raw_meat:1}),output:Object.freeze({cooked_meat:1}),work:12,live:false,reason:'meat-ledger-not-authoritative'}),
+  CLEAN_WATER:Object.freeze({id:'CLEAN_WATER',name:'น้ำสะอาด',station:'FURNACE',input:Object.freeze({dirty_water:1}),output:Object.freeze({clean_water:1}),work:12,live:false,reason:'water-ledger-not-authoritative'})
 });

@@ -50,6 +50,9 @@ jobs:
       - name: Verify RC3.1 exact-main native physical Blueprint
         run: python tests/blueprint-smoke.py --native
 
+      - name: Verify RC3.2 exact-main native Iron and Steel economy
+        run: python tests/rc3-metal-smoke.py --native
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -129,4 +132,20 @@ jobs:
           path: |
             evidence-public-blueprint/
             evidence-ui/blueprint-native/
+          if-no-files-found: warn
+
+      - name: Verify public RC3.2 Iron and Steel economy
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: python tests/rc3-metal-smoke.py --public
+
+      - name: Upload RC3.2 public metal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-public-evidence-${{ github.sha }}
+          path: |
+            evidence-public-metal/
+            evidence-ui/metal-native/
           if-no-files-found: warn

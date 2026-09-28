@@ -81,6 +81,20 @@ Focused adversarial suite now covers:
 UNKNOWN remains not PASS. This repair does not authorize merge; RC4 Red Team still owns acceptance.
 
 
+## RC3.2 main sync override — 2026-09-28
+
+This candidate is merged forward onto current released source:
+
+- `main@1b60b13394c11bd7b03d10227919f4bb509b02df` (merged PR #174, RC3.2 Iron / Steel economy)
+- previous repaired Pricing/Ledger head: `964b14b21c1e4d0ce872c3343b9bcce7c1d41f2f`
+- merge strategy: preserve current main tree and add only RC4 Pricing/Ledger-owned modules/tests/docs plus regenerated combined import-map pins
+- no Repair-Agent edit to `src/engine.mjs`, Wallet, Home Market, Merchant/Customer AI, profession authority, Rust item authority, or production UI
+- RC3.2 metal authority/runtime files come byte-for-byte from current main
+
+The prior exact-head Verify #1964 proves the isolated repaired slice on its old base. It is not the post-sync proof. The merge-forward candidate requires a new exact-head Verify including the RC3.2 native Iron/Steel smoke before Red Team may treat current-main compatibility as SAT.
+
+UNKNOWN remains not PASS and this section does not authorize merge.
+
 ## Source / candidate boundary
 
 Starting source inspected before implementation:

@@ -11,7 +11,7 @@ import {neutralAdventurerCombatProfile,neutralAdventurerCoreStatsAtLevel} from '
 import {startAdventureCombatSession} from '../src/adventure-combat-session.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
 const copy=x=>JSON.parse(JSON.stringify(x));
-function fresh(seed=230926){const s=createWorld(seed);s.stock.wood=500;s.stock.stone=500;return s;}
+function fresh(seed=230926){const s=createWorld(seed);s.stock.wood=500;s.stock.stone=500;s.rustMaterials.charcoal=100;s.rustMaterials.ironOre=100;s.rustMaterials.ironIngot=100;s.rustMaterials.steelIngot=90;return s;}
 function finish(s,a){let result;const o=s.rustPossessions.orders.find(o=>o.agentId===a.id);assert.ok(o);for(let i=0;i<o.required+2;i++){s.tick++;result=advanceCraft(s,a.id);if(result.completed)break;}assert.equal(result.completed,true,JSON.stringify(result));return s.rustPossessions.items.find(x=>x.id===result.itemId);}
 function craft(s,a,recipeId){const q=command(s,'CRAFT_ITEM',{agentId:a.id,recipeId});assert.equal(q.ok,true,JSON.stringify(q));return finish(s,a);}
 function stow(s,item){item.location={kind:'drop',sourceAgentId:item.createdBy,tick:s.tick,x:s.agents[0].x,y:s.agents[0].y};}

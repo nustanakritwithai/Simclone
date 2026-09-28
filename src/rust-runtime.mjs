@@ -2,18 +2,19 @@ import {validateCraftedItem} from './craft-outcome.mjs?v=0.5.0';
 import {teachCraftRecipe,validateAllRecipeKnowledge} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,PLACEABLE_KINDS,validateCraftingCatalog} from './crafting-catalog.mjs?v=0.5.0';
 import {learnRecipeBlueprint,createRustPossessions,queueCraft,advanceCraft,validateCraftOrder,equipTool,unequipTool,equipAdventureGear,unequipAdventureGear,pickupDroppedItem,toolMultiplier,releaseRustPossessionsOnDeath,grantAdventureLoot,equipmentSlotOf,RUST_POSSESSIONS_VERSION,RUST_POSSESSION_LIMITS} from './rust-possessions.mjs?v=0.5.0';
-import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_STATIONS_VERSION,STATION_LIMITS,stationLimit} from './rust-stations.mjs?v=0.5.0';
+import {createRustStations,placeStationFromItem,canPlaceStation,migrateRustStations,validateRustStations,stationAt,availableStationKinds,RUST_PROCESSING_CATALOG,RUST_STATIONS_VERSION,STATION_LIMITS,stationLimit} from './rust-stations.mjs?v=0.5.0';
 import {completedHouseIds} from './housing.mjs?v=0.5.0';
-import {createRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
+import {createRustMaterials,migrateRustMaterials,queueProcessing,advanceProcessing,releaseRustProcessingOnDeath,RUST_MATERIALS_VERSION,RUST_MATERIAL_LIMITS} from './rust-materials.mjs?v=0.5.0';
+import {validBulkMaterialFields} from './material-schema.mjs?v=0.5.0';
 import {activateHouseholdStore,isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {ADVENTURE_MAX_UPGRADE_LEVEL} from './adventure-upgrade.mjs?v=0.5.0';
-export const RUST_RUNTIME_VERSION='RS1-RS4-integrated-0.2';
+export const RUST_RUNTIME_VERSION='RS1-RS4-integrated-0.3';
 export function ensureRustState(s){
   if(s.rustPossessions===undefined)s.rustPossessions=createRustPossessions();
   if(s.rustStations===undefined)s.rustStations=createRustStations();
   // Single RS3-0.2 -> RS3-0.3 migration point (idempotent; RS3-0.3 is left untouched).
   migrateRustStations(s.rustStations);
-  if(s.rustMaterials===undefined)s.rustMaterials=createRustMaterials();
+  if(s.rustMaterials===undefined)s.rustMaterials=createRustMaterials();else migrateRustMaterials(s.rustMaterials);
   return s;
 }
 const msg=r=>({
@@ -56,12 +57,14 @@ export function rustCommand(s,type,data={},isWalkable){
     }
   }
   else if(type==='PROCESS_CHARCOAL')r=queueProcessing(s,{...data,processId:'CHARCOAL'});
+  else if(type==='PROCESS_IRON')r=queueProcessing(s,{...data,processId:'IRON_INGOT'});
+  else if(type==='PROCESS_STEEL')r=queueProcessing(s,{...data,processId:'STEEL_INGOT'});
   else return null;
   if(!r.ok)return {...r,message:msg(r)};
   const text=type==='LEARN_RECIPE_BLUEPRINT'?'เรียนสูตรแล้ว · ใช้พิมพ์เขียว 1 ใบ ไม่เพิ่ม Mastery':type==='TEACH_CRAFT_RECIPE'?(r.changed?'ถ่ายทอดสูตรให้ผู้เรียนแล้ว':'ผู้เรียนรู้สูตรนี้อยู่แล้ว'):type==='CRAFT_ITEM'?'รับงานคราฟต์แล้ว · วัสดุถูกกันเข้า order และจะไม่หักซ้ำ':
     type==='EQUIP_ADVENTURE_GEAR'?'สวมอุปกรณ์ผจญภัยแล้ว':type==='UNEQUIP_ADVENTURE_GEAR'?'ถอดอุปกรณ์ผจญภัยแล้ว':
     type==='EQUIP_ITEM'?'สวมอุปกรณ์ช่องมือแล้ว':type==='UNEQUIP_ITEM'?(r.changed?'ถอดอุปกรณ์ช่องมือแล้ว':'ช่องมือว่างอยู่แล้ว'):type==='PICKUP_ITEM'?'เก็บของขึ้นกระเป๋าแล้ว':
-    type==='PLACE_STATION'?'วางสิ่งปลูกสร้างสำเร็จ': 'รับงานเผาถ่านแล้ว · ไม้ถูกกันเข้า order';
+    type==='PLACE_STATION'?'วางสิ่งปลูกสร้างสำเร็จ':type==='PROCESS_IRON'?'รับงานหลอมเหล็กแล้ว · แร่และถ่านถูกกันเข้า order':type==='PROCESS_STEEL'?'รับงานหลอมเหล็กกล้าแล้ว · เหล็กและถ่านถูกกันเข้า order':'รับงานเผาถ่านแล้ว · ไม้ถูกกันเข้า order';
   return {...r,message:text};
 }
 /** Read-only preview of the same validator the executor re-runs; no clone and no write. */
@@ -76,7 +79,7 @@ export function pendingRustWork(s,a){
     return {kind:'CRAFT',orderId:craft.id,x:st?.x??a.x,y:st?.y??a.y,stationId:craft.stationId,label:ITEM_CATALOG[r.output]?.name??r.output};
   }
   const process=s.rustMaterials?.orders.find(o=>o.agentId===a.id);
-  if(process){const st=stationAt(s,process.stationId);if(st)return {kind:'PROCESS',orderId:process.id,x:st.x,y:st.y,stationId:st.id,label:'ถ่านไม้'};}
+  if(process){const st=stationAt(s,process.stationId),p=RUST_PROCESSING_CATALOG[process.processId];if(st&&p)return {kind:'PROCESS',orderId:process.id,x:st.x,y:st.y,stationId:st.id,label:p.name??process.processId};}
   return null;
 }
 export function advanceRustWork(s,a,workRate){
@@ -125,7 +128,7 @@ export function validateRustState(s){
     for(const st of rs.stations)if(!st||!Number.isSafeInteger(st.id)||!PLACEABLE_KINDS.includes(st.kind)||!Number.isInteger(st.x)||!Number.isInteger(st.y)||!people.has(st.placedBy))e.push('Rust station');
     e.push(...validateRustStations(s));
   }
-  if(!m||m.version!==RUST_MATERIALS_VERSION||!Number.isInteger(m.charcoal)||m.charcoal<0||m.charcoal>RUST_MATERIAL_LIMITS.charcoal||!Array.isArray(m.orders)||m.orders.length>RUST_MATERIAL_LIMITS.orders)e.push('Rust materials');
-  else for(const o of m.orders)if(!o||!alive.has(o.agentId)||o.processId!=='CHARCOAL'||!stationAt(s,o.stationId)||!Number.isFinite(o.work)||o.work<0||!o.reserved)e.push('Rust process order');
+  if(!m||m.version!==RUST_MATERIALS_VERSION||!validBulkMaterialFields(m)||!Array.isArray(m.orders)||m.orders.length>RUST_MATERIAL_LIMITS.orders)e.push('Rust materials');
+  else for(const o of m.orders){const process=RUST_PROCESSING_CATALOG[o?.processId],st=stationAt(s,o?.stationId);if(!o||!alive.has(o.agentId)||!process?.live||!st||st.kind!==process.station||!Number.isFinite(o.work)||o.work<0||o.work>=process.work||o.required!==process.work||!o.reserved||Object.keys(o.reserved).length!==Object.keys(process.input).length||Object.entries(process.input).some(([k,x])=>o.reserved[k]!==x))e.push('Rust process order');}
   return [...new Set(e)];
 }
