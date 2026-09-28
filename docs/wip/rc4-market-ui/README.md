@@ -16,7 +16,7 @@ The design follows the existing Simclone UI direction:
 - buttons target at least 44 CSS px in the landscape layout;
 - UI actions produce command intents only;
 - CLOSED and UNKNOWN snapshots cannot emit purchase intents;
-- verified transaction feedback accepts only an externally supplied canonical result with `verificationStatus === "VERIFIED"`, `commitStatus === "COMMITTED"`, and `duplicate === false`.
+- verified transaction feedback accepts only an externally supplied canonical result with `state === "SAT"`, `verification === "VERIFIED"`, `commitStatus === "COMMITTED"`, and `duplicate === false`.
 
 ## Files
 
@@ -44,7 +44,8 @@ Verified feedback has no player-facing demo button. A preview harness or Integra
 ```js
 window.dispatchEvent(new CustomEvent("rc4:transaction-result", {
   detail: {
-    verificationStatus: "VERIFIED",
+    state: "SAT",
+    verification: "VERIFIED",
     commitStatus: "COMMITTED",
     duplicate: false,
     transactionId: "tx-041",
