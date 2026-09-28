@@ -1,0 +1,46 @@
+name: RC4 integration pin and focused proof
+
+on:
+  push:
+    branches:
+      - integration/rc4-merchant-economy-v1
+
+permissions:
+  contents: write
+
+jobs:
+  pin-and-proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/rc4-merchant-economy-v1
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Refresh runtime pins
+        run: node scripts/pin-assets.mjs
+      - name: Parse new RC4 runtime
+        run: |
+          node --check src/rc4-market-runtime.mjs
+          node --check src/navigation-arrival-evidence.mjs
+          node --check src/merchant-ledger.mjs
+          node --check src/trade-kernel.mjs
+          node --check src/app.mjs
+          node --check src/engine.mjs
+          node --check tests/rc4-market-integration.test.mjs
+      - name: Focused RC4 vertical proof
+        run: node --test tests/rc4-market-integration.test.mjs
+      - name: Commit generated import-map pins
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "Runtime pins already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "chore: refresh RC4 runtime import-map pins"
+          git push origin HEAD:integration/rc4-merchant-economy-v1
