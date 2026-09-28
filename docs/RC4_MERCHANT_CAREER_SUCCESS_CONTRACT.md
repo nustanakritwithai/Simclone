@@ -128,10 +128,11 @@ No new save version is introduced by RC4 Merchant Career.
 
 ## Merchant progression hook
 
-Prepared non-monetary progression fields:
+Prepared progression hooks:
 
-- `merchantTransactions`
-- `merchantExperience`
+- `merchantTransactions` — Career-owned non-monetary counter
+- `merchantRealizedProfit` — read-only projection from canonical Merchant Ledger
+- `merchantExperience` — Career-owned non-monetary counter
 
 Only a fact with all of these may count:
 
@@ -152,8 +153,10 @@ Rules:
 - one accepted committed transaction increments `merchantTransactions` by 1.
 - `merchantExperience` increments by 1 per accepted committed transaction.
 - recent transaction IDs are retained only for bounded replay protection.
-- Career MUST NOT store or accumulate Revenue, COGS or Realized Profit.
-- `merchantRealizedProfit` is explicitly rejected as a duplicate monetary authority.
+- Career MUST NOT store or accumulate Revenue, COGS or Realized Profit on the agent.
+- `merchantRealizedProfit` progression support is satisfied only by a read-only projection of a valid Merchant Ledger snapshot.
+- absent ledger evidence makes the projected profit UNKNOWN/null; malformed or mismatched ledger evidence is VIOL.
+- a persisted `agent.merchantRealizedProfit` field is explicitly rejected as a duplicate monetary authority.
 - authoritative monetary accounting belongs to the RC4 Merchant Ledger workstream.
 
 ## Required tests
@@ -171,8 +174,11 @@ Rules:
 - Merchant module contains no direct profession assignment
 - progression counts only verified + committed transactions
 - retained transaction replay does not double-count progression
+- Career exposes `merchantRealizedProfit` only from a read-only Merchant Ledger projection
 - Career does not create a second Revenue / COGS / Realized Profit authority
-- a forged/legacy `merchantRealizedProfit` field is rejected
+- absent ledger evidence stays UNKNOWN/null
+- mismatched/drifting ledger totals are rejected
+- a forged/legacy persisted `merchantRealizedProfit` field is rejected
 
 ## Verification contract
 
@@ -208,6 +214,7 @@ RC4 Merchant Career is SAT only when:
 - replay and save/load continuity tests pass
 - progression only accepts verified + committed facts
 - Career contains no monetary profit accumulator
-- duplicate `merchantRealizedProfit` state is rejected
+- `merchantRealizedProfit` hook is available from a validated read-only Merchant Ledger projection
+- duplicate persisted `merchantRealizedProfit` state is rejected
 - `npm test` passes on the exact head
 - PR is opened and remains unmerged
