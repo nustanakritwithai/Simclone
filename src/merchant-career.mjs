@@ -5,6 +5,7 @@
  * No trade settlement, wallet, Rust inventory, pricing, market UI or runtime policy.
  */
 import {adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
+import {consumeCanonicalMerchantProgressionGrant} from './merchant-ledger.mjs?v=0.5.0';
 
 export const MERCHANT_CAREER_VERSION='RC4-merchant-v1';
 export const MERCHANT_QUALIFICATION_POLICY=Object.freeze({
@@ -238,6 +239,9 @@ export function noteVerifiedCommittedMerchantTransaction(agent,evidence){
   const assessed=assessMerchantCareerTransactionEvidence(agent,evidence);
   if(assessed.status!==SAT)return skip(assessed.status,assessed.reason,{errors:assessed.errors});
   if(assessed.duplicate===true)return skip(SAT,'canonical-duplicate',{transactionId:assessed.receipt.transactionId});
+  const grant=consumeCanonicalMerchantProgressionGrant(agent,evidence);
+  if(grant.state!==SAT)return skip(UNKNOWN,grant.reason);
+  if(grant.duplicate)return skip(SAT,'canonical-duplicate',{transactionId:assessed.receipt.transactionId});
 
   if(agent.merchantTransactions===undefined){
     agent.merchantTransactions=0;

@@ -1,7 +1,0 @@
-diff --git a/src/merchant-buy-offer.mjs b/src/merchant-buy-offer.mjs
-index ac0ea89..465f25f 100644
---- a/src/merchant-buy-offer.mjs
-+++ b/src/merchant-buy-offer.mjs
-@@ -123 +123 @@ export function proposeProducerBuyOfferMatch(offer,{producerId,itemInstanceId,it
--      itemInstanceId:ids[0],quantity:ids.length,unitPrice:offer.unitPrice,status:'OPEN'
-+      itemInstanceId:ids[0],quantity:ids.length,unitPrice:offer.unitPrice,status:'OPEN',buyOfferId:offer.offerId

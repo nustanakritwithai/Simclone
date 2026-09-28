@@ -32,7 +32,7 @@ function completeHome(s,a){
   place('WOOD_ROOF',{type:'cell',x,y});
   return site;
 }
-function craftItem(s,a,recipeId='STONE_AXE'){
+function craftItem(s,a,recipeId='STONE_PICKAXE'){
   a.task=null;
   const order=command(s,'CRAFT_ITEM',{agentId:a.id,recipeId});
   assert.equal(order.ok,true,JSON.stringify(order));
@@ -67,7 +67,7 @@ test('RC4 root migration is additive and corrupt-present Home Market fails close
 test('RC4 forged receipt + matching replay + recomputed hashes stays UNKNOWN',()=>{
   const receipt={
     transactionId:'TX:forged',marketId:'M1',listingId:'L1',reservationId:'R1',
-    buyerId:2,sellerId:1,itemKind:'STONE_AXE',itemInstanceId:77,itemIds:[77],
+    buyerId:2,sellerId:1,itemKind:'STONE_PICKAXE',itemInstanceId:77,itemIds:[77],
     quantity:1,unitPrice:100,totalPrice:100,eventId:'TRADE:TX:forged'
   };
   receipt.fingerprint=tradeReceiptFingerprint(receipt);
@@ -84,7 +84,7 @@ test('RC4 playable vertical A->B->C: Producer -> Merchant -> Customer with 100/7
   const producerId=producer.id,merchantId=merchant.id,customerId=customer.id;
   for(const a of [producer,merchant,customer]){a.satiety=100;a.energy=100;a.task=null;a.moveTick=0;}
   completeHome(s,merchant);
-  const sale=craftItem(s,producer,'STONE_AXE');
+  const sale=craftItem(s,producer,'STONE_PICKAXE');
   const beforeTotal=totalCurrency(s);
 
   // Preparation market is CLOSED and may exist before profession adoption.
@@ -119,7 +119,7 @@ test('RC4 playable vertical A->B->C: Producer -> Merchant -> Customer with 100/7
   const travel1=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:merchant.id,marketId:market.marketId});
   assert.equal(travel1.ok,true,JSON.stringify(travel1));runToMarket(s,merchant);
   assert.equal(verifyCanonicalMarketArrival(s,{agentId:merchant.id,market:marketProjection}).state,'SAT');
-  const buy70=command(s,'RC4_BUY_LISTING',{buyerId:merchant.id,listingId:procurement.id});
+  const buy70=command(s,'RC4_BUY_LISTING',{buyerId:merchant.id,listingId:procurement.id,listingRevision:procurement.revision});
   assert.equal(buy70.ok,true,JSON.stringify(buy70));
   producer=actor(s,producerId);merchant=actor(s,merchantId);customer=actor(s,customerId);
   assert.equal(s.rustPossessions.items.find(i=>i.id===sale.id).location.agentId,merchant.id);
@@ -137,7 +137,7 @@ test('RC4 playable vertical A->B->C: Producer -> Merchant -> Customer with 100/7
   assert.equal(travel2.ok,true,JSON.stringify(travel2));customer=actor(s,customerId);runToMarket(s,customer);
   assert.equal(verifyCanonicalMarketArrival(s,{agentId:customer.id,market:marketProjection}).state,'SAT');
 
-  const bought=command(s,'RC4_BUY_LISTING',{buyerId:customer.id,listingId:listed.id});
+  const bought=command(s,'RC4_BUY_LISTING',{buyerId:customer.id,listingId:listed.id,listingRevision:listed.revision});
   assert.equal(bought.ok,true,JSON.stringify(bought));
   producer=actor(s,producerId);merchant=actor(s,merchantId);customer=actor(s,customerId);
   assert.equal(getBalance(s,merchant.id),130);

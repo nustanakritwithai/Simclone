@@ -25,6 +25,7 @@ const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const validRefId=(v,max=TRADE_KERNEL_COMPAT.maxIdLength)=>typeof v==='string'&&v.length>0&&v.length<=max&&idPattern.test(v);
 const positiveInt=v=>Number.isSafeInteger(v)&&v>0;
 const clone=v=>structuredClone(v);
+const progressionGrants=new WeakMap();
 const signedMoney=v=>Number.isSafeInteger(v);
 const stableIds=ids=>ids.slice().sort((a,b)=>a-b);
 
@@ -207,7 +208,7 @@ export function applyTradeKernelCommitToLedger(ledger,result){
 export function applyCanonicalTradeExecutionToLedger(ledger,stagedState,context,{productionEvidence=null}={}){
   const ledgerErrors=validateMerchantLedger(ledger);
   if(ledgerErrors.length)return {state:'VIOL',reason:'ledger',errors:ledgerErrors,ledger:clone(ledger)};
-  if(!isCanonicalTradeExecutionContext(context))return {state:'UNKNOWN',reason:'trade-commit-provenance',ledger:clone(ledger)};
+  if(!isCanonicalTradeExecutionContext(context,stagedState))return {state:'UNKNOWN',reason:'trade-commit-provenance',ledger:clone(ledger)};
   const r=context?.receipt,receiptErrors=validateCommittedTradeReceipt(r);
   if(receiptErrors.length)return {state:'VIOL',reason:'trade-receipt',errors:receiptErrors,ledger:clone(ledger)};
   const replayShape=validateReplayShape(stagedState,r);
@@ -228,7 +229,9 @@ export function applyCanonicalTradeExecutionToLedger(ledger,stagedState,context,
   }else return {state:'VIOL',reason:'merchant-not-party',ledger:clone(ledger)};
   const post=validateMerchantLedger(next);
   if(post.length)return {state:'VIOL',reason:'ledger-post',errors:post,ledger:clone(ledger)};
-  return {state:'SAT',duplicate:false,verification:'VERIFIED',commitStatus:'COMMITTED',receipt:r,ledger:next};
+  const result=Object.freeze({state:'SAT',duplicate:false,verification:'VERIFIED',commitStatus:'COMMITTED',receipt:r,ledger:next});
+  progressionGrants.set(result,{context,stagedState,merchantId:next.merchantId,consumed:false});
+  return result;
 }
 
 export function serializeMerchantLedger(ledger){
@@ -305,4 +308,15 @@ export function replaceMerchantLedgerInCollection(collection,ledger){
   const post=validateMerchantLedgerCollection(next);
   if(post.length)return {state:'VIOL',reason:'merchant-ledger-collection',errors:post,collection:clone(collection)};
   return {state:'SAT',duplicate:false,ledger:clone(ledger),collection:next};
+}
+
+/** Career consumes a Ledger-issued grant once, within this exact staged Trade call. */
+export function consumeCanonicalMerchantProgressionGrant(agent,result){
+  const grant=result&&typeof result==='object'?progressionGrants.get(result):null;
+  if(!grant||!isCanonicalTradeExecutionContext(grant.context,grant.stagedState)||
+    grant.merchantId!==agent?.id||grant.stagedState.agents?.find(a=>a.id===agent.id)!==agent||
+    result.receipt!==grant.context.receipt)return {state:'UNKNOWN',reason:'trade-commit-provenance'};
+  if(grant.consumed)return {state:'SAT',duplicate:true};
+  grant.consumed=true;
+  return {state:'SAT',duplicate:false};
 }

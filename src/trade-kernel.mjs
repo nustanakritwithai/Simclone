@@ -1,7 +1,7 @@
 export const TRADE_KERNEL_VERSION='RC4-trade-kernel-1';
 export const TRADE_REPLAY_VERSION='RC4-trade-replay-1';
-const canonicalExecutionContexts=new WeakSet();
-export const isCanonicalTradeExecutionContext=context=>!!context&&typeof context==='object'&&canonicalExecutionContexts.has(context);
+const canonicalExecutionContexts=new WeakMap();
+export const isCanonicalTradeExecutionContext=(context,state=null)=>{const active=context&&typeof context==='object'&&canonicalExecutionContexts.get(context);return !!active&&(state===null||active===state);};
 export const TRADE_LIMITS=Object.freeze({maxReceipts:512,maxQuantity:128,maxIdLength:80});
 
 const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
@@ -198,6 +198,7 @@ export function settleTradeAtomic(state,proposal,adapters={}){
   const built=buildTradeSettlementProposal(state,proposal,adapters);if(!built.ok)return built;
   const {settlement}=built;
   const staged=clone(state);
+  let context=null;
   try{
     const beforeBuyer=adapters.wallet.balance(staged,settlement.wallet.debit.agentId);
     const beforeSeller=adapters.wallet.balance(staged,settlement.wallet.credit.agentId);
@@ -212,12 +213,12 @@ export function settleTradeAtomic(state,proposal,adapters={}){
     const post=adapters.postSettlement;
     if(!post||typeof post.apply!=='function'||typeof post.verify!=='function')
       return {ok:false,reason:'post-settlement-authority'};
-    const context=Object.freeze({
+    context=Object.freeze({
       provenance:'CANONICAL_TRADE_SETTLEMENT_EXECUTION',
       proposal:Object.freeze(clone(normalizedProposal(proposal))),
-      receipt:Object.freeze(clone(settlement.receipt))
+      receipt:Object.freeze({...clone(settlement.receipt),itemIds:Object.freeze([...settlement.receipt.itemIds])})
     });
-    canonicalExecutionContexts.add(context);
+    canonicalExecutionContexts.set(context,staged);
     const applied=post.apply(staged,context);
     if(!adapterResultOk(applied))return {ok:false,reason:applied?.reason||'post-settlement-apply'};
     const verified=post.verify(staged,context);
@@ -232,5 +233,8 @@ export function settleTradeAtomic(state,proposal,adapters={}){
     return {ok:true,duplicate:false,receipt:clone(settlement.receipt),state:staged};
   }catch{
     return {ok:false,reason:'settlement-exception'};
+  }finally{
+    // Contexts cannot escape a successful or failed settlement and be replayed elsewhere.
+    if(context)canonicalExecutionContexts.delete(context);
   }
 }

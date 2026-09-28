@@ -551,7 +551,7 @@ function market(){
  }
 
  if(m.ownMarket){
-   const kinds=[...new Set((state.rustPossessions?.items??[]).map(i=>i.kind))].sort().slice(0,8);
+   const kinds=[...new Set([...m.bag.map(i=>i.kind),...m.markets.flatMap(x=>x.listings.map(l=>l.itemKind)),'STONE_AXE','STONE_PICKAXE','HAMMER'])].sort().slice(0,8);
    body+='<h3>Buy Offer · Trade Knowledge</h3>'+(kinds.length?kinds.map(k=>'<button class="secondary" data-action="rc4-create-offer" data-agent="'+sel.id+'" data-kind="'+esc(k)+'" data-price="70">รับซื้อ '+esc(k)+' · 70</button>').join(' '):'<p>ยังไม่มีชนิดสินค้าในโลก</p>');
  }
 
@@ -566,7 +566,7 @@ function market(){
    body+='<h3>ของในกระเป๋าที่ลงขายได้</h3>'+(tradable.length?tradable.map(i=>'<div class="help-block"><b>'+esc(i.kind)+'</b> · #'+i.id+'<div class="dialog-actions"><button data-action="rc4-list-item" data-agent="'+sel.id+'" data-item="'+i.id+'" data-price="100">ลงขาย 100</button></div></div>').join(''):'<p>ยังไม่มี item ที่ลงขายได้</p>');
  }
 
- body+='<h3>ตลาดในโลก</h3>';
+ body+='<h3>ตลาดที่ Clone เคยพบ</h3>';
  if(!m.markets.length)body+='<p>ยังไม่มี Home Market</p>';
  for(const marketRow of m.markets){
    body+='<section class="help-block"><b>¤ '+esc(marketRow.ownerName)+' · '+esc(marketRow.status)+'</b><br><small>'+esc(marketRow.marketId)+'</small>';
@@ -574,10 +574,10 @@ function market(){
      body+='<div><b>Listings</b></div>';
      for(const l of marketRow.listings){
        body+='<div>'+esc(l.itemKind)+' · '+l.quantity+' ชิ้น · '+l.unitPrice+' · '+esc(l.status);
-       if(sel.id!==l.sellerId&&l.status==='OPEN'&&marketRow.status==='open'){
+       if(sel.id!==l.sellerId&&l.needed&&l.status==='OPEN'&&marketRow.status==='open'){
          const arrived=m.arrival?.state==='SAT'&&m.arrival?.marketId===marketRow.marketId;
          body+=arrived
-           ?' <button class="primary" data-action="rc4-buy-listing" data-agent="'+sel.id+'" data-listing="'+esc(l.id)+'">ซื้อ</button>'
+           ?' <button class="primary" data-action="rc4-buy-listing" data-agent="'+sel.id+'" data-listing="'+esc(l.id)+'" data-listing-revision="'+l.revision+'">ซื้อ</button>'
            :' <button data-action="rc4-travel-market" data-agent="'+sel.id+'" data-market="'+esc(marketRow.marketId)+'">เดินไปซื้อ</button>';
        }
        body+='</div>';
@@ -636,11 +636,11 @@ $('dialog-body').addEventListener('click',e=>{
   else if(action==='rc4-create-market')result=command(state,'RC4_CREATE_MARKET',{agentId:Number(b.dataset.agent)});
   else if(action==='rc4-open-market')result=command(state,'RC4_OPEN_MARKET',{agentId:Number(b.dataset.agent),marketId:b.dataset.market});
   else if(action==='rc4-close-market')result=command(state,'RC4_CLOSE_MARKET',{agentId:Number(b.dataset.agent),marketId:b.dataset.market});
-  else if(action==='rc4-list-item')result=command(state,'RC4_CREATE_LISTING',{agentId:Number(b.dataset.agent),itemId:Number(b.dataset.item),unitPrice:Number(b.dataset.price)});
+  else if(action==='rc4-list-item')result=command(state,'RC4_CREATE_LISTING',{agentId:Number(b.dataset.agent),itemId:Number(b.dataset.item),unitPrice:Number(b.dataset.price),requestId:'ui-'+state.tick});
   else if(action==='rc4-create-offer')result=command(state,'RC4_CREATE_BUY_OFFER',{agentId:Number(b.dataset.agent),itemKind:b.dataset.kind,unitPrice:Number(b.dataset.price)});
   else if(action==='rc4-accept-offer')result=command(state,'RC4_ACCEPT_BUY_OFFER',{producerId:Number(b.dataset.agent),offerId:b.dataset.offer,itemId:Number(b.dataset.item)});
   else if(action==='rc4-travel-market')result=command(state,'RC4_TRAVEL_TO_MARKET',{agentId:Number(b.dataset.agent),marketId:b.dataset.market});
-  else if(action==='rc4-buy-listing')result=command(state,'RC4_BUY_LISTING',{buyerId:Number(b.dataset.agent),listingId:b.dataset.listing});
+  else if(action==='rc4-buy-listing')result=command(state,'RC4_BUY_LISTING',{buyerId:Number(b.dataset.agent),listingId:b.dataset.listing,listingRevision:Number(b.dataset.listingRevision)});
   else result={ok:false,message:'คำสั่งตลาดไม่ถูกต้อง'};
   toast(result.message??result.reason??(result.ok?'สำเร็จ':'ไม่สำเร็จ'));
   if(result.ok)save();

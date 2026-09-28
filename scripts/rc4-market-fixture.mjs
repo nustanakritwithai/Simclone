@@ -32,7 +32,7 @@ place('WOOD_DOORWAY',canonicalEdge(x,y,'S'));
 place('WOOD_ROOF',{type:'cell',x,y});
 
 // The traded item is produced through canonical Rust crafting by Producer A.
-const order=command(s,'CRAFT_ITEM',{agentId:producer.id,recipeId:'STONE_AXE'});
+const order=command(s,'CRAFT_ITEM',{agentId:producer.id,recipeId:'STONE_PICKAXE'});
 if(!order.ok)throw new Error('producer craft order: '+JSON.stringify(order));
 let made=null;
 for(let i=0;i<40&&!made?.completed;i++){s.tick++;made=advanceCraft(s,producer.id);}

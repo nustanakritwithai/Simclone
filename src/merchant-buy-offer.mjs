@@ -120,7 +120,7 @@ export function proposeProducerBuyOfferMatch(offer,{producerId,itemInstanceId,it
     listingRequest:Object.freeze({
       authority:'MERCHANT_LISTING',
       id:listingId,marketId:offer.marketId,sellerId:producerId,itemKind:offer.itemKind,
-      itemInstanceId:ids[0],quantity:ids.length,unitPrice:offer.unitPrice,status:'OPEN'
+      itemInstanceId:ids[0],quantity:ids.length,unitPrice:offer.unitPrice,status:'OPEN',buyOfferId:offer.offerId
     }),
     reservationRequest:Object.freeze({
       authority:'CANONICAL_RESERVATION',

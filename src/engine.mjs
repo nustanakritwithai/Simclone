@@ -45,7 +45,8 @@ import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventu
 import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement,defeatWildMonster,stepWildMonsterLifecycle,migrateWildMonsterLifecycleState} from './adventure-world-monsters.mjs?v=0.5.0';
 import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adventure-autonomy.mjs?v=0.5.0';
 import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
-import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command} from './rc4-market-runtime.mjs?v=0.5.0';
+import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy} from './rc4-market-runtime.mjs?v=0.5.0';
+import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -523,7 +524,7 @@ function execute(s,a){
   if(t?.rc4MarketTravel&&t.path.length===0){a.moveTick=0;return;}
   if(t.kind==='IDLE'){a.energy=clamp(a.energy+.3);if(++t.work>=12)a.task=null;return;}
   if(t.kind==='EAT'&&meal.food<=0){a.task=null;return;}
-  if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const p=t.path.shift();a.x=p.x;a.y=p.y;a.moveTick=0;}return;}
+  if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const move=t.rc4MarketTravel?consumeCanonicalMarketTravelStep(s,a):{ok:true,position:t.path.shift()};if(!move.ok){a.task=null;a.moveTick=0;return;}a.x=move.position.x;a.y=move.position.y;a.moveTick=0;}return;}
   const workRate=SKILLS.includes(t.kind)?productiveWorkRate(s,a)*rustToolMultiplier(s,a,t.kind):(['CRAFT','PROCESS'].includes(t.kind)?productiveWorkRate(s,a):1);
   if(t.kind==='CRAFT'||t.kind==='PROCESS'){
     const result=advanceRustWork(s,a,workRate);
@@ -641,6 +642,7 @@ export function step(s,count=1,options={}){
       ageKnowledge(a,s.tick);
       if(a.task&&interrupt(s,a)){a.task=null;a.moveTick=0;}
     }
+    stepRc4Economy(s);
     stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;

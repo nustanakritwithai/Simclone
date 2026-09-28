@@ -1,8 +1,9 @@
+import {observeRc4Markets,validateRc4MarketKnowledge,knownRc4Markets,knownRc4Listings,knownRc4BuyOffers,knowsRc4Market,hasRc4PurchaseNeed} from './rc4-market-observation.mjs?v=0.5.0';
 import {homeOf} from './individual-housing.mjs?v=0.5.0';
 import {lifeStage} from './lifecycle.mjs?v=0.5.0';
 import {pathTo} from './survival.mjs?v=0.5.0';
 import {
-  migrateHomeMarketState,validateHomeMarketState,createHomeMarket,openHomeMarket,closeHomeMarket,
+  migrateHomeMarketState,validateHomeMarketState,createHomeMarket,openHomeMarket,closeHomeMarket,reconcileHomeMarkets,
   attachHomeMarketListingReference,attachHomeMarketBuyOfferReference,projectHomeMarketForTrade
 } from './home-market.mjs?v=0.5.0';
 import {
@@ -13,7 +14,7 @@ import {
   applyBuyOfferSettlementInCollection
 } from './merchant-buy-offer.mjs?v=0.5.0';
 import {
-  migrateReservationState,validateReservationState,createReservation,reservationById,globalActiveReservations,commitReservation
+  migrateReservationState,validateReservationState,createReservation,reservationById,globalActiveReservations,commitReservation,reconcileReservations
 } from './merchant-reservation.mjs?v=0.5.0';
 import {migrateLegacyCurrencyWallet,validateCurrencyWallet,getBalance,createCurrencyAccount} from './currency-wallet.mjs?v=0.5.0';
 import {createTradeWalletAdapter} from './trade-wallet-adapter.mjs?v=0.5.0';
@@ -27,9 +28,10 @@ import {
 import {
   evaluateMerchantQualification,adoptMerchantProfession,noteVerifiedCommittedMerchantTransaction,validateMerchantProgression
 } from './merchant-career.mjs?v=0.5.0';
-import {createCanonicalMarketTravelTask,verifyCanonicalMarketArrival,isCanonicalMarketTravelTask,canPreemptForCanonicalMarketTravel} from './navigation-arrival-evidence.mjs?v=0.5.0';
+import {createCanonicalMarketTravelTask,verifyCanonicalMarketArrival,isCanonicalMarketTravelTask,canPreemptForCanonicalMarketTravel,retainCanonicalMarketTravelOnCommit} from './navigation-arrival-evidence.mjs?v=0.5.0';
 
 export const RC4_ECONOMY_ROOT_VERSION='RC4-economy-root/1';
+const RC4_ROOT_FIELDS=Object.freeze(['homeMarkets','merchantListings','merchantBuyOffers','merchantReservations','currencyWallet','tradeReplay','merchantLedgers']);
 
 const clone=v=>structuredClone(v);
 const validMoney=v=>Number.isSafeInteger(v)&&v>0;
@@ -56,7 +58,15 @@ function ensureLedger(world,merchantId){
 
 export function migrateRc4EconomyState(world){
   if(!world||typeof world!=='object'||!Array.isArray(world.agents))return {state:'VIOL',reason:'world'};
-  if(world.rc4EconomyVersion!==undefined&&world.rc4EconomyVersion!==RC4_ECONOMY_ROOT_VERSION)return {state:'VIOL',reason:'rc4-root-version'};
+  // Only a wholly pre-RC4 world may bootstrap. A damaged modern save is not an old save.
+  const hasRc4=Object.hasOwn(world,'rc4EconomyVersion')||RC4_ROOT_FIELDS.some(k=>Object.hasOwn(world,k));
+  if(hasRc4){
+    if(world.rc4EconomyVersion!==RC4_ECONOMY_ROOT_VERSION)return {state:'VIOL',reason:'rc4-root-version'};
+    const missing=RC4_ROOT_FIELDS.filter(k=>!Object.hasOwn(world,k)||world[k]===null||world[k]===undefined);
+    if(missing.length)return {state:'VIOL',reason:'rc4-root-missing',errors:missing};
+  }else if([...(world.agents??[]),...(world.archive??[])].some(a=>a.profession==='merchant'||a.merchantTransactions>0||a.merchantExperience>0)){
+    return {state:'VIOL',reason:'rc4-history-without-roots'};
+  }
   const hm=migrateHomeMarketState(world.homeMarkets);
   if(hm.state!=='SAT')return {state:'VIOL',reason:'home-markets',detail:hm};
   world.homeMarkets=hm.marketState;
@@ -103,6 +113,7 @@ export function validateRc4EconomyState(world){
   e.push(...validateCurrencyWallet(world).map(x=>'Wallet:'+x));
   e.push(...validateTradeReplayState(world).map(x=>'Trade:'+x));
   e.push(...validateMerchantLedgerCollection(world?.merchantLedgers).map(x=>'Ledger:'+x));
+  if(e.length)return e;
   const marketById=new Map((world?.homeMarkets?.markets??[]).map(m=>[m.marketId,m]));
   const listingByRef=new Map((world?.merchantListings?.listings??[]).map(l=>[l.id,l]));
   const offerByRef=new Map((world?.merchantBuyOffers?.buyOffers??[]).map(o=>[o.offerId,o]));
@@ -117,6 +128,30 @@ export function validateRc4EconomyState(world){
   const knownPeople=new Set([...(world?.agents??[]),...(world?.archive??[])].map(a=>a.id));
   if((world?.merchantLedgers?.ledgers??[]).some(l=>!knownPeople.has(l.merchantId)))e.push('Ledger:agent');
   for(const a of [...(world?.agents??[]),...(world?.archive??[])])for(const x of validateMerchantProgression(a))e.push('MerchantCareer:'+a.id+':'+x);
+  const tradeReceipts=new Map(world.tradeReplay.receipts.map(r=>[r.transactionId,r]));
+  for(const r of world.tradeReplay.receipts){
+    const payment=world.currencyWallet.receipts.find(x=>x.transactionId===r.transactionId);
+    if(!payment||payment.kind!=='TRANSFER'||payment.fromAgentId!==r.buyerId||payment.toAgentId!==r.sellerId||payment.amount!==r.totalPrice||
+      payment.evidence?.operation!=='TRADE_TRANSFER'||payment.evidence.marketId!==r.marketId||payment.evidence.listingId!==r.listingId||payment.evidence.reservationId!==r.reservationId)e.push('Trade:wallet-receipt');
+    const reservation=world.merchantReservations.reservations.find(x=>x.id===r.reservationId);
+    if(!reservation||reservation.status!=='COMMITTED'||reservation.transactionId!==r.transactionId)e.push('Trade:reservation-receipt');
+    const listing=listingByRef.get(r.listingId);
+    if(!listing||listing.marketId!==r.marketId||listing.sellerId!==r.sellerId||listing.itemKind!==r.itemKind||listing.revision<=reservation?.listingRevision)e.push('Trade:listing-receipt');
+  }
+  for(const r of world.merchantReservations.reservations)if(r.status==='COMMITTED'&&!tradeReceipts.has(r.transactionId))e.push('Reservation:lost-trade-replay');
+  for(const r of world.currencyWallet.receipts)if(r.evidence?.operation==='TRADE_TRANSFER'&&!tradeReceipts.has(r.transactionId))e.push('Wallet:lost-trade-replay');
+  const people=[...(world.agents??[]),...(world.archive??[])];
+  for(const ledger of world.merchantLedgers.ledgers){
+    const agent=people.find(a=>a.id===ledger.merchantId),count=ledger.purchases.length+ledger.sales.length;
+    if(!agent||(agent.merchantTransactions??0)!==count||(agent.merchantExperience??0)!==count)e.push('Career:ledger-continuity');
+    for(const [side,rows] of [['buyerId',ledger.purchases],['sellerId',ledger.sales]])for(const row of rows){
+      const r=tradeReceipts.get(row.transactionId);
+      if(!r||r[side]!==ledger.merchantId||r.quantity!==row.quantity||r.totalPrice!==row.totalPrice||r.itemIds.join(',')!==row.itemIds.join(','))e.push('Ledger:trade-receipt');
+    }
+  }
+  for(const a of people)if((a.merchantTransactions??0)>0&&!world.merchantLedgers.ledgers.some(l=>l.merchantId===a.id))e.push('Career:missing-ledger');
+
+  for(const a of people)e.push(...validateRc4MarketKnowledge(a));
   return e;
 }
 
@@ -184,9 +219,10 @@ function applyMerchantAccounting(staged,context){
 }
 
 function matchingBuyOffer(staged,receipt){
-  const rows=(staged.merchantBuyOffers?.buyOffers??[]).filter(o=>o.status==='OPEN'&&o.marketId===receipt.marketId&&
-    o.buyerId===receipt.buyerId&&o.itemKind===receipt.itemKind&&o.quantityWanted===receipt.quantity&&o.unitPrice===receipt.unitPrice);
-  return rows.length===1?rows[0]:null;
+  const listing=listingById(staged,receipt.listingId);
+  if(!listing?.buyOfferId)return null;
+  const offer=offerById(staged,listing.buyOfferId);
+  return offer&&offer.buyerId===receipt.buyerId?offer:null;
 }
 
 function postSettlementAdapter(){
@@ -232,6 +268,7 @@ function postSettlementAdapter(){
 }
 
 function replaceWorldRoot(live,next){
+  retainCanonicalMarketTravelOnCommit(live,next);
   for(const key of Object.keys(live))delete live[key];
   Object.assign(live,next);
 }
@@ -245,7 +282,8 @@ export function prepareRc4MarketTravel(world,{agentId,marketId}={}){
   if(!marketResult.ok||marketResult.market.open!==true)return fail('market-closed','ตลาดยังไม่เปิด');
   const agent=world.agents.find(a=>a.id===agentId&&a.alive);
   if(!agent)return fail('agent','ไม่พบ Clone');
-  if(!canPreemptForCanonicalMarketTravel(agent.task))return fail('busy','Clone กำลังทำงานที่หยุดไม่ได้');
+  if(!knowsRc4Market(agent,marketId))return fail('market-unknown','Clone ยังไม่เคยพบตลาดนี้');
+  if(!canPreemptForCanonicalMarketTravel(agent.task,agent))return fail('busy','Clone กำลังทำงานที่หยุดไม่ได้');
   const path=pathTo(world,agent,marketResult.market);
   if(path===null)return fail('no-path','ไม่มีเส้นทางไปตลาด');
   const built=createCanonicalMarketTravelTask(world,agent,marketResult.market,path);
@@ -253,9 +291,14 @@ export function prepareRc4MarketTravel(world,{agentId,marketId}={}){
   return {ok:true,agent,task:built.task,market:marketResult.market};
 }
 
-function buyListing(world,{buyerId,listingId}={}){
+function buyListing(world,{buyerId,listingId,listingRevision}={}){
   const listing=listingById(world,listingId);
   if(!listing||listing.status!=='OPEN')return fail('listing','Listing ไม่พร้อม');
+  if(!positive(listingRevision)||listingRevision!==listing.revision)return fail('listing-stale','Listing เปลี่ยนแล้ว กรุณาดูข้อมูลใหม่');
+  if(listing.buyOfferId){const offer=offerById(world,listing.buyOfferId);if(!offer||offer.status!=='OPEN'||offer.buyerId!==buyerId||offer.unitPrice!==listing.unitPrice||offer.quantityWanted!==listing.quantity)return fail('buy-offer-binding','รายการรับซื้อนี้เป็นของผู้ซื้อที่ระบุเท่านั้น');}
+  const buyer=world.agents.find(a=>a.id===buyerId&&a.alive);
+  if(!knowsRc4Market(buyer,listing.marketId))return fail('market-unknown','ไม่รู้จักตลาดนี้');
+  if(!hasRc4PurchaseNeed(world,buyer,listing))return fail('item-not-needed','ไม่มีความต้องการสินค้านี้จากงานหรือ BuyOffer จริง');
   const marketResult=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:listing.marketId});
   if(!marketResult.ok||marketResult.market.open!==true)return fail('market','ตลาดปิด');
   const arrival=verifyCanonicalMarketArrival(world,{agentId:buyerId,market:marketResult.market});
@@ -309,7 +352,7 @@ function acceptBuyOffer(world,{producerId,offerId,itemId}={}){
   return {ok:true,listingId:made.listing.id,marketId:offer.marketId,message:'ผู้ผลิตตอบรับ Buy Offer แล้ว'};
 }
 
-export function rc4Command(world,type,data={}){
+function rc4CommandInternal(world,type,data={}){
   if(typeof type!=='string'||!type.startsWith('RC4_'))return null;
   const stateErrors=validateRc4EconomyState(world);
   if(stateErrors.length)return fail('rc4-state','RC4 state ไม่พร้อม',{errors:stateErrors});
@@ -334,7 +377,7 @@ export function rc4Command(world,type,data={}){
     const made=createHomeMarket(world,world.homeMarkets,{ownerAgentId:agent.id,homeId:home.houseId});
     if(!made.ok)return fail(made.reason,made.message);
     world.homeMarkets=made.marketState;
-    return {ok:true,marketId:made.market.marketId,eventType:'market',eventText:agent.name+' เตรียม Home Market'};
+    return {ok:true,duplicate:made.duplicate,marketId:made.market.marketId,eventType:'market',...(made.duplicate?{}:{eventText:agent.name+' เตรียม Home Market'})};
   }
 
   if(type==='RC4_OPEN_MARKET'||type==='RC4_CLOSE_MARKET'){
@@ -346,7 +389,7 @@ export function rc4Command(world,type,data={}){
     const changed=(type==='RC4_OPEN_MARKET'?openHomeMarket:closeHomeMarket)(world,world.homeMarkets,{marketId:data.marketId,ownerAgentId:data.agentId});
     if(!changed.ok)return fail(changed.reason,changed.message);
     world.homeMarkets=changed.marketState;
-    return {ok:true,marketId:data.marketId,status:changed.market.status,eventType:'market',eventText:'ตลาด '+changed.market.status};
+    return {ok:true,duplicate:changed.duplicate,marketId:data.marketId,status:changed.market.status,eventType:'market',...(changed.duplicate?{}:{eventText:'ตลาด '+changed.market.status})};
   }
 
   if(type==='RC4_CREATE_LISTING'){
@@ -355,13 +398,13 @@ export function rc4Command(world,type,data={}){
     if(!validMoney(data.unitPrice))return fail('price','ราคาต้องเป็นจำนวนเต็มบวก');
     const item=world.rustPossessions?.items?.find(i=>i.id===data.itemId);
     if(!item||!tradableRustItemIds(world,{agentId:agent.id,itemKind:item.kind}).includes(item.id))return fail('item','item นี้ลงขายไม่ได้');
-    const id=listingIdFor({marketId:market.marketId,sellerId:agent.id,itemInstanceId:item.id});
+    const id=listingIdFor({marketId:market.marketId,sellerId:agent.id,itemInstanceId:item.id,requestId:data.requestId??null});
     const made=createListingInCollection(world.merchantListings,{id,marketId:market.marketId,sellerId:agent.id,itemKind:item.kind,itemInstanceId:item.id,quantity:1,unitPrice:data.unitPrice,status:'OPEN'});
     if(made.state!=='SAT')return fail(made.reason,'สร้าง Listing ไม่ได้');
     const ref=attachHomeMarketListingReference(world,world.homeMarkets,{marketId:market.marketId,ownerAgentId:agent.id,referenceId:id});
     if(!ref.ok)return fail(ref.reason,'ผูก Listing เข้าตลาดไม่ได้');
     world.merchantListings=made.collection;world.homeMarkets=ref.marketState;
-    return {ok:true,listingId:id,marketId:market.marketId,message:'ลงขาย '+item.kind+' แล้ว'};
+    return {ok:true,duplicate:made.duplicate,listingId:id,marketId:market.marketId,message:'ลงขาย '+item.kind+' แล้ว'};
   }
 
   if(type==='RC4_CREATE_BUY_OFFER'){
@@ -374,7 +417,7 @@ export function rc4Command(world,type,data={}){
     const ref=attachHomeMarketBuyOfferReference(world,world.homeMarkets,made.referenceRequest);
     if(!ref.ok)return fail(ref.reason,'ผูก Buy Offer เข้าตลาดไม่ได้');
     world.merchantBuyOffers=made.collection;world.homeMarkets=ref.marketState;
-    return {ok:true,offerId:made.offer.offerId,marketId:market.marketId,message:'สร้าง Buy Offer แล้ว'};
+    return {ok:true,duplicate:made.duplicate,offerId:made.offer.offerId,marketId:market.marketId,message:'สร้าง Buy Offer แล้ว'};
   }
 
   if(type==='RC4_ACCEPT_BUY_OFFER')return acceptBuyOffer(world,data);
@@ -403,18 +446,13 @@ export function rc4MarketReadModel(world,selectedAgentId=null){
   const ledger=selected?merchantLedgerFromCollection(world.merchantLedgers,selected.id):null;
   const bag=(world.rustPossessions?.items??[]).filter(i=>selected&&i.location?.kind==='bag'&&i.location.agentId===selected.id)
     .map(i=>({id:i.id,kind:i.kind,createdBy:i.createdBy,tradable:tradableRustItemIds(world,{agentId:selected.id,itemKind:i.kind}).includes(i.id)}));
-  const markets=(world.homeMarkets?.markets??[]).map(m=>{
-    const projection=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:m.marketId});
-    const listings=(world.merchantListings?.listings??[]).filter(l=>l.marketId===m.marketId).map(l=>({...clone(l)}));
-    const offers=(world.merchantBuyOffers?.buyOffers??[]).filter(o=>o.marketId===m.marketId).map(o=>({...clone(o)}));
-    const owner=world.agents.find(a=>a.id===m.ownerAgentId);
-    return {
-      marketId:m.marketId,homeId:m.homeId,ownerAgentId:m.ownerAgentId,ownerName:owner?.name??'UNKNOWN',
-      status:m.status,listingIds:[...m.listingIds],buyOfferIds:[...m.buyOfferIds],
-      trade:projection.ok?clone(projection.market):null,listings,offers,
-      ledger:owner?merchantLedgerFromCollection(world.merchantLedgers,owner.id):null
-    };
-  });
+  const markets=knownRc4Markets(selected).map(m=>({
+    ...m,
+    trade:Number.isSafeInteger(m.tradeRange)?{id:m.marketId,open:m.status==='open',...m.position,tradeRange:m.tradeRange}:null,
+    listings:knownRc4Listings(selected).filter(l=>l.marketId===m.marketId).map(l=>({...l,needed:hasRc4PurchaseNeed(world,selected,l)})),
+    offers:knownRc4BuyOffers(selected).filter(o=>o.marketId===m.marketId),
+    ledger:merchantLedgerFromCollection(world.merchantLedgers,m.ownerAgentId)
+  }));
   let arrival=null;
   if(selected&&isCanonicalMarketTravelTask(selected.task)){
     const market=markets.find(m=>m.marketId===selected.task.rc4MarketTravel.marketId);
@@ -442,4 +480,23 @@ export function rc4WorldMarketMarkers(world){
     rows.push({marketId:m.marketId,ownerAgentId:m.ownerAgentId,ownerName:owner?.name??'UNKNOWN',status:m.status,...p.market});
   }
   return rows;
+}
+
+export function rc4Command(world,type,data={}){
+  const result=rc4CommandInternal(world,type,data);
+  if(result?.ok&&!result.duplicate)observeRc4Markets(world);
+  return result;
+}
+/** Tick maintenance delegates lifecycle writes to Home Market and Reservation owners. */
+export function stepRc4Economy(world){
+  if(!world.homeMarkets?.markets?.length)return;
+  const homes=reconcileHomeMarkets(world,world.homeMarkets);
+  if(!homes.ok)throw new Error('RC4 Home Market lifecycle invalid');
+  if(homes.changed)world.homeMarkets=homes.marketState;
+  if(world.merchantReservations.reservations.some(r=>r.status==='ACTIVE')){
+    const reservations=reconcileReservations(world,world.merchantReservations,{listings:world.merchantListings.listings});
+    if(reservations.state!=='SAT')throw new Error('RC4 Reservation lifecycle invalid');
+    world.merchantReservations=reservations.reservationState;
+  }
+  observeRc4Markets(world);
 }
