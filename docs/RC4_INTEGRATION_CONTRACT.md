@@ -95,15 +95,15 @@ PR #182 is a verification-only RC4 acceptance/attack-suite donor.
 
 Exact audited head:
 
-    1fef5f3481da398bff938cd0b0e674e04c05bef6
+    149b31fef7629f4cabbc85cbeb26b1426bd9a916
 
-This head refreshes the acceptance-suite donor snapshot to current #179/#180:
+This head retains the refreshed acceptance-suite donor snapshot and adds a harness meta-test lock for that evidence:
 
 - #179 = `da82d217...` with Verify #1978/#1979 SUCCESS;
 - #180 = `0aa5a824...` with Verify #1990 SUCCESS;
 - #178 remains `8c6c4ff...`.
 
-Exact-head Verify #1997 is in progress at this audit. Therefore the previous #1996 SUCCESS belongs to the older #182 head and is not reused as exact-head proof for `1fef5f34...`.
+Exact-head Verify #2001 is in progress at this audit. Earlier #1996/#1997 evidence belongs to older #182 heads and is not reused as exact-head proof for `149b31fe...`.
 
 The branch remains based directly on current RC3.2 main and changes only RC4 acceptance documentation, fixtures/matrices, static preflight and acceptance-suite tests.
 
@@ -1243,8 +1243,8 @@ Required donor-side repairs before progression:
 Use PR #182 as the acceptance harness baseline instead of recreating a weaker suite:
 
     PR #182
-    exact head 1fef5f3481da398bff938cd0b0e674e04c05bef6
-    Verify #1997 pending at audit time
+    exact head 149b31fef7629f4cabbc85cbeb26b1426bd9a916
+    Verify #2001 pending at audit time
 
 Required artifacts:
 
@@ -1254,9 +1254,9 @@ Required artifacts:
 - `verification/rc4/merchant-economy-fixture-contract.json`;
 - `verification/rc4/preflight.mjs`.
 
-Before Master Gate execution, donor SHA metadata in that harness must still be re-audited against the exact selected integration donors, especially if any head moves after `1fef5f34...`.
+Before Master Gate execution, donor SHA metadata in that harness must still be re-audited against the exact selected integration donors, especially if any head moves after `149b31fe...`.
 
-Do not treat #182 itself as an accepted harness donor until exact-head Verify #1997 is SUCCESS. The preflight is expected to return UNKNOWN while required bindings are absent. Do not weaken the preflight or turn UNKNOWN into PASS.
+Do not treat #182 itself as an accepted harness donor until exact-head Verify #2001 is SUCCESS. The preflight is expected to return UNKNOWN while required bindings are absent. Do not weaken the preflight or turn UNKNOWN into PASS.
 
 ## 14.4 Required integrated proof after all dependencies are SAT
 
