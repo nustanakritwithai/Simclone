@@ -228,3 +228,17 @@ exact-head Verify SAT
 ```
 
 Candidate CI success is not production evidence.
+
+
+## CI repair note — Verify #2173
+
+Exact head `d32084a8f699859e99c4b171393aee6f3d56baaf` failed Verify #2173 in five fixture/regression assertions.
+No failure justified changing the RC5 capability rules.
+
+- The legacy RC2 full-tier fixture physically moved the actor away from its Crafting Table to create construction evidence, then advanced a table recipe without returning to that station. Repair: the fixture now moves to the accepted order's canonical station before advancing work.
+- Three Crafter tests filled the four-slot bag with evidence-producing Hammers before crafting a foundation. Repair: completed T2 samples are moved to ordinary physical drop locations after their mastery receipt is earned; no item or receipt is deleted.
+- The RC3.2 metal regression searched only generic walkability for a foundation cell. Repair: use the existing placement validator so `foundation-ground` remains enforced, then execute the real placement command.
+- RC3.2 craft completion also now returns to the frozen order station before advancing, matching production behavior.
+
+The repair changes tests/fixtures only. It does not relax `crafterCraftAccess`, material escrow, station range, bag capacity, terrain, profession, mastery, migration, or item authority.
+The repaired exact head requires a new Verify; #2173 remains FAIL evidence and must never be reused as PASS.

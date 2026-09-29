@@ -20,6 +20,7 @@ function bookAgent(counts){
   }
   return {knowledgeState:{recipes:{entries}}};
 }
+function dropFixture(s,a,item){item.location={kind:'drop',sourceAgentId:a.id,tick:s.tick,x:a.x,y:a.y};}
 function preparedBuilder(){
   const s=createWorld(551901,{mode:'independent',worldProfile:'same-world',population:1}),a=s.agents[0],stock=resourceStock(s,a);
   Object.assign(stock,{wood:500,stone:500,food:500,ironIngot:30,steelIngot:30});
@@ -28,7 +29,7 @@ function preparedBuilder(){
   assert.equal(a.profession,'builder');
   craftFixtureTable(s,a);
   for(let i=0;i<4;i++)craftFixtureItem(s,a,'HAMMER');
-  for(let i=0;i<2;i++)craftFixtureItem(s,a,'HAMMER_T2');
+  for(let i=0;i<2;i++)dropFixture(s,a,craftFixtureItem(s,a,'HAMMER_T2'));
   assert.equal(crafterFamilyProfile(a,'HAMMER').grade,'CRAFTER');
   return {s,a};
 }

@@ -1,0 +1,26 @@
+{
+  "schema": "RC5.1-repair-evidence/1",
+  "base": "ec8709f6c6543ee76dba97f11d52beebefc307e0",
+  "failedHead": "d32084a8f699859e99c4b171393aee6f3d56baaf",
+  "failedVerify": {
+    "runNumber": 2173,
+    "runId": 36522627231,
+    "conclusion": "failure"
+  },
+  "rootCauses": [
+    "RC2 full-tier fixture advanced a station recipe while actor remained at a construction site",
+    "three RC5 career fixtures exhausted the canonical four-slot bag before foundation craft",
+    "RC3.2 fixture chose a generic walkable cell that violated foundation-ground",
+    "RC3.2 helper did not return to the frozen craft station before work advance"
+  ],
+  "repairScope": [
+    "tests/craft-outcome.test.mjs",
+    "tests/crafter-career.test.mjs",
+    "tests/rc3-metal-economy.test.mjs",
+    "docs/RC5_1_CRAFTER_CAREER_TIER_GATE_SUCCESS_CONTRACT.md"
+  ],
+  "productionRuleChanges": false,
+  "acceptanceReduced": false,
+  "repairedExactHead": "UNKNOWN_UNTIL_COMMIT",
+  "repairedVerify": "UNKNOWN_UNTIL_ACTIONS"
+}
