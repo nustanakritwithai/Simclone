@@ -2,6 +2,8 @@
 import {withinKnowledgeRange} from './knowledge.mjs?v=0.5.0';
 import {ITEM_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {projectHomeMarketForTrade} from './home-market.mjs?v=0.5.0';
+import {personalTargets} from './individual-resources.mjs?v=0.5.0';
+import {materialAmount} from './material-economy.mjs?v=0.5.0';
 export const RC4_MARKET_KNOWLEDGE_VERSION='RC4-market-knowledge/1';
 const LIMITS=Object.freeze({markets:32,listings:128,offers:128});
 const clone=v=>structuredClone(v);
@@ -53,7 +55,11 @@ export function rc4PersonalItemNeeds(world,agent){
 }
 export function hasRc4PurchaseNeed(world,agent,listing){
   if(!agent?.alive||!listing)return false;
-  if(listing.buyOfferId){const o=world.merchantBuyOffers.buyOffers.find(o=>o.offerId===listing.buyOfferId);return !!o&&o.status==='OPEN'&&o.buyerId===agent.id&&o.itemKind===listing.itemKind;}
+  if(listing.buyOfferId){const o=world.merchantBuyOffers.buyOffers.find(o=>o.offerId===listing.buyOfferId);return !!o&&o.status==='OPEN'&&o.buyerId===agent.id&&o.itemKind===listing.itemKind&&o.assetType===listing.assetType;}
+  if(listing.assetType==='BULK_RESOURCE'&&['food','wood','stone'].includes(listing.itemKind)){
+    const target=personalTargets(world,agent)?.[listing.itemKind];
+    return Number.isFinite(target)&&materialAmount(world,agent,listing.itemKind)<target;
+  }
   if(rc4PersonalItemNeeds(world,agent).some(n=>n.itemKind===listing.itemKind))return true;
   if(agent.profession==='merchant'){
     const ownOffers=world.merchantBuyOffers.buyOffers.filter(o=>o.buyerId===agent.id&&o.status==='OPEN');

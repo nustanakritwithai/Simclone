@@ -7,10 +7,10 @@ import {
   attachHomeMarketListingReference,attachHomeMarketBuyOfferReference,projectHomeMarketForTrade
 } from './home-market.mjs?v=0.5.0';
 import {
-  migrateListingCollection,validateListingCollection,createListingInCollection,applyListingSettlementInCollection,listingIdFor
+  migrateListingCollection,validateListingCollection,createListingInCollection,applyListingSettlementInCollection,listingIdFor,bulkListingIdFor,BULK_RESOURCE_ASSET_TYPE
 } from './merchant-listing.mjs?v=0.5.0';
 import {
-  migrateBuyOfferCollection,validateBuyOfferCollection,createBuyOfferInCollection,proposeProducerBuyOfferMatch,
+  migrateBuyOfferCollection,validateBuyOfferCollection,createBuyOfferInCollection,proposeProducerBuyOfferMatch,proposeProducerBulkBuyOfferMatch,
   applyBuyOfferSettlementInCollection
 } from './merchant-buy-offer.mjs?v=0.5.0';
 import {
@@ -18,9 +18,10 @@ import {
 } from './merchant-reservation.mjs?v=0.5.0';
 import {migrateLegacyCurrencyWallet,validateCurrencyWallet,getBalance,createCurrencyAccount} from './currency-wallet.mjs?v=0.5.0';
 import {createTradeWalletAdapter} from './trade-wallet-adapter.mjs?v=0.5.0';
-import {rustTradeItemAdapter} from './trade-rust-adapter.mjs?v=0.5.0';
+import {rustTradeItemAdapter,bulkResourceTradeAdapter} from './trade-rust-adapter.mjs?v=0.5.0';
 import {migrateTradeReplayState,validateTradeReplayState,settleTradeAtomic} from './trade-kernel.mjs?v=0.5.0';
 import {tradableRustItemIds} from './rust-possessions.mjs?v=0.5.0';
+import {TRADEABLE_MATERIAL_KEYS,materialAmount} from './material-economy.mjs?v=0.5.0';
 import {
   validateMerchantLedgerCollection,migrateMerchantLedgerCollection,applyCanonicalTradeExecutionToLedger,
   ensureMerchantLedgerInCollection,replaceMerchantLedgerInCollection,merchantLedgerFromCollection
@@ -139,9 +140,9 @@ export function validateRc4EconomyState(world){
     if(!payment||payment.kind!=='TRANSFER'||payment.fromAgentId!==r.buyerId||payment.toAgentId!==r.sellerId||payment.amount!==r.totalPrice||
       payment.evidence?.operation!=='TRADE_TRANSFER'||payment.evidence.marketId!==r.marketId||payment.evidence.listingId!==r.listingId||payment.evidence.reservationId!==r.reservationId)e.push('Trade:wallet-receipt');
     const reservation=world.merchantReservations.reservations.find(x=>x.id===r.reservationId);
-    if(!reservation||reservation.status!=='COMMITTED'||reservation.transactionId!==r.transactionId)e.push('Trade:reservation-receipt');
+    if(!reservation||reservation.status!=='COMMITTED'||reservation.transactionId!==r.transactionId||reservation.assetType!==r.assetType)e.push('Trade:reservation-receipt');
     const listing=listingByRef.get(r.listingId);
-    if(!listing||listing.marketId!==r.marketId||listing.sellerId!==r.sellerId||listing.itemKind!==r.itemKind||listing.revision<=reservation?.listingRevision)e.push('Trade:listing-receipt');
+    if(!listing||listing.marketId!==r.marketId||listing.sellerId!==r.sellerId||listing.itemKind!==r.itemKind||listing.assetType!==r.assetType||listing.revision<=reservation?.listingRevision)e.push('Trade:listing-receipt');
   }
   for(const r of world.merchantReservations.reservations)if(r.status==='COMMITTED'&&!tradeReceipts.has(r.transactionId))e.push('Reservation:lost-trade-replay');
   for(const r of world.currencyWallet.receipts)if(r.evidence?.operation==='TRADE_TRANSFER'&&!tradeReceipts.has(r.transactionId))e.push('Wallet:lost-trade-replay');
@@ -151,7 +152,9 @@ export function validateRc4EconomyState(world){
     if(!agent||(agent.merchantTransactions??0)!==count||(agent.merchantExperience??0)!==count)e.push('Career:ledger-continuity');
     for(const [side,rows] of [['buyerId',ledger.purchases],['sellerId',ledger.sales]])for(const row of rows){
       const r=tradeReceipts.get(row.transactionId);
-      if(!r||r[side]!==ledger.merchantId||r.quantity!==row.quantity||r.totalPrice!==row.totalPrice||r.itemIds.join(',')!==row.itemIds.join(','))e.push('Ledger:trade-receipt');
+      const bulk=row.assetType===BULK_RESOURCE_ASSET_TYPE;
+      if(!r||r[side]!==ledger.merchantId||r.quantity!==row.quantity||r.totalPrice!==row.totalPrice||r.assetType!==row.assetType||
+        (!bulk&&r.itemIds.join(',')!==row.itemIds.join(',')))e.push('Ledger:trade-receipt');
     }
   }
   for(const a of people)if((a.merchantTransactions??0)>0&&!world.merchantLedgers.ledgers.some(l=>l.merchantId===a.id))e.push('Career:missing-ledger');
@@ -336,12 +339,21 @@ export function prepareRc4MarketTravel(world,{agentId,marketId}={}){
   return {ok:true,agent,task:built.task,market:marketResult.market};
 }
 
-function buyListing(world,{buyerId,listingId,listingRevision}={}){
+function buyListing(world,{buyerId,listingId,listingRevision,quantity}={}){
   const listing=listingById(world,listingId);
   if(!listing||listing.status!=='OPEN')return fail('listing','Listing ไม่พร้อม');
   if(!positive(listingRevision)||listingRevision!==listing.revision)return fail('listing-stale','Listing เปลี่ยนแล้ว กรุณาดูข้อมูลใหม่');
-  if(listing.buyOfferId){const offer=offerById(world,listing.buyOfferId);if(!offer||offer.status!=='OPEN'||offer.buyerId!==buyerId||offer.unitPrice!==listing.unitPrice||offer.quantityWanted!==listing.quantity)return fail('buy-offer-binding','รายการรับซื้อนี้เป็นของผู้ซื้อที่ระบุเท่านั้น');}
+  const bulk=listing.assetType===BULK_RESOURCE_ASSET_TYPE;
+  const buyQuantity=bulk?(quantity??listing.quantity):1;
+  if(!positive(buyQuantity)||buyQuantity>listing.quantity)return fail('quantity','จำนวนซื้อไม่ถูกต้อง');
+  if(listing.buyOfferId){
+    const offer=offerById(world,listing.buyOfferId);
+    if(!offer||offer.status!=='OPEN'||offer.buyerId!==buyerId||offer.unitPrice!==listing.unitPrice||
+      offer.quantityWanted!==listing.quantity||offer.assetType!==listing.assetType)return fail('buy-offer-binding','รายการรับซื้อนี้เป็นของผู้ซื้อที่ระบุเท่านั้น');
+    if(buyQuantity!==offer.quantityWanted)return fail('buy-offer-binding','Buy Offer ต้องรับจำนวนเต็มตามสัญญา');
+  }
   const buyer=world.agents.find(a=>a.id===buyerId&&a.alive);
+  if(!buyer)return fail('buyer','ไม่พบผู้ซื้อ');
   if(!knowsRc4Market(buyer,listing.marketId))return fail('market-unknown','ไม่รู้จักตลาดนี้');
   if(!hasRc4PurchaseNeed(world,buyer,listing))return fail('item-not-needed','ไม่มีความต้องการสินค้านี้จากงานหรือ BuyOffer จริง');
   const marketResult=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:listing.marketId});
@@ -349,19 +361,28 @@ function buyListing(world,{buyerId,listingId,listingRevision}={}){
   const arrival=verifyCanonicalMarketArrival(world,{agentId:buyerId,market:marketResult.market});
   if(arrival.state!=='SAT')return fail(arrival.reason,arrival.reason==='still-travelling'?'ยังเดินไม่ถึงตลาด':'ต้องเดินมาถึงตลาดก่อน');
 
-  const itemIds=tradableRustItemIds(world,{agentId:listing.sellerId,itemKind:listing.itemKind});
-  if(!itemIds.includes(listing.itemInstanceId))return fail('seller-item','สินค้านี้ไม่อยู่กับผู้ขายแล้ว');
+  let itemIds=[];
+  if(!bulk){
+    itemIds=tradableRustItemIds(world,{agentId:listing.sellerId,itemKind:listing.itemKind});
+    if(!itemIds.includes(listing.itemInstanceId))return fail('seller-item','สินค้านี้ไม่อยู่กับผู้ขายแล้ว');
+  }
 
   const prepared=clone(world);
   const preparedListing=listingById(prepared,listingId);
-  const reserved=createReservation(prepared,prepared.merchantReservations,{
-    listing:preparedListing,listingRevision:preparedListing.revision,buyerId,itemIds:[preparedListing.itemInstanceId],createdTick:prepared.tick
-  });
+  const reserved=createReservation(prepared,prepared.merchantReservations,bulk
+    ?{listing:preparedListing,listingRevision:preparedListing.revision,buyerId,quantity:buyQuantity,createdTick:prepared.tick}
+    :{listing:preparedListing,listingRevision:preparedListing.revision,buyerId,itemIds:[preparedListing.itemInstanceId],createdTick:prepared.tick}
+  );
   if(reserved.state!=='SAT')return fail(reserved.reason,'จองสินค้าไม่ได้');
   prepared.merchantReservations=reserved.reservationState;
-  const totalPrice=preparedListing.unitPrice;
+  const totalPrice=preparedListing.unitPrice*buyQuantity;
+  if(!Number.isSafeInteger(totalPrice)||totalPrice<=0)return fail('price','ราคารวมไม่ถูกต้อง');
   const transactionId=txId(prepared,{listingId,buyerId,reservationId:reserved.reservation.id});
-  const proposal={
+  const proposal=bulk?{
+    assetType:BULK_RESOURCE_ASSET_TYPE,transactionId,marketId:preparedListing.marketId,sellerId:preparedListing.sellerId,buyerId,
+    itemKind:preparedListing.itemKind,quantity:buyQuantity,unitPrice:preparedListing.unitPrice,totalPrice,
+    listingId,reservationId:reserved.reservation.id
+  }:{
     transactionId,marketId:preparedListing.marketId,sellerId:preparedListing.sellerId,buyerId,
     itemKind:preparedListing.itemKind,itemInstanceId:preparedListing.itemInstanceId,quantity:1,
     unitPrice:preparedListing.unitPrice,totalPrice,listingId,reservationId:reserved.reservation.id
@@ -371,7 +392,7 @@ function buyListing(world,{buyerId,listingId,listingRevision}={}){
     evidence:{marketId:preparedListing.marketId,listingId,reservationId:reserved.reservation.id}
   });
   const result=settleTradeAtomic(prepared,proposal,{
-    wallet,item:rustTradeItemAdapter,market:canonicalMarketAdapter(),postSettlement:postSettlementAdapter()
+    wallet,item:rustTradeItemAdapter,resource:bulkResourceTradeAdapter,market:canonicalMarketAdapter(),postSettlement:postSettlementAdapter()
   });
   if(!result.ok)return fail(result.reason,'ซื้อขายไม่สำเร็จ',{detail:result});
   if(result.duplicate)return {ok:true,duplicate:true,transactionId,receipt:result.receipt};
@@ -379,9 +400,24 @@ function buyListing(world,{buyerId,listingId,listingRevision}={}){
   return {ok:true,duplicate:false,transactionId,receipt:result.receipt,message:'ซื้อขายสำเร็จ'};
 }
 
-function acceptBuyOffer(world,{producerId,offerId,itemId}={}){
+function acceptBuyOffer(world,{producerId,offerId,itemId,quantity}={}){
   const offer=offerById(world,offerId);
   if(!offer||offer.status!=='OPEN')return fail('buy-offer','Buy Offer ไม่พร้อม');
+  if(offer.assetType===BULK_RESOURCE_ASSET_TYPE){
+    if(!TRADEABLE_MATERIAL_KEYS.includes(offer.itemKind))return fail('resource','ชนิดทรัพยากรไม่ถูกต้อง');
+    const producer=world.agents.find(a=>a.id===producerId&&a.alive);if(!producer)return fail('producer','ไม่พบผู้ผลิต');
+    const wanted=quantity??offer.quantityWanted;
+    if(!positive(wanted)||wanted!==offer.quantityWanted)return fail('quantity','จำนวนไม่ตรง Buy Offer');
+    if(materialAmount(world,producer,offer.itemKind)<wanted)return fail('resource','ผู้ผลิตมีทรัพยากรไม่พอ');
+    const matched=proposeProducerBulkBuyOfferMatch(offer,{producerId,quantity:wanted});
+    if(matched.state!=='SAT')return fail(matched.reason,'จับคู่ Bulk Buy Offer ไม่ได้');
+    const p=matched.proposal,made=createListingInCollection(world.merchantListings,p.listingRequest);
+    if(made.state!=='SAT')return fail(made.reason,'สร้าง Bulk Listing ฝั่งผู้ผลิตไม่ได้');
+    const ref=attachHomeMarketListingReference(world,world.homeMarkets,p.homeMarketListingReferenceRequest);
+    if(!ref.ok)return fail(ref.reason,'ผูก Bulk Listing เข้าตลาดไม่ได้');
+    world.merchantListings=made.collection;world.homeMarkets=ref.marketState;
+    return {ok:true,listingId:made.listing.id,marketId:offer.marketId,quantity:wanted,message:'ผู้ผลิตตอบรับ Bulk Buy Offer แล้ว'};
+  }
   const item=world.rustPossessions?.items?.find(i=>i.id===itemId);
   if(!item||item.kind!==offer.itemKind||!tradableRustItemIds(world,{agentId:producerId,itemKind:offer.itemKind}).includes(itemId))
     return fail('item','ผู้ผลิตไม่มี item นี้ในกระเป๋า');
@@ -467,12 +503,30 @@ function rc4CommandInternal(world,type,data={}){
     return {ok:true,duplicate:made.duplicate,listingId:id,marketId:market.marketId,message:'ลงขาย '+item.kind+' แล้ว'};
   }
 
+  if(type==='RC4_CREATE_BULK_LISTING'){
+    const agent=world.agents.find(a=>a.id===data.agentId&&a.alive&&a.profession==='merchant');if(!agent)return fail('merchant','ต้องเป็น Merchant');
+    const market=ownMarket(world,agent.id);if(!market)return fail('market','Merchant ยังไม่มี Home Market');
+    const quantity=data.quantity??1;
+    if(!TRADEABLE_MATERIAL_KEYS.includes(data.itemKind)||!positive(quantity)||quantity>128||!validMoney(data.unitPrice))return fail('bulk-listing','ข้อมูล Bulk Listing ไม่ถูกต้อง');
+    if(materialAmount(world,agent,data.itemKind)<quantity)return fail('resource','ทรัพยากรไม่พอ');
+    const id=bulkListingIdFor({marketId:market.marketId,sellerId:agent.id,itemKind:data.itemKind,requestId:data.requestId??null});
+    const made=createListingInCollection(world.merchantListings,{id,assetType:BULK_RESOURCE_ASSET_TYPE,marketId:market.marketId,sellerId:agent.id,itemKind:data.itemKind,quantity,unitPrice:data.unitPrice,status:'OPEN'});
+    if(made.state!=='SAT')return fail(made.reason,'สร้าง Bulk Listing ไม่ได้');
+    const ref=attachHomeMarketListingReference(world,world.homeMarkets,{marketId:market.marketId,ownerAgentId:agent.id,referenceId:id});
+    if(!ref.ok)return fail(ref.reason,'ผูก Bulk Listing เข้าตลาดไม่ได้');
+    world.merchantListings=made.collection;world.homeMarkets=ref.marketState;
+    return {ok:true,duplicate:made.duplicate,listingId:id,marketId:market.marketId,quantity,message:'ลงขาย '+data.itemKind+' x'+quantity+' แล้ว'};
+  }
+
   if(type==='RC4_CREATE_BUY_OFFER'){
     const agent=world.agents.find(a=>a.id===data.agentId&&a.alive);if(!agent)return fail('agent','ไม่พบ Clone');
     const market=ownMarket(world,agent.id);if(!market)return fail('market','ยังไม่มี Home Market');
     if(agent.profession!=='merchant'&&market.status!=='closed')return fail('merchant','ตลาดเตรียมการต้องปิดก่อนเป็น Merchant');
-    if(typeof data.itemKind!=='string'||!data.itemKind||!validMoney(data.unitPrice))return fail('offer','ข้อมูล Buy Offer ไม่ถูกต้อง');
-    const made=createBuyOfferInCollection(world.merchantBuyOffers,{marketId:market.marketId,buyerId:agent.id,itemKind:data.itemKind,quantityWanted:1,unitPrice:data.unitPrice,createdTick:world.tick});
+    const quantityWanted=data.quantityWanted??1,bulk=data.assetType===BULK_RESOURCE_ASSET_TYPE;
+    if(typeof data.itemKind!=='string'||!data.itemKind||!validMoney(data.unitPrice)||!positive(quantityWanted)||quantityWanted>128||
+      (bulk&&!TRADEABLE_MATERIAL_KEYS.includes(data.itemKind))||(data.assetType!==undefined&&!bulk))return fail('offer','ข้อมูล Buy Offer ไม่ถูกต้อง');
+    const made=createBuyOfferInCollection(world.merchantBuyOffers,{marketId:market.marketId,buyerId:agent.id,itemKind:data.itemKind,
+      ...(bulk?{assetType:BULK_RESOURCE_ASSET_TYPE}:{}),quantityWanted,unitPrice:data.unitPrice,createdTick:world.tick});
     if(made.state!=='SAT')return fail(made.reason,'สร้าง Buy Offer ไม่ได้');
     const ref=attachHomeMarketBuyOfferReference(world,world.homeMarkets,made.referenceRequest);
     if(!ref.ok)return fail(ref.reason,'ผูก Buy Offer เข้าตลาดไม่ได้');
