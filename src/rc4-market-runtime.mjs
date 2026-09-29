@@ -32,6 +32,7 @@ import {
   evaluateMerchantQualification,adoptMerchantProfession,noteVerifiedCommittedMerchantTransaction,validateMerchantProgression
 } from './merchant-career.mjs?v=0.5.0';
 import {createCanonicalMarketTravelTask,verifyCanonicalMarketArrival,isCanonicalMarketTravelTask,canPreemptForCanonicalMarketTravel,retainCanonicalMarketTravelOnCommit} from './navigation-arrival-evidence.mjs?v=0.5.0';
+import {rawProducerOfferGate,rawProducerSettlementGate} from './raw-producer-autonomy.mjs?v=0.5.0';
 
 export const RC4_ECONOMY_ROOT_VERSION='RC4-economy-root/1';
 export const RC4_MERCHANT_AUTONOMY_RULES=Object.freeze({
@@ -395,6 +396,9 @@ function buyListing(world,{buyerId,listingId,listingRevision}={}){
     };
   }else{
     if(!validBulkTradeResourceKey(listing.itemKind))return fail('resource-kind','ทรัพยากรนี้ซื้อขายแบบ bulk ไม่ได้');
+    const reserveGate=rawProducerSettlementGate(world,{sellerId:listing.sellerId,itemKind:listing.itemKind,quantity:listing.quantity,listingId:listing.id,buyOfferId:listing.buyOfferId??null});
+    if(reserveGate.status==='UNKNOWN')return fail('producer-reserve-unknown','ตรวจ reserve ของผู้ผลิตไม่ได้',{detail:reserveGate});
+    if(reserveGate.status==='VIOL')return fail(reserveGate.reason,'การขายจะกิน reserve ของผู้ผลิต',{detail:reserveGate});
     reserved=createReservation(prepared,prepared.merchantReservations,{
       listing:preparedListing,listingRevision:preparedListing.revision,buyerId,quantity:preparedListing.quantity,createdTick:prepared.tick
     });
@@ -434,6 +438,9 @@ function acceptBuyOffer(world,{producerId,offerId,itemId,quantity}={}){
     const q=quantity??offer.quantityWanted;
     if(!positive(q)||q!==offer.quantityWanted)return fail('quantity','จำนวนไม่ตรง Buy Offer');
     if(Math.floor(materialAmount(world,producer,offer.itemKind))<q)return fail('materials','ผู้ผลิตมีทรัพยากรไม่พอ');
+    const reserveGate=rawProducerOfferGate(world,{producerId,itemKind:offer.itemKind,quantity:q,offerId:offer.offerId});
+    if(reserveGate.status==='UNKNOWN')return fail('producer-reserve-unknown','ตรวจ surplus ของผู้ผลิตไม่ได้',{detail:reserveGate});
+    if(reserveGate.status==='VIOL')return fail(reserveGate.reason,'ผู้ผลิตไม่มี surplus ที่ขายได้',{detail:reserveGate});
     matched=proposeProducerBulkBuyOfferMatch(offer,{producerId,quantity:q});
   }else return fail('asset-type','ชนิดสินทรัพย์ไม่ถูกต้อง');
   if(matched.state!=='SAT')return fail(matched.reason,'จับคู่ Buy Offer ไม่ได้');
