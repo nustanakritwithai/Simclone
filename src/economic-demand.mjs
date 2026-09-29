@@ -9,13 +9,14 @@ import {
 import {withinKnowledgeRange} from './knowledge.mjs?v=0.5.0';
 import {ITEM_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {validateHomeMarketState} from './home-market.mjs?v=0.5.0';
-import {validateListingCollection} from './merchant-listing.mjs?v=0.5.0';
+import {validateListingCollection,BULK_RESOURCE_ASSET_TYPE} from './merchant-listing.mjs?v=0.5.0';
 import {validateBuyOfferCollection} from './merchant-buy-offer.mjs?v=0.5.0';
 import {validateReservationState} from './merchant-reservation.mjs?v=0.5.0';
 import {validateCurrencyWallet,getBalance} from './currency-wallet.mjs?v=0.5.0';
 import {validateTradeReplayState} from './trade-kernel.mjs?v=0.5.0';
 import {tradableRustItemIds} from './rust-possessions.mjs?v=0.5.0';
 import {resourceStock,resourceAccount,personalTargets} from './individual-resources.mjs?v=0.5.0';
+import {materialAmount,TRADEABLE_MATERIAL_KEYS} from './material-economy.mjs?v=0.5.0';
 
 export const ECONOMIC_DEMAND_VERSION='ER1-local-demand/1';
 export const ECONOMIC_DEMAND_TTL_TICKS=720;
@@ -46,14 +47,14 @@ function sameMarketObservation(known,current){
 function sameOfferObservation(known,current){
   return !!known&&!!current&&
     known.offerId===current.offerId&&known.marketId===current.marketId&&
-    known.buyerId===current.buyerId&&known.itemKind===current.itemKind&&
+    known.buyerId===current.buyerId&&known.itemKind===current.itemKind&&known.assetType===current.assetType&&
     known.quantityWanted===current.quantityWanted&&known.unitPrice===current.unitPrice&&
     known.createdTick===current.createdTick&&known.status===current.status;
 }
 function sameListingObservation(known,current){
   return !!known&&!!current&&
     known.id===current.id&&known.marketId===current.marketId&&
-    known.sellerId===current.sellerId&&known.itemKind===current.itemKind&&
+    known.sellerId===current.sellerId&&known.itemKind===current.itemKind&&known.assetType===current.assetType&&
     known.itemInstanceId===current.itemInstanceId&&known.quantity===current.quantity&&
     known.unitPrice===current.unitPrice&&known.revision===current.revision&&
     known.status===current.status&&known.buyOfferId===current.buyOfferId;
@@ -108,8 +109,8 @@ function verifiedTradeEvidence(world,receipt){
     payment.amount===receipt.totalPrice&&payment.evidence?.operation==='TRADE_TRANSFER'&&
     payment.evidence.marketId===receipt.marketId&&payment.evidence.listingId===receipt.listingId&&
     payment.evidence.reservationId===receipt.reservationId&&
-    !!reservation&&reservation.status==='COMMITTED'&&reservation.transactionId===receipt.transactionId&&
-    !!listing&&listing.marketId===receipt.marketId&&listing.sellerId===receipt.sellerId&&listing.itemKind===receipt.itemKind;
+    !!reservation&&reservation.status==='COMMITTED'&&reservation.transactionId===receipt.transactionId&&reservation.assetType===receipt.assetType&&
+    !!listing&&listing.marketId===receipt.marketId&&listing.sellerId===receipt.sellerId&&listing.itemKind===receipt.itemKind&&listing.assetType===receipt.assetType;
   return ok?{ok:true,commitTick:reservation.terminalTick}:{ok:false,commitTick:null};
 }
 function ownedKinds(world,subject){
@@ -157,7 +158,7 @@ function readResourceShortages(world,actor,rows){
     if(!Number.isFinite(have)||!Number.isFinite(target))continue;
     const deficit=Math.max(0,Math.ceil(target-have));
     if(deficit<=0)continue;
-    const row=ensureSignal(rows,{agentId:actor.id,itemKind,unit:'bulk-resource',tradable:false,representation:'resource-counter'});
+    const row=ensureSignal(rows,{agentId:actor.id,itemKind,unit:'bulk-resource',tradable:TRADEABLE_MATERIAL_KEYS.includes(itemKind),representation:'resource-counter'});
     row.liveDemandQuantity+=deficit;
     addSource(row,deepFreeze({
       kind:'HOUSEHOLD_SHORTAGE',side:'DEMAND',quantity:deficit,
@@ -187,7 +188,7 @@ export function projectActorObservedDemand(world,agent,{ttlTicks=ECONOMIC_DEMAND
     const buyer=world.agents.find(a=>a.id===current.buyerId&&a.alive);
     const total=current.unitPrice*current.quantityWanted,balance=getBalance(world,current.buyerId);
     if(!buyer||!Number.isSafeInteger(total)||!Number.isSafeInteger(balance)||balance<total)continue;
-    const row=ensureSignal(rows,{agentId:actor.id,itemKind:current.itemKind});
+    const row=ensureSignal(rows,{agentId:actor.id,itemKind:current.itemKind,...(current.assetType===BULK_RESOURCE_ASSET_TYPE?{unit:'bulk-resource',tradable:true,representation:'resource-counter'}:{})});
     row.liveDemandQuantity+=current.quantityWanted;
     observedOfferNeeds.add(current.buyerId+'|'+current.itemKind);
     addSource(row,deepFreeze({
@@ -203,13 +204,19 @@ export function projectActorObservedDemand(world,agent,{ttlTicks=ECONOMIC_DEMAND
     const market=markets.get(known.marketId)?.current;
     const current=world.merchantListings.listings.find(l=>l.id===known.id);
     if(!market||!current||current.status!=='OPEN'||!market.listingIds.includes(current.id)||!sameListingObservation(known,current))continue;
-    const tradable=tradableRustItemIds(world,{agentId:current.sellerId,itemKind:current.itemKind});
-    if(!tradable.includes(current.itemInstanceId))continue;
-    const row=ensureSignal(rows,{agentId:actor.id,itemKind:current.itemKind});
+    const bulk=current.assetType===BULK_RESOURCE_ASSET_TYPE;
+    if(bulk){
+      const seller=world.agents.find(a=>a.id===current.sellerId&&a.alive);
+      if(!seller||materialAmount(world,seller,current.itemKind)<current.quantity)continue;
+    }else{
+      const tradable=tradableRustItemIds(world,{agentId:current.sellerId,itemKind:current.itemKind});
+      if(!tradable.includes(current.itemInstanceId))continue;
+    }
+    const row=ensureSignal(rows,{agentId:actor.id,itemKind:current.itemKind,...(bulk?{unit:'bulk-resource',tradable:true,representation:'resource-counter'}:{})});
     row.supplyQuantity+=current.quantity;
     addSource(row,deepFreeze({
       kind:'LISTING',side:'SUPPLY',evidenceId:current.id,marketId:current.marketId,
-      quantity:current.quantity,unitPrice:current.unitPrice,itemInstanceId:current.itemInstanceId,
+      quantity:current.quantity,unitPrice:current.unitPrice,...(bulk?{assetType:BULK_RESOURCE_ASSET_TYPE}:{itemInstanceId:current.itemInstanceId}),
       observedTick:known.observedTick,expiresTick:known.observedTick+ttlTicks
     }));
   }
@@ -243,7 +250,7 @@ export function projectActorObservedDemand(world,agent,{ttlTicks=ECONOMIC_DEMAND
     if(!evidence.ok||!fresh(world.tick,evidence.commitTick,ttlTicks))continue;
     const party=receipt.buyerId===actor.id||receipt.sellerId===actor.id;
     if(!party&&!markets.has(receipt.marketId))continue;
-    const row=ensureSignal(rows,{agentId:actor.id,itemKind:receipt.itemKind});
+    const row=ensureSignal(rows,{agentId:actor.id,itemKind:receipt.itemKind,...(receipt.assetType===BULK_RESOURCE_ASSET_TYPE?{unit:'bulk-resource',tradable:true,representation:'resource-counter'}:{})});
     row.historicalDemandQuantity+=receipt.quantity;
     row.verifiedTradeCount++;
     row.verifiedTradeQuantity+=receipt.quantity;
@@ -264,8 +271,8 @@ export function projectActorObservedDemand(world,agent,{ttlTicks=ECONOMIC_DEMAND
   const signals=[...rows.values()].map(row=>{
     row.demandQuantity=Math.max(row.liveDemandQuantity,row.historicalDemandQuantity);
     row.shortageQuantity=Math.max(0,row.demandQuantity-row.supplyQuantity);
-    row.ownStockQuantity=row.unit==='item'?(ownTradableCounts.get(row.itemKind)??0):0;
-    row.stockShortageQuantity=row.unit==='item'?Math.max(0,row.demandQuantity-row.ownStockQuantity):0;
+    row.ownStockQuantity=row.unit==='item'?(ownTradableCounts.get(row.itemKind)??0):materialAmount(world,actor,row.itemKind);
+    row.stockShortageQuantity=Math.max(0,row.demandQuantity-row.ownStockQuantity);
     const sources=row.sources.slice().sort((a,b)=>
       (a.observedTick??-1)-(b.observedTick??-1)||
       String(a.kind).localeCompare(String(b.kind))||
