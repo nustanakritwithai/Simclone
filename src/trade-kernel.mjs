@@ -121,13 +121,13 @@ function resolveValidation(state,proposal,{wallet,item,market}={}){
   if(!Number.isInteger(m.x)||!Number.isInteger(m.y)||!safePositiveInt(m.tradeRange))return fail('market-invalid');
   if(!Number.isInteger(buyer.x)||!Number.isInteger(buyer.y)||distance(buyer,m)>m.tradeRange)return fail('trade-range');
 
-  const l=market.listing(state,p.listingId);if(!l||l.id!==p.listingId||l.marketId!==p.marketId)return fail('listing-invalid');
+  const l=market.listing(state,p.listingId);if(!l||l.id!==p.listingId||l.marketId!==p.marketId||tradeAssetType(l)!==TRADE_ASSET_TYPES.PHYSICAL_ITEM)return fail('listing-invalid');
   if(l.status==='CANCELED')return fail('listing-canceled');
   if(l.status!=='OPEN')return fail('listing-invalid');
   if(!Number.isSafeInteger(l.revision)||l.revision<1||l.sellerId!==p.sellerId||l.itemKind!==p.itemKind||
     !safePositiveInt(l.unitPrice)||l.unitPrice!==p.unitPrice||!safePositiveInt(l.quantity)||l.quantity<p.quantity)return fail('listing-invalid');
 
-  const r=market.reservation(state,p.reservationId);if(!r||r.id!==p.reservationId||r.status!=='ACTIVE'||r.marketId!==p.marketId||
+  const r=market.reservation(state,p.reservationId);if(!r||r.id!==p.reservationId||r.status!=='ACTIVE'||tradeAssetType(r)!==TRADE_ASSET_TYPES.PHYSICAL_ITEM||r.marketId!==p.marketId||
     r.listingId!==p.listingId||r.sellerId!==p.sellerId||r.buyerId!==p.buyerId||r.itemKind!==p.itemKind||
     r.unitPrice!==p.unitPrice||r.quantity!==p.quantity||!Array.isArray(r.itemIds)||r.itemIds.length!==p.quantity||
     new Set(r.itemIds).size!==r.itemIds.length||r.itemIds.some(id=>!safePositiveInt(id))||!r.itemIds.includes(p.itemInstanceId))return fail('reservation-invalid');
@@ -139,13 +139,16 @@ function resolveValidation(state,proposal,{wallet,item,market}={}){
   const active=market.activeReservations(state);
   if(!Array.isArray(active))return fail('market-view-incomplete');
   const activeRows=active.filter(x=>x?.status==='ACTIVE'),activeIds=activeRows.map(x=>x?.id);
-  const malformed=activeRows.some(x=>
-    !validId(x.id)||!validId(x.marketId)||!validId(x.listingId)||!validId(x.itemKind)||
-    !Number.isSafeInteger(x.sellerId)||x.sellerId<1||!Number.isSafeInteger(x.buyerId)||x.buyerId<1||
-    !Number.isSafeInteger(x.listingRevision)||x.listingRevision<1||!safePositiveInt(x.unitPrice)||!safePositiveInt(x.quantity)||
-    !Array.isArray(x.itemIds)||x.itemIds.length!==x.quantity||new Set(x.itemIds).size!==x.itemIds.length||
-    x.itemIds.some(id=>!safePositiveInt(id))
-  );
+  const malformed=activeRows.some(x=>{
+    const type=tradeAssetType(x);
+    if(!validId(x.id)||!validId(x.marketId)||!validId(x.listingId)||!validId(x.itemKind)||
+      !Number.isSafeInteger(x.sellerId)||x.sellerId<1||!Number.isSafeInteger(x.buyerId)||x.buyerId<1||
+      !Number.isSafeInteger(x.listingRevision)||x.listingRevision<1||!safePositiveInt(x.unitPrice)||!safePositiveInt(x.quantity))return true;
+    if(type===TRADE_ASSET_TYPES.PHYSICAL_ITEM)return !Array.isArray(x.itemIds)||x.itemIds.length!==x.quantity||
+      new Set(x.itemIds).size!==x.itemIds.length||x.itemIds.some(id=>!safePositiveInt(id));
+    if(type===TRADE_ASSET_TYPES.BULK_RESOURCE)return !validBulkTradeResourceKey(x.itemKind)||!Array.isArray(x.itemIds)||x.itemIds.length!==0;
+    return true;
+  });
   const currentRows=activeRows.filter(x=>x.id===p.reservationId),current=currentRows[0];
   const currentMismatch=currentRows.length!==1||!current||
     current.marketId!==r.marketId||current.listingId!==r.listingId||current.listingRevision!==r.listingRevision||
