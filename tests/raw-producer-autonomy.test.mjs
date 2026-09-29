@@ -105,14 +105,16 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
   producer.x=node.x;producer.y=node.y;producer.task=null;
   assert.ok(recordResourceDiscovery(producer,node,s.tick,{action:'WOODCUT',amount:1}));
   const nodeBefore=node.amount,moneyBefore=getBalance(s,producer.id),totalBefore=totalCurrency(s);
-  let sawGather=false,sawTravel=false,listing=null;
+  let sawGather=false,sawTravel=false,listing=null,arrivalDistanceAtListing=null;
   for(let i=0;i<720&&!listing;i++){
     step(s,1);
     if(producer.task?.kind==='WOODCUT')sawGather=true;
     if(producer.task?.rc4MarketTravel)sawTravel=true;
     listing=s.merchantListings.listings.find(l=>l.buyOfferId===offer.offerId&&l.sellerId===producer.id&&l.status==='OPEN')??null;
+    if(listing)arrivalDistanceAtListing=Math.abs(producer.x-tradePoint.x)+Math.abs(producer.y-tradePoint.y);
   }
   assert.equal(sawGather,true);assert.equal(sawTravel,true);assert.ok(listing,'autonomous producer must answer the observed BuyOffer');
+  assert.ok(arrivalDistanceAtListing<=1,'procurement Listing must be created only after canonical market arrival');
   assert.ok(node.amount<nodeBefore,'wood came from a real node');
   assert.ok(materialAmount(s,producer,'wood')>=reserve+2,'reserve remains plus offered quantity before settlement');
   assert.equal(getBalance(s,producer.id),moneyBefore,'accepting a BuyOffer is not remote payment');
@@ -133,7 +135,6 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
   assert.equal(totalCurrency(s),currency);
   assert.ok(materialAmount(s,producer,'wood')>=personalTargets(s,producer).wood,'settlement cannot consume protected reserve');
   assert.deepEqual(validate(s),[]);
-  assert.ok(Math.abs(producer.x-tradePoint.x)+Math.abs(producer.y-tradePoint.y)<=1);
 });
 
 test('ER2 competing BuyOffers cannot over-commit one producer surplus and exact replay stays idempotent',()=>{
