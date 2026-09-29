@@ -2,6 +2,7 @@ import {verifyAdventureCombatTerminalEvidence,validateAdventureCombatRewardState
 import {BLUEPRINT_ITEM_KIND,validBlueprintPayload,sameBlueprintPayload,blueprintSessionErrors,consumedBlueprintEvidence,validateBlueprintEvidence} from './craft-blueprints.mjs?v=0.5.0';
 import {createMasterworkCraftSpec,validateCraftSpec,resolveCraftOutcome,validateCraftedItem,craftedToolMultiplier,MASTERWORK_ORDER_VERSION,CRAFT_GRADES} from './craft-outcome.mjs?v=0.5.0';
 import {crafterFamilyProfile,CRAFTER_FAMILIES} from './crafter-career.mjs?v=0.5.0';
+import {crafterTierPermission} from './crafter-tier-policy.mjs?v=0.5.0';
 import {knowsCraftRecipe,validateRecipeKnowledge,recipeCompletionProposal,blueprintLearningProposal,craftFamilyMastery,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
@@ -37,6 +38,8 @@ function checkCraft(s,{agentId,recipeId,stationId=null}={}){
   if(!p||!a||!r)return {ok:false,reason:'actor-or-recipe'};
   if(validateRecipeKnowledge(s,a).length)return {ok:false,reason:'recipe-knowledge'};
   if(!knowsCraftRecipe(s,a,recipeId))return {ok:false,reason:'recipe-unknown'};
+  const tierPermission=crafterTierPermission(s,a,recipeId);
+  if(tierPermission.status!=='SAT')return {ok:false,reason:tierPermission.status==='VIOL'?'crafter-tier':'crafter-tier-evidence',tierPermission};
   if(a.adventureCombat?.status==='ACTIVE')return {ok:false,reason:'combat-active'};
   if(p.orders.some(o=>o.agentId===agentId))return {ok:false,reason:'craft-busy'};
   if(!integer(p.nextOrder,1)||p.nextOrder>=Number.MAX_SAFE_INTEGER||!integer(p.nextItem,1)||p.nextItem>=Number.MAX_SAFE_INTEGER)return {ok:false,reason:'capacity'};
@@ -85,6 +88,7 @@ export function validateCraftOrder(s,o){
   if(o.recipeKnowledge===undefined)return STARTER_RECIPE_IDS.includes(o.recipe)&&o.craftSpec===undefined&&o.reservedItems===undefined?[]:['Rust craft legacy recipe'];
   if(o.recipeKnowledge!==RECIPE_KNOWLEDGE_VERSION)return ['Rust craft knowledge version'];
   if(validateRecipeKnowledge(s,a).length||!knowsCraftRecipe(s,a,o.recipe))return ['Rust craft permission'];
+  if(crafterTierPermission(s,a,o.recipe).status!=='SAT')return ['Rust craft career permission'];
   const receipts=(a.knowledgeState.recipes?.entries??[]).flatMap(e=>[...e.receipts,...(e.retiredThrough?[e.retiredThrough]:[])]);
   if(receipts.some(done=>done.orderId>=o.id||done.tick>o.startedTick))return ['Rust craft watermark'];
   if(o.required!==r.work||Object.keys(o.reserved).length!==Object.keys(r.materials).length||Object.entries(r.materials).some(([k,n])=>o.reserved[k]!==n))return ['Rust craft escrow'];

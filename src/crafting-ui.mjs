@@ -17,6 +17,7 @@ export const craftReasonLabel=reason=>({
   'blueprint-invalid':'หลักฐานพิมพ์เขียวไม่ถูกต้อง','recipe-known':'รู้สูตรนี้แล้ว · เก็บใบนี้ไว้ได้','loot-result-open':'กด Continue ปิดผลต่อสู้ก่อนเรียนสูตร','recipe-capacity':'สมุดสูตรเต็ม',
   ready:'พร้อมคราฟต์',off:'ไม่ได้เปิดฝึก', 'quota-complete':'ครบเป้าหมายแล้ว · ไม่รับงานเพิ่ม',
   'recipe-unknown':'ยังไม่รู้สูตร', 'recipe-knowledge':'หลักฐานสูตรไม่ถูกต้อง', 'training-state':'ข้อมูลแผนฝึกไม่ถูกต้อง',
+  'crafter-tier':'ระดับช่างยังไม่ถึง · T3=Crafter · T4=Expert · T5=Master','crafter-tier-evidence':'ยังยืนยันระดับช่างไม่ได้',
   stage:'ช่วงวัยนี้ทำงานไม่ได้','actor-or-recipe':'เลือก Clone และสูตรก่อน',
   station:'ยังไม่มีสถานีที่ต้องใช้', materials:'วัสดุไม่พอ','item-materials':'ของวัตถุดิบไม่ครบ หรือยังสวม/ติดผลต่อสู้อยู่',
   'craft-busy':'กำลังทำงานในคิวเดิม','bag-full':'กระเป๋าเต็ม',capacity:'พื้นที่เก็บของหรือคิวเต็ม',
