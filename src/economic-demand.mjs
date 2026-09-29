@@ -65,7 +65,7 @@ function rootErrors(world){
   e.push(...validateBuyOfferCollection(world?.merchantBuyOffers).map(x=>'BuyOffer:'+x));
   e.push(...validateReservationState(world?.merchantReservations).map(x=>'Reservation:'+x));
   e.push(...validateCurrencyWallet(world).map(x=>'Wallet:'+x));
-  e.push(...validateTradeReplayState(world?.tradeReplay).map(x=>'Trade:'+x));
+  e.push(...validateTradeReplayState(world).map(x=>'Trade:'+x));
   return e;
 }
 function ensureSignal(rows,{agentId,itemKind,unit='item',tradable=true,representation='physical-item-instance'}){
