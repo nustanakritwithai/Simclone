@@ -343,6 +343,22 @@ export function prepareRc4MarketTravel(world,{agentId,marketId}={}){
   return {ok:true,agent,task:built.task,market:marketResult.market};
 }
 
+function commitPreparedPhysicalTrade(world,prepared,proposal,adapters,transactionId){
+  const result=settleTradeAtomic(prepared,proposal,adapters);
+  if(!result.ok)return fail(result.reason,'ซื้อขายไม่สำเร็จ',{detail:result});
+  if(result.duplicate)return {ok:true,duplicate:true,transactionId,receipt:result.receipt};
+  replaceWorldRoot(world,result.state);
+  return {ok:true,duplicate:false,transactionId,receipt:result.receipt,message:'ซื้อขายสำเร็จ'};
+}
+
+function commitPreparedBulkTrade(world,prepared,proposal,adapters,transactionId){
+  const result=settleBulkTradeAtomic(prepared,proposal,adapters);
+  if(!result.ok)return fail(result.reason,'ซื้อขายไม่สำเร็จ',{detail:result});
+  if(result.duplicate)return {ok:true,duplicate:true,transactionId,receipt:result.receipt};
+  replaceWorldRoot(world,result.state);
+  return {ok:true,duplicate:false,transactionId,receipt:result.receipt,message:'ซื้อขายสำเร็จ'};
+}
+
 function buyListing(world,{buyerId,listingId,listingRevision}={}){
   const listing=listingById(world,listingId);
   if(!listing||listing.status!=='OPEN')return fail('listing','Listing ไม่พร้อม');
@@ -398,13 +414,9 @@ function buyListing(world,{buyerId,listingId,listingRevision}={}){
     evidence:{marketId:preparedListing.marketId,listingId,reservationId:reserved.reservation.id}
   });
   const adapters={wallet,item:rustTradeItemAdapter,resource:bulkTradeResourceAdapter,market:canonicalMarketAdapter(),postSettlement:postSettlementAdapter()};
-  const result=assetType===TRADE_ASSET_TYPES.BULK_RESOURCE
-    ?settleBulkTradeAtomic(prepared,proposal,adapters)
-    :settleTradeAtomic(prepared,proposal,adapters);
-  if(!result.ok)return fail(result.reason,'ซื้อขายไม่สำเร็จ',{detail:result});
-  if(result.duplicate)return {ok:true,duplicate:true,transactionId,receipt:result.receipt};
-  replaceWorldRoot(world,result.state);
-  return {ok:true,duplicate:false,transactionId,receipt:result.receipt,message:'ซื้อขายสำเร็จ'};
+  return assetType===TRADE_ASSET_TYPES.BULK_RESOURCE
+    ?commitPreparedBulkTrade(world,prepared,proposal,adapters,transactionId)
+    :commitPreparedPhysicalTrade(world,prepared,proposal,adapters,transactionId);
 }
 
 function acceptBuyOffer(world,{producerId,offerId,itemId,quantity}={}){
