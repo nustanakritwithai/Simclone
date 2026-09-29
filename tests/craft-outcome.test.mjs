@@ -169,26 +169,25 @@ test('RC2 full tier chain uses existing materials/items and verifies earned mast
   Object.assign(stock,{food:900,wood:900,stone:900});assert.equal(addMaterialSet(s,a,{ironIngot:90,steelIngot:90}).ok,true);
   a.hp=a.satiety=a.energy=100;a.task=null;
   const make=id=>craftFixtureItem(s,a,id);
-  // Real Builder work reaches the canonical Crafter threshold: total >= 6 and T2 >= 2.
-  make('HAMMER');make('HAMMER_T2');make('HAMMER');make('HAMMER_T2');make('HAMMER');
+  // Existing home contributes one HAMMER completion. Real work reaches 6 total with 2 T2.
+  make('HAMMER');make('HAMMER_T2');make('HAMMER');make('HAMMER_T2');const carry=make('HAMMER');
   const promotion=command(s,'RC5_BECOME_CRAFTER',{agentId:a.id});assert.equal(promotion.ok,true,JSON.stringify(promotion));assert.equal(a.profession,'crafter');
   let snap=crafterCareerSnapshot(s,a);assert.equal(snap.best.family,'HAMMER');assert.equal(snap.best.grade,'CRAFTER');
-  // Keep one Hammer in the bag, then build four real T3 chains. This crosses Expert using real receipts.
-  for(let i=0;i<4;i++){if(i>0)make('HAMMER');make('HAMMER_T2');assert.equal(knowsCraftRecipe(s,a,'HAMMER_T3'),true);make('HAMMER_T3');}
-  snap=crafterCareerSnapshot(s,a);assert.equal(snap.best.grade,'EXPERT');assert.ok(recipeMastery(a,'HAMMER_T3')>=4);
-  // Convert the four held T3 tools to T4, then free two bag slots and create two more T3 chains.
-  for(let i=0;i<4;i++)make('HAMMER_T4');
-  s.rustPossessions.items.filter(i=>i.createdBy===a.id&&i.kind==='HAMMER'&&i.location?.kind==='bag'&&i.craft?.recipeId==='HAMMER_T4').slice(0,2).forEach(i=>stow(s,i));
-  for(let i=0;i<2;i++){make('HAMMER');make('HAMMER_T2');make('HAMMER_T3');}
-  for(let i=0;i<2;i++)make('HAMMER_T4');
-  // Master additionally requires total >= 32. Keep one T4 in hand authority and add three ordinary real completions.
-  s.rustPossessions.items.filter(i=>i.createdBy===a.id&&i.kind==='HAMMER'&&i.location?.kind==='bag'&&i.craft?.recipeId==='HAMMER_T4').slice(0,3).forEach(i=>stow(s,i));
-  const fillers=[];for(let i=0;i<3;i++)fillers.push(make('HAMMER'));fillers.forEach(i=>stow(s,i));
-  snap=crafterCareerSnapshot(s,a);assert.equal(snap.best.grade,'MASTER');assert.equal(snap.best.maxNewTier,5);
+  // Four T3 completions plus ordinary family work reach Expert. Stow each output so the bag never becomes the authority under test.
+  for(let i=0;i<4;i++){
+    if(i>0)make('HAMMER');
+    assert.equal(knowsCraftRecipe(s,a,'HAMMER_T3'),true);
+    const t3=make('HAMMER_T3');stow(s,t3);
+  }
+  for(let i=0;i<3;i++)stow(s,make('HAMMER'));
+  snap=crafterCareerSnapshot(s,a);assert.equal(snap.best.grade,'EXPERT');assert.equal(recipeMastery(a,'HAMMER_T3'),4);
+  // Six T4 completions plus ordinary real completions reach Master.
+  for(let i=0;i<6;i++){make('HAMMER');const t4=make('HAMMER_T4');stow(s,t4);}
+  for(let i=0;i<4;i++)stow(s,make('HAMMER'));
+  snap=crafterCareerSnapshot(s,a);assert.equal(snap.best.grade,'MASTER');assert.equal(snap.best.maxNewTier,5);assert.equal(recipeMastery(a,'HAMMER_T4'),6);
   assert.equal(knowsCraftRecipe(s,a,'HAMMER_T5'),true);
-  const top=make('HAMMER_T5');assert.equal(top.craft.tier,5);assert.ok(top.craft.quality>=30);assert.equal(top.craft.grade,'MASTER');
-  assert.equal(recipeMastery(a,'HAMMER_T3'),6);assert.equal(recipeMastery(a,'HAMMER_T4'),6);assert.equal(recipeMastery(a,'HAMMER_T5'),1);
-  assert.equal(craftFamilyMastery(a,'HAMMER_T5'),33);assert.deepEqual(validate(s),[]);
+  make('HAMMER');const top=make('HAMMER_T5');assert.equal(top.craft.tier,5);assert.ok(top.craft.quality>=30);assert.equal(top.craft.grade,'MASTER');
+  assert.equal(recipeMastery(a,'HAMMER_T5'),1);assert.equal(craftFamilyMastery(a,'HAMMER_T5'),34);assert.deepEqual(validate(s),[]);
 });
 test('RC2 output module has no external clock, browser or global RNG writes',()=>{
   const src=fs.readFileSync(new URL('../src/craft-outcome.mjs',import.meta.url),'utf8');
