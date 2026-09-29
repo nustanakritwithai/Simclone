@@ -166,17 +166,17 @@ export function ensureRc4AccountForAgent(world,agentId){
   return createCurrencyAccount(world,{agentId});
 }
 
-function selfProducedTradeEvidence(world,agent){
+function ownedTradeEvidence(world,agent){
   if(!agent?.alive)return [];
   const rows=[],seen=new Set();
   for(const item of world.rustPossessions?.items??[]){
-    if(item?.createdBy!==agent.id||item.location?.kind!=='bag'||item.location.agentId!==agent.id||typeof item.kind!=='string')continue;
+    if(item?.location?.kind!=='bag'||item.location.agentId!==agent.id||typeof item.kind!=='string')continue;
     if(seen.has(item.kind))continue;
     const tradable=tradableRustItemIds(world,{agentId:agent.id,itemKind:item.kind});
     if(!tradable.includes(item.id))continue;
-    seen.add(item.kind);rows.push({itemKind:item.kind,itemInstanceId:item.id});
+    seen.add(item.kind);rows.push({itemKind:item.kind,itemInstanceId:item.id,selfProduced:item.createdBy===agent.id});
   }
-  return rows.sort((a,b)=>a.itemKind.localeCompare(b.itemKind)||a.itemInstanceId-b.itemInstanceId);
+  return rows.sort((a,b)=>Number(b.selfProduced)-Number(a.selfProduced)||a.itemKind.localeCompare(b.itemKind)||a.itemInstanceId-b.itemInstanceId);
 }
 
 function merchantQualificationSnapshot(world,agent){
@@ -185,7 +185,7 @@ function merchantQualificationSnapshot(world,agent){
   const market=ownMarket(world,agent.id);
   const listingEvidence=(market?.listingIds??[]).filter(id=>world.merchantListings?.listings?.some(l=>l.id===id&&l.marketId===market.marketId)).length;
   const offerEvidence=(market?.buyOfferIds??[]).filter(id=>world.merchantBuyOffers?.buyOffers?.some(o=>o.offerId===id&&o.marketId===market.marketId)).length;
-  const physicalEvidence=selfProducedTradeEvidence(world,agent).length;
+  const physicalEvidence=ownedTradeEvidence(world,agent).length;
   const evidenceCount=listingEvidence+offerEvidence+physicalEvidence;
   const evidenceId='MERCHANT:'+agent.id+':'+(market?.marketId??'NOMARKET')+':'+evidenceCount;
   return {
@@ -217,12 +217,12 @@ export function autonomousMerchantEntryCandidate(world){
     if(!['ADULT','ELDER'].includes(lifeStage(world,a)))continue;
     const home=homeOf(world,a.id,{completeOnly:true});if(!home)continue;
     const balance=getBalance(world,a.id);if(!Number.isSafeInteger(balance)||balance<1)continue;
-    const evidence=selfProducedTradeEvidence(world,a);if(!evidence.length)continue;
+    const evidence=ownedTradeEvidence(world,a);if(!evidence.length)continue;
     const qualification=evaluateMerchantQualification(merchantQualificationSnapshot(world,a));
     if(qualification.status!=='SAT')continue;
-    candidates.push({agentId:a.id,homeId:home.houseId,evidenceCount:evidence.length,balance});
+    candidates.push({agentId:a.id,homeId:home.houseId,evidenceCount:evidence.length,selfProducedCount:evidence.filter(x=>x.selfProduced).length,balance});
   }
-  candidates.sort((a,b)=>b.evidenceCount-a.evidenceCount||b.balance-a.balance||a.agentId-b.agentId);
+  candidates.sort((a,b)=>b.selfProducedCount-a.selfProducedCount||b.evidenceCount-a.evidenceCount||b.balance-a.balance||a.agentId-b.agentId);
   return candidates[0]??null;
 }
 
