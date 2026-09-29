@@ -5,6 +5,7 @@ export const MERCHANT_LISTING_VERSION='RC4-listing/3';
 export const MERCHANT_LISTING_COLLECTION_VERSION='RC4-listing-collection/2';
 export const MERCHANT_LISTING_ROOT_KEY='merchantListings';
 export const LISTING_STATUS=Object.freeze({OPEN:'OPEN',CLOSED:'CLOSED',CANCELED:'CANCELED',FILLED:'FILLED'});
+export const BULK_RESOURCE_ASSET_TYPE='BULK_RESOURCE';
 const idPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const validRefId=v=>typeof v==='string'&&v.length>0&&v.length<=80&&idPattern.test(v);
 const positiveInt=v=>Number.isSafeInteger(v)&&v>0;
@@ -21,6 +22,12 @@ export function listingIdFor({marketId,sellerId,itemInstanceId,requestId=null}={
   const text=marketId+'|'+sellerId+'|'+itemInstanceId+(requestId===null?'':'|REQUEST|'+requestId);
   return 'L:'+stableHash(text)+stableHash(text+'|RC4');
 }
+export function bulkListingIdFor({marketId,sellerId,itemKind,requestId=null}={}){
+  if(!validRefId(marketId)||!positiveInt(sellerId)||!validKind(itemKind))return null;
+  if(requestId!==null&&!validRefId(requestId))return null;
+  const text='BULK|'+marketId+'|'+sellerId+'|'+itemKind+(requestId===null?'':'|REQUEST|'+requestId);
+  return 'BL:'+stableHash(text)+stableHash(text+'|ER0');
+}
 
 export function validateListing(row){
   const e=[];
@@ -29,7 +36,11 @@ export function validateListing(row){
   if(!validRefId(row.marketId))e.push('marketId');
   if(!positiveInt(row.sellerId))e.push('sellerId');
   if(!validKind(row.itemKind))e.push('itemKind');
-  if(!positiveInt(row.itemInstanceId))e.push('itemInstanceId');
+  const bulk=row.assetType===BULK_RESOURCE_ASSET_TYPE;
+  if(row.assetType!==undefined&&!bulk)e.push('assetType');
+  if(bulk){
+    if(row.itemInstanceId!==undefined)e.push('itemInstanceId');
+  }else if(!positiveInt(row.itemInstanceId))e.push('itemInstanceId');
   if(!Number.isSafeInteger(row.quantity)||row.quantity<0||row.quantity>128||(row.status===LISTING_STATUS.FILLED?row.quantity!==0:row.quantity<1))e.push('quantity');
   if(!isCanonicalMoney(row.unitPrice,{allowZero:false}))e.push('unitPrice');
   if(!positiveInt(row.revision))e.push('revision');
@@ -38,8 +49,8 @@ export function validateListing(row){
   return [...new Set(e)];
 }
 
-export function createListing({id,marketId,sellerId,itemKind,itemInstanceId,quantity,unitPrice,status=LISTING_STATUS.OPEN,buyOfferId}={}){
-  const listing={id,marketId,sellerId,itemKind,itemInstanceId,quantity,unitPrice,revision:1,status,...(buyOfferId===undefined?{}:{buyOfferId})};
+export function createListing({id,marketId,sellerId,itemKind,itemInstanceId,quantity,unitPrice,status=LISTING_STATUS.OPEN,buyOfferId,assetType}={}){
+  const listing={id,marketId,sellerId,itemKind,...(assetType===BULK_RESOURCE_ASSET_TYPE?{assetType}:{itemInstanceId}),quantity,unitPrice,revision:1,status,...(buyOfferId===undefined?{}:{buyOfferId})};
   const errors=validateListing(listing);
   return errors.length?{state:'VIOL',errors,listing:null}:{state:'SAT',duplicate:false,listing:Object.freeze(listing)};
 }
@@ -75,7 +86,8 @@ export function validateListingCollection(collection){
     if(validateListing(row).length)e.push('listing');
     if(ids.has(row?.id))e.push('duplicate-id');else ids.add(row?.id);
     if(row?.status===LISTING_STATUS.OPEN){
-      if(openItems.has(row.itemInstanceId))e.push('duplicate-open-item');else openItems.add(row.itemInstanceId);
+      const lock=row.assetType===BULK_RESOURCE_ASSET_TYPE?'BULK:'+row.sellerId+':'+row.itemKind:'ITEM:'+row.itemInstanceId;
+      if(openItems.has(lock))e.push(row.assetType===BULK_RESOURCE_ASSET_TYPE?'duplicate-open-bulk':'duplicate-open-item');else openItems.add(lock);
     }
   }
   const requests=new Map();
@@ -88,7 +100,7 @@ export function validateListingCollection(collection){
   return [...new Set(e)];
 }
 
-const sameIdentity=(a,b)=>a.marketId===b.marketId&&a.sellerId===b.sellerId&&a.itemKind===b.itemKind&&a.itemInstanceId===b.itemInstanceId&&a.buyOfferId===b.buyOfferId;
+const sameIdentity=(a,b)=>a.marketId===b.marketId&&a.sellerId===b.sellerId&&a.itemKind===b.itemKind&&a.itemInstanceId===b.itemInstanceId&&a.assetType===b.assetType&&a.buyOfferId===b.buyOfferId;
 const resultCollection=collection=>clone(collection);
 
 export function createListingInCollection(collection,input={}){
@@ -100,8 +112,12 @@ export function createListingInCollection(collection,input={}){
     if(!original||JSON.stringify(original)!==JSON.stringify(made.listing))return {state:'VIOL',reason:'listing-id-conflict',collection:resultCollection(collection)};
     return {state:'SAT',duplicate:true,listing:Object.freeze({...existing}),collection:resultCollection(collection)};
   }
-  if(made.listing.status===LISTING_STATUS.OPEN&&collection.listings.some(x=>x.status===LISTING_STATUS.OPEN&&x.itemInstanceId===made.listing.itemInstanceId))
-    return {state:'VIOL',reason:'item-already-listed',collection:resultCollection(collection)};
+  if(made.listing.status===LISTING_STATUS.OPEN&&collection.listings.some(x=>x.status===LISTING_STATUS.OPEN&&(
+    made.listing.assetType===BULK_RESOURCE_ASSET_TYPE
+      ?x.assetType===BULK_RESOURCE_ASSET_TYPE&&x.sellerId===made.listing.sellerId&&x.itemKind===made.listing.itemKind
+      :x.assetType!==BULK_RESOURCE_ASSET_TYPE&&x.itemInstanceId===made.listing.itemInstanceId
+  )))
+    return {state:'VIOL',reason:made.listing.assetType===BULK_RESOURCE_ASSET_TYPE?'bulk-already-listed':'item-already-listed',collection:resultCollection(collection)};
   const next=resultCollection(collection);next.listings.push({...made.listing});next.creations.push({id:made.listing.id,input:{...made.listing}});
   return {state:'SAT',duplicate:false,listing:Object.freeze({...made.listing}),collection:next};
 }
@@ -122,8 +138,12 @@ export function transitionListingInCollection(collection,id,status){
   if(current.status===status)return {state:'SAT',duplicate:true,listing:Object.freeze({...current}),collection:resultCollection(collection)};
   let changed;
   if(current.status===LISTING_STATUS.CLOSED&&status===LISTING_STATUS.OPEN){
-    if(collection.listings.some((x,i)=>i!==index&&x.status===LISTING_STATUS.OPEN&&x.itemInstanceId===current.itemInstanceId))
-      return {state:'VIOL',reason:'item-already-listed',collection:resultCollection(collection)};
+    if(collection.listings.some((x,i)=>i!==index&&x.status===LISTING_STATUS.OPEN&&(
+      current.assetType===BULK_RESOURCE_ASSET_TYPE
+        ?x.assetType===BULK_RESOURCE_ASSET_TYPE&&x.sellerId===current.sellerId&&x.itemKind===current.itemKind
+        :x.assetType!==BULK_RESOURCE_ASSET_TYPE&&x.itemInstanceId===current.itemInstanceId
+    )))
+      return {state:'VIOL',reason:current.assetType===BULK_RESOURCE_ASSET_TYPE?'bulk-already-listed':'item-already-listed',collection:resultCollection(collection)};
     const revision=current.revision+1;if(!Number.isSafeInteger(revision))return {state:'VIOL',reason:'revision-overflow',collection:resultCollection(collection)};
     changed={state:'SAT',duplicate:false,listing:Object.freeze({...current,status,revision})};
   }else changed=transitionListing(current,status);
