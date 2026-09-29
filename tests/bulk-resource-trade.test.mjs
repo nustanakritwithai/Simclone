@@ -6,6 +6,7 @@ import {resourceStock} from '../src/individual-resources.mjs';
 import {materialAmount} from '../src/material-economy.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
 import {projectActorObservedDemand} from '../src/economic-demand.mjs';
+import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
 import {TRADE_ASSET_TYPES} from '../src/trade-assets.mjs';
 import {settleBulkTradeAtomic} from '../src/trade-kernel.mjs';
 import {createListingInCollection,bulkListingIdFor} from '../src/merchant-listing.mjs';
@@ -43,6 +44,7 @@ test('ER0B bulk BuyOffer -> procurement Listing keeps resource-counter identity 
   assert.equal(Object.hasOwn(listing,'itemInstanceId'),false);
   assert.equal(listing.itemKind,'ironOre');assert.equal(listing.quantity,5);assert.equal(listing.unitPrice,3);
   producer.x=merchant.x;producer.y=merchant.y;
+  observeRc4Markets(s);
   const demand=projectActorObservedDemand(s,producer);
   assert.equal(demand.status,'SAT');
   const iron=demand.signals.find(x=>x.itemKind==='ironOre');
