@@ -45,6 +45,7 @@ import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventu
 import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement,defeatWildMonster,stepWildMonsterLifecycle,migrateWildMonsterLifecycleState} from './adventure-world-monsters.mjs?v=0.5.0';
 import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adventure-autonomy.mjs?v=0.5.0';
 import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
+import {crafterCareerCommand} from './crafter-career.mjs?v=0.5.0';
 import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy} from './rc4-market-runtime.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -180,6 +181,7 @@ export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){
   const rc4=rc4Command(s,type,data);if(rc4){if(rc4.ok&&rc4.eventText)event(s,rc4.eventType??'market',rc4.eventText,rc4.agentId??null);return rc4;}
+  const crafter=crafterCareerCommand(s,type,data);if(crafter){if(crafter.ok&&crafter.changed)event(s,'career',crafter.message,crafter.agentId??null);return crafter;}
   const residence=householdResidenceCommand(s,type,data);if(residence){if(residence.ok&&residence.changed)event(s,'household',residence.message,residence.agentId??null);return residence;}
   const mentorship=mentorshipCommand(s,type,data);if(mentorship){
     if(mentorship.ok&&mentorship.changed){
@@ -530,7 +532,11 @@ function execute(s,a){
     const result=advanceRustWork(s,a,workRate);
     if(!result.ok){if(result.reason!=='already-worked')a.task=null;return;}
     t.work=result.work??t.work;
-    if(result.completed){event(s,'craft',a.name+(t.kind==='CRAFT'?' คราฟต์ของสำเร็จ':' แปรรูปวัสดุสำเร็จ'),a.id);a.task=null;}
+    if(result.completed){
+      event(s,'craft',a.name+(t.kind==='CRAFT'?' คราฟต์ของสำเร็จ':' แปรรูปวัสดุสำเร็จ'),a.id);
+      if(t.kind==='CRAFT'&&a.profession==='builder')command(s,'RC5_BECOME_CRAFTER',{agentId:a.id});
+      a.task=null;
+    }
     return;
   }
   t.work+=workRate;
