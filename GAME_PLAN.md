@@ -1,3 +1,12 @@
+> **RC4 Merchant Economy RELEASED — 2026-09-29**
+>
+> Production main: `1ff2907c4e69af8adc336792105894542576433b`.
+> Accepted integration candidate: PR #194 head `582cc72668071e4c3e1f55fd43c143841a3bbaad`.
+> Exact-main Verify #2160 and Pages #113 are SUCCESS.
+> Public Merchant Economy is released: Producer → Merchant → Customer, Home Market, BuyOffer/Listing, real navigation, canonical Wallet/Rust item/Reservation/Trade/Ledger/Career, save/load and desktop/mobile browser proof.
+> RC4 donor/acceptance PRs are historical/superseded by #194 and must not be merged into current main.
+> Read `docs/RC4_RELEASE_CLOSEOUT.md` and `docs/RC4_RELEASE_SUCCESS_CONTRACT.md`. Earlier baseline/candidate notes below are historical where they conflict.
+>
 > **RC4 production candidate — 2026-09-29**
 >
 > PR #194 is the assembled Merchant Economy candidate on the RC3.2 production baseline.
