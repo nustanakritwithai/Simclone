@@ -101,6 +101,7 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
     .filter(x=>Array.isArray(x.path))
     .sort((a,b)=>a.path.length-b.path.length||a.node.id-b.node.id)[0]?.node;
   assert.ok(node,'reachable wood node');
+  producer.x=node.x;producer.y=node.y;producer.task=null;
   assert.ok(recordResourceDiscovery(producer,node,s.tick,{action:'WOODCUT',amount:1}));
   const nodeBefore=node.amount,moneyBefore=getBalance(s,producer.id),totalBefore=totalCurrency(s);
   let sawGather=false,sawTravel=false,listing=null;
