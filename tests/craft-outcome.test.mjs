@@ -12,6 +12,7 @@ import {startAdventureCombatSession} from '../src/adventure-combat-session.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
 import {adoptProfession} from '../src/kingdom-utility.mjs';
 import {canPlaceStation} from '../src/rust-stations.mjs';
+import {adoptCrafterProfession} from '../src/crafter-career.mjs';
 const copy=x=>JSON.parse(JSON.stringify(x));
 function fresh(seed=230926){const s=createWorld(seed);s.stock.wood=500;s.stock.stone=500;s.rustMaterials.charcoal=100;s.rustMaterials.ironOre=100;s.rustMaterials.ironIngot=100;s.rustMaterials.steelIngot=90;return s;}
 function finish(s,a){let result;const o=s.rustPossessions.orders.find(o=>o.agentId===a.id);assert.ok(o);if(o.stationId!==null){const st=s.rustStations.stations.find(x=>x.id===o.stationId);assert.ok(st);a.x=st.x;a.y=st.y;}for(let i=0;i<o.required+2;i++){s.tick++;result=advanceCraft(s,a.id);if(result.completed)break;}assert.equal(result.completed,true,JSON.stringify(result));return s.rustPossessions.items.find(x=>x.id===result.itemId);}
@@ -176,6 +177,7 @@ test('RC2 full tier chain uses existing materials/items and verifies earned mast
   for(let tier=1;tier<=5;tier++){
     assert.equal(knowsCraftRecipe(s,a,'STONE_AXE_T'+tier),true);
     for(let n=0;n<2;n++){const item=craft(s,a,'STONE_AXE_T'+tier);assert.equal(item.craft.tier,tier);assert.ok(item.craft.quality>=30);}
+    if(tier===2){const promoted=adoptCrafterProfession(s,a);assert.equal(promoted.status,'SAT');assert.equal(a.profession,'crafter');}
     assert.equal(recipeMastery(a,'STONE_AXE_T'+tier),2);assert.deepEqual(validate(s),[]);
   }
   assert.equal(craftFamilyMastery(a,'STONE_AXE_T5'),12);assert.equal(s.rustPossessions.items.filter(i=>i.kind==='STONE_AXE').length,2);
