@@ -1,0 +1,17 @@
+{
+  "schema":"RC5-producer-supply-evidence/1",
+  "scope":"STACKED_DESIGN_TEST",
+  "parentBranch":"feature/rc5-crafter-career-tier-gate-20260929",
+  "parentHead":"5b01acdb4a38321d3c5e90bbd5379fcdf1d5fd89",
+  "runtimeWiring":false,
+  "policyLocation":"docs/wip/rc5-producer/producer-supply-policy.mjs",
+  "authorityLocks":{
+    "price":"Merchant BuyOffer",
+    "item":"Rust possessions/crafting",
+    "profession":"canonical profession authority",
+    "listingTradeAccounting":"RC4 authorities",
+    "demandDiscovery":"personal market observation"
+  },
+  "exactHeadCI":"UNKNOWN_UNTIL_ACTIONS_COMPLETES",
+  "productionVerdict":"HOLD"
+}
