@@ -32,7 +32,7 @@ import {createCanonicalMarketTravelTask,verifyCanonicalMarketArrival,isCanonical
 
 export const RC4_ECONOMY_ROOT_VERSION='RC4-economy-root/1';
 export const RC4_MERCHANT_AUTONOMY_RULES=Object.freeze({
-  cadenceTicks:30,
+  cadenceTicks:1,
   peoplePerMerchant:6,
   maxPromotionsPerStep:1,
 });
