@@ -7,6 +7,7 @@ import {materialAmount} from '../src/material-economy.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
 import {projectActorObservedDemand} from '../src/economic-demand.mjs';
 import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
+import {projectHomeMarketForTrade} from '../src/home-market.mjs';
 import {TRADE_ASSET_TYPES} from '../src/trade-assets.mjs';
 import {settleBulkTradeAtomic} from '../src/trade-kernel.mjs';
 import {createListingInCollection,bulkListingIdFor} from '../src/merchant-listing.mjs';
@@ -43,7 +44,9 @@ test('ER0B bulk BuyOffer -> procurement Listing keeps resource-counter identity 
   assert.equal(listing.assetType,TRADE_ASSET_TYPES.BULK_RESOURCE);
   assert.equal(Object.hasOwn(listing,'itemInstanceId'),false);
   assert.equal(listing.itemKind,'ironOre');assert.equal(listing.quantity,5);assert.equal(listing.unitPrice,3);
-  producer.x=merchant.x;producer.y=merchant.y;
+  const projected=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:offer.marketId});
+  assert.equal(projected.ok,true,JSON.stringify(projected));
+  producer.x=projected.market.x;producer.y=projected.market.y;
   observeRc4Markets(s);
   const demand=projectActorObservedDemand(s,producer);
   assert.equal(demand.status,'SAT');
@@ -79,7 +82,8 @@ test('ER0B canonical Producer -> Merchant bulk settlement conserves money and ex
   assert.equal(ledger.purchases[0].assetType,TRADE_ASSET_TYPES.BULK_RESOURCE);
   assert.equal(ledger.purchases[0].remainingQuantity,5);
   assert.deepEqual(ledger.purchases[0].itemIds,[]);
-  assert.equal(merchant.merchantTransactions,1);assert.equal(merchant.merchantExperience,1);
+  const liveMerchant=s.agents.find(a=>a.id===merchant.id);
+  assert.equal(liveMerchant.merchantTransactions,1);assert.equal(liveMerchant.merchantExperience,1);
   assert.deepEqual(validate(s),[]);
 
   const wire=serialize(s);s=restore(wire);
