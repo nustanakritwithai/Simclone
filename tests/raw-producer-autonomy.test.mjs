@@ -59,7 +59,7 @@ test('ER2 version and raw career capabilities are explicit and bounded',()=>{
 });
 
 test('ER2 surplus is owned minus canonical household reserve and cohabitants raise that reserve',()=>{
-  const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:3}),dependent=s.agents[0],producer=s.agents[1];
+  const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:3}),dependent=s.agents[1],producer=s.agents[2];
   Object.assign(resourceStock(s,producer),{wood:500,stone:500,food:500});
   producer.hp=producer.satiety=producer.energy=100;dependent.hp=dependent.satiety=dependent.energy=100;
   craftFixtureTable(s,producer);craftFixtureHome(s,producer);
