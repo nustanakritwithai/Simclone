@@ -12,6 +12,7 @@ import {canonicalEdge,placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {personalHomeIntent} from './individual-home-planning.mjs?v=0.5.0';
 import {activeResidenceOf} from './relationships.mjs?v=0.5.0';
 import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
+import {crafterProgressionIntent} from './crafter-autonomy.mjs?v=0.5.0';
 
 export const PRODUCTION_PLAN_VERSION='RP1-0.2';
 export const PRODUCTION_POLICY='rust-production-2';
@@ -147,6 +148,19 @@ export function productionCommand(s,type,data={}){
   return {ok:true,enabled,message:enabled?'เปิดแผนผลิตอัตโนมัติแล้ว':'หยุดแผนผลิตอัตโนมัติแล้ว'};
 }
 /** IC3 runs the same Rust orders per person. No colony-wide head-of-line lock. */
+function stepCrafterProgression(s,p,isWalkable){
+ const crafters=eligible(s).filter(a=>a.profession==='crafter');
+ if(!crafters.length)return null;
+ const offset=Math.floor(s.tick/PRODUCTION_RULES.attemptPeriod)%crafters.length;
+ for(let i=0;i<crafters.length;i++){
+  const a=crafters[(i+offset)%crafters.length],intent=crafterProgressionIntent(s,a);
+  if(!intent)continue;
+  const r=rustCommand(s,'CRAFT_ITEM',intent,isWalkable);
+  record(p,s.tick,'crafter-progress-'+intent.recipeId,r?.ok?'accepted':(r?.reason??'blocked'),a.id);
+  if(r?.ok)return {...r,crafterProgression:true};
+ }
+ return null;
+}
 function stepIndependentHomePlans(s,p,isWalkable){
  if(s.tick-p.lastAttemptTick<PRODUCTION_RULES.attemptPeriod)return null;
  p.lastAttemptTick=s.tick;
@@ -181,7 +195,11 @@ function stepIndependentHomePlans(s,p,isWalkable){
 }
 export function stepProductionPlanning(s,isWalkable,dispatch=null){
   const p=ensureProductionPlan(s);
-  if(isIndependent(s))return stepIndependentHomePlans(s,p,isWalkable);
+  if(isIndependent(s)){
+    const home=stepIndependentHomePlans(s,p,isWalkable);
+    if(home)return home;
+    return p.enabled===true?stepCrafterProgression(s,p,isWalkable):null;
+  }
   const housingOnly=p.enabled!==true&&autonomousHousingNeeded(s);
   if(!p.enabled&&!housingOnly)return null;
   if(activeOrders(s)>0)return null;
@@ -224,6 +242,8 @@ export function stepProductionPlanning(s,isWalkable,dispatch=null){
   // Shelter BUILD is gone; settlement growth is one modular house at a time, after Hammer and charcoal.
   const house=stepPersonalHomePlan(s,p,isWalkable);
   if(house)return house.ok?house:null;
+  const crafter=stepCrafterProgression(s,p,isWalkable);
+  if(crafter)return crafter;
   if(p.goal?.goal!=='stable')record(p,s.tick,'stable','target-met');
   return null;
 }
