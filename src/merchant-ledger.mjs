@@ -44,7 +44,7 @@ export function tradeReceiptIntegrityFingerprint(r={}){
 }
 
 export function validateCommittedTradeReceipt(r){
-  return validateTradeReceiptShape(r).length?['receipt']: [];
+  return validateTradeReceiptShape(r);
 }
 
 function validateReplayShape(state,receipt){
