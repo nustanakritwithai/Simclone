@@ -561,7 +561,7 @@ export function stepRc4Economy(world){
     }
     if(market){
       const promoted=rc4Command(world,'RC4_BECOME_MERCHANT',{agentId:entry.agentId});
-      if(promoted?.ok)stepResult={changed:true,kind:'merchant-entry',agentId:entry.agentId,marketId:market.marketId};
+      if(promoted?.ok)stepResult={changed:true,kind:'merchant-entry',agentId:entry.agentId,marketId:market.marketId,eventType:promoted.eventType??'career',eventText:promoted.eventText??null};
     }
   }
   if(!world.homeMarkets?.markets?.length)return stepResult;
