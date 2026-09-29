@@ -642,7 +642,12 @@ export function step(s,count=1,options={}){
       ageKnowledge(a,s.tick);
       if(a.task&&interrupt(s,a)){a.task=null;a.moveTick=0;}
     }
-    stepRc4Economy(s);
+    const rc4Step=stepRc4Economy(s);
+    if(rc4Step?.changed&&rc4Step.eventText){
+      event(s,rc4Step.eventType??'career',rc4Step.eventText,rc4Step.agentId??null);
+      const merchant=s.agents.find(a=>a.id===rc4Step.agentId);
+      if(merchant)merchant.lastCareerEventTick=s.tick;
+    }
     stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;

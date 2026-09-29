@@ -31,14 +31,24 @@ place('WOOD_WALL',canonicalEdge(x,y,'W'));
 place('WOOD_DOORWAY',canonicalEdge(x,y,'S'));
 place('WOOD_ROOF',{type:'cell',x,y});
 
-// The traded item is produced through canonical Rust crafting by Producer A.
-const order=command(s,'CRAFT_ITEM',{agentId:producer.id,recipeId:'STONE_PICKAXE'});
-if(!order.ok)throw new Error('producer craft order: '+JSON.stringify(order));
-let made=null;
-for(let i=0;i<40&&!made?.completed;i++){s.tick++;made=advanceCraft(s,producer.id);}
-if(!made?.completed)throw new Error('producer item did not complete');
-const sale=s.rustPossessions.items.find(i=>i.id===made.itemId);
-if(!sale||sale.createdBy!==producer.id||sale.location?.kind!=='bag'||sale.location.agentId!==producer.id)throw new Error('producer sale provenance');
+const canonicalCraft=(a,recipeId,label)=>{
+  a.task=null;
+  const order=command(s,'CRAFT_ITEM',{agentId:a.id,recipeId});
+  if(!order.ok)throw new Error(label+' craft order: '+JSON.stringify(order));
+  let made=null;
+  for(let i=0;i<40&&!made?.completed;i++){s.tick++;made=advanceCraft(s,a.id);}
+  if(!made?.completed)throw new Error(label+' item did not complete');
+  const item=s.rustPossessions.items.find(i=>i.id===made.itemId);
+  if(!item||item.createdBy!==a.id||item.location?.kind!=='bag'||item.location.agentId!==a.id)throw new Error(label+' item provenance');
+  return item;
+};
+
+// Producer A makes the physical item later traded through A -> B -> C.
+const sale=canonicalCraft(producer,'STONE_PICKAXE','producer');
+// Merchant candidate B independently has real production evidence. No Merchant
+// profession or Home Market is injected; runtime autonomy must create those.
+const merchantEvidence=canonicalCraft(merchant,'STONE_AXE','merchant-evidence');
+if(merchantEvidence.createdBy!==merchant.id)throw new Error('merchant evidence creator');
 
 for(const a of [producer,merchant,customer]){a.task=null;a.moveTick=0;}
 const errors=validate(s);if(errors.length)throw new Error('fixture invalid: '+errors.join(', '));

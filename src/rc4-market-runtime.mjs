@@ -31,6 +31,11 @@ import {
 import {createCanonicalMarketTravelTask,verifyCanonicalMarketArrival,isCanonicalMarketTravelTask,canPreemptForCanonicalMarketTravel,retainCanonicalMarketTravelOnCommit} from './navigation-arrival-evidence.mjs?v=0.5.0';
 
 export const RC4_ECONOMY_ROOT_VERSION='RC4-economy-root/1';
+export const RC4_MERCHANT_AUTONOMY_RULES=Object.freeze({
+  cadenceTicks:1,
+  peoplePerMerchant:6,
+  maxPromotionsPerStep:1,
+});
 const RC4_ROOT_FIELDS=Object.freeze(['homeMarkets','merchantListings','merchantBuyOffers','merchantReservations','currencyWallet','tradeReplay','merchantLedgers']);
 
 const clone=v=>structuredClone(v);
@@ -161,14 +166,28 @@ export function ensureRc4AccountForAgent(world,agentId){
   return createCurrencyAccount(world,{agentId});
 }
 
+function ownedTradeEvidence(world,agent){
+  if(!agent?.alive)return [];
+  const rows=[],seen=new Set();
+  for(const item of world.rustPossessions?.items??[]){
+    if(item?.location?.kind!=='bag'||item.location.agentId!==agent.id||typeof item.kind!=='string')continue;
+    if(seen.has(item.kind))continue;
+    const tradable=tradableRustItemIds(world,{agentId:agent.id,itemKind:item.kind});
+    if(!tradable.includes(item.id))continue;
+    seen.add(item.kind);rows.push({itemKind:item.kind,itemInstanceId:item.id,selfProduced:item.createdBy===agent.id});
+  }
+  return rows.sort((a,b)=>Number(b.selfProduced)-Number(a.selfProduced)||a.itemKind.localeCompare(b.itemKind)||a.itemInstanceId-b.itemInstanceId);
+}
+
 function merchantQualificationSnapshot(world,agent){
   const home=homeOf(world,agent.id,{completeOnly:true});
   const balance=getBalance(world,agent.id);
   const market=ownMarket(world,agent.id);
   const listingEvidence=(market?.listingIds??[]).filter(id=>world.merchantListings?.listings?.some(l=>l.id===id&&l.marketId===market.marketId)).length;
   const offerEvidence=(market?.buyOfferIds??[]).filter(id=>world.merchantBuyOffers?.buyOffers?.some(o=>o.offerId===id&&o.marketId===market.marketId)).length;
-  const intentCount=listingEvidence+offerEvidence;
-  const evidenceId='MERCHANT:'+agent.id+':'+(market?.marketId??'NOMARKET')+':'+intentCount;
+  const physicalEvidence=ownedTradeEvidence(world,agent).length;
+  const evidenceCount=listingEvidence+offerEvidence+physicalEvidence;
+  const evidenceId='MERCHANT:'+agent.id+':'+(market?.marketId??'NOMARKET')+':'+evidenceCount;
   return {
     agentId:agent.id,
     alive:agent.alive===true,
@@ -176,9 +195,35 @@ function merchantQualificationSnapshot(world,agent){
     professionTransitionAllowed:agent.profession!=='adventurer',
     homeControl:home?{status:'CONFIRMED',houseId:home.houseId,evidenceId:'HOME:'+home.houseId}:{status:'ABSENT'},
     operatingCapital:Number.isSafeInteger(balance)?{status:'CONFIRMED',amount:balance}:{status:'UNKNOWN'},
-    tradeKnowledge:intentCount>0?{status:'CONFIRMED',evidenceCount:intentCount}:{status:'UNKNOWN',evidenceCount:0},
+    tradeKnowledge:evidenceCount>0?{status:'CONFIRMED',evidenceCount}:{status:'UNKNOWN',evidenceCount:0},
     evidenceId
   };
+}
+
+function autonomousMerchantTarget(world){
+  const homeOwners=(world.agents??[]).filter(a=>a?.alive&&['ADULT','ELDER'].includes(lifeStage(world,a))&&homeOf(world,a.id,{completeOnly:true}));
+  if(homeOwners.length===0)return 0;
+  return Math.max(1,Math.ceil(homeOwners.length/RC4_MERCHANT_AUTONOMY_RULES.peoplePerMerchant));
+}
+
+export function autonomousMerchantEntryCandidate(world){
+  if(!Number.isInteger(world?.tick)||world.tick<0||world.tick%RC4_MERCHANT_AUTONOMY_RULES.cadenceTicks!==0)return null;
+  const target=autonomousMerchantTarget(world);
+  const merchants=(world.agents??[]).filter(a=>a?.alive&&a.profession==='merchant').length;
+  if(target===0||merchants>=target)return null;
+  const candidates=[];
+  for(const a of world.agents??[]){
+    if(!a?.alive||a.profession==='merchant'||a.profession==='adventurer')continue;
+    if(!['ADULT','ELDER'].includes(lifeStage(world,a)))continue;
+    const home=homeOf(world,a.id,{completeOnly:true});if(!home)continue;
+    const balance=getBalance(world,a.id);if(!Number.isSafeInteger(balance)||balance<1)continue;
+    const evidence=ownedTradeEvidence(world,a);if(!evidence.length)continue;
+    const qualification=evaluateMerchantQualification(merchantQualificationSnapshot(world,a));
+    if(qualification.status!=='SAT')continue;
+    candidates.push({agentId:a.id,homeId:home.houseId,evidenceCount:evidence.length,selfProducedCount:evidence.filter(x=>x.selfProduced).length,balance});
+  }
+  candidates.sort((a,b)=>b.selfProducedCount-a.selfProducedCount||b.evidenceCount-a.evidenceCount||b.balance-a.balance||a.agentId-b.agentId);
+  return candidates[0]??null;
 }
 
 function ownMarket(world,ownerId){
@@ -358,16 +403,31 @@ function rc4CommandInternal(world,type,data={}){
   if(stateErrors.length)return fail('rc4-state','RC4 state ไม่พร้อม',{errors:stateErrors});
 
   if(type==='RC4_BECOME_MERCHANT'){
-    const candidate=clone(world),agent=candidate.agents.find(a=>a.id===data.agentId&&a.alive);if(!agent)return fail('agent','ไม่พบ Clone');
-    const qualification=merchantQualificationSnapshot(candidate,agent);
+    const liveAgent=world.agents.find(a=>a.id===data.agentId&&a.alive);if(!liveAgent)return fail('agent','ไม่พบ Clone');
+    const qualification=merchantQualificationSnapshot(world,liveAgent);
     const evaluated=evaluateMerchantQualification(qualification);
     if(evaluated.status!=='SAT')return fail('qualification','ยังไม่ผ่านคุณสมบัติ Merchant',{qualification:evaluated});
-    const changed=adoptMerchantProfession(agent,qualification,candidate.tick);
+
+    const stagedAgent=clone(liveAgent);
+    const changed=adoptMerchantProfession(stagedAgent,qualification,world.tick);
     if(changed.status!=='SAT')return fail(changed.reason??'profession','เปลี่ยนอาชีพไม่ได้',{qualification:evaluated});
-    const ledger=ensureLedger(candidate,agent.id);if(!ledger.ok)return fail(ledger.reason,'สร้าง Merchant Ledger ไม่ได้');
-    const errors=validateRc4EconomyState(candidate);if(errors.length)return fail('rc4-postcondition','Merchant state ไม่ผ่าน postcondition',{errors});
-    replaceWorldRoot(world,candidate);
-    return {ok:true,agentId:agent.id,profession:'merchant',eventType:'career',eventText:agent.name+' เป็น Merchant แล้ว'};
+
+    const ensured=ensureMerchantLedgerInCollection(world.merchantLedgers,stagedAgent.id);
+    if(ensured.state!=='SAT')return fail(ensured.reason??'merchant-ledger','สร้าง Merchant Ledger ไม่ได้',{detail:ensured});
+
+    const probe={
+      ...world,
+      agents:world.agents.map(a=>a.id===stagedAgent.id?stagedAgent:a),
+      merchantLedgers:ensured.collection
+    };
+    const errors=validateRc4EconomyState(probe);
+    if(errors.length)return fail('rc4-postcondition','Merchant state ไม่ผ่าน postcondition',{errors});
+
+    liveAgent.profession=stagedAgent.profession;
+    liveAgent.professionSinceTick=stagedAgent.professionSinceTick;
+    liveAgent.career=clone(stagedAgent.career);
+    world.merchantLedgers=ensured.collection;
+    return {ok:true,agentId:liveAgent.id,profession:'merchant',eventType:'career',eventText:liveAgent.name+' เป็น Merchant แล้ว'};
   }
 
   if(type==='RC4_CREATE_MARKET'){
@@ -487,9 +547,24 @@ export function rc4Command(world,type,data={}){
   if(result?.ok&&!result.duplicate)observeRc4Markets(world);
   return result;
 }
-/** Tick maintenance delegates lifecycle writes to Home Market and Reservation owners. */
+/** Tick maintenance delegates lifecycle writes to Home Market and Reservation owners.
+ * Autonomous Merchant entry is bounded and routes all writes through canonical RC4 commands.
+ */
 export function stepRc4Economy(world){
-  if(!world.homeMarkets?.markets?.length)return;
+  let stepResult=null;
+  const entry=autonomousMerchantEntryCandidate(world);
+  if(entry){
+    let market=ownMarket(world,entry.agentId);
+    if(!market){
+      const prepared=rc4Command(world,'RC4_CREATE_MARKET',{agentId:entry.agentId});
+      if(prepared?.ok)market=ownMarket(world,entry.agentId);
+    }
+    if(market){
+      const promoted=rc4Command(world,'RC4_BECOME_MERCHANT',{agentId:entry.agentId});
+      if(promoted?.ok)stepResult={changed:true,kind:'merchant-entry',agentId:entry.agentId,marketId:market.marketId,eventType:promoted.eventType??'career',eventText:promoted.eventText??null};
+    }
+  }
+  if(!world.homeMarkets?.markets?.length)return stepResult;
   const homes=reconcileHomeMarkets(world,world.homeMarkets);
   if(!homes.ok)throw new Error('RC4 Home Market lifecycle invalid');
   if(homes.changed)world.homeMarkets=homes.marketState;
@@ -499,4 +574,5 @@ export function stepRc4Economy(world){
     world.merchantReservations=reservations.reservationState;
   }
   observeRc4Markets(world);
+  return stepResult;
 }
