@@ -11,7 +11,7 @@ import {rc2World,craftFixtureItem} from './fixtures/rc2-world.mjs';
 function crafterFixture(){
   const s=rc2World(),a=s.agents[1],stock=resourceStock(s,a);
   assert.equal(adoptProfession(a,'BUILD',s.tick).changed,true);
-  Object.assign(stock,{food:900,wood:900,stone:900,ironIngot:120,steelIngot:120});
+  Object.assign(stock,{food:900,wood:900,stone:900,ironIngot:120,steelIngot:90});
   a.hp=a.satiety=a.energy=100;a.task=null;
   // Existing home fixture contributed HAMMER mastery 1.
   craftFixtureItem(s,a,'HAMMER');
