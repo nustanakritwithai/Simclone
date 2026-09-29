@@ -13,6 +13,7 @@ export const MERCHANT_QUALIFICATION_POLICY=Object.freeze({
   minTradeEvidence:1,
 });
 export const MERCHANT_TRANSACTION_COMPAT=Object.freeze({maxQuantity:128,maxIdLength:80,eventPrefix:'TRADE:'});
+const BULK_RESOURCE_ASSET_TYPE='BULK_RESOURCE';
 
 const SAT='SAT',VIOL='VIOL',UNKNOWN='UNKNOWN';
 const nonEmptyString=value=>typeof value==='string'&&value.length>0&&value.length<=120;
@@ -21,11 +22,16 @@ const validTransactionRef=(value,max=MERCHANT_TRANSACTION_COMPAT.maxIdLength)=>t
 const positiveInt=value=>Number.isSafeInteger(value)&&value>0;
 const stableItemIds=ids=>Array.isArray(ids)?ids.slice().sort((a,b)=>a-b):[];
 function canonicalTradeFingerprint(r={}){
+  if(r.assetType===BULK_RESOURCE_ASSET_TYPE)return [
+    r.assetType,r.transactionId,r.marketId,r.sellerId,r.buyerId,r.itemKind,r.quantity,r.unitPrice,r.totalPrice,r.listingId,r.reservationId
+  ].map(value=>String(value)).join('|');
   return [r.transactionId,r.marketId,r.sellerId,r.buyerId,r.itemKind,r.itemInstanceId,r.quantity,r.unitPrice,r.totalPrice,r.listingId,r.reservationId]
     .map(value=>String(value)).join('|');
 }
 function canonicalReceiptIntegrityFingerprint(r={}){
-  return canonicalTradeFingerprint(r)+'|ITEMS|'+stableItemIds(r.itemIds).join(',');
+  return r.assetType===BULK_RESOURCE_ASSET_TYPE
+    ?canonicalTradeFingerprint(r)+'|BULK|'+r.itemKind+'|'+r.quantity
+    :canonicalTradeFingerprint(r)+'|ITEMS|'+stableItemIds(r.itemIds).join(',');
 }
 const pass=detail=>({status:SAT,detail});
 const fail=detail=>({status:VIOL,detail});
@@ -183,13 +189,20 @@ function validateCanonicalCommittedReceipt(receipt){
   if(!positiveInt(receipt.sellerId))errors.push('sellerId');
   if(receipt.buyerId===receipt.sellerId)errors.push('selfTrade');
   if(!validTransactionRef(receipt.itemKind))errors.push('itemKind');
-  if(!positiveInt(receipt.itemInstanceId))errors.push('itemInstanceId');
+  const bulk=receipt.assetType===BULK_RESOURCE_ASSET_TYPE;
+  if(receipt.assetType!==undefined&&!bulk)errors.push('assetType');
   if(!Number.isSafeInteger(receipt.quantity)||receipt.quantity<1||receipt.quantity>MERCHANT_TRANSACTION_COMPAT.maxQuantity)errors.push('quantity');
   if(!positiveInt(receipt.unitPrice))errors.push('unitPrice');
   if(!positiveInt(receipt.totalPrice))errors.push('totalPrice');
-  if(!Array.isArray(receipt.itemIds)||receipt.itemIds.length!==receipt.quantity||new Set(receipt.itemIds).size!==receipt.itemIds.length||
-    receipt.itemIds.some(id=>!positiveInt(id))||receipt.itemIds.join(',')!==stableItemIds(receipt.itemIds).join(',')||
-    (positiveInt(receipt.itemInstanceId)&&!receipt.itemIds.includes(receipt.itemInstanceId)))errors.push('itemIds');
+  if(bulk){
+    if(receipt.itemInstanceId!==undefined)errors.push('itemInstanceId');
+    if(receipt.itemIds!==undefined)errors.push('itemIds');
+  }else{
+    if(!positiveInt(receipt.itemInstanceId))errors.push('itemInstanceId');
+    if(!Array.isArray(receipt.itemIds)||receipt.itemIds.length!==receipt.quantity||new Set(receipt.itemIds).size!==receipt.itemIds.length||
+      receipt.itemIds.some(id=>!positiveInt(id))||receipt.itemIds.join(',')!==stableItemIds(receipt.itemIds).join(',')||
+      (positiveInt(receipt.itemInstanceId)&&!receipt.itemIds.includes(receipt.itemInstanceId)))errors.push('itemIds');
+  }
   if(!errors.includes('unitPrice')&&!errors.includes('totalPrice')&&!errors.includes('quantity')&&
     (!Number.isSafeInteger(receipt.unitPrice*receipt.quantity)||receipt.totalPrice!==receipt.unitPrice*receipt.quantity))errors.push('totalPrice');
   const expectedFingerprint=canonicalTradeFingerprint(receipt);
