@@ -14,6 +14,7 @@ import {isCanonicalTradeExecutionContext} from './trade-kernel.mjs?v=0.5.0';
 export const MERCHANT_LEDGER_VERSION='RC4-ledger/4';
 export const MERCHANT_LEDGER_COLLECTION_VERSION='RC4-ledger-collection/1';
 export const MERCHANT_LEDGER_ROOT_KEY='merchantLedgers';
+export const BULK_RESOURCE_ASSET_TYPE='BULK_RESOURCE';
 export const TRADE_KERNEL_COMPAT=Object.freeze({
   maxQuantity:128,
   maxIdLength:80,
@@ -30,11 +31,15 @@ const signedMoney=v=>Number.isSafeInteger(v);
 const stableIds=ids=>ids.slice().sort((a,b)=>a-b);
 
 export function tradeReceiptFingerprint(r={}){
+  if(r.assetType===BULK_RESOURCE_ASSET_TYPE)return [
+    r.assetType,r.transactionId,r.marketId,r.sellerId,r.buyerId,r.itemKind,r.quantity,r.unitPrice,r.totalPrice,r.listingId,r.reservationId
+  ].map(v=>String(v)).join('|');
   return [r.transactionId,r.marketId,r.sellerId,r.buyerId,r.itemKind,r.itemInstanceId,r.quantity,r.unitPrice,r.totalPrice,r.listingId,r.reservationId]
     .map(v=>String(v)).join('|');
 }
 
 export function tradeReceiptIntegrityFingerprint(r={}){
+  if(r.assetType===BULK_RESOURCE_ASSET_TYPE)return tradeReceiptFingerprint(r)+'|BULK|'+r.itemKind+'|'+r.quantity;
   const ids=Array.isArray(r.itemIds)?stableIds(r.itemIds):[];
   return tradeReceiptFingerprint(r)+'|ITEMS|'+ids.join(',');
 }
@@ -50,14 +55,21 @@ export function validateCommittedTradeReceipt(r){
   if(!positiveInt(r.sellerId))e.push('sellerId');
   if(r.buyerId===r.sellerId)e.push('selfTrade');
   if(!validRefId(r.itemKind))e.push('itemKind');
-  if(!positiveInt(r.itemInstanceId))e.push('itemInstanceId');
+  const bulk=r.assetType===BULK_RESOURCE_ASSET_TYPE;
+  if(r.assetType!==undefined&&!bulk)e.push('assetType');
   if(!Number.isSafeInteger(r.quantity)||r.quantity<1||r.quantity>TRADE_KERNEL_COMPAT.maxQuantity)e.push('quantity');
   if(!isCanonicalMoney(r.unitPrice,{allowZero:false}))e.push('unitPrice');
   if(!isCanonicalMoney(r.totalPrice,{allowZero:false}))e.push('totalPrice');
-  if(!Array.isArray(r.itemIds)||r.itemIds.length!==r.quantity||new Set(r.itemIds).size!==r.itemIds.length||r.itemIds.some(id=>!positiveInt(id)))e.push('itemIds');
-  else {
-    if(r.itemIds.join(',')!==stableIds(r.itemIds).join(','))e.push('itemIds-order');
-    if(!r.itemIds.includes(r.itemInstanceId))e.push('itemInstanceId');
+  if(bulk){
+    if(r.itemInstanceId!==undefined)e.push('itemInstanceId');
+    if(r.itemIds!==undefined)e.push('itemIds');
+  }else{
+    if(!positiveInt(r.itemInstanceId))e.push('itemInstanceId');
+    if(!Array.isArray(r.itemIds)||r.itemIds.length!==r.quantity||new Set(r.itemIds).size!==r.itemIds.length||r.itemIds.some(id=>!positiveInt(id)))e.push('itemIds');
+    else {
+      if(r.itemIds.join(',')!==stableIds(r.itemIds).join(','))e.push('itemIds-order');
+      if(!r.itemIds.includes(r.itemInstanceId))e.push('itemInstanceId');
+    }
   }
   if(!e.includes('unitPrice')&&!e.includes('totalPrice')&&!e.includes('quantity')){
     try{if(multiplyMoney(r.unitPrice,r.quantity)!==r.totalPrice)e.push('totalPrice');}catch{e.push('totalPrice');}
@@ -80,12 +92,14 @@ function validateReplayShape(state,receipt){
   const matches=replay.receipts.filter(row=>row.transactionId===receipt.transactionId);
   if(matches.length!==1)return {state:'VIOL',reason:'committed-state-evidence'};
   const row=matches[0];
-  const same=row.fingerprint===receipt.fingerprint&&row.integrityFingerprint===receipt.integrityFingerprint&&
+  const sameBase=row.fingerprint===receipt.fingerprint&&row.integrityFingerprint===receipt.integrityFingerprint&&
     row.eventId===receipt.eventId&&row.marketId===receipt.marketId&&row.listingId===receipt.listingId&&
     row.reservationId===receipt.reservationId&&row.buyerId===receipt.buyerId&&row.sellerId===receipt.sellerId&&
-    row.itemKind===receipt.itemKind&&row.itemInstanceId===receipt.itemInstanceId&&row.quantity===receipt.quantity&&
-    row.unitPrice===receipt.unitPrice&&row.totalPrice===receipt.totalPrice&&
-    row.itemIds.length===receipt.itemIds.length&&row.itemIds.every((id,i)=>id===receipt.itemIds[i]);
+    row.itemKind===receipt.itemKind&&row.assetType===receipt.assetType&&row.quantity===receipt.quantity&&
+    row.unitPrice===receipt.unitPrice&&row.totalPrice===receipt.totalPrice;
+  const same=receipt.assetType===BULK_RESOURCE_ASSET_TYPE
+    ?sameBase
+    :sameBase&&row.itemInstanceId===receipt.itemInstanceId&&row.itemIds.length===receipt.itemIds.length&&row.itemIds.every((id,i)=>id===receipt.itemIds[i]);
   return same?{state:'SAT'}:{state:'VIOL',reason:'committed-state-evidence'};
 }
 
