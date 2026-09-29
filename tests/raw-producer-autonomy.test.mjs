@@ -7,7 +7,8 @@ import {rc2World,craftFixtureTable,craftFixtureHome} from './fixtures/rc2-world.
 import {resourceStock,personalTargets} from '../src/individual-resources.mjs';
 import {materialAmount} from '../src/material-economy.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
-import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
+import {observeRc4Markets,knownRc4BuyOffers} from '../src/rc4-market-observation.mjs';
+import {projectActorObservedDemand} from '../src/economic-demand.mjs';
 import {projectHomeMarketForTrade} from '../src/home-market.mjs';
 import {TRADE_ASSET_TYPES} from '../src/trade-assets.mjs';
 import {recordResourceDiscovery} from '../src/knowledge.mjs';
@@ -46,6 +47,32 @@ function arrive(s,a,marketId){
   const travel=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId});assert.equal(travel.ok,true,JSON.stringify(travel));
   for(let i=0;i<800&&a.task?.path?.length;i++)step(s,1);
   assert.ok(a.task?.rc4MarketTravel);assert.equal(a.task.path.length,0);
+}
+
+function er2TraceSnapshot(s,producer,offer,market,node){
+  const demand=projectActorObservedDemand(s,producer);
+  const woodSignal=demand.status==='SAT'?(demand.signals??[]).find(x=>x.itemKind==='wood'&&x.unit==='bulk-resource')??null:null;
+  const decision=rawProducerDecision(s,producer);
+  const surplus=producerSurplusSnapshot(s,producer,'wood');
+  const knownOffer=knownRc4BuyOffers(producer).find(x=>x.offerId===offer.offerId)??null;
+  const currentOffer=s.merchantBuyOffers?.buyOffers?.find(x=>x.offerId===offer.offerId)??null;
+  const currentMarket=s.homeMarkets?.markets?.find(x=>x.marketId===market.marketId)??null;
+  let acceptProbe=null;
+  if(decision?.type==='ACCEPT_BUY_OFFER'){
+    const shadow=restore(serialize(s));
+    acceptProbe=command(shadow,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:offer.offerId,quantity:offer.quantityWanted});
+  }
+  return {
+    tick:s.tick,
+    producer:{id:producer.id,profession:producer.profession,satiety:producer.satiety,energy:producer.energy,x:producer.x,y:producer.y,
+      task:producer.task?{kind:producer.task.kind,pathLength:producer.task.path?.length??null,rc4MarketTravel:producer.task.rc4MarketTravel??null,started:producer.task.started??null}:null},
+    demand:{status:demand.status,reason:demand.reason??null,wood:woodSignal?{actionable:woodSignal.actionable,shortageQuantity:woodSignal.shortageQuantity,observedTick:woodSignal.observedTick,expiresTick:woodSignal.expiresTick,sources:woodSignal.sources}:null},
+    decision:{status:decision.status,reason:decision.reason??null,type:decision.type??null,marketId:decision.marketId??null,offerId:decision.offerId??null,quantity:decision.quantity??null},
+    surplus:surplus.status==='SAT'?{owned:surplus.owned,protectedReserve:surplus.protectedReserve,reservedQuantity:surplus.reservedQuantity,offeredQuantity:surplus.offeredQuantity,tradableSurplus:surplus.tradableSurplus}:{status:surplus.status,reason:surplus.reason??null},
+    gather:{nodeId:node.id,nodeAmount:node.amount,wood:materialAmount(s,producer,'wood')},
+    market:{marketId:market.marketId,status:currentMarket?.status??null,offerStatus:currentOffer?.status??null,offerQuantity:currentOffer?.quantityWanted??null,knownOffer:knownOffer?{observedTick:knownOffer.observedTick,status:knownOffer.status,marketId:knownOffer.marketId}:null},
+    acceptProbe
+  };
 }
 
 test('ER2 version and raw career capabilities are explicit and bounded',()=>{
@@ -104,13 +131,17 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
   producer.x=node.x;producer.y=node.y;producer.task=null;
   assert.ok(recordResourceDiscovery(producer,node,s.tick,{action:'WOODCUT',amount:1}));
   const nodeBefore=node.amount,moneyBefore=getBalance(s,producer.id),totalBefore=totalCurrency(s);
-  let sawGather=false,sawTravel=false,listing=null;
+  let sawGather=false,sawTravel=false,listing=null,lastTraceKey=null;
   for(let i=0;i<720&&!listing;i++){
+    const trace=er2TraceSnapshot(s,producer,offer,market,node);
+    const traceKey=[trace.producer.task?.kind??'none',trace.producer.task?.rc4MarketTravel?'market':'',trace.decision.status,trace.decision.reason,trace.decision.type,trace.surplus.tradableSurplus,trace.demand.status,trace.demand.wood?.actionable??null,trace.market.knownOffer?.observedTick??null].join('|');
+    if(traceKey!==lastTraceKey||i%60===0){console.log('ER2_TRACE',JSON.stringify(trace));lastTraceKey=traceKey;}
     step(s,1);
     if(producer.task?.kind==='WOODCUT')sawGather=true;
     if(producer.task?.rc4MarketTravel)sawTravel=true;
     listing=s.merchantListings.listings.find(l=>l.buyOfferId===offer.offerId&&l.sellerId===producer.id&&l.status==='OPEN')??null;
   }
+  if(!listing)console.log('ER2_TRACE_FINAL',JSON.stringify(er2TraceSnapshot(s,producer,offer,market,node)));
   assert.equal(sawGather,true);assert.equal(sawTravel,true);assert.ok(listing,'autonomous producer must answer the observed BuyOffer');
   assert.ok(node.amount<nodeBefore,'wood came from a real node');
   assert.ok(materialAmount(s,producer,'wood')>=reserve+2,'reserve remains plus offered quantity before settlement');
