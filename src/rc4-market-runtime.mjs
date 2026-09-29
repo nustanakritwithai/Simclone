@@ -140,9 +140,9 @@ export function validateRc4EconomyState(world){
     if(!payment||payment.kind!=='TRANSFER'||payment.fromAgentId!==r.buyerId||payment.toAgentId!==r.sellerId||payment.amount!==r.totalPrice||
       payment.evidence?.operation!=='TRADE_TRANSFER'||payment.evidence.marketId!==r.marketId||payment.evidence.listingId!==r.listingId||payment.evidence.reservationId!==r.reservationId)e.push('Trade:wallet-receipt');
     const reservation=world.merchantReservations.reservations.find(x=>x.id===r.reservationId);
-    if(!reservation||reservation.status!=='COMMITTED'||reservation.transactionId!==r.transactionId)e.push('Trade:reservation-receipt');
+    if(!reservation||reservation.status!=='COMMITTED'||reservation.transactionId!==r.transactionId||reservation.assetType!==r.assetType)e.push('Trade:reservation-receipt');
     const listing=listingByRef.get(r.listingId);
-    if(!listing||listing.marketId!==r.marketId||listing.sellerId!==r.sellerId||listing.itemKind!==r.itemKind||listing.revision<=reservation?.listingRevision)e.push('Trade:listing-receipt');
+    if(!listing||listing.marketId!==r.marketId||listing.sellerId!==r.sellerId||listing.itemKind!==r.itemKind||listing.assetType!==r.assetType||listing.revision<=reservation?.listingRevision)e.push('Trade:listing-receipt');
   }
   for(const r of world.merchantReservations.reservations)if(r.status==='COMMITTED'&&!tradeReceipts.has(r.transactionId))e.push('Reservation:lost-trade-replay');
   for(const r of world.currencyWallet.receipts)if(r.evidence?.operation==='TRADE_TRANSFER'&&!tradeReceipts.has(r.transactionId))e.push('Wallet:lost-trade-replay');
