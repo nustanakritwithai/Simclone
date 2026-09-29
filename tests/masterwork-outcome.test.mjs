@@ -6,7 +6,7 @@ import {adoptProfession} from '../src/kingdom-utility.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
 import {recipeMastery} from '../src/craft-recipe-knowledge.mjs';
 import {craftFixtureItem,rc2World} from './fixtures/rc2-world.mjs';
-import {renderCraftItemInfo} from '../src/crafting-ui.mjs';
+import {renderCraftItemInfo,renderCrafterProfile} from '../src/crafting-ui.mjs';
 import {
   createCraftSpec,createMasterworkCraftSpec,resolveCraftOutcome,validateCraftedItem,
   masterworkQualityRange,craftQualityLabel,CRAFT_ORDER_VERSION,CRAFT_OUTCOME_VERSION,
@@ -138,4 +138,20 @@ test('G3 Craft Item UI exposes quality band and frozen Crafter grade without bec
   const html=renderCraftItemInfo(s,item);
   assert.match(html,/data-craft-grade="MASTER"/);assert.match(html,/(Masterwork|Exceptional)/);assert.match(html,/ฝีมือขณะรับงาน 32 · MASTER/);
   const before=JSON.stringify(item);renderCraftItemInfo(s,item);assert.equal(JSON.stringify(item),before);
+});
+
+
+test('G3 Crafter profile shows canonical progress and supports identity-only catch-up promotion',()=>{
+  const {s,a}=crafterAtFive();
+  let html=renderCrafterProfile(s,a);
+  assert.match(html,/5\/6/);assert.match(html,/T2 2\/2/);assert.doesNotMatch(html,/data-ux="become-crafter"/);
+  craftFixtureItem(s,a,'HAMMER');
+  assert.equal(a.profession,'builder');
+  html=renderCrafterProfile(s,a);
+  assert.match(html,/พร้อมเลื่อนอาชีพ/);assert.match(html,/data-ux="become-crafter"/);
+  const beforeMastery=recipeMastery(a,'HAMMER'),result=command(s,'RC5_BECOME_CRAFTER',{agentId:a.id});
+  assert.equal(result.ok,true);assert.equal(result.changed,true);assert.equal(a.profession,'crafter');assert.equal(recipeMastery(a,'HAMMER'),beforeMastery);
+  html=renderCrafterProfile(s,a);
+  assert.match(html,/ช่างประดิษฐ์/);assert.match(html,/data-crafter-grade="CRAFTER"/);assert.match(html,/คุณภาพคาดการณ์ T3/);
+  assert.doesNotMatch(html,/data-ux="become-crafter"/);assert.deepEqual(validate(s),[]);
 });
