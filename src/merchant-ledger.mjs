@@ -134,20 +134,37 @@ export function validateMerchantLedger(ledger){
   if(!Array.isArray(ledger.purchases)||!Array.isArray(ledger.sales))return ['merchant-ledger-entries'];
   const txids=new Set();let revenue=0,cogs=0;
   for(const p of ledger.purchases){
-    if(!p||!validRefId(p.transactionId)||txids.has(p.transactionId)||!validRefId(p.marketId)||!validRefId(p.itemKind)||
-      !Array.isArray(p.itemIds)||p.itemIds.length!==p.quantity||new Set(p.itemIds).size!==p.itemIds.length||p.itemIds.some(id=>!positiveInt(id))||
-      !Array.isArray(p.remainingItemIds)||new Set(p.remainingItemIds).size!==p.remainingItemIds.length||p.remainingItemIds.some(id=>!p.itemIds.includes(id))||
+    const bulk=p?.assetType===BULK_RESOURCE_ASSET_TYPE;
+    let bad=!p||!validRefId(p.transactionId)||txids.has(p.transactionId)||!validRefId(p.marketId)||!validRefId(p.itemKind)||
       !Number.isSafeInteger(p.quantity)||p.quantity<1||!isCanonicalMoney(p.unitPrice,{allowZero:false})||!isCanonicalMoney(p.totalPrice,{allowZero:false})||
-      !validRefId(p.listingId)||!validRefId(p.reservationId))e.push('purchase');
+      !validRefId(p.listingId)||!validRefId(p.reservationId);
+    if(bulk){
+      bad ||= p.itemIds!==undefined||p.remainingItemIds!==undefined||
+        !Number.isSafeInteger(p.remainingQuantity)||p.remainingQuantity<0||p.remainingQuantity>p.quantity;
+    }else{
+      bad ||= p?.assetType!==undefined||!Array.isArray(p.itemIds)||p.itemIds.length!==p.quantity||
+        new Set(p.itemIds).size!==p.itemIds.length||p.itemIds.some(id=>!positiveInt(id))||
+        !Array.isArray(p.remainingItemIds)||new Set(p.remainingItemIds).size!==p.remainingItemIds.length||
+        p.remainingItemIds.some(id=>!p.itemIds.includes(id));
+    }
+    if(bad)e.push('purchase');
     else {try{if(multiplyMoney(p.unitPrice,p.quantity)!==p.totalPrice)e.push('purchase-total');}catch{e.push('purchase-total');}}
     txids.add(p?.transactionId);
   }
   for(const s of ledger.sales){
-    if(!s||!validRefId(s.transactionId)||txids.has(s.transactionId)||!validRefId(s.marketId)||!validRefId(s.itemKind)||
-      !Array.isArray(s.itemIds)||s.itemIds.length!==s.quantity||new Set(s.itemIds).size!==s.itemIds.length||s.itemIds.some(id=>!positiveInt(id))||
+    const bulk=s?.assetType===BULK_RESOURCE_ASSET_TYPE;
+    let bad=!s||!validRefId(s.transactionId)||txids.has(s.transactionId)||!validRefId(s.marketId)||!validRefId(s.itemKind)||
       !Number.isSafeInteger(s.quantity)||s.quantity<1||!isCanonicalMoney(s.unitPrice,{allowZero:false})||!isCanonicalMoney(s.totalPrice,{allowZero:false})||
       !isCanonicalMoney(s.cogs)||!signedMoney(s.profit)||!['purchase','production','mixed'].includes(s.costBasisSource)||
-      !Array.isArray(s.costBasisRefs)||s.costBasisRefs.length<1||s.costBasisRefs.some(ref=>!validRefId(ref))||!validRefId(s.listingId)||!validRefId(s.reservationId))e.push('sale');
+      !Array.isArray(s.costBasisRefs)||s.costBasisRefs.length<1||s.costBasisRefs.some(ref=>!validRefId(ref))||
+      !validRefId(s.listingId)||!validRefId(s.reservationId);
+    if(bulk){
+      bad ||= s.itemIds!==undefined;
+    }else{
+      bad ||= s?.assetType!==undefined||!Array.isArray(s.itemIds)||s.itemIds.length!==s.quantity||
+        new Set(s.itemIds).size!==s.itemIds.length||s.itemIds.some(id=>!positiveInt(id));
+    }
+    if(bad)e.push('sale');
     else {try{if(multiplyMoney(s.unitPrice,s.quantity)!==s.totalPrice||s.profit!==s.totalPrice-s.cogs)e.push('sale-total');}catch{e.push('sale-total');}}
     txids.add(s?.transactionId);
     if(isCanonicalMoney(s?.totalPrice))revenue+=s.totalPrice;
@@ -162,9 +179,24 @@ export function validateMerchantLedger(ledger){
 function purchasedItemBasis(ledger,itemId,itemKind){
   for(let i=0;i<ledger.purchases.length;i++){
     const p=ledger.purchases[i];
-    if(p.itemKind===itemKind&&p.remainingItemIds.includes(itemId))return {source:'purchase',purchaseIndex:i,itemId,cost:p.unitPrice,ref:p.transactionId};
+    if(p.assetType!==BULK_RESOURCE_ASSET_TYPE&&p.itemKind===itemKind&&p.remainingItemIds.includes(itemId))
+      return {source:'purchase',purchaseIndex:i,itemId,cost:p.unitPrice,ref:p.transactionId};
   }
   return null;
+}
+
+function purchasedBulkBasis(ledger,itemKind,quantity){
+  let remaining=quantity,cogs=0;const parts=[];
+  for(let i=0;i<ledger.purchases.length&&remaining>0;i++){
+    const p=ledger.purchases[i];
+    if(p.assetType!==BULK_RESOURCE_ASSET_TYPE||p.itemKind!==itemKind||p.remainingQuantity<=0)continue;
+    const take=Math.min(remaining,p.remainingQuantity),cost=take*p.unitPrice;
+    if(!Number.isSafeInteger(cost)||!Number.isSafeInteger(cogs+cost))return {state:'VIOL',reason:'cost-overflow'};
+    parts.push({state:'SAT',source:'purchase',purchaseIndex:i,quantity:take,cost,ref:p.transactionId});
+    cogs+=cost;remaining-=take;
+  }
+  if(remaining>0)return {state:'UNKNOWN',reason:'bulk-cost-basis',missingQuantity:remaining};
+  return {state:'SAT',cogs,source:'purchase',parts};
 }
 
 function productionItemBasis(itemId,evidence){
@@ -180,6 +212,7 @@ function productionItemBasis(itemId,evidence){
 export function resolveCostBasis(ledger,receipt,{productionEvidence=null}={}){
   const ledgerErrors=validateMerchantLedger(ledger);if(ledgerErrors.length)return {state:'VIOL',reason:'ledger',errors:ledgerErrors};
   const receiptErrors=validateCommittedTradeReceipt(receipt);if(receiptErrors.length)return {state:'VIOL',reason:'trade-receipt',errors:receiptErrors};
+  if(receipt.assetType===BULK_RESOURCE_ASSET_TYPE)return purchasedBulkBasis(ledger,receipt.itemKind,receipt.quantity);
   const parts=[];
   for(const itemId of receipt.itemIds){
     const purchased=purchasedItemBasis(ledger,itemId,receipt.itemKind);
@@ -229,16 +262,26 @@ export function applyCanonicalTradeExecutionToLedger(ledger,stagedState,context,
   if(replayShape.state!=='SAT')return {...replayShape,ledger:clone(ledger)};
   const txids=new Set([...ledger.purchases,...ledger.sales].map(x=>x.transactionId));
   if(txids.has(r.transactionId))return {state:'SAT',duplicate:true,verification:'VERIFIED',commitStatus:'COMMITTED',receipt:r,ledger:clone(ledger)};
-  const next=clone(ledger);
+  const next=clone(ledger),bulk=r.assetType===BULK_RESOURCE_ASSET_TYPE;
   if(r.buyerId===next.merchantId){
-    next.purchases.push({transactionId:r.transactionId,marketId:r.marketId,itemKind:r.itemKind,itemIds:stableIds(r.itemIds),remainingItemIds:stableIds(r.itemIds),
-      quantity:r.quantity,unitPrice:r.unitPrice,totalPrice:r.totalPrice,listingId:r.listingId,reservationId:r.reservationId});
+    next.purchases.push(bulk
+      ?{assetType:BULK_RESOURCE_ASSET_TYPE,transactionId:r.transactionId,marketId:r.marketId,itemKind:r.itemKind,
+        quantity:r.quantity,remainingQuantity:r.quantity,unitPrice:r.unitPrice,totalPrice:r.totalPrice,listingId:r.listingId,reservationId:r.reservationId}
+      :{transactionId:r.transactionId,marketId:r.marketId,itemKind:r.itemKind,itemIds:stableIds(r.itemIds),remainingItemIds:stableIds(r.itemIds),
+        quantity:r.quantity,unitPrice:r.unitPrice,totalPrice:r.totalPrice,listingId:r.listingId,reservationId:r.reservationId});
   }else if(r.sellerId===next.merchantId){
     const basis=resolveCostBasis(next,r,{productionEvidence});if(basis.state!=='SAT')return {...basis,ledger:clone(ledger)};
-    for(const part of basis.parts)if(part.source==='purchase')next.purchases[part.purchaseIndex].remainingItemIds=next.purchases[part.purchaseIndex].remainingItemIds.filter(id=>id!==part.itemId);
+    if(bulk){
+      for(const part of basis.parts)if(part.source==='purchase')next.purchases[part.purchaseIndex].remainingQuantity-=part.quantity;
+    }else{
+      for(const part of basis.parts)if(part.source==='purchase')next.purchases[part.purchaseIndex].remainingItemIds=next.purchases[part.purchaseIndex].remainingItemIds.filter(id=>id!==part.itemId);
+    }
     const profit=r.totalPrice-basis.cogs;
-    next.sales.push({transactionId:r.transactionId,marketId:r.marketId,itemKind:r.itemKind,itemIds:stableIds(r.itemIds),quantity:r.quantity,
-      unitPrice:r.unitPrice,totalPrice:r.totalPrice,cogs:basis.cogs,profit,costBasisSource:basis.source,costBasisRefs:basis.parts.map(p=>p.ref),listingId:r.listingId,reservationId:r.reservationId});
+    next.sales.push(bulk
+      ?{assetType:BULK_RESOURCE_ASSET_TYPE,transactionId:r.transactionId,marketId:r.marketId,itemKind:r.itemKind,quantity:r.quantity,
+        unitPrice:r.unitPrice,totalPrice:r.totalPrice,cogs:basis.cogs,profit,costBasisSource:basis.source,costBasisRefs:basis.parts.map(p=>p.ref),listingId:r.listingId,reservationId:r.reservationId}
+      :{transactionId:r.transactionId,marketId:r.marketId,itemKind:r.itemKind,itemIds:stableIds(r.itemIds),quantity:r.quantity,
+        unitPrice:r.unitPrice,totalPrice:r.totalPrice,cogs:basis.cogs,profit,costBasisSource:basis.source,costBasisRefs:basis.parts.map(p=>p.ref),listingId:r.listingId,reservationId:r.reservationId});
     next.revenue+=r.totalPrice;next.costOfGoodsSold+=basis.cogs;next.realizedProfit=next.revenue-next.costOfGoodsSold;
   }else return {state:'VIOL',reason:'merchant-not-party',ledger:clone(ledger)};
   const post=validateMerchantLedger(next);
