@@ -119,12 +119,21 @@ export function rawProducerSettlementGate(world,{sellerId,itemKind,quantity,list
   if(commitments.status!=='SAT')return view('UNKNOWN',commitments.reason,{applicable:true,itemKind});
   const owned=Math.floor(materialAmount(world,seller,itemKind));
   if(!nonnegative(owned))return view('UNKNOWN','owned',{applicable:true,itemKind});
-  const after=owned-commitments.reservedQuantity-quantity;
-  if(after<reserve.protectedReserve)return view('VIOL','producer-protected-reserve',{
+  const afterSale=owned-commitments.reservedQuantity-quantity;
+  const afterCommitments=afterSale-commitments.offeredQuantity;
+  if(afterCommitments<reserve.protectedReserve){
+    const reason=afterSale<reserve.protectedReserve?'producer-protected-reserve':'producer-resource-committed';
+    return view('VIOL',reason,{
+      applicable:true,itemKind,quantity,owned,protectedReserve:reserve.protectedReserve,
+      reservedQuantity:commitments.reservedQuantity,offeredQuantity:commitments.offeredQuantity,
+      afterSale,afterCommitments
+    });
+  }
+  return view('SAT','producer-settlement-surplus',{
     applicable:true,itemKind,quantity,owned,protectedReserve:reserve.protectedReserve,
-    reservedQuantity:commitments.reservedQuantity,after
+    reservedQuantity:commitments.reservedQuantity,offeredQuantity:commitments.offeredQuantity,
+    afterSale,afterCommitments
   });
-  return view('SAT','producer-settlement-surplus',{applicable:true,itemKind,quantity,owned,protectedReserve:reserve.protectedReserve,after});
 }
 
 function currentObservedOffers(world,agent,profile){
