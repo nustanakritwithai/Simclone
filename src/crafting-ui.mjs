@@ -114,7 +114,7 @@ export function renderCrafterProfile(s,a){
     (a.profession!=='crafter'?'<p class="source-note">เกณฑ์เลื่อนอาชีพ · ผลงานสายเดียว '+progressTotal+'/'+CRAFTER_QUALIFICATION_POLICY.crafter.total+' · T2 '+progressT2+'/'+CRAFTER_QUALIFICATION_POLICY.crafter.tier2+'</p>':'')+
     '<p class="rc2-reason">'+esc(qualification)+'</p>'+
     (rows.length?'<div class="rc2-abilities">'+rows.map(x=>'<span>'+esc(crafterFamilyNames[x.family]??x.family)+' · '+esc(crafterGradeNames[x.grade])+' · '+x.total+'</span>').join('')+'</div>':'')+
-    promote+'<small>T3–T5 ยังยึดสิทธิ์สูตรเดิมในระยะ migration · เกรดช่างมีผลกับคุณภาพงานใหม่ ไม่ reroll ของเก่า</small></section>';
+    promote+'<small>T0–T2 ใช้เกณฑ์สูตรเดิม · T3=Crafter · T4=Expert · T5=Master · เซฟเก่าคงสิทธิ์เฉพาะสูตรที่ผ่าน migration · ไม่ reroll ของเก่า</small></section>';
 }
 export function renderCraftTraining(s,a){
   const v=craftTrainingSnapshot(s,a),r=recipeById(v.recipeId),status={OFF:'ปิด',READY:'พร้อม',BLOCKED:'รอ',COMPLETE:'ครบแล้ว'}[v.status];
