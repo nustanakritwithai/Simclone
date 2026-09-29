@@ -19,6 +19,9 @@ OUT=ROOT/('evidence-public-rc4' if ARGS.public else 'evidence-ui/rc4-market-nati
 public_base=os.environ.get('PAGE_URL','').rstrip('/')+'/' if ARGS.public else None
 if ARGS.public and not public_base.startswith('https://'): raise RuntimeError('public PAGE_URL must be explicit HTTPS')
 SAVED=subprocess.check_output(['node','scripts/rc4-market-fixture.mjs'],cwd=ROOT,text=True)
+FIXTURE=json.loads(SAVED)
+if FIXTURE['agents'][1]['profession']=='merchant' or FIXTURE['homeMarkets']['markets']:
+    raise RuntimeError('RC4 browser fixture must not pre-inject Merchant profession or Home Market')
 checks=[];errors=[];success=False;failure=None;server=None;browser=None;pw=None;page=None
 
 def check(name,ok=True):
@@ -91,11 +94,14 @@ try:
         home_before=json.dumps(s['rustStations'],sort_keys=True)
         check(f'{width}: actual Customer need',customer['preference']=='MINE' and not any(i['kind']=='STONE_PICKAXE' and i['location']=={'kind':'bag','agentId':customer['id']} for i in s['rustPossessions']['items']))
 
-        # B must become Merchant through simulation autonomy. No profession button is clicked.
-        check(f'{width}: Merchant not pre-injected',merchant['profession']!='merchant' and not s['homeMarkets']['markets'])
-        resume5()
-        page.wait_for_function(f"""()=>{{const s=simclone.snapshot(),a=s.agents.find(a=>a.id==={merchant['id']});return a?.profession==='merchant'&&s.homeMarkets?.markets?.some(m=>m.ownerAgentId==={merchant['id']}&&m.status==='closed');}}""",timeout=30000)
-        pause()
+        # B must become Merchant through simulation autonomy. The JSON fixture above
+        # proves no profession/market was pre-injected; the browser may promote before
+        # our first pause if a simulation tick wins the startup race.
+        check(f'{width}: Merchant fixture not pre-injected',FIXTURE['agents'][1]['profession']!='merchant' and not FIXTURE['homeMarkets']['markets'])
+        if merchant['profession']!='merchant':
+            resume5()
+            page.wait_for_function(f"""()=>{{const s=simclone.snapshot(),a=s.agents.find(a=>a.id==={merchant['id']});return a?.profession==='merchant'&&s.homeMarkets?.markets?.some(m=>m.ownerAgentId==={merchant['id']}&&m.status==='closed');}}""",timeout=30000)
+            pause()
         s=snap();merchant=next(a for a in s['agents'] if a['id']==merchant['id'])
         check(f'{width}: autonomous Merchant profession',merchant['profession']=='merchant')
         check(f'{width}: autonomous Merchant career event',any(e['type']=='career' and e.get('agentId')==merchant['id'] and 'Merchant' in e['text'] for e in s['events']))
