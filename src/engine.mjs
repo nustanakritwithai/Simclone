@@ -551,7 +551,7 @@ function execute(s,a){
   if(t?.rc4MarketTravel&&t.path.length===0){a.moveTick=0;return;}
   if(t.kind==='IDLE'){a.energy=clamp(a.energy+.3);if(++t.work>=12)a.task=null;return;}
   if(t.kind==='EAT'&&meal.food<=0){a.task=null;return;}
-  if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const move=t.rc4MarketTravel?consumeCanonicalMarketTravelStep(s,a):{ok:true,position:t.path.shift()};if(!move.ok){a.task=null;a.moveTick=0;return;}a.x=move.position.x;a.y=move.position.y;a.moveTick=0;}return;}
+  if(t.path.length){a.moveTick++;if(a.moveTick>=RULES.moveTicks){const move=t.rc4MarketTravel?consumeCanonicalMarketTravelStep(s,a):{ok:true,position:t.path.shift()};if(!move.ok){if(t.rc4MarketTravel&&move.reason==='navigation-cadence')return;a.task=null;a.moveTick=0;return;}a.x=move.position.x;a.y=move.position.y;a.moveTick=0;}return;}
   const workRate=SKILLS.includes(t.kind)?productiveWorkRate(s,a)*rustToolMultiplier(s,a,t.kind):(['CRAFT','PROCESS'].includes(t.kind)?productiveWorkRate(s,a):1);
   if(t.kind==='CRAFT'||t.kind==='PROCESS'){
     const result=advanceRustWork(s,a,workRate);
