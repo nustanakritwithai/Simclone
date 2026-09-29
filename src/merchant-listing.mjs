@@ -1,5 +1,6 @@
 /** RC4 canonical merchant Listing. References Rust item authority; owns no item. */
 import {isCanonicalMoney} from './merchant-pricing.mjs?v=0.5.0';
+import {TRADE_ASSET_TYPES,tradeAssetType,isPhysicalTradeAsset,validBulkTradeResourceKey,tradeAssetFields} from './trade-assets.mjs?v=0.5.0';
 
 export const MERCHANT_LISTING_VERSION='RC4-listing/3';
 export const MERCHANT_LISTING_COLLECTION_VERSION='RC4-listing-collection/2';
@@ -21,6 +22,12 @@ export function listingIdFor({marketId,sellerId,itemInstanceId,requestId=null}={
   const text=marketId+'|'+sellerId+'|'+itemInstanceId+(requestId===null?'':'|REQUEST|'+requestId);
   return 'L:'+stableHash(text)+stableHash(text+'|RC4');
 }
+export function bulkListingIdFor({marketId,sellerId,itemKind,requestId=null}={}){
+  if(!validRefId(marketId)||!positiveInt(sellerId)||!validBulkTradeResourceKey(itemKind))return null;
+  if(requestId!==null&&!validRefId(requestId))return null;
+  const text='BULK|'+marketId+'|'+sellerId+'|'+itemKind+(requestId===null?'':'|REQUEST|'+requestId);
+  return 'L:'+stableHash(text)+stableHash(text+'|RC4');
+}
 
 export function validateListing(row){
   const e=[];
@@ -29,7 +36,13 @@ export function validateListing(row){
   if(!validRefId(row.marketId))e.push('marketId');
   if(!positiveInt(row.sellerId))e.push('sellerId');
   if(!validKind(row.itemKind))e.push('itemKind');
-  if(!positiveInt(row.itemInstanceId))e.push('itemInstanceId');
+  const assetType=tradeAssetType(row);
+  if(assetType===null)e.push('assetType');
+  else if(assetType===TRADE_ASSET_TYPES.PHYSICAL_ITEM){
+    if(!positiveInt(row.itemInstanceId))e.push('itemInstanceId');
+  }else{
+    if(row.itemInstanceId!==undefined||!validBulkTradeResourceKey(row.itemKind))e.push('bulk-asset');
+  }
   if(!Number.isSafeInteger(row.quantity)||row.quantity<0||row.quantity>128||(row.status===LISTING_STATUS.FILLED?row.quantity!==0:row.quantity<1))e.push('quantity');
   if(!isCanonicalMoney(row.unitPrice,{allowZero:false}))e.push('unitPrice');
   if(!positiveInt(row.revision))e.push('revision');
@@ -38,9 +51,11 @@ export function validateListing(row){
   return [...new Set(e)];
 }
 
-export function createListing({id,marketId,sellerId,itemKind,itemInstanceId,quantity,unitPrice,status=LISTING_STATUS.OPEN,buyOfferId}={}){
-  const listing={id,marketId,sellerId,itemKind,itemInstanceId,quantity,unitPrice,revision:1,status,...(buyOfferId===undefined?{}:{buyOfferId})};
-  const errors=validateListing(listing);
+export function createListing({id,marketId,sellerId,itemKind,itemInstanceId,quantity,unitPrice,status=LISTING_STATUS.OPEN,buyOfferId,assetType}={}){
+  const type=tradeAssetType({assetType});
+  const listing={id,marketId,sellerId,itemKind,...tradeAssetFields(type),...(type===TRADE_ASSET_TYPES.PHYSICAL_ITEM?{itemInstanceId}:{}),
+    quantity,unitPrice,revision:1,status,...(buyOfferId===undefined?{}:{buyOfferId})};
+  const errors=type===null?['assetType']:validateListing(listing);
   return errors.length?{state:'VIOL',errors,listing:null}:{state:'SAT',duplicate:false,listing:Object.freeze(listing)};
 }
 
@@ -74,7 +89,7 @@ export function validateListingCollection(collection){
   for(const row of collection.listings){
     if(validateListing(row).length)e.push('listing');
     if(ids.has(row?.id))e.push('duplicate-id');else ids.add(row?.id);
-    if(row?.status===LISTING_STATUS.OPEN){
+    if(row?.status===LISTING_STATUS.OPEN&&isPhysicalTradeAsset(row)){
       if(openItems.has(row.itemInstanceId))e.push('duplicate-open-item');else openItems.add(row.itemInstanceId);
     }
   }
@@ -88,7 +103,11 @@ export function validateListingCollection(collection){
   return [...new Set(e)];
 }
 
-const sameIdentity=(a,b)=>a.marketId===b.marketId&&a.sellerId===b.sellerId&&a.itemKind===b.itemKind&&a.itemInstanceId===b.itemInstanceId&&a.buyOfferId===b.buyOfferId;
+const sameIdentity=(a,b)=>{
+  const ta=tradeAssetType(a),tb=tradeAssetType(b);
+  return ta!==null&&ta===tb&&a.marketId===b.marketId&&a.sellerId===b.sellerId&&a.itemKind===b.itemKind&&
+    (ta===TRADE_ASSET_TYPES.BULK_RESOURCE||a.itemInstanceId===b.itemInstanceId)&&a.buyOfferId===b.buyOfferId;
+};
 const resultCollection=collection=>clone(collection);
 
 export function createListingInCollection(collection,input={}){
@@ -100,7 +119,8 @@ export function createListingInCollection(collection,input={}){
     if(!original||JSON.stringify(original)!==JSON.stringify(made.listing))return {state:'VIOL',reason:'listing-id-conflict',collection:resultCollection(collection)};
     return {state:'SAT',duplicate:true,listing:Object.freeze({...existing}),collection:resultCollection(collection)};
   }
-  if(made.listing.status===LISTING_STATUS.OPEN&&collection.listings.some(x=>x.status===LISTING_STATUS.OPEN&&x.itemInstanceId===made.listing.itemInstanceId))
+  if(made.listing.status===LISTING_STATUS.OPEN&&isPhysicalTradeAsset(made.listing)&&
+    collection.listings.some(x=>x.status===LISTING_STATUS.OPEN&&isPhysicalTradeAsset(x)&&x.itemInstanceId===made.listing.itemInstanceId))
     return {state:'VIOL',reason:'item-already-listed',collection:resultCollection(collection)};
   const next=resultCollection(collection);next.listings.push({...made.listing});next.creations.push({id:made.listing.id,input:{...made.listing}});
   return {state:'SAT',duplicate:false,listing:Object.freeze({...made.listing}),collection:next};
@@ -122,7 +142,8 @@ export function transitionListingInCollection(collection,id,status){
   if(current.status===status)return {state:'SAT',duplicate:true,listing:Object.freeze({...current}),collection:resultCollection(collection)};
   let changed;
   if(current.status===LISTING_STATUS.CLOSED&&status===LISTING_STATUS.OPEN){
-    if(collection.listings.some((x,i)=>i!==index&&x.status===LISTING_STATUS.OPEN&&x.itemInstanceId===current.itemInstanceId))
+    if(isPhysicalTradeAsset(current)&&collection.listings.some((x,i)=>i!==index&&x.status===LISTING_STATUS.OPEN&&
+      isPhysicalTradeAsset(x)&&x.itemInstanceId===current.itemInstanceId))
       return {state:'VIOL',reason:'item-already-listed',collection:resultCollection(collection)};
     const revision=current.revision+1;if(!Number.isSafeInteger(revision))return {state:'VIOL',reason:'revision-overflow',collection:resultCollection(collection)};
     changed={state:'SAT',duplicate:false,listing:Object.freeze({...current,status,revision})};
