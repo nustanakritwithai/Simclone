@@ -53,7 +53,7 @@ export function rc4PersonalItemNeeds(world,agent){
 }
 export function hasRc4PurchaseNeed(world,agent,listing){
   if(!agent?.alive||!listing)return false;
-  if(listing.buyOfferId){const o=world.merchantBuyOffers.buyOffers.find(o=>o.offerId===listing.buyOfferId);return !!o&&o.status==='OPEN'&&o.buyerId===agent.id&&o.itemKind===listing.itemKind;}
+  if(listing.buyOfferId){const o=world.merchantBuyOffers.buyOffers.find(o=>o.offerId===listing.buyOfferId);return !!o&&o.status==='OPEN'&&o.buyerId===agent.id&&o.itemKind===listing.itemKind&&o.assetType===listing.assetType;}
   if(rc4PersonalItemNeeds(world,agent).some(n=>n.itemKind===listing.itemKind))return true;
   if(agent.profession==='merchant'){
     const ownOffers=world.merchantBuyOffers.buyOffers.filter(o=>o.buyerId===agent.id&&o.status==='OPEN');
