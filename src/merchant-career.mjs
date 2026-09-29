@@ -6,6 +6,7 @@
  */
 import {adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
 import {consumeCanonicalMerchantProgressionGrant} from './merchant-ledger.mjs?v=0.5.0';
+import {validateTradeReceiptShape} from './trade-kernel.mjs?v=0.5.0';
 
 export const MERCHANT_CAREER_VERSION='RC4-merchant-v1';
 export const MERCHANT_QUALIFICATION_POLICY=Object.freeze({
@@ -19,14 +20,6 @@ const nonEmptyString=value=>typeof value==='string'&&value.length>0&&value.lengt
 const transactionIdPattern=/^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const validTransactionRef=(value,max=MERCHANT_TRANSACTION_COMPAT.maxIdLength)=>typeof value==='string'&&value.length>0&&value.length<=max&&transactionIdPattern.test(value);
 const positiveInt=value=>Number.isSafeInteger(value)&&value>0;
-const stableItemIds=ids=>Array.isArray(ids)?ids.slice().sort((a,b)=>a-b):[];
-function canonicalTradeFingerprint(r={}){
-  return [r.transactionId,r.marketId,r.sellerId,r.buyerId,r.itemKind,r.itemInstanceId,r.quantity,r.unitPrice,r.totalPrice,r.listingId,r.reservationId]
-    .map(value=>String(value)).join('|');
-}
-function canonicalReceiptIntegrityFingerprint(r={}){
-  return canonicalTradeFingerprint(r)+'|ITEMS|'+stableItemIds(r.itemIds).join(',');
-}
 const pass=detail=>({status:SAT,detail});
 const fail=detail=>({status:VIOL,detail});
 const unknown=detail=>({status:UNKNOWN,detail});
@@ -173,30 +166,7 @@ export function validateMerchantProgression(agent){
 }
 
 function validateCanonicalCommittedReceipt(receipt){
-  const errors=[];
-  if(!receipt||typeof receipt!=='object'||Array.isArray(receipt))return ['receipt'];
-  if(!validTransactionRef(receipt.transactionId))errors.push('transactionId');
-  if(!validTransactionRef(receipt.eventId,MERCHANT_TRANSACTION_COMPAT.maxIdLength+MERCHANT_TRANSACTION_COMPAT.eventPrefix.length)||
-    receipt.eventId!==MERCHANT_TRANSACTION_COMPAT.eventPrefix+receipt.transactionId)errors.push('eventId');
-  for(const key of ['marketId','listingId','reservationId'])if(!validTransactionRef(receipt[key]))errors.push(key);
-  if(!positiveInt(receipt.buyerId))errors.push('buyerId');
-  if(!positiveInt(receipt.sellerId))errors.push('sellerId');
-  if(receipt.buyerId===receipt.sellerId)errors.push('selfTrade');
-  if(!validTransactionRef(receipt.itemKind))errors.push('itemKind');
-  if(!positiveInt(receipt.itemInstanceId))errors.push('itemInstanceId');
-  if(!Number.isSafeInteger(receipt.quantity)||receipt.quantity<1||receipt.quantity>MERCHANT_TRANSACTION_COMPAT.maxQuantity)errors.push('quantity');
-  if(!positiveInt(receipt.unitPrice))errors.push('unitPrice');
-  if(!positiveInt(receipt.totalPrice))errors.push('totalPrice');
-  if(!Array.isArray(receipt.itemIds)||receipt.itemIds.length!==receipt.quantity||new Set(receipt.itemIds).size!==receipt.itemIds.length||
-    receipt.itemIds.some(id=>!positiveInt(id))||receipt.itemIds.join(',')!==stableItemIds(receipt.itemIds).join(',')||
-    (positiveInt(receipt.itemInstanceId)&&!receipt.itemIds.includes(receipt.itemInstanceId)))errors.push('itemIds');
-  if(!errors.includes('unitPrice')&&!errors.includes('totalPrice')&&!errors.includes('quantity')&&
-    (!Number.isSafeInteger(receipt.unitPrice*receipt.quantity)||receipt.totalPrice!==receipt.unitPrice*receipt.quantity))errors.push('totalPrice');
-  const expectedFingerprint=canonicalTradeFingerprint(receipt);
-  if(typeof receipt.fingerprint!=='string'||receipt.fingerprint!==expectedFingerprint)errors.push('fingerprint');
-  if(typeof receipt.integrityFingerprint!=='string'||receipt.integrityFingerprint!==canonicalReceiptIntegrityFingerprint(receipt))
-    errors.push('integrityFingerprint');
-  return [...new Set(errors)];
+  return validateTradeReceiptShape(receipt).length?['receipt']:[];
 }
 
 /**
