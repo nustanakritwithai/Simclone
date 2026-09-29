@@ -48,6 +48,7 @@ import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './
 import {crafterCareerCommand} from './crafter-career.mjs?v=0.5.0';
 import {ensureCrafterTierPolicy,migrateCrafterTierPolicy,validateCrafterTierPolicy} from './crafter-tier-policy.mjs?v=0.5.0';
 import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy} from './rc4-market-runtime.mjs?v=0.5.0';
+import {rawProducerDecision,rawProducerGatherPressure} from './raw-producer-autonomy.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
@@ -400,7 +401,7 @@ export function command(s,type,data={}){
   return {ok:false,message:'ไม่รู้จักคำสั่งนี้'};
 }
 /** One reachable destination per job family; busy nodes never hide a free alternative. */
-function candidates(s,a,book,field){
+function candidates(s,a,book,field,producerIntent=null){
   ensureProfession(a,s.tick);
   const independent=isIndependent(s),stock=resourceStock(s,a),meal=foodStock(s,a),guardian=independent?guardianOf(s,a):null;
   const out=[],targets=stockTargets(s,a),projected=plannedStock(s,book,a),freeFood=meal.food-reservedMealsFor(s,mealOwnerId(s,a),book.meals);
@@ -413,6 +414,7 @@ function candidates(s,a,book,field){
     const laborMarket=Number(extra.laborAuthority?.bonus??0);
     const householdCooperation=Number(extra.householdCooperation?.bonus??0);
     const governorPolicy=Number(extra.governorPolicy?.bonus??0);
+    const producerDemand=Number(extra.producerDemand?.bonus??0);
     const emergency=a.satiety<RULES.hungry||a.energy<RULES.exhausted;
     const outcomeLearning=Number(outcomeLearningSignal(s,a,kind,{emergency}).bonus??0);
     // Information-seeking must outrank doing nothing even when its waypoint is far.
@@ -421,7 +423,7 @@ function candidates(s,a,book,field){
     const distanceCost=extra.informationSeeking?Math.min(travel,8):travel;
     const factors={base,need:Math.round(need),goal,skill,distance:travel<0?0:-Math.round(distanceCost*.7),
       ...(laborMarket?{laborMarket}: {}),...(householdCooperation?{householdCooperation}: {}),...(governorPolicy?{governorPolicy}: {}),
-      ...(outcomeLearning?{outcomeLearning}: {})};
+      ...(producerDemand?{producerDemand}: {}),...(outcomeLearning?{outcomeLearning}: {})};
     out.push({kind,targetId:target.id??null,x:target.x,y:target.y,
       score:Object.values(factors).reduce((sum,v)=>sum+v,0),factors,travelSteps:Math.max(0,travel),
       status:travel<0?'no-path':status,...extra});
@@ -443,14 +445,15 @@ function candidates(s,a,book,field){
     const available=reachable.filter(n=>n.perception==='memory'||!book.nodes.has(n.id));
     const target=available[0]??reachable[0]??all[0];if(!target)continue;
     const hungerBonus=kind==='FORAGE'&&a.satiety<RULES.hungry&&freeFood<=0?210:0;
+    const producerDemand=rawProducerGatherPressure(producerIntent,kind);
     const shortage=projected[type]<targets[type]/2?40:18;
     const kingdom=kingdomWorkFactors({seed:s.seed,tick:s.tick,agent:a,kind,resourceType:type,projected,targets});
     const emergency=a.satiety<RULES.hungry||a.energy<RULES.exhausted;
     const laborAuthority=laborAuthoritySignal({kind,agent:a,agents:s.agents,stock,unfinished,emergency});
     const householdCooperation=householdCooperationSignal(s,a,kind,{emergency});
     const governorPolicy=governorPolicySignal(s,a,kind,{emergency});
-    const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus&&!householdCooperation.active&&!governorPolicy.active?'satisfied':'candidate';
-    add(target.perception==='memory'?'EXPLORE':kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority,householdCooperation,governorPolicy,
+    const status=!productive?'stage':reachable.length===0?'no-path':available.length===0?'reserved':projected[type]>=targets[type]&&!hungerBonus&&!householdCooperation.active&&!governorPolicy.active&&!producerDemand?'satisfied':'candidate';
+    add(target.perception==='memory'?'EXPLORE':kind,target,25,shortage+hungerBonus,a.preference===kind?15:0,status,{kingdomUtility:kingdom,laborAuthority,householdCooperation,governorPolicy,...(producerDemand?{producerDemand}:{}),
       ...(target.perception?{purposeKind:kind,perception:target.perception,...(target.knowledgeKey?{knowledgeKey:target.knowledgeKey}:{})}: {})});
   }
   for(const b of s.buildings.filter(b=>!b.complete)){
@@ -471,9 +474,9 @@ function candidates(s,a,book,field){
   add('IDLE',a,0);
   return out.sort((x,y)=>y.score-x.score||(x.kind<y.kind?-1:x.kind>y.kind?1:0)||(x.targetId??0)-(y.targetId??0));
 }
-function decide(s,a,book){
+function decide(s,a,book,producerIntent=null){
   if(a.adventureEncounter?.status==='READY'||a.adventureCombat)return;
-  const field=routeField(s,a),choices=candidates(s,a,book,field);
+  const field=routeField(s,a),choices=candidates(s,a,book,field,producerIntent);
   a.trace=choices;
   for(const c of choices){
     if(c.status!=='candidate')continue;
@@ -514,6 +517,27 @@ function stepAutonomousAdventure(s,a){
     return r.ok;
   }
   return false;
+}
+
+function applyRawProducerIntent(s,a,intent){
+  if(intent?.status!=='SAT')return {handled:false};
+  if(intent.type==='TRAVEL_TO_MARKET'){
+    const r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId});
+    return {handled:r.ok,kind:'travel',result:r};
+  }
+  if(intent.type==='CANCEL_TRAVEL'){
+    if(!a.task?.rc4MarketTravel)return {handled:false};
+    const r=command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
+    return {handled:r.ok,kind:'cancel',result:r};
+  }
+  if(intent.type==='ACCEPT_BUY_OFFER'){
+    const r=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:a.id,offerId:intent.offerId,quantity:intent.quantity});
+    if(!r.ok)return {handled:false,kind:'accept',result:r};
+    if(a.task?.rc4MarketTravel)command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
+    event(s,'market',a.name+' ตอบรับคำสั่งซื้อ '+intent.itemKind+' x'+intent.quantity,a.id);
+    return {handled:true,kind:'accept',result:r};
+  }
+  return {handled:false};
 }
 
 function gain(s,a,key,targetId=null){
@@ -667,7 +691,9 @@ export function step(s,count=1,options={}){
       const practice=craftTrainingIntent(s,a);
       const practiceAccepted=practice?command(s,'CRAFT_ITEM',practice).ok:false;
       if(!practiceAccepted&&stepAutonomousAdventure(s,a))continue;
-      if(!a.task)decide(s,a,book);
+      const producerIntent=rawProducerDecision(s,a);
+      applyRawProducerIntent(s,a,producerIntent);
+      if(!a.task)decide(s,a,book,producerIntent);
       const task=a.task;
       if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
     }
