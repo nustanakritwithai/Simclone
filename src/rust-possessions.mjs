@@ -1,8 +1,8 @@
 import {verifyAdventureCombatTerminalEvidence,validateAdventureCombatRewardState} from './adventure-combat-reward.mjs?v=0.5.0';
 import {BLUEPRINT_ITEM_KIND,validBlueprintPayload,sameBlueprintPayload,blueprintSessionErrors,consumedBlueprintEvidence,validateBlueprintEvidence} from './craft-blueprints.mjs?v=0.5.0';
-import {createCraftSpec,validateCraftSpec,resolveCraftOutcome,validateCraftedItem,craftedToolMultiplier} from './craft-outcome.mjs?v=0.5.0';
+import {createCrafterCraftSpec,validateCraftSpec,resolveCraftOutcome,validateCraftedItem,craftedToolMultiplier,CRAFTER_CRAFT_ORDER_VERSION} from './craft-outcome.mjs?v=0.5.0';
 import {knowsCraftRecipe,validateRecipeKnowledge,recipeCompletionProposal,blueprintLearningProposal,craftFamilyMastery,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
-import {crafterCraftAccess} from './crafter-career.mjs?v=0.5.0';
+import {crafterCraftAccess,crafterFamilyProfile} from './crafter-career.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,STARTER_RECIPE_IDS,recipeById,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
@@ -60,7 +60,9 @@ export function craftPreview(s,data={}){
 export function queueCraft(s,data={}){
   const check=checkCraft(s,data);if(!check.ok)return check;
   const {p,a,r,station,stock,selected}=check;
-  const id=p.nextOrder,craftSpec=createCraftSpec({worldSeed:s.seed,orderId:id,creatorId:a.id,recipeId:r.id,mastery:craftFamilyMastery(a,r.id)});
+  const id=p.nextOrder,mastery=craftFamilyMastery(a,r.id),profile=crafterFamilyProfile(a,r.id);
+  if(!profile||profile.total!==mastery)return {ok:false,reason:'crafter-evidence'};
+  const craftSpec=createCrafterCraftSpec({worldSeed:s.seed,orderId:id,creatorId:a.id,recipeId:r.id,mastery,grade:profile.grade});
   // Only audit receipts survive escrow. Selected item IDs are no longer spendable.
   const reservedItems=selected.map(i=>({itemId:i.id,kind:i.kind,createdBy:i.createdBy}));
   const processed=consumeMaterialSet(s,a,r.processedMaterials??{});if(!processed.ok)return processed;
@@ -92,6 +94,10 @@ export function validateCraftOrder(s,o){
   if(o.craftSpec===undefined)return o.reservedItems===undefined?[]:['Rust craft outcome snapshot'];
   if(!validateCraftSpec(o.craftSpec,{worldSeed:s.seed,orderId:o.id,creatorId:o.agentId,recipeId:o.recipe})||
     !Array.isArray(o.reservedItems)||o.reservedItems.length>4)return ['Rust craft outcome snapshot'];
+  if(o.craftSpec.version===CRAFTER_CRAFT_ORDER_VERSION){
+    const profile=crafterFamilyProfile(a,o.recipe),mastery=craftFamilyMastery(a,o.recipe);
+    if(!profile||profile.total!==mastery||o.craftSpec.mastery!==mastery||o.craftSpec.grade!==profile.grade)return ['Rust craft outcome snapshot'];
+  }
   const counts={},ids=new Set(),people=new Set([...(s.agents??[]),...(s.archive??[])].map(a=>a.id));
   for(const i of o.reservedItems){
     if(!i||!integer(i.itemId,1)||i.itemId>=p.nextItem||ids.has(i.itemId)||!people.has(i.createdBy)||
