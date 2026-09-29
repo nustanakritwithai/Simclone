@@ -10,7 +10,7 @@ import {createFoodEcologyCalibration} from './worldsim-food-regen-calibration.mj
 import {compareShadowRouting} from './worldsim-routing-shadow.mjs?v=0.5.0';
 import {ITEM_CATALOG,RECIPE_CATALOG,CRAFT_RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
-import {renderCraftRecipeBook,renderCraftItemInfo,renderCraftItemActions,renderCraftTraining,renderCraftTeaching} from './crafting-ui.mjs?v=0.5.0';
+import {renderCraftRecipeBook,renderCraftItemInfo,renderCraftItemActions,renderCrafterProfile,renderCraftTraining,renderCraftTeaching} from './crafting-ui.mjs?v=0.5.0';
 import {materialSnapshot} from './material-economy.mjs?v=0.5.0';
 import {evaluateModularHouses,MODULAR_HOUSE_RULES} from './housing.mjs?v=0.5.0';
 export const UI_VERSION='0.5.0';
@@ -99,6 +99,7 @@ function rustPanel(s,api){
  const equippedItem=bag.find(i=>i.id===equipped);
  const plan=s.productionPlan,goal=plan?.goal;
  return '<section class="menu-hero rust-menu-hero">'+api.portrait(actor)+'<div><small>RUST CRAFTING V2 · CRAFTER IDENTITY</small><h3>'+escape(actor.name)+'</h3><span>'+bag.length+'/4 🎒 · '+(equippedItem?escape(ITEM_CATALOG[equippedItem.kind]?.name??equippedItem.kind):'มือว่าง')+'</span></div></section>'+
+ renderCrafterProfile(s,actor)+
  '<div class="menu-metrics" data-metal-economy="'+actor.id+'">'+menuMetric('stone','แร่เหล็ก',bulk.ironOre)+menuMetric('hammer','เหล็ก',bulk.ironIngot)+menuMetric('hammer','เหล็กกล้า',bulk.steelIngot)+menuMetric('fire','ถ่าน',bulk.charcoal)+'</div>'+
  (craft||process?'<section class="menu-progress"><span>'+visualToken(craft?'hammer':'fire')+'</span><div><small>งานปัจจุบัน</small><b>'+(craft?escape(ITEM_CATALOG[CRAFT_RECIPE_CATALOG[craft.recipe]?.output]?.name??craft.recipe):'Charcoal')+'</b><div class="menu-progress-bar"><i style="width:'+Math.min(100,Math.round(((craft?.work??process?.work??0)/(craft?.required??process?.required??1))*100))+'%"></i></div></div></section>':'')+
  '<div class="menu-primary-actions"><button class="secondary visual-policy-action" data-ux="production-policy" data-enabled="'+(!plan?.enabled)+'">'+icon(plan?.enabled?'close':'brain')+'<span>'+(plan?.enabled?'หยุด RP1':'เปิด RP1')+'</span></button></div>'+
@@ -206,6 +207,7 @@ export function installUX(api){
   if(b.dataset.ux==='read-archive'){const result=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.key});api.toast(result.message);if(result.ok)api.save();}
   if(b.dataset.ux==='planning-policy'){const result=api.execute('SET_PLANNING_POLICY',{policy:b.dataset.policy});api.toast(result.message);if(result.ok){api.save();openSurvival();}}
   if(b.dataset.ux==='production-policy'){const result=api.execute('SET_PRODUCTION_POLICY',{enabled:b.dataset.enabled==='true'});api.toast(result.message);if(result.ok){api.save();openRust();}}
+  if(b.dataset.ux==='become-crafter'){const result=api.execute('RC5_BECOME_CRAFTER',{agentId:api.read().selected});api.toast(result.message);if(result.ok){api.save();openRust();}return;}
   if(['craft-train','craft-training-stop'].includes(b.dataset.ux)){
     const {state:s,selected}=api.read(),a=s.agents.find(x=>x.id===selected);if(!a)return;
     const result=api.execute('SET_CRAFT_TRAINING',{agentId:selected,enabled:b.dataset.ux==='craft-train',recipeId:b.dataset.recipe,expectedRevision:a.craftTraining?.revision??0,count:2});
