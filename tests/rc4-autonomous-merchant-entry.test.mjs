@@ -73,3 +73,20 @@ test('Adventurer lock wins over autonomous Merchant entry',()=>{
   assert.equal(s.agents.filter(a=>a.alive&&a.profession==='merchant').length,0);
   assert.deepEqual(validate(s),[]);
 });
+
+
+test('Merchant can emerge in an Adventurer-heavy world when one eligible non-Adventurer remains',()=>{
+  const s=createWorld(91004),candidate=s.agents[0];
+  calm(s);completeHome(s,candidate,'adventure-heavy');give(s,candidate,'STONE_AXE');
+  for(const a of s.agents.slice(1,5)){
+    a.profession='adventurer';
+    a.professionSinceTick=s.tick;
+    a.career=[{tick:s.tick,profession:'adventurer'}];
+  }
+  s.tick=29;
+  step(s,1);
+  assert.equal(s.agents.find(a=>a.id===candidate.id).profession,'merchant');
+  assert.equal(s.agents.filter(a=>a.alive&&a.profession==='merchant').length,1);
+  assert.ok(s.agents.filter(a=>a.alive&&a.profession==='adventurer').length>=4);
+  assert.deepEqual(validate(s),[]);
+});
