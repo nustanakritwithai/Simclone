@@ -4,7 +4,7 @@ import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG,recipeById} from './crafting-catalog.m
 import {recipeKnowledgeSnapshot,RECIPE_KNOWLEDGE_LIMITS} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {craftPreview,equipmentSlotOf,blueprintLearningPreview} from './rust-possessions.mjs?v=0.5.0';
 import {craftTrainingSnapshot} from './craft-training.mjs?v=0.5.0';
-import {validateCraftedItem} from './craft-outcome.mjs?v=0.5.0';
+import {validateCraftedItem,craftQualityBand} from './craft-outcome.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nameOf=(s,id)=>[...(s.agents??[]),...(s.archive??[])].find(a=>a.id===id)?.name??('#'+id);
@@ -70,10 +70,11 @@ export function renderCraftItemInfo(s,item){
   const creator=Number.isSafeInteger(item.createdBy)?'สร้างโดย '+nameOf(s,item.createdBy):'ไม่ระบุผู้สร้าง';
   if(item.craft===undefined)return '<div class="rc2-item-meta" data-craft-quality="legacy"><small>'+esc(creator)+'</small><small>Legacy / ของเดิม · ไม่ระบุคุณภาพ</small></div>';
   if(!validateCraftedItem(item,s.seed))return '<div class="rc2-item-meta" data-craft-quality="invalid">คุณสมบัติไอเทมไม่ผ่านการตรวจสอบ</div>';
-  const c=item.craft,abilities=c.abilities.map(a=>a.kind==='WORK_SPEED_BPS'?'ความเร็วงาน +'+(a.value/100).toFixed(2)+'%':a.kind+' +'+a.value);
-  return '<div class="rc2-item-meta" data-craft-quality="'+c.quality+'"><div class="rc2-item-score"><b>T'+c.tier+'</b><strong>คุณภาพ '+c.quality+'/100</strong></div>'+
+  const c=item.craft,abilities=c.abilities.map(a=>a.kind==='WORK_SPEED_BPS'?'ความเร็วงาน +'+(a.value/100).toFixed(2)+'%':a.kind+' +'+a.value),band=craftQualityBand(c.quality);
+  const bandLabel={ROUGH:'Rough',STANDARD:'Standard',FINE:'Fine',SUPERIOR:'Superior',MASTERWORK:'Masterwork',EXCEPTIONAL:'Exceptional'}[band]??'';
+  return '<div class="rc2-item-meta" data-craft-quality="'+c.quality+'" data-craft-band="'+esc(band??'')+'"><div class="rc2-item-score"><b>T'+c.tier+'</b><strong>คุณภาพ '+c.quality+'/100'+(bandLabel?' · '+bandLabel:'')+'</strong></div>'+
     '<small>'+esc(creator)+'</small><div class="rc2-abilities">'+(abilities.length?abilities.map(x=>'<span>'+esc(x)+'</span>').join(''):'<small>ชิ้นส่วนก่อสร้าง · ไม่มีโบนัสค่าสเตตัส</small>')+'</div>'+
-    '<details><summary>ประวัติการผลิต</summary><small>Order #'+c.orderId+' · Tick '+item.createdTick+'</small><small>ฝีมือขณะรับงาน '+c.mastery+' · '+esc(c.ticket)+'</small></details></div>';
+    '<details><summary>ประวัติการผลิต</summary><small>Order #'+c.orderId+' · Tick '+item.createdTick+'</small><small>ฝีมือขณะรับงาน '+c.mastery+(c.grade?' · '+esc(c.grade):'')+' · '+esc(c.ticket)+'</small></details></div>';
 }
 export function renderCraftItemActions(s,a,item){
   const def=ITEM_CATALOG[item.kind];if(!a.alive||!def)return '';
