@@ -90,3 +90,16 @@ test('Merchant can emerge in an Adventurer-heavy world when one eligible non-Adv
   assert.ok(s.agents.filter(a=>a.alive&&a.profession==='adventurer').length>=4);
   assert.deepEqual(validate(s),[]);
 });
+
+
+test('currently owned tradable item is valid local trade evidence even when another agent created it',()=>{
+  const s=createWorld(91005),candidate=s.agents[0],maker=s.agents[1];
+  calm(s);completeHome(s,candidate,'owned-item');
+  const itemId=s.rustPossessions.nextItem++;
+  s.rustPossessions.items.push({id:itemId,kind:'STONE_AXE',createdBy:maker.id,createdTick:s.tick,location:{kind:'bag',agentId:candidate.id}});
+  s.tick=29;
+  step(s,1);
+  assert.equal(s.agents.find(a=>a.id===candidate.id).profession,'merchant');
+  assert.equal(s.rustPossessions.items.find(i=>i.id===itemId).location.agentId,candidate.id);
+  assert.deepEqual(validate(s),[]);
+});
