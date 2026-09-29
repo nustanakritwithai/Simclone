@@ -192,7 +192,7 @@ function merchantQualificationSnapshot(world,agent){
     agentId:agent.id,
     alive:agent.alive===true,
     lifeStage:lifeStage(world,agent),
-    professionTransitionAllowed:agent.profession!=='adventurer',
+    professionTransitionAllowed:agent.profession!=='adventurer'&&agent.profession!=='crafter',
     homeControl:home?{status:'CONFIRMED',houseId:home.houseId,evidenceId:'HOME:'+home.houseId}:{status:'ABSENT'},
     operatingCapital:Number.isSafeInteger(balance)?{status:'CONFIRMED',amount:balance}:{status:'UNKNOWN'},
     tradeKnowledge:evidenceCount>0?{status:'CONFIRMED',evidenceCount}:{status:'UNKNOWN',evidenceCount:0},
@@ -213,7 +213,7 @@ export function autonomousMerchantEntryCandidate(world){
   if(target===0||merchants>=target)return null;
   const candidates=[];
   for(const a of world.agents??[]){
-    if(!a?.alive||a.profession==='merchant'||a.profession==='adventurer')continue;
+    if(!a?.alive||a.profession==='merchant'||a.profession==='adventurer'||a.profession==='crafter')continue;
     if(!['ADULT','ELDER'].includes(lifeStage(world,a)))continue;
     const home=homeOf(world,a.id,{completeOnly:true});if(!home)continue;
     const balance=getBalance(world,a.id);if(!Number.isSafeInteger(balance)||balance<1)continue;
@@ -432,7 +432,7 @@ function rc4CommandInternal(world,type,data={}){
 
   if(type==='RC4_CREATE_MARKET'){
     const agent=world.agents.find(a=>a.id===data.agentId&&a.alive);if(!agent)return fail('agent','ไม่พบ Clone');
-    if(agent.profession==='adventurer')return fail('profession-locked','Adventurer เปิดสาย Merchant ไม่ได้');
+    if(agent.profession==='adventurer'||agent.profession==='crafter')return fail('profession-locked','อาชีพพิเศษปัจจุบันเปิดสาย Merchant ไม่ได้');
     const home=homeOf(world,agent.id,{completeOnly:true});if(!home)return fail('home','ต้องมีบ้านส่วนตัวที่สร้างเสร็จ');
     const made=createHomeMarket(world,world.homeMarkets,{ownerAgentId:agent.id,homeId:home.houseId});
     if(!made.ok)return fail(made.reason,made.message);
