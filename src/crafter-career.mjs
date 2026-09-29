@@ -47,7 +47,7 @@ function allProfiles(agent){
   return Object.keys(CRAFTER_FAMILIES).map(family=>profileFromCounts(family,familyCounts(agent,family)));
 }
 function bestProfile(profiles){
-  return [...profiles].sort((a,b)=>b.rank-a.rank||b.total-a.total||a.family.localeCompare(b.family))[0]??null;
+  return [...profiles].sort((a,b)=>b.rank-a.rank||b.total-a.total||(a.family<b.family?-1:a.family>b.family?1:0))[0]??null;
 }
 
 export function crafterFamilyProfile(state,agent,family){

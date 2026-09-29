@@ -152,6 +152,7 @@ test('RC5 thresholds are derived from bounded recipe receipts, not held items',(
 
 test('RC5 source has no parallel inventory, random source, DOM, wall-clock or direct profession writer',()=>{
   const source=fs.readFileSync(new URL('../src/crafter-career.mjs',import.meta.url),'utf8');
-  for(const token of ['Math.random','Date.now','new Date','document.','window.','.items.push(','.equipment.push(','agent.profession='])
+  for(const token of ['Math.random','Date.now','new Date','document.','window.','.items.push(','.equipment.push('])
     assert.equal(source.includes(token),false,token);
+  assert.doesNotMatch(source,/agent\.profession\s*=(?!=)/,'direct profession assignment');
 });
