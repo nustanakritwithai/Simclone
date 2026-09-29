@@ -403,16 +403,31 @@ function rc4CommandInternal(world,type,data={}){
   if(stateErrors.length)return fail('rc4-state','RC4 state ไม่พร้อม',{errors:stateErrors});
 
   if(type==='RC4_BECOME_MERCHANT'){
-    const candidate=clone(world),agent=candidate.agents.find(a=>a.id===data.agentId&&a.alive);if(!agent)return fail('agent','ไม่พบ Clone');
-    const qualification=merchantQualificationSnapshot(candidate,agent);
+    const liveAgent=world.agents.find(a=>a.id===data.agentId&&a.alive);if(!liveAgent)return fail('agent','ไม่พบ Clone');
+    const qualification=merchantQualificationSnapshot(world,liveAgent);
     const evaluated=evaluateMerchantQualification(qualification);
     if(evaluated.status!=='SAT')return fail('qualification','ยังไม่ผ่านคุณสมบัติ Merchant',{qualification:evaluated});
-    const changed=adoptMerchantProfession(agent,qualification,candidate.tick);
+
+    const stagedAgent=clone(liveAgent);
+    const changed=adoptMerchantProfession(stagedAgent,qualification,world.tick);
     if(changed.status!=='SAT')return fail(changed.reason??'profession','เปลี่ยนอาชีพไม่ได้',{qualification:evaluated});
-    const ledger=ensureLedger(candidate,agent.id);if(!ledger.ok)return fail(ledger.reason,'สร้าง Merchant Ledger ไม่ได้');
-    const errors=validateRc4EconomyState(candidate);if(errors.length)return fail('rc4-postcondition','Merchant state ไม่ผ่าน postcondition',{errors});
-    replaceWorldRoot(world,candidate);
-    return {ok:true,agentId:agent.id,profession:'merchant',eventType:'career',eventText:agent.name+' เป็น Merchant แล้ว'};
+
+    const ensured=ensureMerchantLedgerInCollection(world.merchantLedgers,stagedAgent.id);
+    if(ensured.state!=='SAT')return fail(ensured.reason??'merchant-ledger','สร้าง Merchant Ledger ไม่ได้',{detail:ensured});
+
+    const probe={
+      ...world,
+      agents:world.agents.map(a=>a.id===stagedAgent.id?stagedAgent:a),
+      merchantLedgers:ensured.collection
+    };
+    const errors=validateRc4EconomyState(probe);
+    if(errors.length)return fail('rc4-postcondition','Merchant state ไม่ผ่าน postcondition',{errors});
+
+    liveAgent.profession=stagedAgent.profession;
+    liveAgent.professionSinceTick=stagedAgent.professionSinceTick;
+    liveAgent.career=clone(stagedAgent.career);
+    world.merchantLedgers=ensured.collection;
+    return {ok:true,agentId:liveAgent.id,profession:'merchant',eventType:'career',eventText:liveAgent.name+' เป็น Merchant แล้ว'};
   }
 
   if(type==='RC4_CREATE_MARKET'){
@@ -536,6 +551,7 @@ export function rc4Command(world,type,data={}){
  * Autonomous Merchant entry is bounded and routes all writes through canonical RC4 commands.
  */
 export function stepRc4Economy(world){
+  let stepResult=null;
   const entry=autonomousMerchantEntryCandidate(world);
   if(entry){
     let market=ownMarket(world,entry.agentId);
@@ -545,10 +561,10 @@ export function stepRc4Economy(world){
     }
     if(market){
       const promoted=rc4Command(world,'RC4_BECOME_MERCHANT',{agentId:entry.agentId});
-      if(promoted?.ok)return {changed:true,kind:'merchant-entry',agentId:entry.agentId,marketId:market.marketId};
+      if(promoted?.ok)stepResult={changed:true,kind:'merchant-entry',agentId:entry.agentId,marketId:market.marketId};
     }
   }
-  if(!world.homeMarkets?.markets?.length)return null;
+  if(!world.homeMarkets?.markets?.length)return stepResult;
   const homes=reconcileHomeMarkets(world,world.homeMarkets);
   if(!homes.ok)throw new Error('RC4 Home Market lifecycle invalid');
   if(homes.changed)world.homeMarkets=homes.marketState;
@@ -558,5 +574,5 @@ export function stepRc4Economy(world){
     world.merchantReservations=reservations.reservationState;
   }
   observeRc4Markets(world);
-  return null;
+  return stepResult;
 }
