@@ -1,3 +1,7 @@
+> **ER0B candidate extension — 2026-09-29**
+>
+> The ER0B candidate upgrades supported canonical bulk BuyOffers/Listings from the original blocker state `tradable:false` to `tradable:true` only when the same canonical bulk settlement route is present and valid. Until ER0B exact-head/post-merge gates pass this remains candidate behavior, not production evidence. Hidden/distant knowledge locks remain unchanged.
+
 # ER1 — Actor-Observed Local Demand Success Contract
 
 Status vocabulary: **SAT / VIOL / UNKNOWN**. UNKNOWN never passes.

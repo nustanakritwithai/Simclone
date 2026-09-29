@@ -1,5 +1,6 @@
 /** RC4 canonical merchant BuyOffer. Reference/intention only; owns no money or item. */
 import {isCanonicalMoney} from './merchant-pricing.mjs?v=0.5.0';
+import {TRADE_ASSET_TYPES,tradeAssetType,validBulkTradeResourceKey,tradeAssetFields} from './trade-assets.mjs?v=0.5.0';
 
 export const MERCHANT_BUY_OFFER_VERSION='RC4-buy-offer/3';
 export const BUY_OFFER_COLLECTION_VERSION='RC4-buy-offer-collection/1';
@@ -21,8 +22,12 @@ function hash32(text,seed=0x811c9dc5){
   for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}
   return h.toString(16).padStart(8,'0');
 }
-export function buyOfferIdFor({marketId,buyerId,itemKind,quantityWanted,unitPrice,createdTick}={}){
-  const text=stableText({marketId,buyerId,itemKind,quantityWanted,unitPrice,createdTick});
+export function buyOfferIdFor({marketId,buyerId,itemKind,quantityWanted,unitPrice,createdTick,assetType}={}){
+  const type=tradeAssetType({assetType});
+  const payload={marketId,buyerId,itemKind,quantityWanted,unitPrice,createdTick};
+  if(type===TRADE_ASSET_TYPES.BULK_RESOURCE)payload.assetType=TRADE_ASSET_TYPES.BULK_RESOURCE;
+  else if(type===null)payload.assetType=assetType;
+  const text=stableText(payload);
   return 'BO:'+hash32(text)+hash32(text,0x9e3779b9);
 }
 
@@ -33,6 +38,9 @@ export function validateBuyOffer(row){
   if(!validRefId(row.marketId))e.push('marketId');
   if(!positiveInt(row.buyerId))e.push('buyerId');
   if(!validKind(row.itemKind))e.push('itemKind');
+  const assetType=tradeAssetType(row);
+  if(assetType===null)e.push('assetType');
+  else if(assetType===TRADE_ASSET_TYPES.BULK_RESOURCE&&!validBulkTradeResourceKey(row.itemKind))e.push('bulk-asset');
   if(!Number.isSafeInteger(row.quantityWanted)||row.quantityWanted<1||row.quantityWanted>128)e.push('quantityWanted');
   if(!isCanonicalMoney(row.unitPrice,{allowZero:false}))e.push('unitPrice');
   if(!Number.isSafeInteger(row.createdTick)||row.createdTick<0)e.push('createdTick');
@@ -40,9 +48,10 @@ export function validateBuyOffer(row){
   return e;
 }
 
-export function createBuyOffer({offerId,marketId,buyerId,itemKind,quantityWanted,unitPrice,createdTick,status=BUY_OFFER_STATUS.OPEN}={}){
-  const offer={offerId,marketId,buyerId,itemKind,quantityWanted,unitPrice,createdTick,status};
-  const errors=validateBuyOffer(offer);
+export function createBuyOffer({offerId,marketId,buyerId,itemKind,quantityWanted,unitPrice,createdTick,status=BUY_OFFER_STATUS.OPEN,assetType}={}){
+  const type=tradeAssetType({assetType});
+  const offer={offerId,marketId,buyerId,itemKind,...tradeAssetFields(type),quantityWanted,unitPrice,createdTick,status};
+  const errors=type===null?['assetType']:validateBuyOffer(offer);
   return errors.length?{state:'VIOL',errors,offer:null}:{state:'SAT',offer:Object.freeze({...offer})};
 }
 
@@ -104,6 +113,7 @@ export function transitionBuyOfferInCollection(collection,offerId,status){
  */
 export function proposeProducerBuyOfferMatch(offer,{producerId,itemInstanceId,itemInstanceIds}={}){
   const errors=validateBuyOffer(offer);if(errors.length)return {state:'VIOL',reason:'buy-offer',errors};
+  if(tradeAssetType(offer)!==TRADE_ASSET_TYPES.PHYSICAL_ITEM)return {state:'VIOL',reason:'asset-type'};
   if(offer.status!==BUY_OFFER_STATUS.OPEN)return {state:'VIOL',reason:'offer-not-open'};
   if(!positiveInt(producerId)||producerId===offer.buyerId)return {state:'VIOL',reason:'producer'};
   const raw=Array.isArray(itemInstanceIds)?itemInstanceIds:(itemInstanceId===undefined?[]:[itemInstanceId]);
@@ -134,6 +144,36 @@ export function proposeProducerBuyOfferMatch(offer,{producerId,itemInstanceId,it
       marketId:offer.marketId,
       ownerAgentId:offer.buyerId,
       referenceId:listingId
+    }),
+    tradeProposalOwner:'RC4_TRADE_KERNEL'
+  })};
+}
+
+export function proposeProducerBulkBuyOfferMatch(offer,{producerId,quantity}={}){
+  const errors=validateBuyOffer(offer);if(errors.length)return {state:'VIOL',reason:'buy-offer',errors};
+  if(tradeAssetType(offer)!==TRADE_ASSET_TYPES.BULK_RESOURCE)return {state:'VIOL',reason:'asset-type'};
+  if(offer.status!==BUY_OFFER_STATUS.OPEN)return {state:'VIOL',reason:'offer-not-open'};
+  if(!positiveInt(producerId)||producerId===offer.buyerId)return {state:'VIOL',reason:'producer'};
+  if(!positiveInt(quantity)||quantity!==offer.quantityWanted)return {state:'VIOL',reason:'quantity'};
+  const key=stableText({offerId:offer.offerId,producerId,quantity,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE});
+  const matchId='BOM:'+hash32(key)+hash32(key,0x9e3779b9);
+  const listingId='PROC:'+hash32(matchId+'|LISTING')+hash32(matchId+'|LISTING',0x9e3779b9);
+  return {state:'SAT',proposal:Object.freeze({
+    authoritative:false,kind:'BUY_OFFER_PRODUCER_MATCH',assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,
+    matchId,buyOfferId:offer.offerId,marketId:offer.marketId,buyerId:offer.buyerId,producerId,
+    itemKind:offer.itemKind,quantity,unitPrice:offer.unitPrice,
+    listingRequest:Object.freeze({
+      authority:'MERCHANT_LISTING',id:listingId,marketId:offer.marketId,sellerId:producerId,
+      itemKind:offer.itemKind,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,quantity,unitPrice:offer.unitPrice,
+      status:'OPEN',buyOfferId:offer.offerId
+    }),
+    reservationRequest:Object.freeze({
+      authority:'CANONICAL_RESERVATION',buyerId:offer.buyerId,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,
+      itemKind:offer.itemKind,quantity,listingSnapshotRequired:true
+    }),
+    homeMarketListingReferenceRequest:Object.freeze({
+      authority:'HOME_MARKET',writer:'attachHomeMarketListingReference',marketId:offer.marketId,
+      ownerAgentId:offer.buyerId,referenceId:listingId
     }),
     tradeProposalOwner:'RC4_TRADE_KERNEL'
   })};

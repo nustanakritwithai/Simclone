@@ -1,3 +1,7 @@
+> **ER0B candidate extension — 2026-09-29**
+>
+> Branch `feature/er0-bulk-resource-settlement-20260929` extends the canonical RC4 settlement boundary for explicit `BULK_RESOURCE` quantity trades while retaining this document's no-fake-item ownership rule. The implementation is not production evidence until exact-head Verify and post-merge gates pass. Read `docs/ER0B_BULK_RESOURCE_SETTLEMENT_SUCCESS_CONTRACT.md`. Where this candidate is accepted, the older statement that paid bulk settlement is UNKNOWN is superseded for the listed canonical resource keys only.
+
 # ER0 — Raw Resource Representation and Ownership Contract
 
 Status vocabulary: **SAT / VIOL / UNKNOWN**. UNKNOWN never passes.
