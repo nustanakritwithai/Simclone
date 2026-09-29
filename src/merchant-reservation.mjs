@@ -90,7 +90,6 @@ function listingErrors(listing){
   if(type===null)e.push('listing');
   if(!validId(listing.id)||!validId(listing.marketId)||!positive(listing.revision)||!positive(listing.sellerId)||!validId(listing.itemKind))e.push('listing');
   if(type===TRADE_ASSET_TYPES.BULK_RESOURCE&&!validBulkTradeResourceKey(listing.itemKind))e.push('listing');
-  if(type===TRADE_ASSET_TYPES.PHYSICAL_ITEM&&!positive(listing.itemInstanceId))e.push('listing');
   if(!positive(listing.quantity)||listing.quantity>128||!positive(listing.unitPrice))e.push('listing');
   if(listing.status!=='OPEN')e.push('listing-not-open');
   return [...new Set(e)];
@@ -102,7 +101,8 @@ export function createReservation(world,state,{listing,listingRevision,buyerId,i
   const le=listingErrors(listing);if(le.length)return fail(le.includes('listing-not-open')?'listing-not-open':'listing',state,{errors:le});
   if(listingRevision!==listing.revision)return fail('listing-stale',state);
   if(!positive(buyerId)||buyerId===listing.sellerId)return fail('buyer',state);
-  const seller=alive(world,listing.sellerId),buyer=alive(world,buyerId);
+  const seller=world?.agents?.find(a=>a?.id===listing.sellerId&&a.alive===true)??null;
+  const buyer=world?.agents?.find(a=>a?.id===buyerId&&a.alive===true)??null;
   if(!seller)return fail('seller-dead',state);
   if(!buyer)return fail('buyer-dead',state);
   if(!nonnegative(createdTick)||createdTick!==world?.tick)return fail('created-tick',state);
