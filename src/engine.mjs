@@ -45,6 +45,8 @@ import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventu
 import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement,defeatWildMonster,stepWildMonsterLifecycle,migrateWildMonsterLifecycleState} from './adventure-world-monsters.mjs?v=0.5.0';
 import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adventure-autonomy.mjs?v=0.5.0';
 import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
+import {crafterCareerCommand} from './crafter-career.mjs?v=0.5.0';
+import {ensureCrafterTierPolicy,migrateCrafterTierPolicy,validateCrafterTierPolicy} from './crafter-tier-policy.mjs?v=0.5.0';
 import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy} from './rc4-market-runtime.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -139,7 +141,7 @@ export function createWorld(seed=230926,options={}){
   const s={version:SAVE_VERSION,historyVersion:HISTORY_VERSION,archiveVersion:ARCHIVE_VERSION,archive:[],seed:seed>>>0,rng:seed>>>0,tick:0,nextAgent:1,nextEvent:1,nextBuilding:3,tiles:[],nodes:[],agents:[],events:[],
     ...(storedBounds?{worldBounds:storedBounds}:{}),
     stock:{food:28,wood:24,stone:12},buildings:[{id:1,type:'camp',x:camp.x,y:camp.y,complete:true,progress:30},{id:2,type:'shelter',x:shelter.x,y:shelter.y,complete:true,progress:30}],stats:{gathered:0,built:0,cloned:0}};
-  ensureRustState(s);ensureProductionPlan(s);ensureMentorshipState(s);ensureSocialState(s);ensureHouseholdResourceState(s);
+  ensureRustState(s);ensureProductionPlan(s);ensureCrafterTierPolicy(s,{newWorld:true});ensureMentorshipState(s);ensureSocialState(s);ensureHouseholdResourceState(s);
   let nid=1;
   const riverWidth=large?6:3;
   const bridgeStart=scaleLegacyY(bounds,13),bridgeEnd=scaleLegacyY(bounds,14);
@@ -180,6 +182,7 @@ export const day = s => 1+Math.floor(s.tick/DAY_TICKS);
 export const hour = s => (8+Math.floor(s.tick/15))%24;
 export function command(s,type,data={}){
   const rc4=rc4Command(s,type,data);if(rc4){if(rc4.ok&&rc4.eventText)event(s,rc4.eventType??'market',rc4.eventText,rc4.agentId??null);return rc4;}
+  const crafter=crafterCareerCommand(s,type,data);if(crafter){if(crafter.ok&&crafter.changed)event(s,'career',crafter.message,crafter.agentId??null);return crafter;}
   const residence=householdResidenceCommand(s,type,data);if(residence){if(residence.ok&&residence.changed)event(s,'household',residence.message,residence.agentId??null);return residence;}
   const mentorship=mentorshipCommand(s,type,data);if(mentorship){
     if(mentorship.ok&&mentorship.changed){
@@ -530,7 +533,11 @@ function execute(s,a){
     const result=advanceRustWork(s,a,workRate);
     if(!result.ok){if(result.reason!=='already-worked')a.task=null;return;}
     t.work=result.work??t.work;
-    if(result.completed){event(s,'craft',a.name+(t.kind==='CRAFT'?' คราฟต์ของสำเร็จ':' แปรรูปวัสดุสำเร็จ'),a.id);a.task=null;}
+    if(result.completed){
+      event(s,'craft',a.name+(t.kind==='CRAFT'?' คราฟต์ของสำเร็จ':' แปรรูปวัสดุสำเร็จ'),a.id);
+      if(t.kind==='CRAFT'&&a.profession==='builder')command(s,'RC5_BECOME_CRAFTER',{agentId:a.id});
+      a.task=null;
+    }
     return;
   }
   t.work+=workRate;
@@ -779,6 +786,7 @@ export function validate(s){
   for(const e of validatePersonalPlanning(s))bad(e);
   for(const e of validateCulture(s))bad(e);
   for(const e of validateRustState(s))bad(e);
+  for(const e of validateCrafterTierPolicy(s))bad(e);
   for(const e of validateProductionPlan(s))bad(e);
   for(const e of validateMentorship(s))bad(e);
   for(const e of validateSocialState(s,{required:isIndependent(s)}))bad(e);
@@ -893,6 +901,6 @@ function migrateSave(s,{sameWorld=false}={}){
 }
 export function restore(text,options={}){
   if(typeof text!=='string'||text.length>HISTORY_LIMITS.maxSaveCharacters)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป');
-  const s=migrateSave(JSON.parse(text),options),rc4=migrateRc4EconomyState(s);if(rc4.state!=='SAT')throw new Error('RC4 migration failed: '+rc4.reason);const errors=validate(s);
+  const s=migrateSave(JSON.parse(text),options);migrateCrafterTierPolicy(s);const rc4=migrateRc4EconomyState(s);if(rc4.state!=='SAT')throw new Error('RC4 migration failed: '+rc4.reason);const errors=validate(s);
   if(errors.length)throw new Error('บันทึกไม่ถูกต้อง: '+errors.join(', '));return s;
 }

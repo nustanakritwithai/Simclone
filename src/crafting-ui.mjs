@@ -4,17 +4,20 @@ import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG,recipeById} from './crafting-catalog.m
 import {recipeKnowledgeSnapshot,RECIPE_KNOWLEDGE_LIMITS} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {craftPreview,equipmentSlotOf,blueprintLearningPreview} from './rust-possessions.mjs?v=0.5.0';
 import {craftTrainingSnapshot} from './craft-training.mjs?v=0.5.0';
-import {validateCraftedItem} from './craft-outcome.mjs?v=0.5.0';
+import {validateCraftedItem,craftQualityLabel,masterworkQualityRange,MASTERWORK_OUTCOME_VERSION} from './craft-outcome.mjs?v=0.5.0';
+import {crafterCareerSnapshot,evaluateCrafterQualification,CRAFTER_QUALIFICATION_POLICY} from './crafter-career.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nameOf=(s,id)=>[...(s.agents??[]),...(s.archive??[])].find(a=>a.id===id)?.name??('#'+id);
 const names={wood:'ไม้',stone:'หิน',food:'อาหาร',charcoal:'ถ่านไม้',ironOre:'แร่เหล็ก',ironIngot:'เหล็กแท่ง',steelIngot:'เหล็กกล้า'};
 const stations={HAND:'ทำด้วยมือ',CRAFTING_TABLE_LV1:'โต๊ะคราฟต์ Lv1',FURNACE:'เตาหลอม'};
 const tiers=['Primitive','Basic','Advanced','Rare','Epic','Masterwork'];
+const qualityNames={ROUGH:'Rough',STANDARD:'Standard',FINE:'Fine',SUPERIOR:'Superior',MASTERWORK:'Masterwork',EXCEPTIONAL:'Exceptional'};
 export const craftReasonLabel=reason=>({
   'blueprint-invalid':'หลักฐานพิมพ์เขียวไม่ถูกต้อง','recipe-known':'รู้สูตรนี้แล้ว · เก็บใบนี้ไว้ได้','loot-result-open':'กด Continue ปิดผลต่อสู้ก่อนเรียนสูตร','recipe-capacity':'สมุดสูตรเต็ม',
   ready:'พร้อมคราฟต์',off:'ไม่ได้เปิดฝึก', 'quota-complete':'ครบเป้าหมายแล้ว · ไม่รับงานเพิ่ม',
   'recipe-unknown':'ยังไม่รู้สูตร', 'recipe-knowledge':'หลักฐานสูตรไม่ถูกต้อง', 'training-state':'ข้อมูลแผนฝึกไม่ถูกต้อง',
+  'crafter-tier':'ระดับช่างยังไม่ถึง · T3=Crafter · T4=Expert · T5=Master','crafter-tier-evidence':'ยังยืนยันระดับช่างไม่ได้',
   stage:'ช่วงวัยนี้ทำงานไม่ได้','actor-or-recipe':'เลือก Clone และสูตรก่อน',
   station:'ยังไม่มีสถานีที่ต้องใช้', materials:'วัสดุไม่พอ','item-materials':'ของวัตถุดิบไม่ครบ หรือยังสวม/ติดผลต่อสู้อยู่',
   'craft-busy':'กำลังทำงานในคิวเดิม','bag-full':'กระเป๋าเต็ม',capacity:'พื้นที่เก็บของหรือคิวเต็ม',
@@ -69,9 +72,10 @@ export function renderCraftItemInfo(s,item){
   if(item.craft===undefined)return '<div class="rc2-item-meta" data-craft-quality="legacy"><small>'+esc(creator)+'</small><small>Legacy / ของเดิม · ไม่ระบุคุณภาพ</small></div>';
   if(!validateCraftedItem(item,s.seed))return '<div class="rc2-item-meta" data-craft-quality="invalid">คุณสมบัติไอเทมไม่ผ่านการตรวจสอบ</div>';
   const c=item.craft,abilities=c.abilities.map(a=>a.kind==='WORK_SPEED_BPS'?'ความเร็วงาน +'+(a.value/100).toFixed(2)+'%':a.kind+' +'+a.value);
-  return '<div class="rc2-item-meta" data-craft-quality="'+c.quality+'"><div class="rc2-item-score"><b>T'+c.tier+'</b><strong>คุณภาพ '+c.quality+'/100</strong></div>'+
+  const quality=qualityNames[craftQualityLabel(c.quality)]??craftQualityLabel(c.quality),grade=c.version===MASTERWORK_OUTCOME_VERSION?c.grade:null;
+  return '<div class="rc2-item-meta" data-craft-quality="'+c.quality+'"'+(grade?' data-craft-grade="'+esc(grade)+'"':'')+'><div class="rc2-item-score"><b>T'+c.tier+'</b><strong>คุณภาพ '+c.quality+'/100 · '+esc(quality)+'</strong></div>'+
     '<small>'+esc(creator)+'</small><div class="rc2-abilities">'+(abilities.length?abilities.map(x=>'<span>'+esc(x)+'</span>').join(''):'<small>ชิ้นส่วนก่อสร้าง · ไม่มีโบนัสค่าสเตตัส</small>')+'</div>'+
-    '<details><summary>ประวัติการผลิต</summary><small>Order #'+c.orderId+' · Tick '+item.createdTick+'</small><small>ฝีมือขณะรับงาน '+c.mastery+' · '+esc(c.ticket)+'</small></details></div>';
+    '<details><summary>ประวัติการผลิต</summary><small>Order #'+c.orderId+' · Tick '+item.createdTick+'</small><small>ฝีมือขณะรับงาน '+c.mastery+(grade?' · '+esc(grade):'')+' · '+esc(c.ticket)+'</small></details></div>';
 }
 export function renderCraftItemActions(s,a,item){
   const def=ITEM_CATALOG[item.kind];if(!a.alive||!def)return '';
@@ -89,6 +93,28 @@ export function renderCraftItemActions(s,a,item){
     '<button class="secondary" data-ux="equip-craft-gear" data-item="'+item.id+'">สวม '+esc(def.equipSlot)+'</button>';
   if(def.stationProvided)return '<button class="secondary" data-ux="place-station" data-item="'+item.id+'">วางสิ่งปลูกสร้าง</button>';
   return '<small class="rc2-material">วัตถุดิบ · ใช้ผ่านสูตรคราฟต์</small>';
+}
+const crafterGradeNames={APPRENTICE:'Apprentice',CRAFTER:'Crafter',EXPERT:'Expert',MASTER:'Master'};
+const crafterFamilyNames={STONE_AXE:'ขวาน',STONE_PICKAXE:'อีเต้อ',HAMMER:'ค้อน',EMBER_BLADE:'อาวุธ',HIDE_ARMOR:'เกราะ',EMBER_CHARM:'เครื่องราง'};
+export function renderCrafterProfile(s,a){
+  const snap=crafterCareerSnapshot(s,a),q=evaluateCrafterQualification(s,a.id);
+  if(snap.status!=='SAT'||!snap.best)return '<section class="rc5-crafter-profile"><h3>เส้นทางช่างประดิษฐ์</h3><p class="rc2-reason">หลักฐานฝีมือยังตรวจสอบไม่ได้</p></section>';
+  const p=snap.best,effective=a.profession==='crafter'?p.grade:'APPRENTICE',previewTier=a.profession==='crafter'?p.maxNewTier:Math.min(2,p.maxNewTier);
+  const range=masterworkQualityRange({mastery:p.total,tier:previewTier,grade:effective});
+  const rows=snap.profiles.filter(x=>x.total>0).sort((x,y)=>y.rank-x.rank||y.total-x.total||(x.family<y.family?-1:x.family>y.family?1:0)).slice(0,4);
+  const progressTotal=Math.min(CRAFTER_QUALIFICATION_POLICY.crafter.total,p.total),progressT2=Math.min(CRAFTER_QUALIFICATION_POLICY.crafter.tier2,p.counts[2]);
+  const qualification=q.status==='SAT'?(a.profession==='crafter'?'อาชีพช่างประดิษฐ์ ACTIVE':'พร้อมเลื่อนอาชีพ'):
+    q.reason==='builder-required'?'ต้องเป็นช่างก่อสร้างก่อน':q.reason==='construction-required'?'ต้องมีบ้านส่วนตัวที่สร้างเสร็จ':
+    q.reason==='craft-mastery-required'?'กำลังสะสมผลงานจริง':q.reason==='special-profession-lock'?'อาชีพพิเศษปัจจุบันถูกล็อก':'หลักฐานยังไม่พร้อม';
+  const promote=a.profession==='builder'&&q.status==='SAT'?'<button class="primary" data-ux="become-crafter">เลื่อนเป็นช่างประดิษฐ์</button>':'';
+  return '<section class="rc5-crafter-profile" data-crafter-profile="'+a.id+'" data-crafter-grade="'+esc(effective)+'">'+
+    '<header class="rc2-section-head"><div><small>RC5 · CRAFTER CAREER</small><h3>'+(a.profession==='crafter'?'ช่างประดิษฐ์':'เส้นทางช่างประดิษฐ์')+'</h3></div><b>'+esc(crafterGradeNames[effective])+'</b></header>'+
+    '<div class="life-summary"><div><small>สายเด่น</small><b>'+esc(crafterFamilyNames[p.family]??p.family)+' · '+p.total+' งาน</b></div>'+
+    '<div><small>คุณภาพคาดการณ์ T'+previewTier+'</small><b>'+range.floor+'–'+range.ceiling+'/100</b></div></div>'+
+    (a.profession!=='crafter'?'<p class="source-note">เกณฑ์เลื่อนอาชีพ · ผลงานสายเดียว '+progressTotal+'/'+CRAFTER_QUALIFICATION_POLICY.crafter.total+' · T2 '+progressT2+'/'+CRAFTER_QUALIFICATION_POLICY.crafter.tier2+'</p>':'')+
+    '<p class="rc2-reason">'+esc(qualification)+'</p>'+
+    (rows.length?'<div class="rc2-abilities">'+rows.map(x=>'<span>'+esc(crafterFamilyNames[x.family]??x.family)+' · '+esc(crafterGradeNames[x.grade])+' · '+x.total+'</span>').join('')+'</div>':'')+
+    promote+'<small>T3–T5 ยังยึดสิทธิ์สูตรเดิมในระยะ migration · เกรดช่างมีผลกับคุณภาพงานใหม่ ไม่ reroll ของเก่า</small></section>';
 }
 export function renderCraftTraining(s,a){
   const v=craftTrainingSnapshot(s,a),r=recipeById(v.recipeId),status={OFF:'ปิด',READY:'พร้อม',BLOCKED:'รอ',COMPLETE:'ครบแล้ว'}[v.status];

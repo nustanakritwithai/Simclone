@@ -1,0 +1,19 @@
+{
+  "schema": "RC5-producer-closeout-evidence/1",
+  "scope": "PRODUCER_ONLY",
+  "baseMain": "546e5dd52a1ffa290ae23dc9f4c898a1e6b053ad",
+  "donorHead": "481743d61d6036e1089fef8bd728db7e197350c2",
+  "retainedRc4Hotfix": true,
+  "producerCareer": "CANDIDATE",
+  "tierGate": "CANDIDATE",
+  "masterworkOutcome": "CANDIDATE",
+  "boundedAutonomy": "CANDIDATE",
+  "legacyTierMigration": "CANDIDATE",
+  "merchantChangesAdded": false,
+  "adventurerChangesAdded": false,
+  "exactHeadCI": "UNKNOWN",
+  "mergedMainCI": "UNKNOWN",
+  "pages": "UNKNOWN",
+  "publicProof": "UNKNOWN",
+  "verdict": "HOLD_UNTIL_EXACT_HEAD_VERIFY"
+}
