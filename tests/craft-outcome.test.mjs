@@ -10,6 +10,10 @@ import {adventureCombatLoadoutSnapshot,validateAdventureCombatLoadoutSnapshot} f
 import {neutralAdventurerCombatProfile,neutralAdventurerCoreStatsAtLevel} from '../src/adventure-human-combat.mjs';
 import {startAdventureCombatSession} from '../src/adventure-combat-session.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
+import {adoptProfession} from '../src/kingdom-utility.mjs';
+import {addMaterialSet} from '../src/material-economy.mjs';
+import {crafterCareerSnapshot} from '../src/crafter-career.mjs';
+import {rc2World,craftFixtureItem} from './fixtures/rc2-world.mjs';
 const copy=x=>JSON.parse(JSON.stringify(x));
 function fresh(seed=230926){const s=createWorld(seed);s.stock.wood=500;s.stock.stone=500;s.rustMaterials.charcoal=100;s.rustMaterials.ironOre=100;s.rustMaterials.ironIngot=100;s.rustMaterials.steelIngot=90;return s;}
 function finish(s,a){let result;const o=s.rustPossessions.orders.find(o=>o.agentId===a.id);assert.ok(o);for(let i=0;i<o.required+2;i++){s.tick++;result=advanceCraft(s,a.id);if(result.completed)break;}assert.equal(result.completed,true,JSON.stringify(result));return s.rustPossessions.items.find(x=>x.id===result.itemId);}
@@ -160,13 +164,31 @@ test('RC2 preview is read-only, including selected ingredient IDs and missing re
   p.materials.wood=999;p.ingredientIds.push(999);assert.equal(serialize(s),before);
 });
 test('RC2 full tier chain uses existing materials/items and verifies earned mastery at each tier',()=>{
-  const s=fresh(),a=s.agents[0];craft(s,a,'STONE_AXE');craft(s,a,'STONE_AXE');table(s,a);
-  for(let tier=1;tier<=5;tier++){
-    assert.equal(knowsCraftRecipe(s,a,'STONE_AXE_T'+tier),true);
-    for(let n=0;n<2;n++){const item=craft(s,a,'STONE_AXE_T'+tier);assert.equal(item.craft.tier,tier);assert.ok(item.craft.quality>=30);}
-    assert.equal(recipeMastery(a,'STONE_AXE_T'+tier),2);assert.deepEqual(validate(s),[]);
-  }
-  assert.equal(craftFamilyMastery(a,'STONE_AXE_T5'),12);assert.equal(s.rustPossessions.items.filter(i=>i.kind==='STONE_AXE').length,2);
+  const s=rc2World(),a=s.agents[1],stock=resourceStock(s,a);
+  assert.equal(adoptProfession(a,'BUILD',s.tick).changed,true);assert.equal(a.profession,'builder');
+  Object.assign(stock,{food:900,wood:900,stone:900});assert.equal(addMaterialSet(s,a,{ironIngot:90,steelIngot:90}).ok,true);
+  a.hp=a.satiety=a.energy=100;a.task=null;
+  const make=id=>craftFixtureItem(s,a,id);
+  // Real Builder work reaches the canonical Crafter threshold: total >= 6 and T2 >= 2.
+  make('HAMMER');make('HAMMER_T2');make('HAMMER');make('HAMMER_T2');make('HAMMER');
+  const promotion=command(s,'RC5_BECOME_CRAFTER',{agentId:a.id});assert.equal(promotion.ok,true,JSON.stringify(promotion));assert.equal(a.profession,'crafter');
+  let snap=crafterCareerSnapshot(s,a);assert.equal(snap.best.family,'HAMMER');assert.equal(snap.best.grade,'CRAFTER');
+  // Keep one Hammer in the bag, then build four real T3 chains. This crosses Expert using real receipts.
+  for(let i=0;i<4;i++){if(i>0)make('HAMMER');make('HAMMER_T2');assert.equal(knowsCraftRecipe(s,a,'HAMMER_T3'),true);make('HAMMER_T3');}
+  snap=crafterCareerSnapshot(s,a);assert.equal(snap.best.grade,'EXPERT');assert.ok(recipeMastery(a,'HAMMER_T3')>=4);
+  // Convert the four held T3 tools to T4, then free two bag slots and create two more T3 chains.
+  for(let i=0;i<4;i++)make('HAMMER_T4');
+  s.rustPossessions.items.filter(i=>i.createdBy===a.id&&i.kind==='HAMMER'&&i.location?.kind==='bag'&&i.craft?.recipeId==='HAMMER_T4').slice(0,2).forEach(i=>stow(s,i));
+  for(let i=0;i<2;i++){make('HAMMER');make('HAMMER_T2');make('HAMMER_T3');}
+  for(let i=0;i<2;i++)make('HAMMER_T4');
+  // Master additionally requires total >= 32. Keep one T4 in hand authority and add three ordinary real completions.
+  s.rustPossessions.items.filter(i=>i.createdBy===a.id&&i.kind==='HAMMER'&&i.location?.kind==='bag'&&i.craft?.recipeId==='HAMMER_T4').slice(0,3).forEach(i=>stow(s,i));
+  const fillers=[];for(let i=0;i<3;i++)fillers.push(make('HAMMER'));fillers.forEach(i=>stow(s,i));
+  snap=crafterCareerSnapshot(s,a);assert.equal(snap.best.grade,'MASTER');assert.equal(snap.best.maxNewTier,5);
+  assert.equal(knowsCraftRecipe(s,a,'HAMMER_T5'),true);
+  const top=make('HAMMER_T5');assert.equal(top.craft.tier,5);assert.ok(top.craft.quality>=30);assert.equal(top.craft.grade,'MASTER');
+  assert.equal(recipeMastery(a,'HAMMER_T3'),6);assert.equal(recipeMastery(a,'HAMMER_T4'),6);assert.equal(recipeMastery(a,'HAMMER_T5'),1);
+  assert.equal(craftFamilyMastery(a,'HAMMER_T5'),33);assert.deepEqual(validate(s),[]);
 });
 test('RC2 output module has no external clock, browser or global RNG writes',()=>{
   const src=fs.readFileSync(new URL('../src/craft-outcome.mjs',import.meta.url),'utf8');
