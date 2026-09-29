@@ -91,14 +91,21 @@ try:
         home_before=json.dumps(s['rustStations'],sort_keys=True)
         check(f'{width}: actual Customer need',customer['preference']=='MINE' and not any(i['kind']=='STONE_PICKAXE' and i['location']=={'kind':'bag','agentId':customer['id']} for i in s['rustPossessions']['items']))
 
-        # B prepares a CLOSED Home Market and a canonical BuyOffer before profession adoption.
+        # B must become Merchant through simulation autonomy. No profession button is clicked.
+        check(f'{width}: Merchant not pre-injected',merchant['profession']!='merchant' and not s['homeMarkets']['markets'])
+        resume5()
+        page.wait_for_function(f"""()=>{{const s=simclone.snapshot(),a=s.agents.find(a=>a.id==={merchant['id']});return a?.profession==='merchant'&&s.homeMarkets?.markets?.some(m=>m.ownerAgentId==={merchant['id']}&&m.status==='closed');}}""",timeout=30000)
+        pause()
+        s=snap();merchant=next(a for a in s['agents'] if a['id']==merchant['id'])
+        check(f'{width}: autonomous Merchant profession',merchant['profession']=='merchant')
+        check(f'{width}: autonomous Merchant career event',any(e['type']=='career' and e.get('agentId')==merchant['id'] and 'Merchant' in e['text'] for e in s['events']))
         select_actor(merchant['id']);open_market()
-        click_locator(action('rc4-create-market'),f'{width}: prepare Home Market')
+        check(f'{width}: no manual Merchant promotion required',action('rc4-become-merchant').count()==0)
+        market=next(m for m in s['homeMarkets']['markets'] if m['ownerAgentId']==merchant['id'])
+        check(f'{width}: autonomous Home Market starts CLOSED',market['status']=='closed')
         click_locator(page.locator('[data-action="rc4-create-offer"][data-kind="STONE_PICKAXE"]'),f'{width}: create BuyOffer 70')
-        click_locator(action('rc4-become-merchant'),f'{width}: qualify Merchant')
-        check(f'{width}: Merchant profession',snap()['agents'][1]['profession']=='merchant')
         click_locator(action('rc4-open-market'),f'{width}: open Home Market')
-        s=snap();market=s['homeMarkets']['markets'][0];offer=s['merchantBuyOffers']['buyOffers'][0]
+        s=snap();market=next(m for m in s['homeMarkets']['markets'] if m['ownerAgentId']==merchant['id']);offer=s['merchantBuyOffers']['buyOffers'][0]
         check(f'{width}: Home Market OPEN',market['status']=='open')
         check(f'{width}: original physical home unchanged',json.dumps(s['rustStations'],sort_keys=True)==home_before)
         check(f'{width}: Merchant identity visible','merchant' in page.locator('#dialog-body').inner_text().lower())
