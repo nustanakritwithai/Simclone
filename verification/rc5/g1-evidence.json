@@ -1,0 +1,21 @@
+{
+  "schema": "RC5-G1-evidence/1",
+  "baseMain": "ec8709f6c6543ee76dba97f11d52beebefc307e0",
+  "rc4ProductionRuntime": "1ff2907c4e69af8adc336792105894542576433b",
+  "rc4Verify": 2160,
+  "rc4Pages": 113,
+  "scope": "G1_READ_ONLY_QUALIFICATION",
+  "productionWrites": false,
+  "localFullRegression": "NOT_RUN_NETWORK_UNAVAILABLE",
+  "exactHeadCI": "UNKNOWN_UNTIL_ACTIONS_COMPLETES",
+  "nativeBrowser": "NOT_REQUIRED_FOR_READ_ONLY_G1_UNTIL_INTEGRATION",
+  "publicBrowser": "NOT_RUN",
+  "claims": [
+    "No profession transition in G1.",
+    "No crafting tier restriction in G1.",
+    "No quality formula change in G1.",
+    "Construction evidence is derived from existing Skill Provenance or completed-house Rust placements.",
+    "Craft evidence is derived from existing validated recipe mastery including retired receipt counts.",
+    "Every qualification result has commitAllowed=false."
+  ]
+}
