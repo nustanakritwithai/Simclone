@@ -96,8 +96,11 @@ test('ER2 observed demand above reserve creates gather pressure instead of selli
 test('ER2 real Woodcutter gathers through the existing node authority, walks to an observed market and creates one procurement Listing',()=>{
   const {s,merchant,producer,market,offer,tradePoint}=setupOffer({itemKind:'wood',quantity:2});
   const reserve=personalTargets(s,producer).wood;resourceStock(s,producer).wood=reserve;
-  const node=s.nodes.find(n=>n.type==='wood'&&n.amount>=3);assert.ok(node);
-  producer.x=node.x;producer.y=node.y;producer.task=null;
+  const node=s.nodes.filter(n=>n.type==='wood'&&n.amount>=3)
+    .map(n=>({node:n,path:pathTo(s,producer,n)}))
+    .filter(x=>Array.isArray(x.path))
+    .sort((a,b)=>a.path.length-b.path.length||a.node.id-b.node.id)[0]?.node;
+  assert.ok(node,'reachable wood node');
   assert.ok(recordResourceDiscovery(producer,node,s.tick,{action:'WOODCUT',amount:1}));
   const nodeBefore=node.amount,moneyBefore=getBalance(s,producer.id),totalBefore=totalCurrency(s);
   let sawGather=false,sawTravel=false,listing=null;
@@ -146,6 +149,24 @@ test('ER2 competing BuyOffers cannot over-commit one producer surplus and exact 
   assert.equal(snap.offeredQuantity,4);assert.equal(snap.tradableSurplus,1);
   assert.equal(s.merchantListings.listings.filter(l=>l.buyOfferId===offer.offerId&&l.sellerId===producer.id).length,1);
   assert.equal(market.marketId,first.marketId);
+});
+
+
+
+test('ER2 settlement preserves other open procurement commitments after stock drops',()=>{
+  const {s,merchant,producer,market,offer}=setupOffer({itemKind:'wood',quantity:3,unitPrice:2});
+  const reserve=personalTargets(s,producer).wood;resourceStock(s,producer).wood=reserve+6;
+  const first=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:offer.offerId,quantity:3});assert.equal(first.ok,true,JSON.stringify(first));
+  const secondOffer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchant.id,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantityWanted:3,unitPrice:3});
+  assert.equal(secondOffer.ok,true,JSON.stringify(secondOffer));
+  const second=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:secondOffer.offerId,quantity:3});assert.equal(second.ok,true,JSON.stringify(second));
+  const listing=s.merchantListings.listings.find(l=>l.id===first.listingId);assert.ok(listing);
+  resourceStock(s,producer).wood=reserve+5;
+  merchant.task=null;arrive(s,merchant,market.marketId);
+  const before=serialize(s);
+  const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchant.id,listingId:listing.id,listingRevision:listing.revision});
+  assert.equal(bought.ok,false);assert.equal(bought.reason,'producer-resource-committed');
+  assert.equal(serialize(s),before,'settlement must preserve reserve plus the other open procurement commitment');
 });
 
 test('ER2 settlement revalidates reserve after intervening consumption and rolls back the attempted trade',()=>{
