@@ -166,7 +166,7 @@ export function validateMerchantProgression(agent){
 }
 
 function validateCanonicalCommittedReceipt(receipt){
-  return validateTradeReceiptShape(receipt).length?['receipt']:[];
+  return validateTradeReceiptShape(receipt);
 }
 
 /**
