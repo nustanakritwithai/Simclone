@@ -5,9 +5,10 @@
 import {CRAFT_RECIPE_CATALOG,recipeById} from './crafting-catalog.mjs?v=0.5.0';
 import {recipeKnowledgeSnapshot,validateRecipeKnowledge} from './craft-recipe-knowledge.mjs?v=0.5.0';
 import {crafterFamilyProfile} from './crafter-career.mjs?v=0.5.0';
+import {HISTORY_LIMITS} from './history.mjs?v=0.5.0';
 
 export const CRAFTER_TIER_POLICY_VERSION='RC5-tier-policy/1';
-export const CRAFTER_TIER_POLICY_LIMITS=Object.freeze({agents:128,recipesPerAgent:32});
+export const CRAFTER_TIER_POLICY_LIMITS=Object.freeze({agents:HISTORY_LIMITS.maxRetained,recipesPerAgent:32});
 const SAT='SAT',VIOL='VIOL',UNKNOWN='UNKNOWN';
 const freeze=v=>{if(v&&typeof v==='object'&&!Object.isFrozen(v)){Object.freeze(v);for(const x of Object.values(v))freeze(x);}return v;};
 const result=(status,reason,extra={})=>freeze({version:CRAFTER_TIER_POLICY_VERSION,status,allowed:status===SAT,reason,...extra});

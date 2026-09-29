@@ -5,7 +5,7 @@ import {adoptProfession} from '../src/kingdom-utility.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
 import {craftPreview} from '../src/rust-possessions.mjs';
 import {recipeMastery,knowsCraftRecipe} from '../src/craft-recipe-knowledge.mjs';
-import {crafterTierPermission,grandfatheredCrafterRecipe,CRAFTER_TIER_POLICY_VERSION} from '../src/crafter-tier-policy.mjs';
+import {crafterTierPermission,grandfatheredCrafterRecipe,CRAFTER_TIER_POLICY_VERSION,CRAFTER_TIER_POLICY_LIMITS} from '../src/crafter-tier-policy.mjs';
 import {crafterFamilyProfile} from '../src/crafter-career.mjs';
 import {rc2World,craftFixtureItem} from './fixtures/rc2-world.mjs';
 
@@ -111,4 +111,9 @@ test('G5 grandfather survives save/load exactly and does not grow on a second re
   craftFixtureItem(s,a,'HAMMER_T3');craftFixtureItem(s,a,'HAMMER_T3');a.profession='builder';delete s.crafterTierPolicy;
   const one=restore(serialize(s)),frozen=JSON.stringify(one.crafterTierPolicy),two=restore(serialize(one));
   assert.equal(JSON.stringify(two.crafterTierPolicy),frozen);
+});
+
+
+test('G5 grandfather capacity follows canonical retained-history capacity',()=>{
+  assert.equal(CRAFTER_TIER_POLICY_LIMITS.agents,1024);
 });
