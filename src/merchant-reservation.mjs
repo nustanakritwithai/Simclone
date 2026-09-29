@@ -1,6 +1,7 @@
 /** RC4 canonical Reservation authority. Owns reservation locks only; never money/items/trade commit. */
 export const RESERVATION_STATE_VERSION='RC4-reservation-state/1';
 export const RESERVATION_STATUS=Object.freeze({ACTIVE:'ACTIVE',COMMITTED:'COMMITTED',RELEASED:'RELEASED',CANCELED:'CANCELED'});
+export const BULK_RESOURCE_ASSET_TYPE='BULK_RESOURCE';
 
 const validId=v=>typeof v==='string'&&v.length>0&&v.length<=160&&/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(v);
 const positive=v=>Number.isSafeInteger(v)&&v>0;
@@ -20,9 +21,12 @@ function hash32(text,seed=0x811c9dc5){
 }
 const sortedItemIds=ids=>[...ids].sort((a,b)=>a-b);
 function identityPayload(input){
-  return {marketId:input.marketId,listingId:input.listingId,listingRevision:input.listingRevision,
+  const base={marketId:input.marketId,listingId:input.listingId,listingRevision:input.listingRevision,
     sellerId:input.sellerId,buyerId:input.buyerId,itemKind:input.itemKind,quantity:input.quantity,
-    unitPrice:input.unitPrice,itemIds:sortedItemIds(input.itemIds??[]),createdTick:input.createdTick};
+    unitPrice:input.unitPrice};
+  return input.assetType===BULK_RESOURCE_ASSET_TYPE
+    ?{assetType:BULK_RESOURCE_ASSET_TYPE,...base,createdTick:input.createdTick}
+    :{...base,itemIds:sortedItemIds(input.itemIds??[]),createdTick:input.createdTick};
 }
 export function reservationIdFor(input){
   const text=stableText(identityPayload(input));
@@ -41,8 +45,14 @@ export function validateReservation(row){
   if(!validId(row.itemKind))e.push('itemKind');
   if(!positive(row.quantity)||row.quantity>128)e.push('quantity');
   if(!positive(row.unitPrice))e.push('unitPrice');
-  if(!Array.isArray(row.itemIds)||row.itemIds.length!==row.quantity||row.itemIds.some(id=>!positive(id))||new Set(row.itemIds).size!==row.itemIds.length)e.push('itemIds');
-  else if(stableText(row.itemIds)!==stableText(sortedItemIds(row.itemIds)))e.push('itemIds-order');
+  const bulk=row.assetType===BULK_RESOURCE_ASSET_TYPE;
+  if(row.assetType!==undefined&&!bulk)e.push('assetType');
+  if(bulk){
+    if(row.itemIds!==undefined)e.push('itemIds');
+  }else{
+    if(!Array.isArray(row.itemIds)||row.itemIds.length!==row.quantity||row.itemIds.some(id=>!positive(id))||new Set(row.itemIds).size!==row.itemIds.length)e.push('itemIds');
+    else if(stableText(row.itemIds)!==stableText(sortedItemIds(row.itemIds)))e.push('itemIds-order');
+  }
   if(!nonnegative(row.createdTick))e.push('createdTick');
   if(!Object.values(RESERVATION_STATUS).includes(row.status))e.push('status');
   if(row.id&&e.length===0&&row.id!==reservationIdFor(row))e.push('deterministic-id');
@@ -64,7 +74,7 @@ export function validateReservationState(state){
   for(const r of state.reservations){
     if(validateReservation(r).length)e.push('reservation');
     if(ids.has(r?.id))e.push('duplicate-id');else ids.add(r?.id);
-    if(r?.status===RESERVATION_STATUS.ACTIVE&&Array.isArray(r.itemIds)){
+    if(r?.status===RESERVATION_STATUS.ACTIVE&&r.assetType!==BULK_RESOURCE_ASSET_TYPE&&Array.isArray(r.itemIds)){
       for(const itemId of r.itemIds){if(activeItems.has(itemId))e.push('active-item-overlap');activeItems.add(itemId);}
     }
   }
@@ -75,14 +85,14 @@ const alive=(world,id)=>!!world?.agents?.some(a=>a?.id===id&&a.alive===true);
 function listingErrors(listing){
   const e=[];
   if(!listing||typeof listing!=='object')return ['listing'];
-  if(!validId(listing.id)||!validId(listing.marketId)||!positive(listing.revision)||!positive(listing.sellerId)||!validId(listing.itemKind))e.push('listing');
+  if(!validId(listing.id)||!validId(listing.marketId)||!positive(listing.revision)||!positive(listing.sellerId)||!validId(listing.itemKind)||listing.assetType!==undefined&&listing.assetType!==BULK_RESOURCE_ASSET_TYPE)e.push('listing');
   if(!positive(listing.quantity)||listing.quantity>128||!positive(listing.unitPrice))e.push('listing');
   if(listing.status!=='OPEN')e.push('listing-not-open');
   return [...new Set(e)];
 }
 const sameReservation=(a,b)=>stableText(a)===stableText(b);
 
-export function createReservation(world,state,{listing,listingRevision,buyerId,itemIds,createdTick=world?.tick}={}){
+export function createReservation(world,state,{listing,listingRevision,buyerId,itemIds,quantity,createdTick=world?.tick}={}){
   const stateErrors=validateReservationState(state);if(stateErrors.length)return fail('reservation-state',state,{errors:stateErrors});
   const le=listingErrors(listing);if(le.length)return fail(le.includes('listing-not-open')?'listing-not-open':'listing',state,{errors:le});
   if(listingRevision!==listing.revision)return fail('listing-stale',state);
@@ -90,11 +100,20 @@ export function createReservation(world,state,{listing,listingRevision,buyerId,i
   if(!alive(world,listing.sellerId))return fail('seller-dead',state);
   if(!alive(world,buyerId))return fail('buyer-dead',state);
   if(!nonnegative(createdTick)||createdTick!==world?.tick)return fail('created-tick',state);
-  const frozen=sortedItemIds(itemIds??[]);
-  if(frozen.length<1||frozen.length>listing.quantity||frozen.length>128||frozen.some(id=>!positive(id))||new Set(frozen).size!==frozen.length)return fail('itemIds',state);
-  const row={id:null,marketId:listing.marketId,listingId:listing.id,listingRevision:listing.revision,
-    sellerId:listing.sellerId,buyerId,itemKind:listing.itemKind,quantity:frozen.length,
-    unitPrice:listing.unitPrice,itemIds:frozen,createdTick,status:RESERVATION_STATUS.ACTIVE};
+  const bulk=listing.assetType===BULK_RESOURCE_ASSET_TYPE;
+  let row;
+  if(bulk){
+    if(!positive(quantity)||quantity>listing.quantity||quantity>128||itemIds!==undefined)return fail('quantity',state);
+    row={id:null,assetType:BULK_RESOURCE_ASSET_TYPE,marketId:listing.marketId,listingId:listing.id,listingRevision:listing.revision,
+      sellerId:listing.sellerId,buyerId,itemKind:listing.itemKind,quantity,
+      unitPrice:listing.unitPrice,createdTick,status:RESERVATION_STATUS.ACTIVE};
+  }else{
+    const frozen=sortedItemIds(itemIds??[]);
+    if(frozen.length<1||frozen.length>listing.quantity||frozen.length>128||frozen.some(id=>!positive(id))||new Set(frozen).size!==frozen.length)return fail('itemIds',state);
+    row={id:null,marketId:listing.marketId,listingId:listing.id,listingRevision:listing.revision,
+      sellerId:listing.sellerId,buyerId,itemKind:listing.itemKind,quantity:frozen.length,
+      unitPrice:listing.unitPrice,itemIds:frozen,createdTick,status:RESERVATION_STATUS.ACTIVE};
+  }
   row.id=reservationIdFor(row);
   const rowErrors=validateReservation(row);if(rowErrors.length)return fail('reservation',state,{errors:rowErrors});
   const existing=state.reservations.find(r=>r.id===row.id);
@@ -102,8 +121,14 @@ export function createReservation(world,state,{listing,listingRevision,buyerId,i
     if(sameReservation(existing,row))return {state:'SAT',duplicate:true,reservation:Object.freeze(clone(existing)),reservationState:clone(state)};
     return fail('reservation-id-conflict',state);
   }
-  const overlap=new Set(state.reservations.filter(r=>r.status===RESERVATION_STATUS.ACTIVE).flatMap(r=>r.itemIds));
-  if(row.itemIds.some(id=>overlap.has(id)))return fail('item-reserved',state);
+  if(bulk){
+    const reserved=state.reservations.filter(r=>r.status===RESERVATION_STATUS.ACTIVE&&r.assetType===BULK_RESOURCE_ASSET_TYPE&&
+      r.listingId===listing.id&&r.listingRevision===listing.revision).reduce((sum,r)=>sum+r.quantity,0);
+    if(reserved+row.quantity>listing.quantity)return fail('bulk-reserved',state);
+  }else{
+    const overlap=new Set(state.reservations.filter(r=>r.status===RESERVATION_STATUS.ACTIVE&&r.assetType!==BULK_RESOURCE_ASSET_TYPE).flatMap(r=>r.itemIds??[]));
+    if(row.itemIds.some(id=>overlap.has(id)))return fail('item-reserved',state);
+  }
   const next=clone(state);next.reservations.push(row);next.reservations.sort((a,b)=>a.id.localeCompare(b.id));
   return {state:'SAT',duplicate:false,reservation:Object.freeze(clone(row)),reservationState:next};
 }
@@ -154,7 +179,7 @@ export function reconcileReservations(world,state,{listings=[]}={}){
     else if(!listing)reason='listing-missing';
     else if(listing.status!=='OPEN')reason='listing-not-open';
     else if(listing.revision!==r.listingRevision)reason='listing-stale';
-    else if(listing.marketId!==r.marketId||listing.sellerId!==r.sellerId||listing.itemKind!==r.itemKind||listing.unitPrice!==r.unitPrice||listing.quantity<r.quantity)reason='listing-changed';
+    else if(listing.marketId!==r.marketId||listing.sellerId!==r.sellerId||listing.itemKind!==r.itemKind||listing.assetType!==r.assetType||listing.unitPrice!==r.unitPrice||listing.quantity<r.quantity)reason='listing-changed';
     if(reason){next.reservations[i]={...r,status:RESERVATION_STATUS.RELEASED,terminalTick:world.tick,terminalReason:reason};changed=true;}
   }
   const post=validateReservationState(next);if(post.length)return fail('reservation-postcondition',state,{errors:post});
