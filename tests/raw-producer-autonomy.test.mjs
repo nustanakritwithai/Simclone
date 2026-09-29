@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-import {command,step,serialize,restore,validate,pathTo,walkable} from '../src/engine.mjs';
-import {rc2World} from './fixtures/rc2-world.mjs';
+import {createWorld,command,step,serialize,restore,validate,pathTo,walkable} from '../src/engine.mjs';
+import {rc2World,craftFixtureTable,craftFixtureHome} from './fixtures/rc2-world.mjs';
 import {resourceStock,personalTargets} from '../src/individual-resources.mjs';
 import {materialAmount} from '../src/material-economy.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
@@ -59,7 +59,11 @@ test('ER2 version and raw career capabilities are explicit and bounded',()=>{
 });
 
 test('ER2 surplus is owned minus canonical household reserve and cohabitants raise that reserve',()=>{
-  const s=rc2World(),dependent=s.agents[0],producer=s.agents[1];
+  const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:3}),dependent=s.agents[0],producer=s.agents[1];
+  Object.assign(resourceStock(s,producer),{wood:500,stone:500,food:500});
+  producer.hp=producer.satiety=producer.energy=100;dependent.hp=dependent.satiety=dependent.energy=100;
+  craftFixtureTable(s,producer);craftFixtureHome(s,producer);
+  producer.task=null;dependent.task=null;
   setProfession(producer,'woodcutter','WOODCUT');
   const solo=personalTargets(s,producer).wood;
   assert.equal(recordRelationshipEvidence(s,{fromId:dependent.id,toId:producer.id,kind:'test',key:'er2-join-from',delta:{trust:4,affinity:2}}).ok,true);
@@ -94,7 +98,7 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
   const reserve=personalTargets(s,producer).wood;resourceStock(s,producer).wood=reserve;
   const node=s.nodes.find(n=>n.type==='wood'&&n.amount>=3);assert.ok(node);
   producer.x=node.x;producer.y=node.y;producer.task=null;
-  assert.equal(recordResourceDiscovery(producer,node,s.tick,{action:'WOODCUT',amount:1}),true);
+  assert.ok(recordResourceDiscovery(producer,node,s.tick,{action:'WOODCUT',amount:1}));
   const nodeBefore=node.amount,moneyBefore=getBalance(s,producer.id),totalBefore=totalCurrency(s);
   let sawGather=false,sawTravel=false,listing=null;
   for(let i=0;i<720&&!listing;i++){
