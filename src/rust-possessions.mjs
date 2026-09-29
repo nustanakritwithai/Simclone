@@ -2,6 +2,7 @@ import {verifyAdventureCombatTerminalEvidence,validateAdventureCombatRewardState
 import {BLUEPRINT_ITEM_KIND,validBlueprintPayload,sameBlueprintPayload,blueprintSessionErrors,consumedBlueprintEvidence,validateBlueprintEvidence} from './craft-blueprints.mjs?v=0.5.0';
 import {createCraftSpec,validateCraftSpec,resolveCraftOutcome,validateCraftedItem,craftedToolMultiplier} from './craft-outcome.mjs?v=0.5.0';
 import {knowsCraftRecipe,validateRecipeKnowledge,recipeCompletionProposal,blueprintLearningProposal,craftFamilyMastery,RECIPE_KNOWLEDGE_VERSION} from './craft-recipe-knowledge.mjs?v=0.5.0';
+import {crafterCraftAccess} from './crafter-career.mjs?v=0.5.0';
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {ITEM_CATALOG,CRAFT_RECIPE_CATALOG as RECIPE_CATALOG,STARTER_RECIPE_IDS,recipeById,CRAFT_STATIONS,craftability} from './crafting-catalog.mjs?v=0.5.0';
@@ -36,6 +37,7 @@ function checkCraft(s,{agentId,recipeId,stationId=null}={}){
   if(!p||!a||!r)return {ok:false,reason:'actor-or-recipe'};
   if(validateRecipeKnowledge(s,a).length)return {ok:false,reason:'recipe-knowledge'};
   if(!knowsCraftRecipe(s,a,recipeId))return {ok:false,reason:'recipe-unknown'};
+  const careerAccess=crafterCraftAccess(s,a,recipeId);if(!careerAccess.ok)return careerAccess;
   if(a.adventureCombat?.status==='ACTIVE')return {ok:false,reason:'combat-active'};
   if(p.orders.some(o=>o.agentId===agentId))return {ok:false,reason:'craft-busy'};
   if(!integer(p.nextOrder,1)||p.nextOrder>=Number.MAX_SAFE_INTEGER||!integer(p.nextItem,1)||p.nextItem>=Number.MAX_SAFE_INTEGER)return {ok:false,reason:'capacity'};
@@ -126,7 +128,7 @@ export function advanceCraft(s,agentId,{workRate=1}={}){
   p.nextItem++;p.items.push(item);
   if(mastery)a.knowledgeState.recipes=mastery.book;
   p.orders=p.orders.filter(x=>x.id!==o.id);
-  return {ok:true,completed:true,orderId:o.id,itemId,kind:r.output,...(craft?{tier:craft.tier,quality:craft.quality}:{}),
+  return {ok:true,completed:true,orderId:o.id,recipeId:o.recipe,itemId,kind:r.output,...(craft?{tier:craft.tier,quality:craft.quality}:{}),
     ...(mastery?{mastery:mastery.completed,unlockedRecipes:mastery.unlocked}:{})};
 }
 export function grantAdventureLoot(s,{agentId,claimKey,items}={}){

@@ -9,6 +9,7 @@ export const KINGDOM_PROFESSIONS=Object.freeze({
   builder:'ช่างก่อสร้าง',
   adventurer:'นักผจญภัย',
   merchant:'พ่อค้า',
+  crafter:'ช่างประดิษฐ์',
 });
 const ACTION_TO_PROFESSION=Object.freeze({
   FORAGE:'forager',
@@ -94,6 +95,12 @@ function explicitMerchant(transition){
   return keys.length===3&&Object.hasOwn(transition,'qualifiedProfession')&&Object.hasOwn(transition,'qualification')&&Object.hasOwn(transition,'evidenceId')&&
     transition.qualifiedProfession==='merchant'&&transition.qualification==='merchant-v1'&&typeof transition.evidenceId==='string'&&transition.evidenceId.length>0&&transition.evidenceId.length<=120;
 }
+function explicitCrafter(transition){
+  if(!transition||typeof transition!=='object'||Array.isArray(transition))return false;
+  const keys=Object.keys(transition);
+  return keys.length===3&&Object.hasOwn(transition,'qualifiedProfession')&&Object.hasOwn(transition,'qualification')&&Object.hasOwn(transition,'evidenceId')&&
+    transition.qualifiedProfession==='crafter'&&transition.qualification==='crafter-v1'&&typeof transition.evidenceId==='string'&&transition.evidenceId.length>0&&transition.evidenceId.length<=160;
+}
 function recordProfessionTransition(agent,previous,next,tick){
   agent.profession=next;
   agent.professionSinceTick=tick;
@@ -107,24 +114,30 @@ export function adoptProfession(agent,kind,tick,transition){
     const tickValid=Number.isInteger(tick)&&tick>=0;
     if(kind==='EXPLORE'&&explicitAdventurer(transition)&&agent?.adventurerQualification?.version===1&&agent.adventurerQualification.accepted===ADVENTURER_QUALIFICATION&&tickValid){
       const previous=ensureProfession(agent,tick);
-      if(previous==='adventurer'||previous==='merchant')return {changed:false,profession:previous,reason:'profession-locked'};
+      if(previous==='adventurer'||previous==='merchant'||previous==='crafter')return {changed:false,profession:previous,reason:'profession-locked'};
       return recordProfessionTransition(agent,previous,'adventurer',tick);
     }
     if(kind==='MERCHANT'&&explicitMerchant(transition)&&tickValid){
       const previous=ensureProfession(agent,tick);
       if(previous==='merchant')return {changed:false,profession:previous};
-      if(previous==='adventurer')return {changed:false,profession:previous,reason:'profession-locked'};
+      if(previous==='adventurer'||previous==='crafter')return {changed:false,profession:previous,reason:'profession-locked'};
       return recordProfessionTransition(agent,previous,'merchant',tick);
+    }
+    if(kind==='CRAFTER'&&explicitCrafter(transition)&&tickValid){
+      const previous=ensureProfession(agent,tick);
+      if(previous==='crafter')return {changed:false,profession:previous};
+      if(previous==='adventurer'||previous==='merchant')return {changed:false,profession:previous,reason:'profession-locked'};
+      if(previous!=='builder')return {changed:false,profession:previous,reason:'profession-source'};
+      return recordProfessionTransition(agent,previous,'crafter',tick);
     }
     return {changed:false,profession:isKingdomProfession(agent?.profession)?agent.profession:undefined};
   }
   const next=professionForAction(kind);
   if(!next)return {changed:false,profession:ensureProfession(agent,tick)};
   const previous=ensureProfession(agent,tick);
-  if(previous==='adventurer'||previous==='merchant'||previous===next)return {changed:false,profession:previous};
+  if(previous==='adventurer'||previous==='merchant'||previous==='crafter'||previous===next)return {changed:false,profession:previous};
   return recordProfessionTransition(agent,previous,next,tick);
 }
-
 function blankQualification(){return {version:1,accepted:0,recent:[]};}
 export function noteExploreCompletion(agent,fact){
   const accepted=agent?.adventurerQualification?.accepted??0;

@@ -20,7 +20,9 @@ export const craftReasonLabel=reason=>({
   'craft-busy':'กำลังทำงานในคิวเดิม','bag-full':'กระเป๋าเต็ม',capacity:'พื้นที่เก็บของหรือคิวเต็ม',
   'combat-active':'กำลังต่อสู้',adventure:'อยู่ระหว่างการผจญภัย',survival:'รอให้ HP ≥70 · อิ่ม ≥70 · พลังงาน ≥65',
   housing:'สร้างที่พักให้พร้อมก่อน',reserve:'เก็บอาหาร/ไม้/หินสำรองให้พอก่อน',task:'ทำงานปัจจุบันให้เสร็จก่อน',
-  'no-path':'เดินไปสถานีไม่ได้','craft-item-invalid':'ข้อมูลของวัตถุดิบไม่ถูกต้อง'
+  'no-path':'เดินไปสถานีไม่ได้','craft-item-invalid':'ข้อมูลของวัตถุดิบไม่ถูกต้อง',
+  'crafter-builder-required':'ต้องเป็นช่างก่อสร้างหรือช่างประดิษฐ์ก่อน','crafter-profession-required':'ต้องเลื่อนเป็นช่างประดิษฐ์ก่อน',
+  'crafter-grade-required':'ระดับฝีมือสายนี้ยังไม่พอ','crafter-policy':'ข้อมูลสิทธิ์ช่างไม่ถูกต้อง','crafter-evidence':'หลักฐานฝีมือช่างไม่สมบูรณ์'
 }[reason]??'ยังไม่พร้อม: '+reason);
 const costText=r=>[...Object.entries(r.materials),...Object.entries(r.processedMaterials??{}),...Object.entries(r.itemMaterials??{})].map(([id,x])=>(names[id]??ITEM_CATALOG[id]?.name??id)+' ×'+x).join(' · ');
 const title=r=>(r.name??ITEM_CATALOG[r.output]?.name??r.output)+' · T'+r.tier;

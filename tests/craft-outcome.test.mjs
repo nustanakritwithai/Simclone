@@ -10,12 +10,22 @@ import {adventureCombatLoadoutSnapshot,validateAdventureCombatLoadoutSnapshot} f
 import {neutralAdventurerCombatProfile,neutralAdventurerCoreStatsAtLevel} from '../src/adventure-human-combat.mjs';
 import {startAdventureCombatSession} from '../src/adventure-combat-session.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
+import {adoptProfession} from '../src/kingdom-utility.mjs';
 const copy=x=>JSON.parse(JSON.stringify(x));
 function fresh(seed=230926){const s=createWorld(seed);s.stock.wood=500;s.stock.stone=500;s.rustMaterials.charcoal=100;s.rustMaterials.ironOre=100;s.rustMaterials.ironIngot=100;s.rustMaterials.steelIngot=90;return s;}
 function finish(s,a){let result;const o=s.rustPossessions.orders.find(o=>o.agentId===a.id);assert.ok(o);for(let i=0;i<o.required+2;i++){s.tick++;result=advanceCraft(s,a.id);if(result.completed)break;}assert.equal(result.completed,true,JSON.stringify(result));return s.rustPossessions.items.find(x=>x.id===result.itemId);}
 function craft(s,a,recipeId){const q=command(s,'CRAFT_ITEM',{agentId:a.id,recipeId});assert.equal(q.ok,true,JSON.stringify(q));return finish(s,a);}
 function stow(s,item){item.location={kind:'drop',sourceAgentId:item.createdBy,tick:s.tick,x:s.agents[0].x,y:s.agents[0].y};}
 function table(s,a){const i=craft(s,a,'CRAFTING_TABLE_LV1');const pos=[[0,-1],[-1,0],[1,0],[0,1]].map(([dx,dy])=>({x:a.x+dx,y:a.y+dy})).find(p=>walkable(s,p.x,p.y)&&!s.nodes.some(n=>n.x===p.x&&n.y===p.y)&&!s.buildings.some(b=>b.x===p.x&&b.y===p.y));assert.ok(pos);assert.equal(command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:i.id,...pos}).ok,true);a.x=pos.x;a.y=pos.y;}
+function builderWithStructure(s,a){
+  adoptProfession(a,'BUILD',s.tick);assert.equal(a.profession,'builder');
+  const hammer=craft(s,a,'HAMMER');assert.equal(command(s,'EQUIP_ITEM',{agentId:a.id,itemId:hammer.id}).ok,true);
+  const piece=craft(s,a,'WOOD_FOUNDATION');
+  const pos=[[0,-1],[-1,0],[1,0],[0,1]].map(([dx,dy])=>({x:a.x+dx,y:a.y+dy}))
+    .find(p=>walkable(s,p.x,p.y)&&!s.nodes.some(n=>n.x===p.x&&n.y===p.y)&&!s.buildings.some(b=>b.x===p.x&&b.y===p.y)&&!s.rustStations.stations.some(st=>st.x===p.x&&st.y===p.y));
+  assert.ok(pos);const placed=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:piece.id,socket:{type:'cell',x:pos.x,y:pos.y},placementId:'rc5-co:'+a.id+':'+piece.id});
+  assert.equal(placed.ok,true,JSON.stringify(placed));a.x=pos.x;a.y=pos.y;
+}
 function materials(s,a,kind,quantity=1){const r=grantAdventureLoot(s,{agentId:a.id,claimKey:'fixture:'+s.rustPossessions.nextItem,items:[{itemKind:kind,quantity,rarity:ITEM_CATALOG[kind].rarity}]});assert.equal(r.ok,true);return r.itemIds;}
 function learnArmor(s,a){stow(s,craft(s,a,'WOOD_WALL'));stow(s,craft(s,a,'WOOD_WALL'));assert.equal(knowsCraftRecipe(s,a,'HIDE_ARMOR'),true);}
 function generated({orderId=1,recipeId='STONE_AXE',mastery=0,creatorId=1,worldSeed=42}={}){const spec=createCraftSpec({worldSeed,orderId,creatorId,recipeId,mastery});return resolveCraftOutcome({spec,orderId,creatorId,recipeId});}
@@ -160,7 +170,7 @@ test('RC2 preview is read-only, including selected ingredient IDs and missing re
   p.materials.wood=999;p.ingredientIds.push(999);assert.equal(serialize(s),before);
 });
 test('RC2 full tier chain uses existing materials/items and verifies earned mastery at each tier',()=>{
-  const s=fresh(),a=s.agents[0];craft(s,a,'STONE_AXE');craft(s,a,'STONE_AXE');table(s,a);
+  const s=fresh(),a=s.agents[0];craft(s,a,'STONE_AXE');craft(s,a,'STONE_AXE');table(s,a);builderWithStructure(s,a);
   for(let tier=1;tier<=5;tier++){
     assert.equal(knowsCraftRecipe(s,a,'STONE_AXE_T'+tier),true);
     for(let n=0;n<2;n++){const item=craft(s,a,'STONE_AXE_T'+tier);assert.equal(item.craft.tier,tier);assert.ok(item.craft.quality>=30);}

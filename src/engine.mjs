@@ -45,6 +45,7 @@ import {expandLargeWorldToSameWorld,validateAdventureAnnexState} from './adventu
 import {ensureWildMonsterWorld,validateWildMonsterWorld,wildMonsterById,engageWildMonster,commitWildMonsterCombatHp,releaseWildMonsterEngagement,defeatWildMonster,stepWildMonsterLifecycle,migrateWildMonsterLifecycleState} from './adventure-world-monsters.mjs?v=0.5.0';
 import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adventure-autonomy.mjs?v=0.5.0';
 import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
+import {initializeCrafterPolicy,migrateCrafterPolicy,validateCrafterPolicy,adoptCrafterProfession} from './crafter-career.mjs?v=0.5.0';
 import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy} from './rc4-market-runtime.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -169,6 +170,7 @@ export function createWorld(seed=230926,options={}){
   const original=createAgent(s,null);for(let i=1;i<population;i++)createAgent(s,original,true);
   if(independent){initializeIndependentStart(s,walkable);ensureSettlementState(s);ensureGovernanceState(s);for(const a of s.agents){ensureLeadershipSkill(a,{tick:s.tick});ensureAdventureProgressionSkill(a,{tick:s.tick});}setPlanningPolicy(s,'local');}
   const rc4=migrateRc4EconomyState(s);if(rc4.state!=='SAT')throw new Error('RC4 initialization failed: '+rc4.reason);
+  const crafter=initializeCrafterPolicy(s);if(crafter.state!=='SAT')throw new Error('RC5 Crafter initialization failed: '+crafter.reason);
   return s;
 }
 export const living = s => s.agents.filter(a=>a.alive);
@@ -195,10 +197,14 @@ export function command(s,type,data={}){
   const production=productionCommand(s,type,data);if(production)return production;
   const rust=rustCommand(s,type,data,walkable);
   if(rust){
-    // stats.built counts houses that a Clone actually finishes: once, on the completing placement.
-    if(type==='PLACE_STATION'&&rust.ok&&rust.completedHouse){
-      const a=s.agents.find(a=>a.id===data.agentId);s.stats.built++;
-      event(s,'build',(a?a.name+' ':'')+(isIndependent(s)?'สร้างบ้านส่วนตัวสำเร็จ':'สร้างบ้านสำเร็จ · ที่พักเพิ่ม 6 คน'),a?.id??null);
+    if(type==='PLACE_STATION'&&rust.ok){
+      const a=s.agents.find(a=>a.id===data.agentId);
+      // stats.built counts houses that a Clone actually finishes: once, on the completing placement.
+      if(rust.completedHouse){s.stats.built++;event(s,'build',(a?a.name+' ':'')+(isIndependent(s)?'สร้างบ้านส่วนตัวสำเร็จ':'สร้างบ้านสำเร็จ · ที่พักเพิ่ม 6 คน'),a?.id??null);}
+      if(a){
+        const career=adoptCrafterProfession(s,a);
+        if(career.changed&&s.tick-(a.lastCareerEventTick??-999)>=60){event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);a.lastCareerEventTick=s.tick;}
+      }
     }
     return rust;
   }
@@ -530,7 +536,14 @@ function execute(s,a){
     const result=advanceRustWork(s,a,workRate);
     if(!result.ok){if(result.reason!=='already-worked')a.task=null;return;}
     t.work=result.work??t.work;
-    if(result.completed){event(s,'craft',a.name+(t.kind==='CRAFT'?' คราฟต์ของสำเร็จ':' แปรรูปวัสดุสำเร็จ'),a.id);a.task=null;}
+    if(result.completed){
+      event(s,'craft',a.name+(t.kind==='CRAFT'?' คราฟต์ของสำเร็จ':' แปรรูปวัสดุสำเร็จ'),a.id);
+      if(t.kind==='CRAFT'){
+        const career=adoptCrafterProfession(s,a);
+        if(career.changed&&s.tick-(a.lastCareerEventTick??-999)>=60){event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);a.lastCareerEventTick=s.tick;}
+      }
+      a.task=null;
+    }
     return;
   }
   t.work+=workRate;
@@ -774,6 +787,7 @@ export function validate(s){
   for(const e of validatePersonalPlanning(s))bad(e);
   for(const e of validateCulture(s))bad(e);
   for(const e of validateRustState(s))bad(e);
+  for(const e of validateCrafterPolicy(s))bad(e);
   for(const e of validateProductionPlan(s))bad(e);
   for(const e of validateMentorship(s))bad(e);
   for(const e of validateSocialState(s,{required:isIndependent(s)}))bad(e);
@@ -888,6 +902,8 @@ function migrateSave(s,{sameWorld=false}={}){
 }
 export function restore(text,options={}){
   if(typeof text!=='string'||text.length>HISTORY_LIMITS.maxSaveCharacters)throw new Error('ไฟล์บันทึกมีขนาดใหญ่เกินไป');
-  const s=migrateSave(JSON.parse(text),options),rc4=migrateRc4EconomyState(s);if(rc4.state!=='SAT')throw new Error('RC4 migration failed: '+rc4.reason);const errors=validate(s);
+  const s=migrateSave(JSON.parse(text),options);
+  if([SAVE_VERSION,INDEPENDENT_SAVE_VERSION].includes(s.version)){const crafter=migrateCrafterPolicy(s);if(crafter.state!=='SAT')throw new Error('RC5 Crafter migration failed: '+crafter.reason);}
+  const rc4=migrateRc4EconomyState(s);if(rc4.state!=='SAT')throw new Error('RC4 migration failed: '+rc4.reason);const errors=validate(s);
   if(errors.length)throw new Error('บันทึกไม่ถูกต้อง: '+errors.join(', '));return s;
 }
