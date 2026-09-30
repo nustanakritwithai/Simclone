@@ -205,6 +205,10 @@ function setupClosedLoop(){
   const merchantId=s.agents[0].id,crafterId=s.agents[1].id,consumerId=s.agents[2].id,producerId=s.agents[3].id;
   const producer=actor(s,producerId);producer.preference='WOODCUT';Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
   assert.equal(adoptProfession(producer,'WOODCUT',s.tick).profession,'woodcutter');
+  // The four-role acceptance starts from explicit PRE-START careers. Give the
+  // Producer a canonical completed personal home too, so this fixture does not
+  // accidentally test Builder/home-career emergence while waiting for brokerage.
+  completeHomeFixture(s,producer,'producer');
   const producerAxe=give(s,producer,'STONE_AXE');assert.equal(command(s,'EQUIP_ITEM',{agentId:producerId,itemId:producerAxe}).ok,true);
 
   const marketId=prepareMerchant(s,merchantId);
