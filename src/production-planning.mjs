@@ -1,4 +1,4 @@
-import {equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
+import {craftPreview,equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
 import {isIndependent,resourceStock} from './individual-resources.mjs?v=0.5.0';
 import {personalHomeSite,homeOf} from './individual-housing.mjs?v=0.5.0';
 /** RP1 — deterministic autonomous Rust production coordinator.
@@ -6,13 +6,17 @@ import {personalHomeSite,homeOf} from './individual-housing.mjs?v=0.5.0';
  */
 import {canPerformProductiveWork} from './lifecycle.mjs?v=0.5.0';
 import {rustCommand} from './rust-runtime.mjs?v=0.5.0';
-import {ITEM_CATALOG,RECIPE_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
+import {ITEM_CATALOG,RECIPE_CATALOG,recipeById} from './crafting-catalog.mjs?v=0.5.0';
 import {housingCapacity,evaluateModularHouses,houseSite,nextHousePiece} from './housing.mjs?v=0.5.0';
 import {canonicalEdge,placementIdFor} from './rust-stations.mjs?v=0.5.0';
 import {personalHomeIntent} from './individual-home-planning.mjs?v=0.5.0';
 import {activeResidenceOf} from './relationships.mjs?v=0.5.0';
 import {BIRTH_RULES} from './reproduction.mjs?v=0.5.0';
 import {crafterProgressionIntent} from './crafter-autonomy.mjs?v=0.5.0';
+import {crafterFamilyProfile,evaluateCrafterQualification,evaluateBuilderRecovery} from './crafter-career.mjs?v=0.5.0';
+import {knowsCraftRecipe} from './craft-recipe-knowledge.mjs?v=0.5.0';
+import {CRAFT_TRAINING_RULES} from './craft-training.mjs?v=0.5.0';
+import {materialAmount} from './material-economy.mjs?v=0.5.0';
 
 export const PRODUCTION_PLAN_VERSION='RP1-0.2';
 export const PRODUCTION_POLICY='rust-production-2';
@@ -141,6 +145,179 @@ function stepPersonalHomePlan(s,p,isWalkable){
  if(!recipeId||s.stock.wood<(RECIPE_CATALOG[recipeId].materials.wood??0)+BIRTH_RULES.woodSafetyFloor){note(goal,'materials');return {ok:false,reason:'materials'};}
  const r=rustCommand(s,'CRAFT_ITEM',{agentId:a.id,recipeId},isWalkable);note(goal,r.ok?'accepted':r.reason);return r;
 }
+
+export const BUILDER_CRAFTER_APPRENTICESHIP_VERSION='RC5-builder-apprenticeship/1';
+const APPRENTICE_FAMILY='HAMMER';
+const apprenticeView=(status,reason,extra={})=>Object.freeze({version:BUILDER_CRAFTER_APPRENTICESHIP_VERSION,status,reason,...extra});
+
+function apprenticeBag(s,a,kind=null){
+  return (s.rustPossessions?.items??[]).filter(i=>i.location?.kind==='bag'&&i.location.agentId===a.id&&(!kind||i.kind===kind)).sort((x,y)=>x.id-y.id);
+}
+function apprenticeStation(s,a,kind){
+  return (s.rustStations?.stations??[]).filter(st=>st.complete&&st.kind===kind&&st.placedBy===a.id).sort((x,y)=>x.id-y.id)[0]??null;
+}
+function apprenticeGatherNeed(s,a,requirements={}){
+  const stock=resourceStock(s,a);
+  if(!stock)return apprenticeView('UNKNOWN','resource-stock',{agentId:a.id});
+  if(stock.food<CRAFT_TRAINING_RULES.food)
+    return apprenticeView('SAT','apprentice-food-reserve',{type:'GATHER',careerLock:true,agentId:a.id,action:'FORAGE',itemKind:'food',missing:Math.ceil(CRAFT_TRAINING_RULES.food-stock.food)});
+  for(const key of ['wood','stone']){
+    const required=Number(requirements[key]??0)+CRAFT_TRAINING_RULES[key];
+    if(stock[key]<required){
+      const action=key==='wood'?'WOODCUT':'MINE';
+      return apprenticeView('SAT','apprentice-'+key+'-reserve',{type:'GATHER',careerLock:true,agentId:a.id,action,itemKind:key,missing:Math.ceil(required-stock[key])});
+    }
+  }
+  return null;
+}
+function apprenticeCraftPlan(s,a,recipeId){
+  const recipe=recipeById(recipeId);
+  if(!recipe)return apprenticeView('UNKNOWN','recipe',{agentId:a.id,recipeId});
+  const reserves=apprenticeGatherNeed(s,a,recipe.materials);
+  if(reserves)return reserves;
+  const preview=craftPreview(s,{agentId:a.id,recipeId});
+  if(preview.ok)return apprenticeView('SAT','apprentice-craft',{type:'CRAFT',careerLock:true,agentId:a.id,recipeId});
+  if(preview.reason==='materials'&&preview.missing){
+    if(Object.keys(preview.missing).some(k=>['wood','stone'].includes(k))){
+      const raw=apprenticeGatherNeed(s,a,recipe.materials);if(raw)return raw;
+    }
+    if(Object.hasOwn(preview.missing,'ironIngot'))return apprenticeMetalPlan(s,a,2);
+  }
+  return apprenticeView(preview.reason==='recipe-knowledge'||preview.reason==='crafter-tier-evidence'?'UNKNOWN':'BLOCKED',preview.reason??'craft-preview',{careerLock:true,agentId:a.id,recipeId,missing:{...(preview.missing??{})}});
+}
+function apprenticeMetalPlan(s,a,ingotsNeeded){
+  const furnace=apprenticeStation(s,a,'FURNACE');
+  if(!furnace){
+    const carried=apprenticeBag(s,a,'FURNACE')[0];
+    if(carried)return apprenticeView('SAT','place-apprentice-furnace',{type:'PLACE_STATION',careerLock:true,agentId:a.id,itemId:carried.id,kind:'FURNACE'});
+    const recipe=RECIPE_CATALOG.FURNACE;
+    const reserves=apprenticeGatherNeed(s,a,recipe.materials);if(reserves)return reserves;
+    const preview=craftPreview(s,{agentId:a.id,recipeId:'FURNACE'});
+    if(preview.ok)return apprenticeView('SAT','craft-apprentice-furnace',{type:'CRAFT',careerLock:true,agentId:a.id,recipeId:'FURNACE'});
+    return apprenticeView(preview.reason==='recipe-knowledge'?'UNKNOWN':'BLOCKED',preview.reason??'furnace',{careerLock:true,agentId:a.id,recipeId:'FURNACE'});
+  }
+  const have=Math.floor(materialAmount(s,a,'ironIngot'));
+  if(have>=ingotsNeeded)return apprenticeView('SAT','metal-ready',{type:'WAIT',careerLock:true,agentId:a.id});
+  const charcoal=Math.floor(materialAmount(s,a,'charcoal')),ore=Math.floor(materialAmount(s,a,'ironOre'));
+  if(ore<2){
+    return apprenticeView('SAT','gather-apprentice-iron-ore',{type:'GATHER',careerLock:true,agentId:a.id,action:'MINE',itemKind:'ironOre',missing:2-ore});
+  }
+  if(charcoal<1){
+    const wood=apprenticeGatherNeed(s,a,{wood:2});if(wood)return wood;
+    return apprenticeView('SAT','process-apprentice-charcoal',{type:'PROCESS',careerLock:true,agentId:a.id,processType:'PROCESS_CHARCOAL',stationId:furnace.id});
+  }
+  return apprenticeView('SAT','process-apprentice-iron',{type:'PROCESS',careerLock:true,agentId:a.id,processType:'PROCESS_IRON',stationId:furnace.id});
+}
+
+/** Read-only apprenticeship state. It creates no XP/profession/material authority.
+ * A completed-home Builder remains on the Builder->Crafter path while existing
+ * Rust/metal authorities produce the exact 6-total / 2x-T2 evidence.
+ */
+export function builderCrafterApprenticeshipState(s,a){
+  if(!isIndependent(s)||!a?.alive||!canPerformProductiveWork(s,a))
+    return apprenticeView('INELIGIBLE','actor-ineligible',{active:false,agentId:a?.id??null});
+  if(a.profession!=='builder'){
+    const recovery=evaluateBuilderRecovery(s,a.id);
+    if(recovery.status==='UNKNOWN')return apprenticeView('UNKNOWN',recovery.reason,{active:false,agentId:a.id});
+    if(recovery.status!=='SAT')return apprenticeView('INELIGIBLE',recovery.reason,{active:false,agentId:a.id});
+    return apprenticeView('SAT','builder-recovery-ready',{
+      active:true,type:'RECOVER',careerLock:true,agentId:a.id,
+      homeId:recovery.homeId??null,profile:recovery.profile??null,evidenceId:recovery.evidenceId??null
+    });
+  }
+  const home=homeOf(s,a.id);
+  if(!home?.complete){
+    const family=crafterFamilyProfile(s,a,APPRENTICE_FAMILY);
+    const planned=a.homePlan?.version==='home-plan-1'&&Number.isInteger(a.homePlan.x)&&Number.isInteger(a.homePlan.y);
+    const physicalCommitment=home?.ownerId===a.id;
+    const craftCommitment=planned&&family.status==='SAT'&&(family.profile?.total??0)>0;
+    if(physicalCommitment||craftCommitment)return apprenticeView('SAT','builder-home-construction',{
+      active:true,type:'HOME_BUILD',careerLock:true,agentId:a.id,homeId:home?.houseId??null,
+      commitment:physicalCommitment?'owned-incomplete-home':'planned-home-with-hammer',
+      profile:family.status==='SAT'?family.profile:null
+    });
+    if(planned&&family.status==='UNKNOWN')return apprenticeView('UNKNOWN',family.reason??'career-evidence',{active:false,agentId:a.id});
+    return apprenticeView('INELIGIBLE','construction-required',{active:false,agentId:a.id});
+  }
+  if(home.ownerId!==a.id)return apprenticeView('INELIGIBLE','construction-required',{active:false,agentId:a.id});
+  const qualification=evaluateCrafterQualification(s,a.id);
+  if(qualification.status==='UNKNOWN')return apprenticeView('UNKNOWN',qualification.reason,{active:false,agentId:a.id});
+  if(qualification.status==='SAT')return apprenticeView('SAT','qualification-ready',{active:true,type:'PROMOTE',careerLock:true,agentId:a.id,homeId:home.houseId,profile:qualification.profile});
+  if(qualification.reason!=='craft-mastery-required')
+    return apprenticeView('INELIGIBLE',qualification.reason,{active:false,agentId:a.id,homeId:home.houseId});
+  const family=crafterFamilyProfile(s,a,APPRENTICE_FAMILY);
+  if(family.status!=='SAT'||!family.profile)return apprenticeView('UNKNOWN',family.reason??'career-evidence',{active:false,agentId:a.id});
+  return apprenticeView('SAT','apprenticeship-active',{active:true,type:'APPRENTICE',careerLock:true,agentId:a.id,homeId:home.houseId,profile:family.profile});
+}
+
+export function builderCrafterApprenticeshipIntent(s,a){
+  const state=builderCrafterApprenticeshipState(s,a);
+  if(state.status!=='SAT'||state.active!==true)return state;
+  if(state.type==='PROMOTE'||state.type==='RECOVER')return state;
+  if(state.type==='HOME_BUILD')return apprenticeView('SAT','builder-home-construction',{
+    type:'WAIT',active:true,careerLock:true,agentId:a.id,homeId:state.homeId??null,commitment:state.commitment,profile:state.profile??null
+  });
+  if(a.craftTraining?.enabled===true)return apprenticeView('BLOCKED','manual-training',{active:true,careerLock:true,agentId:a.id});
+  if(a.adventureCombat?.status==='ACTIVE'||a.adventureEncounter)return apprenticeView('BLOCKED','adventure',{active:true,careerLock:true,agentId:a.id});
+  if((s.rustPossessions?.orders??[]).some(o=>o.agentId===a.id)||(s.rustMaterials?.orders??[]).some(o=>o.agentId===a.id))
+    return apprenticeView('SAT','apprentice-work-pending',{type:'WAIT',active:true,careerLock:true,agentId:a.id});
+  if(a.hp<CRAFT_TRAINING_RULES.hp||a.satiety<CRAFT_TRAINING_RULES.satiety||a.energy<CRAFT_TRAINING_RULES.energy)
+    return apprenticeView('BLOCKED','survival',{active:true,careerLock:true,agentId:a.id});
+  if(a.task)return apprenticeView('SAT','apprentice-task-pending',{type:'WAIT',active:true,careerLock:true,agentId:a.id});
+
+  const table=apprenticeStation(s,a,'CRAFTING_TABLE_LV1');
+  if(!table){
+    const carried=apprenticeBag(s,a,'CRAFTING_TABLE_LV1')[0];
+    if(carried)return apprenticeView('SAT','place-apprentice-table',{type:'PLACE_STATION',active:true,careerLock:true,agentId:a.id,itemId:carried.id,kind:'CRAFTING_TABLE_LV1'});
+    const need=apprenticeGatherNeed(s,a,RECIPE_CATALOG.CRAFTING_TABLE_LV1.materials);if(need)return need;
+    return apprenticeCraftPlan(s,a,'CRAFTING_TABLE_LV1');
+  }
+
+  const profile=state.profile;
+  if(profile.counts[2]>=2&&profile.total>=6)return apprenticeView('SAT','qualification-ready',{type:'PROMOTE',active:true,careerLock:true,agentId:a.id,profile});
+  if(!knowsCraftRecipe(s,a,'HAMMER_T2'))return apprenticeCraftPlan(s,a,'HAMMER');
+  if(profile.counts[2]<2){
+    const t2Recipe=recipeById('HAMMER_T2'),reserve=apprenticeGatherNeed(s,a,t2Recipe.materials);
+    if(reserve)return reserve;
+    const t2=craftPreview(s,{agentId:a.id,recipeId:'HAMMER_T2'});
+    if(t2.ok)return apprenticeView('SAT','apprentice-tier2',{type:'CRAFT',active:true,careerLock:true,agentId:a.id,recipeId:'HAMMER_T2'});
+    if(t2.reason==='item-materials')return apprenticeCraftPlan(s,a,'HAMMER');
+    if(t2.reason==='materials'&&t2.missing){
+      if(Object.keys(t2.missing).some(k=>['wood','stone'].includes(k))){
+        const need=apprenticeGatherNeed(s,a,recipeById('HAMMER_T2').materials);if(need)return need;
+      }
+      if(Object.hasOwn(t2.missing,'ironIngot'))return apprenticeMetalPlan(s,a,2);
+    }
+    return apprenticeView(t2.reason==='recipe-knowledge'||t2.reason==='crafter-tier-evidence'?'UNKNOWN':'BLOCKED',t2.reason??'tier2',{active:true,careerLock:true,agentId:a.id,recipeId:'HAMMER_T2',missing:{...(t2.missing??{})}});
+  }
+  return apprenticeCraftPlan(s,a,'HAMMER');
+}
+
+function stepBuilderCrafterApprenticeship(s,p,isWalkable,dispatch){
+  const builders=eligible(s).filter(a=>builderCrafterApprenticeshipState(s,a).active).sort((a,b)=>a.id-b.id);
+  if(!builders.length)return null;
+  const offset=Math.floor(s.tick/PRODUCTION_RULES.attemptPeriod)%builders.length;
+  for(let i=0;i<builders.length;i++){
+    const a=builders[(i+offset)%builders.length],intent=builderCrafterApprenticeshipIntent(s,a);
+    if(intent.status!=='SAT'||['WAIT','GATHER'].includes(intent.type))continue;
+    let r=null;
+    if(intent.type==='RECOVER')r=dispatch?.('RC5_RECOVER_BUILDER',{agentId:a.id})??null;
+    else if(intent.type==='PROMOTE')r=dispatch?.('RC5_BECOME_CRAFTER',{agentId:a.id})??null;
+    else if(intent.type==='CRAFT')r=rustCommand(s,'CRAFT_ITEM',{agentId:a.id,recipeId:intent.recipeId},isWalkable);
+    else if(intent.type==='PROCESS')r=rustCommand(s,intent.processType,{agentId:a.id,stationId:intent.stationId},isWalkable);
+    else if(intent.type==='PLACE_STATION'){
+      const cell=freeNeighbor(s,a,isWalkable);
+      if(!cell)continue;
+      r=rustCommand(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:intent.itemId,...cell,placementId:placementIdFor(s.tick,a.id,intent.itemId)},isWalkable);
+    }
+    if(r?.ok){
+      record(p,s.tick,'builder-apprentice-'+intent.type.toLowerCase(),r.changed===false?'already':(r.completed?'completed':'accepted'),a.id);
+      return {...r,builderApprenticeship:true,agentId:a.id};
+    }
+  }
+  return null;
+}
+
 export function productionCommand(s,type,data={}){
   if(type!=='SET_PRODUCTION_POLICY')return null;
   const p=ensureProductionPlan(s),enabled=data.enabled===true;
@@ -198,6 +375,8 @@ export function stepProductionPlanning(s,isWalkable,dispatch=null){
   if(isIndependent(s)){
     const home=stepIndependentHomePlans(s,p,isWalkable);
     if(home)return home;
+    const apprentice=stepBuilderCrafterApprenticeship(s,p,isWalkable,dispatch);
+    if(apprentice)return apprentice;
     return p.enabled===true?stepCrafterProgression(s,p,isWalkable):null;
   }
   const housingOnly=p.enabled!==true&&autonomousHousingNeeded(s);

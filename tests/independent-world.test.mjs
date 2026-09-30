@@ -6,9 +6,40 @@ import {materialStock,resourceStock,materialTotals,guardianOf,isIndependent} fro
 import {individualHouses,homeOf,personalHomeSite,survivalHome} from '../src/individual-housing.mjs';
 import {canPlaceStation,stationForRecipe,stationLimit} from '../src/rust-stations.mjs';
 import {taskValid,pathTo,RULES} from '../src/survival.mjs';
+import {CRAFT_RECIPE_CATALOG} from '../src/crafting-catalog.mjs';
+import {recipeMastery} from '../src/craft-recipe-knowledge.mjs';
+import {crafterFamilyProfile} from '../src/crafter-career.mjs';
 const fresh=(seed=230926,population=6)=>createWorld(seed,{mode:'independent',population});
 let builtText;
 function earnedWorld(){if(!builtText){const s=fresh();step(s,2400);assert.equal(individualHouses(s).filter(h=>h.complete).length,6);builtText=serialize(s);}return restore(builtText);}
+const hammerRecipes=Object.values(CRAFT_RECIPE_CATALOG).filter(r=>r.output==='HAMMER').sort((a,b)=>a.tier-b.tier||a.id.localeCompare(b.id));
+function assertHammerCraftEvidence(s,a){
+ const snap=crafterFamilyProfile(s,a,'HAMMER');assert.equal(snap.status,'SAT',JSON.stringify(snap));
+ const entries=a.knowledgeState?.recipes?.entries??[],receipts=[];let completed=0;
+ for(const recipe of hammerRecipes){
+  const mastery=recipeMastery(a,recipe.id);completed+=mastery;if(mastery===0)continue;
+  const entry=entries.find(e=>e.recipeId===recipe.id);assert.ok(entry,'mastery requires a canonical recipe entry');
+  assert.equal(entry.retiredCompletions,0,'IC3 day-7 proof must retain every HAMMER receipt it is accepting');
+  assert.equal(entry.receipts.length,mastery,'mastery must equal retained real craft completions');
+  for(const receipt of entry.receipts)receipts.push({...receipt,recipeId:recipe.id});
+ }
+ assert.equal(snap.profile.total,completed,'HAMMER family mastery must equal canonical recipe completions');
+ assert.equal(new Set(receipts.map(x=>x.orderId)).size,receipts.length,'HAMMER craft order ids must be unique');
+ assert.equal(new Set(receipts.map(x=>x.itemId)).size,receipts.length,'HAMMER receipt item ids must be unique');
+ const physical=s.rustPossessions.items.filter(i=>i.kind==='HAMMER'&&i.createdBy===a.id);
+ assert.ok(physical.length>=1,'housing/apprenticeship must have produced a real HAMMER');
+ assert.ok(snap.profile.total>=physical.length,'mastery may exceed surviving tools only when a prior HAMMER was consumed as a higher-tier ingredient');
+ const byItem=new Map(receipts.map(x=>[x.itemId,x]));
+ for(const item of physical){
+  const receipt=byItem.get(item.id);assert.ok(receipt,'every accepted HAMMER item must have a retained craft receipt');
+  assert.equal(receipt.crafterId,a.id);assert.equal(receipt.tick,item.createdTick);
+  assert.equal(item.craft?.orderId,receipt.orderId);assert.equal(item.craft?.recipeId,receipt.recipeId);
+  const recipe=CRAFT_RECIPE_CATALOG[receipt.recipeId];assert.equal(recipe?.output,'HAMMER');assert.equal(item.craft?.tier,recipe.tier);
+  assert.ok(Object.keys(recipe.materials).length>0&&Object.values(recipe.materials).every(n=>Number.isFinite(n)&&n>0),'accepted HAMMER recipe must reserve real raw materials');
+  if(recipe.tier>=2){assert.ok((recipe.itemMaterials?.HAMMER??0)>=1,'higher-tier HAMMER must consume a prior HAMMER');assert.ok(Object.keys(recipe.processedMaterials??{}).length>0,'higher-tier HAMMER must consume processed metal');}
+ }
+ return {physical,receipts,profile:snap.profile};
+}
 
 test('IC3 fresh world has no central Camp, no shared stock, and separated living founders',()=>{
  const s=fresh();assert.equal(s.version,'0.6.0');assert.equal(s.worldMode.kind,'independent');assert.deepEqual(s.buildings,[]);assert.equal(capacity(s),0);
@@ -29,7 +60,13 @@ for(const seed of [230926,1,42,7,9191])test(`IC3 real no-command six-owner housi
  assert.ok(s.agents.filter(a=>founders.includes(a.id)).every(a=>a.alive));
  assert.equal(s.productionPlan.enabled,false,'no opt-in RP1 needed in independent mode');
  assert.equal(new Set(s.rustStations.stations.map(st=>st.sourceItemId)).size,s.rustStations.stations.length);
- for(const id of founders){assert.equal(s.rustStations.stations.filter(st=>st.placedBy===id&&st.kind==='CRAFTING_TABLE_LV1').length,1);assert.equal(s.rustPossessions.items.filter(i=>i.kind==='HAMMER'&&i.createdBy===id).length,1);}
+ assert.equal(new Set(s.rustPossessions.items.map(i=>i.id)).size,s.rustPossessions.items.length,'all physical item ids remain unique');
+ for(const id of founders){
+  const a=s.agents.find(x=>x.id===id),home=homeOf(s,id,{completeOnly:true});
+  assert.ok(home&&home.ownerId===id,'each founder must still own a completed personal home');assert.equal(a?.alive,true);
+  assert.equal(s.rustStations.stations.filter(st=>st.placedBy===id&&st.kind==='CRAFTING_TABLE_LV1').length,1);
+  assertHammerCraftEvidence(s,a);
+ }
  assert.deepEqual(s.stock,{food:0,wood:0,stone:0});assert.deepEqual(validate(s),[]);
 });
 test('IC3 one Original can survive, bootstrap a workbench and complete own home',()=>{
@@ -46,9 +83,22 @@ test('IC3 pending order acceptance commits materials exactly once and retry cann
  const snapshot=serialize(s);assert.equal(command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'CRAFTING_TABLE_LV1'}).reason,'craft-busy');assert.equal(serialize(s),snapshot);assert.equal(materialStock(s,a).wood,10);
 });
 test('IC3 another persons workbench does not satisfy personal Hammer crafting',()=>{
- const s=earnedWorld(),a=s.agents[0],other=s.rustStations.stations.find(st=>st.kind==='CRAFTING_TABLE_LV1'&&st.placedBy!==a.id);
+ const s=fresh();let a=null,other=null;
+ for(let i=0;i<1600&&!a;i++){
+  step(s,1);
+  for(const candidate of s.agents){
+   if(!candidate.alive||s.rustPossessions.orders.some(o=>o.agentId===candidate.id))continue;
+   const bagCount=s.rustPossessions.items.filter(item=>item.location?.kind==='bag'&&item.location.agentId===candidate.id).length;
+   const stranger=s.rustStations.stations.find(st=>st.complete&&st.kind==='CRAFTING_TABLE_LV1'&&st.placedBy!==candidate.id);
+   if(stranger&&bagCount<4){a=candidate;other=stranger;break;}
+  }
+ }
+ assert.ok(a&&other,'fixture must naturally expose a stranger workbench while the actor still has bag capacity');
+ const bagCount=s.rustPossessions.items.filter(item=>item.location?.kind==='bag'&&item.location.agentId===a.id).length;
+ assert.ok(bagCount<4,'bag capacity must not mask the ownership/station assertion');
  assert.equal(stationForRecipe(s,'HAMMER',a,other.id),null);
- assert.equal(command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'HAMMER',stationId:other.id}).reason,'station');
+ const result=command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'HAMMER',stationId:other.id});
+ assert.equal(result.reason,'station',JSON.stringify({reason:result.reason,bagCount,actorId:a.id,stationId:other.id,placedBy:other.placedBy}));
 });
 test('IC3 unfinished personal plan stays at same site while actor moves and after save/load',()=>{
  const s=fresh();step(s,100);const a=s.agents.find(a=>a.homePlan);assert.ok(a);

@@ -31,6 +31,7 @@ import {
 import {
   evaluateMerchantQualification,adoptMerchantProfession,noteVerifiedCommittedMerchantTransaction,validateMerchantProgression
 } from './merchant-career.mjs?v=0.5.0';
+import {crafterFamilyProfile} from './crafter-career.mjs?v=0.5.0';
 import {createCanonicalMarketTravelTask,verifyCanonicalMarketArrival,isCanonicalMarketTravelTask,canPreemptForCanonicalMarketTravel,retainCanonicalMarketTravelOnCommit} from './navigation-arrival-evidence.mjs?v=0.5.0';
 import {rawProducerOfferGate,rawProducerSettlementGate} from './raw-producer-autonomy.mjs?v=0.5.0';
 import {crafterMaterialPurchaseAuthorization} from './crafter-material-procurement.mjs?v=0.5.0';
@@ -228,6 +229,13 @@ export function autonomousMerchantEntryCandidate(world){
     if(!a?.alive||a.profession==='merchant'||a.profession==='adventurer'||a.profession==='crafter')continue;
     if(!['ADULT','ELDER'].includes(lifeStage(world,a)))continue;
     const home=homeOf(world,a.id,{completeOnly:true});if(!home)continue;
+    // Builder -> Crafter owns the actor once a completed personal home and real
+    // HAMMER craft evidence exist. Autonomous Merchant entry must not overwrite
+    // that evidence-backed path; ordinary Builders without that commitment remain eligible.
+    if(a.profession==='builder'){
+      const family=crafterFamilyProfile(world,a,'HAMMER');
+      if(family.status==='SAT'&&(family.profile?.total??0)>0)continue;
+    }
     const balance=getBalance(world,a.id);if(!Number.isSafeInteger(balance)||balance<1)continue;
     const evidence=ownedTradeEvidence(world,a);if(!evidence.length)continue;
     const qualification=evaluateMerchantQualification(merchantQualificationSnapshot(world,a));
