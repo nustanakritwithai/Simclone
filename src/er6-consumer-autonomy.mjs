@@ -1,13 +1,13 @@
 /**
  * ER6 consumer autonomy bridge.
  *
- * This is coordination/projection only. Demand comes from the released
- * rc4PersonalItemNeeds authority; market knowledge comes from the released
+ * This is coordination/projection only. Demand comes from ER1's released
+ * actor-observed PERSONAL_ITEM_NEED projection; market knowledge comes from the released
  * actor-scoped observation authority; movement/trade/equipment mutations stay
  * behind their canonical commands in engine/runtime.
  */
 import {customerMarketDecision,selectKnownCustomerListing} from './rc4-customer-market-policy.mjs?v=0.5.0';
-import {rc4PersonalItemNeeds,knownRc4Markets,knownRc4Listings} from './rc4-market-observation.mjs?v=0.5.0';
+import {knownRc4Markets,knownRc4Listings} from './rc4-market-observation.mjs?v=0.5.0';
 import {projectActorObservedDemand} from './economic-demand.mjs?v=0.5.0';
 import {getBalance} from './currency-wallet.mjs?v=0.5.0';
 import {projectHomeMarketForTrade} from './home-market.mjs?v=0.5.0';
@@ -49,6 +49,25 @@ function productiveToolUse(world,agent){
   return sat({type:'EQUIP_ITEM',agentId:agent.id,itemId:item.id,itemKind:item.kind,reason:'productive-tool-owned'});
 }
 
+function personalNeedsFromProjection(projection,agentId){
+  const rows=[];
+  const seen=new Set();
+  for(const signal of projection?.signals??[]){
+    if(signal?.unit!=='item')continue;
+    for(const source of signal.sources??[]){
+      if(source?.kind!=='PERSONAL_ITEM_NEED'||source.side!=='DEMAND'||source.subjectAgentId!==agentId)continue;
+      const itemKind=signal.itemKind;
+      if(typeof itemKind!=='string'||!itemKind||seen.has(itemKind))continue;
+      seen.add(itemKind);
+      rows.push({
+        needId:String(source.evidenceId),itemKind,quantity:Number.isSafeInteger(source.quantity)&&source.quantity>0?source.quantity:1,
+        purpose:source.purpose??'simulation-need',fulfillment:source.fulfillment??'carry',slot:source.slot??null
+      });
+    }
+  }
+  return rows.sort((a,b)=>String(a.needId).localeCompare(String(b.needId))||a.itemKind.localeCompare(b.itemKind));
+}
+
 function candidateKnowledge(world,agent,need,projection){
   const signal=projection.signals.find(s=>s.unit==='item'&&s.itemKind===need.itemKind)??null;
   if(!signal)return {markets:[],listings:[]};
@@ -88,15 +107,15 @@ export function consumerAutonomySnapshot(world,agent){
   if(agent.task?.rc4MarketTravel&&!ownTravel)return blocked(agent.id,'foreign-market-travel');
 
   const use=productiveToolUse(world,agent);
-  const needs=rc4PersonalItemNeeds(world,agent).slice().sort((a,b)=>String(a.needId).localeCompare(String(b.needId)));
+  const projection=projectActorObservedDemand(world,agent);
+  if(projection.status!=='SAT')return unknown(agent.id,projection.reason??'demand-projection',projection);
+  const needs=personalNeedsFromProjection(projection,agent.id);
   if(!needs.length){
     if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'need-cleared'});
     if(use)return use;
     return sat({type:'IDLE',agentId:agent.id,reason:'no-consumer-need'});
   }
 
-  const projection=projectActorObservedDemand(world,agent);
-  if(projection.status!=='SAT')return unknown(agent.id,projection.reason??'demand-projection',projection);
   const need=needs[0],knowledge=candidateKnowledge(world,agent,need,projection);
   if(!knowledge.listings.length||!knowledge.markets.length){
     if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'observed-supply-gone'});
@@ -139,6 +158,7 @@ export function consumerAutonomySnapshot(world,agent){
     return sat({
       type:'BUY_LISTING',agentId:agent.id,marketId:decision.marketId,listingId:decision.listingId,itemKind:decision.itemKind,
       itemId:decision.itemInstanceId,needId:need.needId,quantity:decision.quantity,
+      fulfillment:need.fulfillment??'carry',slot:need.slot??null,purpose:need.purpose??null,
       intent:{buyerId:agent.id,listingId:decision.listingId,listingRevision:listing.snapshotVersion,quantity:decision.quantity}
     });
   }
