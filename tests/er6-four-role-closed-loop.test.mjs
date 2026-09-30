@@ -7,7 +7,7 @@ import {canonicalEdge} from '../src/rust-stations.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
 import {TRADE_ASSET_TYPES} from '../src/trade-assets.mjs';
-import {CRAFT_RECIPE_CATALOG} from '../src/crafting-catalog.mjs';
+import {CRAFT_RECIPE_CATALOG,ITEM_CATALOG} from '../src/crafting-catalog.mjs';
 import {CRAFT_TRAINING_RULES} from '../src/craft-training.mjs';
 import {adoptProfession,noteExploreCompletion} from '../src/kingdom-utility.mjs';
 import {recipeMastery} from '../src/craft-recipe-knowledge.mjs';
@@ -24,8 +24,9 @@ const actor=(s,id)=>s.agents.find(a=>a.id===id);
 const calm=(...agents)=>{for(const a of agents){a.hp=a.satiety=a.energy=100;a.task=null;a.moveTick=0;}};
 
 function give(s,a,kind){
-  const id=s.rustPossessions.nextItem++;
-  s.rustPossessions.items.push({id,kind,createdBy:a.id,createdTick:s.tick,location:{kind:'bag',agentId:a.id}});
+  const id=s.rustPossessions.nextItem++,def=ITEM_CATALOG[kind];
+  s.rustPossessions.items.push({id,kind,createdBy:a.id,createdTick:s.tick,
+    ...(def?.category==='gear'?{upgradeLevel:0}:{}),location:{kind:'bag',agentId:a.id}});
   return id;
 }
 function dropItem(s,a,item){
@@ -142,7 +143,8 @@ function physicalPriceCalibration(s,{sellerId,merchantId,buyerId,marketId,itemKi
   const liveListing=s.merchantListings.listings.find(l=>l.id===listed.listingId);assert.ok(liveListing);
   const sale=command(s,'RC4_BUY_LISTING',{buyerId,listingId:liveListing.id,listingRevision:liveListing.revision});
   assert.equal(sale.ok,true,JSON.stringify(sale));
-  assert.equal(command(s,'EQUIP_ITEM',{agentId:buyerId,itemId}).ok,true);
+  const equipType=ITEM_CATALOG[itemKind]?.category==='gear'?'EQUIP_ADVENTURE_GEAR':'EQUIP_ITEM';
+  assert.equal(command(s,equipType,{agentId:buyerId,itemId}).ok,true);
   clearFixtureTravel(s,buyerId);
   return itemId;
 }

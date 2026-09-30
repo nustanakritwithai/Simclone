@@ -619,9 +619,9 @@ function stepConsumerAutonomy(s){
         if(a.profession==='adventurer'&&intent.purpose==='adventure-readiness')adventureReadinessWaiting.add(id);
         return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId,adventureReadinessWaiting};
       }
-    }else if(intent.type==='EQUIP_ITEM'){
-      r=command(s,'EQUIP_ITEM',{agentId:a.id,itemId:intent.itemId});
-      if(r?.ok){event(s,'market',a.name+' นำ '+intent.itemKind+' ที่ซื้อมาใช้กับงาน',a.id);if(a.profession==='adventurer'&&['WEAPON','ARMOR'].includes(intent.slot))adventureReadinessWaiting.add(a.id);}
+    }else if(intent.type==='EQUIP_ITEM'||intent.type==='EQUIP_ADVENTURE_GEAR'){
+      r=command(s,intent.type,{agentId:a.id,itemId:intent.itemId});
+      if(r?.ok){event(s,'market',a.name+' นำ '+intent.itemKind+' ที่ซื้อมาใช้กับงาน',a.id);if(intent.type==='EQUIP_ADVENTURE_GEAR')adventureReadinessWaiting.add(a.id);}
     }
     if(r?.ok)changed=true;
   }

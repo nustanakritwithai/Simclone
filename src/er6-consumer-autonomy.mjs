@@ -83,7 +83,7 @@ function adventureGearUse(world,agent){
     });
   if(!rows.length)return null;
   const item=rows[0],def=ITEM_CATALOG[item.kind];
-  return sat({type:'EQUIP_ITEM',agentId:agent.id,itemId:item.id,itemKind:item.kind,slot:def.equipSlot,reason:'adventure-gear-owned'});
+  return sat({type:'EQUIP_ADVENTURE_GEAR',agentId:agent.id,itemId:item.id,itemKind:item.kind,slot:def.equipSlot,reason:'adventure-gear-owned'});
 }
 
 function candidateKnowledge(world,agent,need,projection){

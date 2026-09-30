@@ -5,6 +5,7 @@ import {createWorld,command,step,serialize,restore,validate,walkable} from '../s
 import {personalHomeSite} from '../src/individual-housing.mjs';
 import {canonicalEdge} from '../src/rust-stations.mjs';
 import {advanceCraft,toolMultiplier} from '../src/rust-possessions.mjs';
+import {ITEM_CATALOG} from '../src/crafting-catalog.mjs';
 import {projectHomeMarketForTrade} from '../src/home-market.mjs';
 import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
@@ -21,8 +22,9 @@ import {
 const actor=(s,id)=>s.agents.find(a=>a.id===id);
 const calm=(...agents)=>{for(const a of agents){a.hp=a.satiety=a.energy=100;a.task=null;a.moveTick=0;}};
 function give(s,a,kind){
-  const id=s.rustPossessions.nextItem++;
-  s.rustPossessions.items.push({id,kind,createdBy:a.id,createdTick:s.tick,location:{kind:'bag',agentId:a.id}});
+  const id=s.rustPossessions.nextItem++,def=ITEM_CATALOG[kind];
+  s.rustPossessions.items.push({id,kind,createdBy:a.id,createdTick:s.tick,
+    ...(def?.category==='gear'?{upgradeLevel:0}:{}),location:{kind:'bag',agentId:a.id}});
   return id;
 }
 function equipFixture(s,a,itemId){s.rustPossessions.equipment.push({agentId:a.id,itemId});}
@@ -208,6 +210,52 @@ test('ER6 autonomous consumer travels, buys exact canonical item, cancels journe
   assert.equal(totalCurrency(s),totalBefore);
   assert.notEqual(serialize(s),'');
   assert.ok(afterRestore.length>0);
+  assert.deepEqual(validate(s),[]);
+});
+
+
+test('ER6 Adventurer buys and equips exact physical weapon and armor through canonical gear authority across save/load',()=>{
+  let s=createWorld(926017,{mode:'independent',worldProfile:'same-world',population:4});
+  const producer=s.agents[3],merchant=s.agents[0],consumer=s.agents[2];
+  calm(producer,merchant,consumer);Object.assign(resourceStock(s,producer),{food:700,wood:700,stone:700});
+  const marketId=prepareMerchant(s,merchant,'gear-equip');
+  const blade=acquireAndResell(s,{producer,merchant,marketId,itemKind:'EMBER_BLADE',ask:20,label:'gear-equip-blade'});
+  const armor=acquireAndResell(s,{producer,merchant,marketId,itemKind:'HIDE_ARMOR',ask:20,label:'gear-equip-armor'});
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  const totalBefore=totalCurrency(s),buyerBefore=getBalance(s,consumer.id),merchantBefore=getBalance(s,merchant.id);
+
+  for(let i=0;i<240;i++){
+    step(s,1);
+    const weapon=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='WEAPON');
+    const body=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='ARMOR');
+    if(weapon?.itemId===blade.itemId&&body?.itemId===armor.itemId)break;
+  }
+
+  const weapon=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='WEAPON');
+  const body=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='ARMOR');
+  assert.equal(weapon?.itemId,blade.itemId,'canonical gear authority equips the exact purchased weapon instance');
+  assert.equal(body?.itemId,armor.itemId,'canonical gear authority equips the exact purchased armor instance');
+  assert.deepEqual(s.rustPossessions.items.find(i=>i.id===blade.itemId)?.location,{kind:'bag',agentId:consumer.id});
+  assert.deepEqual(s.rustPossessions.items.find(i=>i.id===armor.itemId)?.location,{kind:'bag',agentId:consumer.id});
+  assert.equal(s.rustPossessions.items.find(i=>i.id===blade.itemId)?.upgradeLevel,0);
+  assert.equal(s.rustPossessions.items.find(i=>i.id===armor.itemId)?.upgradeLevel,0);
+  assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===blade.listingId&&r.buyerId===consumer.id&&r.itemIds?.includes(blade.itemId)).length,1);
+  assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===armor.listingId&&r.buyerId===consumer.id&&r.itemIds?.includes(armor.itemId)).length,1);
+  assert.equal(getBalance(s,consumer.id),buyerBefore-40);
+  assert.equal(getBalance(s,merchant.id),merchantBefore+40);
+  assert.equal(totalCurrency(s),totalBefore);
+  assert.deepEqual(validate(s),[]);
+
+  s=restore(serialize(s));
+  const restoredWeapon=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='WEAPON');
+  const restoredArmor=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='ARMOR');
+  assert.equal(restoredWeapon?.itemId,blade.itemId);
+  assert.equal(restoredArmor?.itemId,armor.itemId);
+  assert.equal(s.rustPossessions.items.filter(i=>i.id===blade.itemId).length,1);
+  assert.equal(s.rustPossessions.items.filter(i=>i.id===armor.itemId).length,1);
+  assert.equal(getBalance(s,consumer.id),buyerBefore-40);
+  assert.equal(getBalance(s,merchant.id),merchantBefore+40);
+  assert.equal(totalCurrency(s),totalBefore);
   assert.deepEqual(validate(s),[]);
 });
 
