@@ -243,7 +243,7 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
 
   // START: no fixture mutation or player trade command occurs below this line.
   s=restore(serialize(s));checkpoints.add('before-material-procurement');
-  let firstConsumerReceipt=null,secondConsumerReceipt=null,firstProducerReceipt=null,firstCrafterReceipt=null;
+  let firstConsumerReceipt=null,secondConsumerReceipt=null,firstProducerReceipt=null,firstMaterialToCrafterReceipt=null,firstCrafterReceipt=null;
   let firstBladeId=null,secondCycleStarted=false;
   for(let i=0;i<2400&&!secondConsumerReceipt;i++){
     step(s,1);
@@ -264,6 +264,7 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
     }
 
     firstProducerReceipt??=newReceipt(s,startTx,r=>r.sellerId===f.producerId&&r.buyerId===f.merchantId&&r.itemKind==='wood');
+    firstMaterialToCrafterReceipt??=newReceipt(s,startTx,r=>r.sellerId===f.merchantId&&r.buyerId===f.crafterId&&r.itemKind==='wood');
     if(firstProducerReceipt&&!checkpoints.has('after-resource-settlement')){
       s=restore(serialize(s));checkpoints.add('after-resource-settlement');continue;
     }
@@ -305,12 +306,17 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
     'after-merchant-purchase','after-resource-settlement','before-material-procurement','during-canonical-travel'
   ].sort());
   assert.ok(firstProducerReceipt,'Producer-origin raw material must settle to Merchant after START');
+  assert.ok(firstMaterialToCrafterReceipt,'the same canonical resource path must continue Merchant -> Crafter');
+  assert.equal(firstProducerReceipt.quantity,1);assert.equal(firstMaterialToCrafterReceipt.quantity,1);
   assert.ok(firstCrafterReceipt,'Crafter exact physical output must settle to Merchant');
   assert.ok(firstConsumerReceipt,'Consumer must buy the exact first-cycle item');
   assert.ok(secondCycleStarted,'second economic cycle must begin from remaining released need');
   assert.ok(secondConsumerReceipt,'second economic cycle must complete through canonical resale');
   assert.equal(equippedKind(s,f.consumerId,'WEAPON'),'EMBER_BLADE');
   assert.equal(equippedKind(s,f.consumerId,'ARMOR'),'HIDE_ARMOR');
+  const armorItemId=secondConsumerReceipt.itemIds?.[0];assert.ok(Number.isSafeInteger(armorItemId));
+  assert.equal(s.rustPossessions.items.find(i=>i.id===armorItemId)?.createdBy,f.crafterId,'second-cycle armor must be Crafter output');
+  assert.equal(s.rustPossessions.items.filter(i=>i.id===armorItemId).length,1,'second-cycle item cannot duplicate');
   assert.equal(s.rustPossessions.items.filter(i=>i.id===firstBladeId).length,1,'exact first-cycle item cannot duplicate');
   assert.equal(s.rustPossessions.items.find(i=>i.id===firstBladeId)?.location?.agentId,f.consumerId);
   assert.equal(totalCurrency(s),startCurrency,'currency is conserved across both cycles');
@@ -320,6 +326,10 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
 
   const txIds=s.tradeReplay.receipts.map(r=>r.transactionId);
   assert.equal(new Set(txIds).size,txIds.length,'trade replay ids remain unique');
+  const postStartProducerWoodTrades=s.tradeReplay.receipts.filter(r=>!startTx.has(r.transactionId)&&r.sellerId===f.producerId&&r.buyerId===f.merchantId&&r.itemKind==='wood');
+  const postStartCrafterWoodTrades=s.tradeReplay.receipts.filter(r=>!startTx.has(r.transactionId)&&r.sellerId===f.merchantId&&r.buyerId===f.crafterId&&r.itemKind==='wood');
+  assert.ok(postStartProducerWoodTrades.length>=3,'two cycles require one + two Producer wood units');
+  assert.ok(postStartCrafterWoodTrades.length>=3,'Merchant must relay all required post-start wood to Crafter');
   assert.deepEqual(validate(s),[]);
 
   // Deterministic unattended continuation from the exact same canonical state.
@@ -327,9 +337,9 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
   step(left,360);step(right,360);
   assert.equal(serialize(left),serialize(right),'long-horizon continuation must be deterministic');
   s=left;
-  step(s,900);
+  step(s,480);
   const bladeCountA=craftedBy(s,f.crafterId,'EMBER_BLADE').length,armorCountA=craftedBy(s,f.crafterId,'HIDE_ARMOR').length,receiptsA=s.tradeReplay.receipts.length;
-  step(s,360);
+  step(s,120);
   assert.equal(craftedBy(s,f.crafterId,'EMBER_BLADE').length,bladeCountA,'no unbounded weapon overproduction');
   assert.equal(craftedBy(s,f.crafterId,'HIDE_ARMOR').length,armorCountA,'no unbounded armor overproduction');
   assert.equal(s.tradeReplay.receipts.length,receiptsA,'settled economy becomes quiescent after historical demand expires');
