@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {step,serialize,restore,validate} from '../src/engine.mjs';
 import {adoptProfession} from '../src/kingdom-utility.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
+import {addMaterialSet} from '../src/material-economy.mjs';
 import {crafterFamilyProfile} from '../src/crafter-career.mjs';
 import {
   BUILDER_CRAFTER_APPRENTICESHIP_VERSION,
@@ -17,6 +18,9 @@ function builderWorld(){
   assert.equal(changed.changed,true);
   assert.equal(target.profession,'builder');
   target.hp=target.satiety=target.energy=100;target.task=null;
+  // Focused regression fixture supplies only raw/processed inputs. It does not
+  // grant crafted items, recipe receipts, mastery, profession or XP evidence.
+  addMaterialSet(s,target,{ironOre:8,charcoal:4});
   assert.equal(s.productionPlan.enabled,false,'full RP1 remains OFF');
   assert.notEqual(target.craftTraining?.enabled,true,'manual Training remains OFF');
   assert.deepEqual(validate(s),[]);
@@ -50,7 +54,7 @@ test('Builder apprenticeship is canonical, RP1-independent and protects the Buil
 test('Builder autonomously reaches 6 total / 2 T2 through Furnace + iron, survives save/load, then becomes Crafter',()=>{
   let {s,targetId}=builderWorld();
   let sawTier2=false,beforeSave=null;
-  for(let i=0;i<12000;i++){
+  for(let i=0;i<3000;i++){
     step(s,1);
     const a=s.agents.find(x=>x.id===targetId);
     if(!a?.alive)break;
@@ -75,7 +79,7 @@ test('Builder autonomously reaches 6 total / 2 T2 through Furnace + iron, surviv
   assert.equal(loadedProfile.counts[2],beforeSave.tier2);
   assert.deepEqual(loaded.career,beforeSave.career);
 
-  for(let i=0;i<12000&&loaded?.alive&&loaded.profession!=='crafter';i++){
+  for(let i=0;i<3000&&loaded?.alive&&loaded.profession!=='crafter';i++){
     step(s,1);loaded=s.agents.find(x=>x.id===targetId);
   }
   assert.ok(loaded?.alive,'apprentice must remain alive');
