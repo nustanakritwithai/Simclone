@@ -93,12 +93,13 @@ test('positive torso lean bends forward instead of reclining backward',()=>{
 });
 
 test('attack strike travels from overhead to downward follow-through',()=>{
-  const windupPose=poseForMotion('attack',.08),impactPose=poseForMotion('attack',.58),followPose=poseForMotion('attack',.88);
+  const windupPose=poseForMotion('attack',.08),midPose=poseForMotion('attack',.32),impactPose=poseForMotion('attack',.58),followPose=poseForMotion('attack',.88);
   const windup=solveCharacterRig(windupPose,{x:0,y:0},1);
+  const mid=solveCharacterRig(midPose,{x:0,y:0},1);
   const impact=solveCharacterRig(impactPose,{x:0,y:0},1);
   const follow=solveCharacterRig(followPose,{x:0,y:0},1);
-  assert.ok(windupPose.shoulderR<impactPose.shoulderR,'right shoulder must rotate from overhead toward downward');
-  assert.ok(windup.wristR.y<impact.wristR.y,'weapon hand must travel downward on screen during strike');
-  assert.ok(impact.wristR.y<=follow.wristR.y+1e-9,'follow-through must not visibly reverse into a bottom-up swing');
-  assert.ok(followPose.shoulderR>=impactPose.shoulderR-1e-9,'attack must hold the downward follow-through until phase wrap');
+  assert.ok(windupPose.shoulderR<midPose.shoulderR&&midPose.shoulderR<impactPose.shoulderR,'right shoulder must rotate continuously from overhead toward downward');
+  assert.ok(windup.wristR.y<mid.wristR.y&&mid.wristR.y<impact.wristR.y,'weapon hand must travel top-down during the strike');
+  assert.ok(near(impact.wristR.y,follow.wristR.y),'follow-through must hold instead of reversing bottom-up');
+  assert.ok(near(impactPose.shoulderR,followPose.shoulderR),'attack must hold the downward arm angle until phase wrap');
 });
