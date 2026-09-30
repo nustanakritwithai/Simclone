@@ -1,4 +1,5 @@
-import {motionForAgent,poseForMotion,posePhaseForAgent,solveCharacterRig} from './character-rig.mjs?v=0.5.0';
+import {motionForAgent,posePhaseForAgent} from './character-rig.mjs?v=0.5.0';
+import {solveMotionFrame} from './character-motion-solver.mjs?v=0.5.0';
 import {cutoutAssetKey,facingBack,facingMirror} from './character-cutout-assets.mjs?v=0.5.0';
 
 /** 2D cutout renderer.
@@ -120,7 +121,7 @@ export function drawRiggedCharacter(c,{
   showBones=false,
   tool=null
 }={}){
-  const pose=poseForMotion(motion,phase,overrides??{}),rig=solveCharacterRig(pose,{x:0,y:0},scale),atlas=prototypePartAtlas(appearance,facing);
+  const frame=solveMotionFrame({motion,phase,overrides:overrides??{},origin:{x:0,y:0},scale}),pose=frame.pose,rig=frame.rig,atlas=prototypePartAtlas(appearance,facing);
   const shouldMirror=mirror===null?facingMirror(facing):!!mirror;
   c.save();if(shouldMirror)c.scale(-1,1);
   drawBetween(c,atlas.upperArmL,rig.shoulderL,rig.elbowL,6*scale);
