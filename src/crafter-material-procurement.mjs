@@ -14,7 +14,7 @@ import {routeField,routeDistance} from './survival.mjs?v=0.5.0';
 export const ER4_MATERIAL_PROCUREMENT_VERSION='ER4-material-procurement/1';
 
 const freeze=v=>{if(v&&typeof v==='object'&&!Object.isFrozen(v)){Object.freeze(v);for(const x of Object.values(v))freeze(x);}return v;};
-const view=(status,reason,extra={})=>freeze({version:ER4_MATERIAL_PROCUREMENT_VERSION,status,reason,...extra});
+const view=(status,reason,extra={})=>freeze({version:ER4_MATERIAL_PROCUREMENT_VERSION,...extra,status,reason});
 const positive=n=>Number.isSafeInteger(n)&&n>0;
 
 function missingRows(snapshot){
