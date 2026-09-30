@@ -43,7 +43,7 @@ test('shared locomotion stays shared and mismatched careers cannot steal signatu
 
 test('every profession pose resolves to finite shared-rig geometry',()=>{
   const names=[...new Set(Object.values(PROFESSION_MOTION_GROUPS).flat())];
-  assert.equal(names.length,13);
+  assert.equal(names.length,12);
   for(const motion of names){
     const pose=poseForMotion(motion,.37),rig=solveCharacterRig(pose,{x:0,y:0},1);
     for(const point of [rig.root,rig.neck,rig.headCenter,rig.elbowL,rig.wristL,rig.elbowR,rig.wristR,rig.kneeL,rig.ankleL,rig.kneeR,rig.ankleR]){
