@@ -79,6 +79,10 @@ function handoffDebug(s,f){
 function setup(){
   const s=rc2World(),merchant=s.agents[0],crafter=qualifiedCrafter(s,s.agents[1]);
   const market=merchantMarket(s,merchant);
+  // rc2World intentionally fills bags with construction/crafting fixtures.
+  // Free one pre-start slot so this slice tests settlement rather than the already
+  // covered Rust capacity guard (which correctly rolls back an over-capacity buy).
+  freeBagSlot(s,merchant);
   // This focused slice proves the Crafter's autonomous market journey. Keep the
   // Merchant at its canonical storefront so an unrelated return-home route cannot
   // turn a supply-handoff proof into a navigation-fixture failure.
