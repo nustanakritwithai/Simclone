@@ -377,7 +377,7 @@ export function merchantAutonomySnapshot(world,agent){
   if(!home)return er5View('BLOCKED','housing',{agentId:actor.id});
   const protectedReason=er5Protected(world,actor);
   if(protectedReason)return er5View('BLOCKED',protectedReason,{agentId:actor.id});
-  const projection=projectActorObservedDemand(world,actor);
+  const projection=projectActorObservedDemand(world,actor,{includeCrafterMaterialDemand:true});
   if(projection.status!=='SAT'||projection.scope!=='ACTOR_OBSERVED'||!Array.isArray(projection.signals))
     return er5View('UNKNOWN',projection.reason??'demand-evidence',{agentId:actor.id,demandStatus:projection.status??'UNKNOWN'});
   const ledger=merchantLedgerFromCollection(world.merchantLedgers,actor.id);
