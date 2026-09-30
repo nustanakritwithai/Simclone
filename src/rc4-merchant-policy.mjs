@@ -343,6 +343,28 @@ function er5ObservedListingCandidates(world,actor,signal){
     a.marketId.localeCompare(b.marketId)||a.listingId.localeCompare(b.listingId));
   return {status:'SAT',reason:'observed-listings',rows};
 }
+function er5AcceptedProcurement(world,actor,rows){
+  const accepted=[];
+  for(const signal of rows){
+    const candidates=er5ObservedListingCandidates(world,actor,signal);
+    if(candidates.status!=='SAT')return {status:'UNKNOWN',reason:candidates.reason,row:null};
+    for(const row of candidates.rows){
+      const listing=world?.merchantListings?.listings?.find(l=>l.id===row.listingId&&l.status==='OPEN');
+      if(!listing?.buyOfferId||row.affordable!==true)continue;
+      const offer=world?.merchantBuyOffers?.buyOffers?.find(o=>
+        o.offerId===listing.buyOfferId&&o.status==='OPEN'&&o.buyerId===actor.id
+      );
+      if(!offer)continue;
+      accepted.push({...row,buyOfferId:offer.offerId,offerCreatedTick:offer.createdTick});
+    }
+  }
+  accepted.sort((a,b)=>
+    (a.offerCreatedTick??0)-(b.offerCreatedTick??0)||
+    String(a.buyOfferId).localeCompare(String(b.buyOfferId))||
+    String(a.listingId).localeCompare(String(b.listingId))
+  );
+  return {status:'SAT',reason:'accepted-procurement',row:accepted[0]??null};
+}
 function er5Protected(world,actor){
   if(!canPerformProductiveWork(world,actor))return 'productive-stage';
   if(actor.adventureCombat?.status==='ACTIVE'||actor.adventureEncounter)return 'adventure';
@@ -385,6 +407,35 @@ export function merchantAutonomySnapshot(world,agent){
   const ledger=merchantLedgerFromCollection(world.merchantLedgers,actor.id);
   if(!ledger)return er5View('UNKNOWN','merchant-ledger',{agentId:actor.id});
   const rows=er5DemandRows(projection);
+  const accepted=er5AcceptedProcurement(world,actor,rows);
+  if(accepted.status!=='SAT')return er5View('UNKNOWN',accepted.reason??'accepted-procurement',{agentId:actor.id});
+  if(accepted.row){
+    const selected=accepted.row,travelling=isCanonicalMarketTravelTask(actor.task);
+    if(travelling){
+      const targetMarketId=actor.task.rc4MarketTravel.marketId;
+      if(targetMarketId!==selected.marketId)
+        return er5View('SAT','accepted-procurement-retarget',{
+          type:'CANCEL_TRAVEL',agentId:actor.id,marketId:targetMarketId,listingId:selected.listingId
+        });
+      const arrival=verifyCanonicalMarketArrival(world,{agentId:actor.id,market:selected.market});
+      if(arrival.state==='UNKNOWN')
+        return er5View('SAT','accepted-procurement-travelling',{
+          ...selected,type:'WAIT_TRAVEL',agentId:actor.id,marketId:selected.marketId,listingId:selected.listingId
+        });
+      if(arrival.state!=='SAT')
+        return er5View('SAT','accepted-procurement-arrival-invalid',{
+          type:'CANCEL_TRAVEL',agentId:actor.id,marketId:selected.marketId,listingId:selected.listingId
+        });
+      return er5View('SAT','accepted-procurement-ready',{
+        ...selected,type:'BUY_LISTING',agentId:actor.id,
+        intent:er5Freeze({buyerId:actor.id,listingId:selected.listingId,listingRevision:selected.listingRevision,quantity:selected.quantity})
+      });
+    }
+    return er5View('SAT','accepted-procurement-travel',{
+      ...selected,type:'TRAVEL_TO_MARKET',agentId:actor.id,
+      intent:er5Freeze({agentId:actor.id,marketId:selected.marketId})
+    });
+  }
   if(!rows.length){
     if(isCanonicalMarketTravelTask(actor.task))return er5View('SAT','demand-expired',{type:'CANCEL_TRAVEL',agentId:actor.id});
     return er5View('IDLE','no-observed-demand',{agentId:actor.id});

@@ -212,6 +212,46 @@ test('ER5 unaffordable observed ask creates one funded BuyOffer and save/load do
   const saved=serialize(s);s=restore(saved);assert.equal(serialize(s),saved);
 });
 
+test('ER5 accepted bulk procurement outranks unrelated open BuyOffer and settles canonically',()=>{
+  let s=createWorld(925006,{mode:'independent',worldProfile:'same-world',population:4});
+  let merchant=s.agents[0],producer=s.agents[3];calm(merchant,producer);
+  Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
+  const marketId=prepareMerchant(s,merchant,'accepted-bulk',{open:true});
+  const point=marketPoint(s,marketId);
+  producer.x=point.x;producer.y=point.y;producer.task=null;observeRc4Markets(s);
+  const travel=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:producer.id,marketId});assert.equal(travel.ok,true,JSON.stringify(travel));
+  assert.equal(actor(s,producer.id).task?.path?.length,0);
+
+  const wood=command(s,'RC4_CREATE_BUY_OFFER',{
+    agentId:merchant.id,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantityWanted:1,unitPrice:3
+  });assert.equal(wood.ok,true,JSON.stringify(wood));
+  s.tick++;
+  const armor=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchant.id,itemKind:'HIDE_ARMOR',unitPrice:1});
+  assert.equal(armor.ok,true,JSON.stringify(armor));
+  observeRc4Markets(s);
+
+  const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:wood.offerId,quantity:1});
+  assert.equal(accepted.ok,true,JSON.stringify(accepted));
+  if(actor(s,producer.id).task?.rc4MarketTravel)
+    assert.equal(command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:producer.id}).ok,true);
+
+  merchant=actor(s,merchant.id);merchant.x=point.x;merchant.y=point.y;merchant.task=null;merchant.hp=merchant.satiety=merchant.energy=100;
+  observeRc4Markets(s);
+  const snap=merchantAutonomySnapshot(s,merchant);
+  assert.equal(snap.status,'SAT',JSON.stringify(snap));
+  assert.equal(snap.type,'TRAVEL_TO_MARKET',JSON.stringify(snap));
+  assert.equal(snap.listingId,accepted.listingId,'accepted procurement must outrank unrelated WAIT_BUY_OFFER work');
+
+  step(s,1);merchant=actor(s,merchant.id);
+  assert.equal(merchant.task?.rc4MarketTravel?.marketId,marketId);
+  step(s,1);
+  assert.equal(s.merchantListings.listings.find(l=>l.id===accepted.listingId)?.status,'FILLED');
+  assert.equal(s.merchantBuyOffers.buyOffers.find(o=>o.offerId===wood.offerId)?.status,'FILLED');
+  assert.equal(s.merchantBuyOffers.buyOffers.find(o=>o.offerId===armor.offerId)?.status,'OPEN');
+  assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===accepted.listingId).length,1);
+  assert.deepEqual(validate(s),[]);
+});
+
 test('ER5 hidden/stale supply never authorizes remote buying and corrupt market knowledge remains UNKNOWN',()=>{
   {
     const f=setupObservedResale(),s=f.s,m=actor(s,f.merchantId),c=actor(s,f.customerId);
