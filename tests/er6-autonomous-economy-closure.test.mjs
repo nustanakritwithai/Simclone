@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {createWorld,command,step,serialize,restore,validate,walkable} from '../src/engine.mjs';
 import {personalHomeSite} from '../src/individual-housing.mjs';
 import {canonicalEdge} from '../src/rust-stations.mjs';
-import {advanceCraft,rustToolMultiplier} from '../src/rust-possessions.mjs';
+import {advanceCraft,toolMultiplier} from '../src/rust-possessions.mjs';
 import {projectHomeMarketForTrade} from '../src/home-market.mjs';
 import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
@@ -63,19 +63,6 @@ function arriveImmediately(s,agentId,marketId){
   a.task=null;a.x=p.x;a.y=p.y;observeRc4Markets(s);
   const travel=command(s,'RC4_TRAVEL_TO_MARKET',{agentId,marketId});assert.equal(travel.ok,true,JSON.stringify(travel));
   assert.equal(actor(s,agentId).task.path.length,0);
-}
-function reachableStart(s,target,minDistance=3){
-  for(let r=minDistance;r<12;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
-    if(Math.abs(dx)+Math.abs(dy)<minDistance)continue;
-    const x=target.x+dx,y=target.y+dy;
-    if(!walkable(s,x,y))continue;
-    const probe={...actor(s,3),x,y};
-    const path=(awaitPath=>awaitPath)(null);
-    // path validity is delegated to RC4_TRAVEL_TO_MARKET in the actual proof;
-    // choose a walkable nearby point deterministically.
-    return {x,y};
-  }
-  return null;
 }
 function removeNeedTool(s,a,kind){
   const removed=new Set(s.rustPossessions.items.filter(i=>i.kind===kind&&i.location?.kind==='bag'&&i.location.agentId===a.id).map(i=>i.id));
@@ -155,7 +142,7 @@ test('ER6 autonomous consumer travels, buys exact canonical item, cancels journe
   assert.equal(purchased,true,'consumer purchased exact item');
   assert.equal(equipped,true,'consumer equipped purchased tool through Rust authority');
   assert.deepEqual(item.location,{kind:'bag',agentId:f.consumerId});
-  assert.ok(rustToolMultiplier(s,consumer,'MINE')>1,'equipped purchased tool affects real productive work');
+  assert.ok(toolMultiplier(s,consumer.id,'MINE')>1,'equipped purchased tool affects real productive work');
   assert.equal(getBalance(s,f.consumerId),buyerBefore-60);
   assert.equal(getBalance(s,f.merchantId),merchantBefore+60);
   assert.equal(totalCurrency(s),totalBefore);
