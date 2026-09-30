@@ -75,7 +75,7 @@ function removeNeedItem(s,a,itemKind){
   s.rustPossessions.equipment=s.rustPossessions.equipment.filter(e=>s.rustPossessions.items.some(i=>i.id===e.itemId));
 }
 function setupObservedResale(){
-  const s=createWorld(925001,{mode:'independent',worldProfile:'same-world',population:4}),producer=s.agents[3],supplier=s.agents[1],merchant=s.agents[2],customer=s.agents[0];
+  const s=createWorld(925001,{mode:'independent',worldProfile:'same-world',population:4}),producer=s.agents[3],supplier=s.agents[1],merchant=s.agents[0],customer=s.agents[2];
   calm(producer,supplier,merchant,customer);
   Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
   const item=craftItem(s,producer,'STONE_PICKAXE');
@@ -93,7 +93,7 @@ function setupObservedResale(){
   assert.equal(resale.ok,true,JSON.stringify(resale));
 
   const merchantMarket=prepareMerchant(s,merchant,'merchant',{open:false});
-  customer.preference='MINE';removeNeedItem(s,customer,'STONE_PICKAXE');calm(actor(s,merchant.id),customer);
+  assert.equal(customer.profession,'miner');assert.equal(customer.preference,'MINE');removeNeedItem(s,customer,'STONE_PICKAXE');calm(actor(s,merchant.id),customer);
   const supplyPoint=marketPoint(s,supplierMarket),m=actor(s,merchant.id),c=actor(s,customer.id);
   m.x=supplyPoint.x;m.y=supplyPoint.y;c.x=supplyPoint.x;c.y=supplyPoint.y;m.task=null;c.task=null;
   observeRc4Markets(s);
@@ -151,10 +151,7 @@ test('ER5 observed supply -> autonomous buy -> autonomous Listing -> canonical r
   const travel=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:customer.id,marketId:f.merchantMarket});assert.equal(travel.ok,true,JSON.stringify(travel));
   assert.equal(actor(s,customer.id).task.path.length,0);
   const sold=command(s,'RC4_BUY_LISTING',{buyerId:customer.id,listingId:resale.id,listingRevision:resale.revision});
-  const customerAtSale={alive:customer.alive,profession:customer.profession,preference:customer.preference,
-    heldItems:s.rustPossessions.items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===customer.id).map(i=>({id:i.id,kind:i.kind})),
-    demand:projectActorObservedDemand(s,customer).signals?.find(x=>x.itemKind==='STONE_PICKAXE')??null};
-  assert.equal(sold.ok,true,JSON.stringify({sold,customerAtSale}));
+  assert.equal(sold.ok,true,JSON.stringify(sold));
 
   merchant=actor(s,f.merchantId);customer=actor(s,f.customerId);
   const ledger=s.merchantLedgers.ledgers.find(l=>l.merchantId===merchant.id);
@@ -166,7 +163,7 @@ test('ER5 observed supply -> autonomous buy -> autonomous Listing -> canonical r
 });
 
 test('ER5 unaffordable observed ask creates one funded BuyOffer and save/load does not duplicate it',()=>{
-  let s=createWorld(925002,{mode:'independent',worldProfile:'same-world',population:4}),supplier=s.agents[0],merchant=s.agents[1],producer=s.agents[2],customer=s.agents[3];
+  let s=createWorld(925002,{mode:'independent',worldProfile:'same-world',population:4}),supplier=s.agents[0],merchant=s.agents[1],producer=s.agents[3],customer=s.agents[2];
   const supplierId=supplier.id,merchantId=merchant.id,producerId=producer.id,customerId=customer.id;
   calm(supplier,merchant,producer,customer);
   Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
@@ -177,7 +174,7 @@ test('ER5 unaffordable observed ask creates one funded BuyOffer and save/load do
   assert.equal(high.ok,true,JSON.stringify(high));
   const merchantMarket=prepareMerchant(s,merchant,'bo-merchant',{open:false});
   merchant=actor(s,merchantId);customer=actor(s,customerId);
-  customer.preference='MINE';removeNeedItem(s,customer,'STONE_PICKAXE');
+  assert.equal(customer.profession,'miner');assert.equal(customer.preference,'MINE');removeNeedItem(s,customer,'STONE_PICKAXE');
   const point=marketPoint(s,supplierMarket);
   merchant.x=point.x;merchant.y=point.y;customer.x=point.x;customer.y=point.y;calm(merchant,customer);
   observeRc4Markets(s);
