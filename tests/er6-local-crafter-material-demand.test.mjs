@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {command,serialize,walkable,validate} from '../src/engine.mjs';
+import {command,step,serialize,walkable,validate} from '../src/engine.mjs';
 import {adoptProfession} from '../src/kingdom-utility.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
 import {recipeMastery} from '../src/craft-recipe-knowledge.mjs';
@@ -139,5 +139,11 @@ test('ER6 Merchant turns observed Crafter material shortage into funded bulk Buy
   assert.equal(decision.referencePrice,5);
   assert.ok(['verified-trade','own-ledger-sale'].includes(decision.referenceSource));
   assert.ok(Number.isSafeInteger(decision.unitPrice)&&decision.unitPrice>0);
+  const beforeOffers=s.merchantBuyOffers.buyOffers.length;
+  step(s,1);
+  const offer=s.merchantBuyOffers.buyOffers.find(o=>o.buyerId===merchant.id&&o.itemKind==='wood'&&o.status==='OPEN');
+  assert.ok(offer,'engine must commit the funded bulk BuyOffer through RC4');
+  assert.equal(offer.assetType,TRADE_ASSET_TYPES.BULK_RESOURCE);
+  assert.equal(s.merchantBuyOffers.buyOffers.length,beforeOffers+1);
   assert.deepEqual(validate(s),[]);
 });
