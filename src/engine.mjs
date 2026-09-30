@@ -53,6 +53,7 @@ import {demandDrivenCrafterIntent} from './demand-driven-crafter.mjs?v=0.5.0';
 import {crafterMaterialProcurementDecision} from './crafter-material-procurement.mjs?v=0.5.0';
 import {merchantAutonomyDecision} from './rc4-merchant-policy.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
+import {TRADE_ASSET_TYPES} from './trade-assets.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -579,7 +580,7 @@ function stepMerchantAutonomy(s){
     }else if(intent.type==='CREATE_LISTING'){
       const data={
         agentId:a.id,assetType:intent.assetType,unitPrice:intent.unitPrice,requestId:intent.requestId,
-        ...(intent.assetType==='bulk-resource'?{itemKind:intent.itemKind,quantity:intent.quantity}:{itemId:intent.itemId})
+        ...(intent.assetType===TRADE_ASSET_TYPES.BULK_RESOURCE?{itemKind:intent.itemKind,quantity:intent.quantity}:{itemId:intent.itemId})
       };
       r=command(s,'RC4_CREATE_LISTING',data);
       if(r?.ok&&!r.duplicate)event(s,'market',a.name+' ลงขาย '+intent.itemKind+' x'+intent.quantity,a.id);
