@@ -85,18 +85,19 @@ export function installIndependentUI(api){
  }
  function openHome(h){
   const s=api.read().state,owner=[...s.agents,...s.archive].find(a=>a.id===h.ownerId),actor=s.agents.find(a=>a.id===api.read().selected&&a.alive),stock=resourceStock(s,h.ownerId);
-  const data={agentId:actor?.id??null,houseId:h.houseId},preview=api.preview('CREATE_ARCHIVE',data),household=householdForOwner(s,h.ownerId);
+  const data={agentId:actor?.id??null,houseId:h.houseId},preview=api.preview('CREATE_ARCHIVE',data),postPreview=api.preview('CREATE_POST_STUDIO',data),household=householdForOwner(s,h.ownerId);
   const currentResidence=actor?activeResidenceOf(s,actor.id):null,joinPreview=actor&&actor.id!==h.ownerId?api.preview('JOIN_HOUSEHOLD',{agentId:actor.id,ownerId:h.ownerId}):null;
   const residents=(household?.residentIds??[h.ownerId]).map(id=>[...s.agents,...s.archive].find(p=>p.id===id)?.name??('#'+id)).join(', ');
   const residenceAction=currentResidence?.ownerId===h.ownerId?'<button class="secondary" data-leave-household="'+actor.id+'">ออกจาก household</button>':joinPreview?.ok?'<button class="primary" data-join-household="'+h.ownerId+'">อยู่ร่วมบ้านนี้</button>':'';
-  const ownArchive=s.culture?.houseId===h.houseId,economy=owner?householdEconomySnapshot(s,owner.id):null,recruitment=owner?householdRecruitmentOffers(s,owner.id):[];
+  const ownArchive=s.culture?.houseId===h.houseId,ownPostStudio=s.postStudio?.houseId===h.houseId,economy=owner?householdEconomySnapshot(s,owner.id):null,recruitment=owner?householdRecruitmentOffers(s,owner.id):[];
   const topRecruitment=recruitment[0]??null;
   const recruitmentHtml=topRecruitment?'<p data-household-recruitment><b>กำลังรับคน:</b> '+esc(topRecruitment.label)+' · '+esc(topRecruitment.urgency)+' · ผู้สมัคร '+topRecruitment.candidateIds.length+' · slot '+topRecruitment.availableFollowerSlots+'</p>':'';
   const econ=economy?'<div class="household-economy" data-household-economy="'+esc(h.houseId)+'"><p><b>Household Economy</b> · Food '+economy.stock.food+' · Wood '+economy.stock.wood+' · Stone '+economy.stock.stone+' · Charcoal '+economy.stock.charcoal+'</p><p>Scarcity — Food '+economy.economy.scarcity.food+' · Wood '+economy.economy.scarcity.wood+' · Stone '+economy.economy.scarcity.stone+'</p><p>แรงงานที่ควรเสริม: '+esc(economy.labor.topOffer?.label??'สมดุล')+'</p>'+recruitmentHtml+'</div>':'';
   api.openDialog('บ้านของ '+(owner?.name??'ไม่ทราบเจ้าของ'),'PERSONAL HOME · '+h.houseId,
    '<section class="personal-house-detail" data-house="'+esc(h.houseId)+'" data-owner="'+(h.ownerId??'unknown')+'"><div class="personal-house-hero">⌂</div><h3>'+esc(h.complete?'สร้างเสร็จแล้ว':'กำลังก่อสร้าง · ขาด '+h.missing.length+' ชิ้น')+'</h3><p>เจ้าของ: '+esc(owner?.name??'UNKNOWN')+' · '+h.origin.x+', '+h.origin.y+'</p>'+
    (owner?button(owner.id,'เลือก '+owner.name):'')+'<p data-household-residents>Household: '+esc(residents)+'</p>'+residenceAction+econ+'<p>ทรัพยากรของ Household — อาหาร '+stock.food+' · ไม้ '+stock.wood+' · หิน '+stock.stone+'</p><p class="source-note">เจ้าของมาจากผู้วางฐาน #'+h.originStationId+' · ownership บ้านไม่เปลี่ยน · ทรัพยากรดิบแชร์ใน Household</p>'+
-   (ownArchive?'<p>คลังความรู้สาธารณะอยู่ที่บ้านนี้ · '+s.culture.entries.length+' เรื่อง</p><button class="secondary" data-home-archive="'+esc(h.houseId)+'">อ่านคลังความรู้</button>':h.complete&&!s.culture?'<button class="primary" data-create-home-archive="'+esc(h.houseId)+'" '+(preview.ok?'':'disabled')+'>เปิดคลังความรู้ที่บ้าน</button><p class="source-note">'+esc(preview.ok?'ใช้ไม้ 6 และหิน 2 จาก resource account ปัจจุบัน':preview.message)+'</p>':'')+'</section>');
+   (ownArchive?'<p>คลังความรู้สาธารณะอยู่ที่บ้านนี้ · '+s.culture.entries.length+' เรื่อง</p><button class="secondary" data-home-archive="'+esc(h.houseId)+'">อ่านคลังความรู้</button>':h.complete&&!s.culture?'<button class="primary" data-create-home-archive="'+esc(h.houseId)+'" '+(preview.ok?'':'disabled')+'>เปิดคลังความรู้ที่บ้าน</button><p class="source-note">'+esc(preview.ok?'ใช้ไม้ 6 และหิน 2 จาก resource account ปัจจุบัน':preview.message)+'</p>':'')+
+   (ownPostStudio?'<p>Post Studio · '+s.postStudio.posts.length+' โพสต์จากหลักฐานจริง</p><button class="secondary" data-open-post-studio="'+esc(h.houseId)+'">เปิด Post Studio</button>':ownArchive&&!s.postStudio?'<button class="primary" data-create-post-studio="'+esc(h.houseId)+'" '+(postPreview.ok?'':'disabled')+'>เปิด Post Studio</button><p class="source-note">'+esc(postPreview.ok?'สร้างสื่อจาก Cultural Archive โดยไม่สร้าง knowledge ใหม่':postPreview.message)+'</p>':'')+'</section>');
   $('dialog').dataset.kind='personal-home';
  }
  function openStructure(target){
@@ -120,6 +121,22 @@ export function installIndependentUI(api){
   api.openDialog('คลังความรู้ที่บ้าน','CULTURAL ARCHIVE',s.culture.entries.map(e=>'<section class="memory-item"><b>'+esc(e.key)+'</b><p>บันทึกโดย #'+e.authorId+' · ฉบับ '+e.revision+'</p><button class="secondary" data-read-home-archive="'+esc(e.key)+'" '+(selected===null?'disabled':'')+'>อ่านด้วย Clone ที่เลือก</button></section>').join('')||'<p>ยังไม่มีบันทึก · เจ้าของและผู้มาเยือนสามารถเผยแพร่ความรู้ที่ยืนยันแล้วในระยะ 4 ช่อง</p>');
   $('dialog').dataset.kind='home-archive';
  }
+ function openPostStudio(){
+  const {state:s,selected}=api.read(),studio=s.postStudio;
+  if(!studio)return;
+  const ownerSelected=selected===studio.ownerId;
+  const published=new Set(studio.posts.map(p=>p.sourceKey+'@'+p.sourceRevision));
+  const sources=(s.culture?.entries??[]).map(e=>{
+   const done=published.has(e.key+'@'+e.revision);
+   return '<section class="memory-item"><b>'+esc(e.key)+'</b><p>Cultural Archive · ฉบับ '+e.revision+' · evidence '+esc(e.evidenceId)+'</p><button class="primary" data-publish-studio-post="'+esc(e.key)+'" '+(!ownerSelected||done?'disabled':'')+'>'+(done?'เผยแพร่ฉบับนี้แล้ว':'ทำเป็นโพสต์')+'</button></section>';
+  }).join('');
+  const posts=studio.posts.slice().reverse().map(p=>'<section class="memory-item" data-studio-post="'+esc(p.postId)+'"><small>'+esc(p.postId)+' · tick '+p.publishedTick+'</small><h3>'+esc(p.title)+'</h3><p>'+esc(p.body)+'</p><small>source '+esc(p.sourceKey)+' · revision '+p.sourceRevision+' · evidence '+esc(p.sourceEvidenceId)+'</small></section>').join('');
+  api.openDialog('Post Studio','EVIDENCE-BACKED MEDIA · '+studio.posts.length+'/'+24,
+   '<p class="source-note">Post Studio เป็น presentation layer เท่านั้น · ไม่เพิ่ม knowledge, เงิน, อาชีพ หรือผลผลิต</p>'+
+   '<h3>หลักฐานที่พร้อมทำโพสต์</h3>'+(sources||'<p>ยังไม่มี Cultural Archive entry สำหรับทำโพสต์</p>')+
+   '<h3>โพสต์ที่เผยแพร่แล้ว</h3>'+(posts||'<p>ยังไม่มีโพสต์</p>'));
+  $('dialog').dataset.kind='post-studio';
+ }
  $('inspector').addEventListener('click',e=>{
   const join=e.target.closest('[data-join-household]');if(join){const r=api.execute('JOIN_HOUSEHOLD',{agentId:api.read().selected,ownerId:Number(join.dataset.joinHousehold)});api.toast(r.message);if(r.ok)api.save();return;}
   const leave=e.target.closest('[data-leave-household]');if(leave){const r=api.execute('LEAVE_HOUSEHOLD',{agentId:Number(leave.dataset.leaveHousehold)});api.toast(r.message);if(r.ok)api.save();return;}
@@ -131,6 +148,9 @@ export function installIndependentUI(api){
   if(b.dataset.joinHousehold){const r=api.execute('JOIN_HOUSEHOLD',{agentId:api.read().selected,ownerId:Number(b.dataset.joinHousehold)});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}return;}
   if(b.dataset.leaveHousehold){const r=api.execute('LEAVE_HOUSEHOLD',{agentId:Number(b.dataset.leaveHousehold)});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}return;}
   if(b.dataset.createHomeArchive){const r=api.execute('CREATE_ARCHIVE',{agentId:api.read().selected,houseId:b.dataset.createHomeArchive});api.toast(r.message);if(r.ok){api.save();openHome(homeOf(api.read().state,api.read().selected));}}
+  if(b.dataset.createPostStudio){const r=api.execute('CREATE_POST_STUDIO',{agentId:api.read().selected,houseId:b.dataset.createPostStudio});api.toast(r.message);if(r.ok){api.save();openHome(homeOf(api.read().state,api.read().selected));}}
+  if(b.dataset.openPostStudio)openPostStudio();
+  if(b.dataset.publishStudioPost){const r=api.execute('PUBLISH_STUDIO_POST',{agentId:api.read().selected,key:b.dataset.publishStudioPost});api.toast(r.message);if(r.ok){api.save();openPostStudio();}}
   if(b.dataset.personalCommand){const r=api.execute(b.dataset.personalCommand,{agentId:api.read().selected,stationId:Number(b.dataset.station),recipeId:b.dataset.recipe});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}}
   if(b.dataset.homeArchive)openArchive();
   if(b.dataset.readHomeArchive){const r=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.readHomeArchive});api.toast(r.message);if(r.ok)api.save();}
