@@ -15,6 +15,8 @@ import {autonomousLifeSnapshot} from './autonomous-life-view.mjs?v=0.5.0';
 import {createGovernorCandidates} from './governor-candidate.mjs?v=0.5.0';
 import {governanceOfficeForAgent} from './governance-authority.mjs?v=0.5.0';
 import {governanceSupportSnapshot} from './governance-policy.mjs?v=0.5.0';
+import {POSE_PRESETS} from './character-rig.mjs?v=0.5.0';
+import {drawRiggedCharacter} from './character-cutout-renderer.mjs?v=0.5.0';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const signed=v=>{const n=Number(v)||0,s=Number.isInteger(n)?String(n):n.toFixed(2);return n>0?'+'+s:s;};
 export function installIndependentUI(api){
@@ -23,6 +25,37 @@ export function installIndependentUI(api){
  $('inspector').append(card);
  const labels={INELIGIBLE:'ยังไม่ถึงวัยสร้างบ้าน',COHABITING:'อยู่ร่วม household · หยุดสร้างบ้านตัวเองชั่วคราว',HOME_COMPLETE:'บ้านเสร็จแล้ว',NO_SITE:'กำลังหาพื้นที่',NEED_HAMMER:'เตรียมโต๊ะและค้อนส่วนตัว',EQUIP_HAMMER:'กำลังสวมค้อน',NEED_MATERIALS:'หาไม้และหินส่วนตัว',CRAFT_PIECE:'คราฟต์ชิ้นส่วนบ้าน',PLACE_PIECE:'นำชิ้นส่วนไปก่อสร้าง'};
  const button=(id,name)=>'<button class="secondary" data-person="'+id+'">'+esc(name)+'</button>';
+ const poseStudio={agentId:null,preset:'walk',phase:0,bones:true,playing:true,raf:0};
+ function renderPoseStudio(time=0){
+  const dialog=$('dialog'),canvas=$('pose-studio-canvas');if(!dialog?.open||dialog.dataset.kind!=='pose-studio'||!canvas)return false;
+  const a=api.read().state.agents.find(x=>x.id===poseStudio.agentId&&x.alive);if(!a)return false;
+  if(poseStudio.playing)poseStudio.phase=((time||performance.now())*.00075)%1;
+  const dpr=Math.min(devicePixelRatio||1,2),rect=canvas.getBoundingClientRect(),w=Math.max(260,Math.round(rect.width||320)),h=Math.max(300,Math.round(rect.height||360));
+  if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);}
+  const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='#0f241d';ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle='#d6be7e22';ctx.lineWidth=1;
+  for(let x=20;x<w;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let y=20;y<h;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  ctx.save();ctx.translate(w/2,h-48);drawRiggedCharacter(ctx,{appearance:a.appearance,motion:poseStudio.preset,phase:poseStudio.phase,scale:4.2,showBones:poseStudio.bones});ctx.restore();
+  const range=dialog.querySelector('[data-pose-phase]');if(range&&poseStudio.playing)range.value=String(Math.round(poseStudio.phase*1000));
+  const phaseLabel=dialog.querySelector('[data-pose-phase-label]');if(phaseLabel)phaseLabel.textContent=poseStudio.phase.toFixed(2);
+  return true;
+ }
+ function poseLoop(time){if(!renderPoseStudio(time)){poseStudio.raf=0;return;}poseStudio.raf=requestAnimationFrame(poseLoop);}
+ function ensurePoseLoop(){if(!poseStudio.raf)poseStudio.raf=requestAnimationFrame(poseLoop);}
+ function openPoseStudio(agentId){
+  const a=api.read().state.agents.find(x=>x.id===agentId&&x.alive);if(!a)return;
+  poseStudio.agentId=a.id;poseStudio.preset='walk';poseStudio.phase=0;poseStudio.bones=true;poseStudio.playing=true;
+  const buttons=POSE_PRESETS.map(p=>'<button class="secondary" data-pose-preset="'+p+'">'+p.toUpperCase()+'</button>').join('');
+  api.openDialog('Pose Studio · '+esc(a.name),'2D CUTOUT BONE RIG',
+   '<section class="pose-studio-panel" data-pose-agent="'+a.id+'"><canvas id="pose-studio-canvas" aria-label="Pose preview"></canvas>'+
+   '<p class="source-note">กระดูกใช้ควบคุมข้อต่อเท่านั้น · หัว ลำตัว แขน ขา เป็นชิ้นภาพ 2D จาก visual prototype และถูกวาดตามกระดูกด้วย drawImage()</p>'+
+   '<div class="pose-studio-presets">'+buttons+'</div>'+
+   '<label class="pose-studio-phase">Phase <b data-pose-phase-label>0.00</b><input data-pose-phase type="range" min="0" max="1000" value="0"></label>'+
+   '<div class="dialog-actions"><button class="primary" data-pose-play>หยุด</button><button class="secondary" data-pose-bones>ซ่อนกระดูก</button></div></section>');
+  $('dialog').dataset.kind='pose-studio';ensurePoseLoop();
+ }
  function update(){
   const {state:s,selected}=api.read(),a=s.agents.find(a=>a.id===selected),on=isIndependent(s);
   const settlements=on?allSettlementSnapshots(s).filter(x=>x.status==='active'):[];
@@ -73,6 +106,7 @@ export function installIndependentUI(api){
    const lifeHtml=life?'<div class="autonomous-life-summary" data-autonomous-life="'+a.id+'"><small>Autonomous Life · VAL1–VAL10</small><span>ตอนนี้ <b>'+esc(life.currentAction?.label??'ยังไม่มีงานปัจจุบัน')+'</b></span>'+planLine+predLine+outLine+learnLine+'<span>แผนบ้าน <b>'+esc(life.homePlan.label)+'</b></span>'+lifePressure+lifeWhy+'</div>':'';
   const homeLabel=residence&&householdOwner?'อยู่ร่วมบ้านของ '+esc(householdOwner.name):h?(h.complete?'บ้านของ '+esc(a.name):'กำลังสร้าง '+esc(h.houseId)):(guardian?'พักกับ '+esc(guardian.name):'ยังไม่มีบ้านส่วนตัว');
   const homeAction=residence?'<button class="secondary" data-leave-household="'+a.id+'">ออกจาก household</button>':h?'<button class="secondary" data-own-home="'+a.id+'">ดูบ้าน</button>':candidate?'<button class="secondary" data-join-household="'+candidate.ownerId+'">ขออยู่ร่วมบ้าน</button>':'';
+  const poseAction='<button class="secondary" data-pose-studio="'+a.id+'">Pose Studio</button>';
   const members=household?household.residentIds.map(id=>[...s.agents,...s.archive].find(p=>p.id===id)?.name??('#'+id)).join(', '):'';
   const social=household?'<div class="household-summary" data-household-owner="'+household.ownerId+'"><small>Household · '+esc(householdOwner?.name??'#'+household.ownerId)+'</small><span>'+esc(members)+'</span>'+(leadership?'<span>Leadership <b>Lv.'+leadership.level+'</b> · Followers <b>'+leadership.activeFollowers+'/'+leadership.followerCapacity+'</b></span>':'')+(relation?'<span>Trust <b>'+relation.trust+'</b> · Affinity <b>'+relation.affinity+'</b> · Respect <b>'+relation.respect+'</b></span>':'')+'</div>':'';
   const policy=governorSupport?.activePolicy;
@@ -80,7 +114,7 @@ export function installIndependentUI(api){
   const governance=governorOffice
     ?'<div class="household-summary governance-summary" data-governor="'+a.id+'" data-settlement="'+esc(governorOffice.settlementId)+'"><small>Governance · GOV6</small><span>อาชีพ <b>'+esc(a.profession??'unknown')+'</b> · ตำแหน่ง <b>ผู้ปกครอง '+esc(governorOffice.settlementId)+'</b></span><span>Leadership <b>Lv.'+(governorSupport?.leadershipLevel??0)+'</b> · Household สนับสนุน <b>'+(governorSupport?.supportHouseholds??0)+'/'+(governorSupport?.requiredSupport??0)+'</b> · '+esc(governorSupport?.qualification??'UNKNOWN')+'</span><span>นโยบาย <b>'+esc(policyLabel)+'</b>'+(policy?' · +'+policy.bonus+' '+esc(policy.action):'')+' · สำเร็จ '+(governorSupport?.resolvedPolicies??0)+'</span></div>'
     :governorCandidate?'<div class="household-summary governance-summary" data-governor-candidate="'+a.id+'" data-settlement="'+esc(governorCandidate.settlementId)+'"><small>Governance · GOV1 Candidate</small><span>อาชีพ <b>'+esc(a.profession??'unknown')+'</b> · ผู้สมัครผู้ปกครอง <b>'+esc(governorCandidate.settlementId)+'</b></span><span>Leadership <b>Lv.'+governorCandidate.leadershipLevel+'</b> · Household สนับสนุน <b>'+governorCandidate.supportHouseholds+'/'+governorCandidate.requiredSupport+'</b></span><span>Trust '+governorCandidate.supportTrust+' · Respect '+governorCandidate.supportRespect+' · Evidence '+governorCandidate.supportEvidenceCount+'</span></div>':'';
-  const html='<div><b>⌂ '+homeLabel+'</b>'+homeAction+'</div><small>'+esc(labels[intent.kind]??intent.kind)+'</small>'+lifeHtml+governance+social+'<small>'+(account.kind==='household'?'ทรัพยากรร่วมของบ้าน '+esc(account.houseId):'ทรัพยากรชั่วคราวส่วนตัว')+'</small><div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
+  const html='<div><b>⌂ '+homeLabel+'</b><span class="personal-home-actions">'+homeAction+poseAction+'</span></div><small>'+esc(labels[intent.kind]??intent.kind)+'</small>'+lifeHtml+governance+social+'<small>'+(account.kind==='household'?'ทรัพยากรร่วมของบ้าน '+esc(account.houseId):'ทรัพยากรชั่วคราวส่วนตัว')+'</small><div class="personal-stock" data-owner="'+a.id+'"><span>อาหาร <b>'+stock.food+'</b></span><span>ไม้ <b>'+stock.wood+'</b></span><span>หิน <b>'+stock.stone+'</b></span></div>';
   if(card.innerHTML!==html)card.innerHTML=html;
  }
  function openHome(h){
@@ -121,6 +155,7 @@ export function installIndependentUI(api){
   $('dialog').dataset.kind='home-archive';
  }
  $('inspector').addEventListener('click',e=>{
+  const pose=e.target.closest('[data-pose-studio]');if(pose){openPoseStudio(Number(pose.dataset.poseStudio));return;}
   const join=e.target.closest('[data-join-household]');if(join){const r=api.execute('JOIN_HOUSEHOLD',{agentId:api.read().selected,ownerId:Number(join.dataset.joinHousehold)});api.toast(r.message);if(r.ok)api.save();return;}
   const leave=e.target.closest('[data-leave-household]');if(leave){const r=api.execute('LEAVE_HOUSEHOLD',{agentId:Number(leave.dataset.leaveHousehold)});api.toast(r.message);if(r.ok)api.save();return;}
   const b=e.target.closest('[data-own-home]');if(!b)return;
@@ -128,12 +163,21 @@ export function installIndependentUI(api){
  });
  $('dialog-body').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.posePreset){poseStudio.preset=b.dataset.posePreset;poseStudio.phase=0;renderPoseStudio(performance.now());return;}
+  if(b.dataset.posePlay!==undefined){poseStudio.playing=!poseStudio.playing;b.textContent=poseStudio.playing?'หยุด':'เล่น';ensurePoseLoop();return;}
+  if(b.dataset.poseBones!==undefined){poseStudio.bones=!poseStudio.bones;b.textContent=poseStudio.bones?'ซ่อนกระดูก':'แสดงกระดูก';renderPoseStudio(performance.now());return;}
   if(b.dataset.joinHousehold){const r=api.execute('JOIN_HOUSEHOLD',{agentId:api.read().selected,ownerId:Number(b.dataset.joinHousehold)});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}return;}
   if(b.dataset.leaveHousehold){const r=api.execute('LEAVE_HOUSEHOLD',{agentId:Number(b.dataset.leaveHousehold)});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}return;}
   if(b.dataset.createHomeArchive){const r=api.execute('CREATE_ARCHIVE',{agentId:api.read().selected,houseId:b.dataset.createHomeArchive});api.toast(r.message);if(r.ok){api.save();openHome(homeOf(api.read().state,api.read().selected));}}
   if(b.dataset.personalCommand){const r=api.execute(b.dataset.personalCommand,{agentId:api.read().selected,stationId:Number(b.dataset.station),recipeId:b.dataset.recipe});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}}
   if(b.dataset.homeArchive)openArchive();
   if(b.dataset.readHomeArchive){const r=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.readHomeArchive});api.toast(r.message);if(r.ok)api.save();}
+ });
+ $('dialog-body').addEventListener('input',e=>{
+  const range=e.target.closest('[data-pose-phase]');if(!range)return;
+  poseStudio.playing=false;poseStudio.phase=Math.max(0,Math.min(1,Number(range.value)/1000));
+  const play=$('dialog').querySelector('[data-pose-play]');if(play)play.textContent='เล่น';
+  renderPoseStudio(performance.now());
  });
  function openWorldObject(target){
   const s=api.read().state;
