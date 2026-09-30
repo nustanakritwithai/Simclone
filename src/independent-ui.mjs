@@ -25,7 +25,7 @@ export function installIndependentUI(api){
  $('inspector').append(card);
  const labels={INELIGIBLE:'ยังไม่ถึงวัยสร้างบ้าน',COHABITING:'อยู่ร่วม household · หยุดสร้างบ้านตัวเองชั่วคราว',HOME_COMPLETE:'บ้านเสร็จแล้ว',NO_SITE:'กำลังหาพื้นที่',NEED_HAMMER:'เตรียมโต๊ะและค้อนส่วนตัว',EQUIP_HAMMER:'กำลังสวมค้อน',NEED_MATERIALS:'หาไม้และหินส่วนตัว',CRAFT_PIECE:'คราฟต์ชิ้นส่วนบ้าน',PLACE_PIECE:'นำชิ้นส่วนไปก่อสร้าง'};
  const button=(id,name)=>'<button class="secondary" data-person="'+id+'">'+esc(name)+'</button>';
- const poseStudio={agentId:null,preset:'walk',phase:0,bones:true,playing:true,raf:0};
+ const poseStudio={agentId:null,preset:'walk',phase:0,bones:true,playing:true,overrides:{},raf:0};
  function renderPoseStudio(time=0){
   const dialog=$('dialog'),canvas=$('pose-studio-canvas');if(!dialog?.open||dialog.dataset.kind!=='pose-studio'||!canvas)return false;
   const a=api.read().state.agents.find(x=>x.id===poseStudio.agentId&&x.alive);if(!a)return false;
@@ -37,7 +37,7 @@ export function installIndependentUI(api){
   ctx.strokeStyle='#d6be7e22';ctx.lineWidth=1;
   for(let x=20;x<w;x+=20){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
   for(let y=20;y<h;y+=20){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
-  ctx.save();ctx.translate(w/2,h-48);drawRiggedCharacter(ctx,{appearance:a.appearance,motion:poseStudio.preset,phase:poseStudio.phase,scale:4.2,showBones:poseStudio.bones});ctx.restore();
+  ctx.save();ctx.translate(w/2,h-48);drawRiggedCharacter(ctx,{appearance:a.appearance,motion:poseStudio.preset,phase:poseStudio.phase,overrides:poseStudio.overrides,scale:4.2,showBones:poseStudio.bones});ctx.restore();
   const range=dialog.querySelector('[data-pose-phase]');if(range&&poseStudio.playing)range.value=String(Math.round(poseStudio.phase*1000));
   const phaseLabel=dialog.querySelector('[data-pose-phase-label]');if(phaseLabel)phaseLabel.textContent=poseStudio.phase.toFixed(2);
   return true;
@@ -46,13 +46,16 @@ export function installIndependentUI(api){
  function ensurePoseLoop(){if(!poseStudio.raf)poseStudio.raf=requestAnimationFrame(poseLoop);}
  function openPoseStudio(agentId){
   const a=api.read().state.agents.find(x=>x.id===agentId&&x.alive);if(!a)return;
-  poseStudio.agentId=a.id;poseStudio.preset='walk';poseStudio.phase=0;poseStudio.bones=true;poseStudio.playing=true;
+  poseStudio.agentId=a.id;poseStudio.preset='walk';poseStudio.phase=0;poseStudio.bones=true;poseStudio.playing=true;poseStudio.overrides={};
   const buttons=POSE_PRESETS.map(p=>'<button class="secondary" data-pose-preset="'+p+'">'+p.toUpperCase()+'</button>').join('');
   api.openDialog('Pose Studio · '+esc(a.name),'2D CUTOUT BONE RIG',
    '<section class="pose-studio-panel" data-pose-agent="'+a.id+'"><canvas id="pose-studio-canvas" aria-label="Pose preview"></canvas>'+
    '<p class="source-note">กระดูกใช้ควบคุมข้อต่อเท่านั้น · หัว ลำตัว แขน ขา เป็นชิ้นภาพ 2D จาก visual prototype และถูกวาดตามกระดูกด้วย drawImage()</p>'+
    '<div class="pose-studio-presets">'+buttons+'</div>'+
    '<label class="pose-studio-phase">Phase <b data-pose-phase-label>0.00</b><input data-pose-phase type="range" min="0" max="1000" value="0"></label>'+
+   '<details class="pose-joint-editor"><summary>ปรับกระดูกเอง</summary><div class="pose-joint-grid">'+
+   [['torsoLean','ลำตัว'],['shoulderL','ไหล่ซ้าย'],['elbowL','ศอกซ้าย'],['shoulderR','ไหล่ขวา'],['elbowR','ศอกขวา'],['hipL','สะโพกซ้าย'],['kneeL','เข่าซ้าย'],['hipR','สะโพกขวา'],['kneeR','เข่าขวา']].map(([key,label])=>'<label>'+label+'<input data-pose-joint="'+key+'" type="range" min="-150" max="150" value="0"></label>').join('')+
+   '</div><button class="secondary" data-pose-reset-joints>รีเซ็ตข้อต่อ</button></details>'+
    '<div class="dialog-actions"><button class="primary" data-pose-play>หยุด</button><button class="secondary" data-pose-bones>ซ่อนกระดูก</button></div></section>');
   $('dialog').dataset.kind='pose-studio';ensurePoseLoop();
  }
@@ -166,6 +169,7 @@ export function installIndependentUI(api){
   if(b.dataset.posePreset){poseStudio.preset=b.dataset.posePreset;poseStudio.phase=0;renderPoseStudio(performance.now());return;}
   if(b.dataset.posePlay!==undefined){poseStudio.playing=!poseStudio.playing;b.textContent=poseStudio.playing?'หยุด':'เล่น';ensurePoseLoop();return;}
   if(b.dataset.poseBones!==undefined){poseStudio.bones=!poseStudio.bones;b.textContent=poseStudio.bones?'ซ่อนกระดูก':'แสดงกระดูก';renderPoseStudio(performance.now());return;}
+  if(b.dataset.poseResetJoints!==undefined){poseStudio.overrides={};for(const input of $('dialog').querySelectorAll('[data-pose-joint]'))input.value='0';renderPoseStudio(performance.now());return;}
   if(b.dataset.joinHousehold){const r=api.execute('JOIN_HOUSEHOLD',{agentId:api.read().selected,ownerId:Number(b.dataset.joinHousehold)});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}return;}
   if(b.dataset.leaveHousehold){const r=api.execute('LEAVE_HOUSEHOLD',{agentId:Number(b.dataset.leaveHousehold)});api.toast(r.message);if(r.ok){api.save();api.closeDialog();}return;}
   if(b.dataset.createHomeArchive){const r=api.execute('CREATE_ARCHIVE',{agentId:api.read().selected,houseId:b.dataset.createHomeArchive});api.toast(r.message);if(r.ok){api.save();openHome(homeOf(api.read().state,api.read().selected));}}
@@ -174,8 +178,10 @@ export function installIndependentUI(api){
   if(b.dataset.readHomeArchive){const r=api.execute('READ_ARCHIVE',{agentId:api.read().selected,key:b.dataset.readHomeArchive});api.toast(r.message);if(r.ok)api.save();}
  });
  $('dialog-body').addEventListener('input',e=>{
-  const range=e.target.closest('[data-pose-phase]');if(!range)return;
-  poseStudio.playing=false;poseStudio.phase=Math.max(0,Math.min(1,Number(range.value)/1000));
+  const joint=e.target.closest('[data-pose-joint]'),range=e.target.closest('[data-pose-phase]');if(!joint&&!range)return;
+  poseStudio.playing=false;
+  if(joint)poseStudio.overrides={...poseStudio.overrides,[joint.dataset.poseJoint]:Number(joint.value)};
+  if(range)poseStudio.phase=Math.max(0,Math.min(1,Number(range.value)/1000));
   const play=$('dialog').querySelector('[data-pose-play]');if(play)play.textContent='เล่น';
   renderPoseStudio(performance.now());
  });
