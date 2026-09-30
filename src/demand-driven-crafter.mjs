@@ -14,6 +14,7 @@ import {CRAFT_TRAINING_RULES} from './craft-training.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {autonomousBirthFoodTarget} from './reproduction.mjs?v=0.5.0';
 import {routeField,routeDistance} from './survival.mjs?v=0.5.0';
+import {isCanonicalMarketTravelTask} from './navigation-arrival-evidence.mjs?v=0.5.0';
 
 export const ER3_CRAFTER_DEMAND_VERSION='ER3-demand-crafter/1';
 
@@ -114,14 +115,14 @@ function routeForDemand(s,a,itemKind){
   return {status:'READY',reason:'ready',recipe,preview};
 }
 
-export function demandDrivenCrafterSnapshot(s,a){
+export function demandDrivenCrafterSnapshot(s,a,{allowCanonicalMarketTravel=false}={}){
   const identity=canonicalCrafter(s,a);
   if(identity.status!=='SAT')return view(identity.status,identity.reason);
   const actor=identity.actor;
 
   if(actor.craftTraining?.enabled===true)return view('BLOCKED','manual-training',{agentId:actor.id});
   if(actor.adventureCombat?.status==='ACTIVE'||actor.adventureEncounter)return view('BLOCKED','adventure',{agentId:actor.id});
-  if(actor.task)return view('BLOCKED','task',{agentId:actor.id});
+  if(actor.task&&!(allowCanonicalMarketTravel&&isCanonicalMarketTravelTask(actor.task)))return view('BLOCKED','task',{agentId:actor.id});
   if((s.rustPossessions?.orders??[]).some(o=>o.agentId===actor.id)||(s.rustMaterials?.orders??[]).some(o=>o.agentId===actor.id))
     return view('BLOCKED','craft-busy',{agentId:actor.id});
   if(!homeOf(s,actor.id,{completeOnly:true}))return view('BLOCKED','housing',{agentId:actor.id});
