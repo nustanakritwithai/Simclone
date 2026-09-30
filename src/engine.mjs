@@ -3,6 +3,7 @@ import {INDEPENDENT_SAVE_VERSION,addPersonalStore,validateIndependentWorld} from
 import {initializeIndependentStart,independentSpawn} from './independent-start.mjs?v=0.5.0';
 import {survivalHome,homeOf,individualHouses} from './individual-housing.mjs?v=0.5.0';
 import {cultureCommand,stepCulture,validateCulture} from './cultural-archive.mjs?v=0.5.0';
+import {postStudioCommand,validatePostStudio} from './post-studio.mjs?v=0.5.0';
 import {setPlanningPolicy,personalResourceCandidates,personalExplorationTarget,rememberPlanSelection,recordPredictionReceipt,finishPersonalExploration,recordPlanProduction,validatePersonalPlanning} from './personal-planning.mjs?v=0.5.0';
 import {verifyResourceKnowledge,ageKnowledge} from './knowledge-revision.mjs?v=0.5.0';
 /** Simclone 0.5.0 — evidence-backed personal knowledge over skill provenance. */
@@ -209,6 +210,7 @@ export function command(s,type,data={}){
     return rust;
   }
   const cultural=cultureCommand(s,type,data);if(cultural)return cultural;
+  const postStudio=postStudioCommand(s,type,data);if(postStudio){if(postStudio.ok&&postStudio.changed)event(s,'post',postStudio.message,data.agentId??null);return postStudio;}
   if(type==='SET_PLANNING_POLICY')return setPlanningPolicy(s,data.policy);
   if(type==='START_ADVENTURE_EXPEDITION'){
     if(!isIndependent(s))return {ok:false,reason:'mode',message:'Adventure expedition requires Independent world'};
@@ -847,6 +849,7 @@ export function validate(s){
   if(!Number.isInteger(s.nextAgent)||s.nextAgent<=Math.max(...ids)||!Number.isInteger(s.nextEvent)||!Number.isInteger(s.nextBuilding))bad('Counters');
   for(const e of validatePersonalPlanning(s))bad(e);
   for(const e of validateCulture(s))bad(e);
+  for(const e of validatePostStudio(s))bad(e);
   for(const e of validateRustState(s))bad(e);
   for(const e of validateCrafterTierPolicy(s))bad(e);
   for(const e of validateProductionPlan(s))bad(e);
