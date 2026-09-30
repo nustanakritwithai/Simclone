@@ -555,7 +555,8 @@ function applyRawProducerIntent(s,a,intent){
 }
 
 function stepMerchantAutonomy(s){
-  if(!isIndependent(s))return {changed:false,rootReplaced:false};
+  const blockFallback=new Set();
+  if(!isIndependent(s))return {changed:false,rootReplaced:false,blockFallback};
   const ids=living(s).filter(a=>a.profession==='merchant').map(a=>a.id).sort((a,b)=>a-b);
   let changed=false;
   for(const id of ids){
@@ -567,7 +568,8 @@ function stepMerchantAutonomy(s){
     const intent=merchantAutonomyDecision(s,a);
     if(intent?.status!=='SAT'||typeof intent.type!=='string')continue;
     let r=null;
-    if(intent.type==='WAIT_TRAVEL'||intent.type==='WAIT_BUY_OFFER')continue;
+    if(intent.type==='WAIT_TRAVEL')continue;
+    if(intent.type==='WAIT_BUY_OFFER'){blockFallback.add(id);continue;}
     if(intent.type==='CREATE_MARKET'){
       r=command(s,'RC4_CREATE_MARKET',{agentId:a.id});
     }else if(intent.type==='OPEN_MARKET'){
@@ -583,7 +585,7 @@ function stepMerchantAutonomy(s){
         event(s,'market',(buyer?.name??('Clone #'+id))+' ซื้อ stock '+intent.itemKind+' x'+intent.quantity,id);
         // Trade settlement atomically replaces the live root. Stop this pass so
         // no pre-settlement references from the Merchant candidate list are reused.
-        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId};
+        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId,blockFallback};
       }
     }else if(intent.type==='CREATE_BUY_OFFER'){
       r=command(s,'RC4_CREATE_BUY_OFFER',{
@@ -599,9 +601,12 @@ function stepMerchantAutonomy(s){
       r=command(s,'RC4_CREATE_LISTING',data);
       if(r?.ok&&!r.duplicate)event(s,'market',a.name+' ลงขาย '+intent.itemKind+' x'+intent.quantity,a.id);
     }
-    if(r?.ok)changed=true;
+    if(r?.ok){
+      changed=true;
+      if(intent.type==='CREATE_BUY_OFFER')blockFallback.add(id);
+    }
   }
-  return {changed,rootReplaced:false};
+  return {changed,rootReplaced:false,blockFallback};
 }
 
 function stepConsumerAutonomy(s){
@@ -830,7 +835,7 @@ export function step(s,count=1,options={}){
       const merchant=s.agents.find(a=>a.id===rc4Step.agentId);
       if(merchant)merchant.lastCareerEventTick=s.tick;
     }
-    stepMerchantAutonomy(s);
+    const merchantStep=stepMerchantAutonomy(s);
     stepCrafterMaterialProcurement(s);
     stepCrafterMarketSupply(s);
     const consumerStep=stepConsumerAutonomy(s);
@@ -850,7 +855,7 @@ export function step(s,count=1,options={}){
       if(!practiceAccepted&&!demandCraftAccepted&&!consumerStep.adventureReadinessWaiting.has(a.id)&&stepAutonomousAdventure(s,a))continue;
       const producerIntent=a.task?.rc4MarketTravel&&isEr6ConsumerMarketTravelTask(a.task)?null:rawProducerDecision(s,a);
       const producerStep=applyRawProducerIntent(s,a,producerIntent);
-      if(!a.task&&!producerStep.blockFallback)decide(s,a,book,producerIntent);
+      if(!a.task&&!producerStep.blockFallback&&!merchantStep.blockFallback.has(a.id))decide(s,a,book,producerIntent);
       const task=a.task;
       if(task&&!producerStep.holdTask){execute(s,a);if(a.task!==task)release(book,a,task);}
     }

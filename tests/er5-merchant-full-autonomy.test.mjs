@@ -184,6 +184,7 @@ test('ER5 unaffordable observed ask creates one funded BuyOffer and save/load do
   step(s,1);
   const offers=s.merchantBuyOffers.buyOffers.filter(o=>o.buyerId===merchantId&&o.itemKind==='STONE_PICKAXE'&&o.status==='OPEN');
   assert.equal(offers.length,1);assert.equal(offers[0].unitPrice,98);assert.equal(offers[0].quantityWanted,1);
+  assert.equal(actor(s,merchantId).task,null,'healthy Merchant waiting on its canonical BuyOffer must not wander into a generic job');
 
   actor(s,merchantId).task=null;const wire=serialize(s);s=restore(wire);
   merchant=actor(s,merchantId);merchant.task=null;merchant.hp=merchant.satiety=merchant.energy=100;
