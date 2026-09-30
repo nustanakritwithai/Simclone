@@ -79,6 +79,10 @@ function handoffDebug(s,f){
 function setup(){
   const s=rc2World(),merchant=s.agents[0],crafter=qualifiedCrafter(s,s.agents[1]);
   const market=merchantMarket(s,merchant);
+  // This focused slice proves the Crafter's autonomous market journey. Keep the
+  // Merchant at its canonical storefront so an unrelated return-home route cannot
+  // turn a supply-handoff proof into a navigation-fixture failure.
+  merchant.x=market.point.x;merchant.y=market.point.y;merchant.task=null;observeRc4Markets(s);
   // The product itself is created by the released crafting authority after the
   // Crafter profession exists; no fixture mint supplies the item under test.
   const item=craftFixtureItem(s,crafter,'STONE_PICKAXE');calm(crafter,live(s,merchant.id));
