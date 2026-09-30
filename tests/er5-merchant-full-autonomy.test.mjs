@@ -7,11 +7,13 @@ import {personalHomeSite} from '../src/individual-housing.mjs';
 import {canonicalEdge} from '../src/rust-stations.mjs';
 import {advanceCraft} from '../src/rust-possessions.mjs';
 import {projectHomeMarketForTrade} from '../src/home-market.mjs';
-import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
+import {observeRc4Markets,knownRc4Listings} from '../src/rc4-market-observation.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
 import {TRADE_ASSET_TYPES} from '../src/trade-assets.mjs';
-import {ECONOMIC_DEMAND_TTL_TICKS} from '../src/economic-demand.mjs';
+import {verifyCanonicalMarketArrival} from '../src/navigation-arrival-evidence.mjs';
+import {tradableRustItemIds} from '../src/rust-possessions.mjs';
+import {ECONOMIC_DEMAND_TTL_TICKS,projectActorObservedDemand} from '../src/economic-demand.mjs';
 import {
   ER5_MERCHANT_AUTONOMY_VERSION,merchantAutonomySnapshot,merchantAutonomyDecision
 } from '../src/rc4-merchant-policy.mjs';
@@ -110,7 +112,19 @@ test('ER5 observed supply -> autonomous buy -> autonomous Listing -> canonical r
 
   step(s,1);
   merchant=actor(s,f.merchantId);assert.ok(merchant.task?.rc4MarketTravel);assert.equal(merchant.task.path.length,0);
-  const ready=merchantAutonomyDecision(s,merchant);assert.equal(ready.type,'BUY_LISTING',JSON.stringify(ready));
+  const ready=merchantAutonomyDecision(s,merchant);
+  const currentListing=s.merchantListings.listings.find(l=>l.id===f.resaleId)??null;
+  const projected=projectActorObservedDemand(s,merchant);
+  const marketNow=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:f.supplierMarket});
+  const debug={
+    ready,
+    currentListing,
+    knownListing:knownRc4Listings(merchant).find(l=>l.id===f.resaleId)??null,
+    demand:projected.signals?.find(x=>x.itemKind==='STONE_PICKAXE')??null,
+    sellerTradable:tradableRustItemIds(s,{agentId:f.supplierId,itemKind:'STONE_PICKAXE'}),
+    arrival:marketNow.ok?verifyCanonicalMarketArrival(s,{agentId:merchant.id,market:marketNow.market}):marketNow
+  };
+  assert.equal(ready.type,'BUY_LISTING',JSON.stringify(debug));
   step(s,1);
 
   merchant=actor(s,f.merchantId);
