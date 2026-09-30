@@ -52,8 +52,8 @@ function craftItem(s,a,recipeId='STONE_PICKAXE'){
   assert.equal(result?.completed,true,'canonical craft completes');
   return s.rustPossessions.items.find(i=>i.id===result.itemId);
 }
-function prepareMerchant(s,a,label,{open=false}={}){
-  completeHome(s,a,label);give(s,a,'STONE_AXE');calm(a);
+function prepareMerchant(s,a,label,{open=false,qualificationItem='STONE_AXE'}={}){
+  completeHome(s,a,label);give(s,a,qualificationItem);calm(a);
   const made=command(s,'RC4_CREATE_MARKET',{agentId:a.id});assert.equal(made.ok,true,JSON.stringify(made));
   const promoted=command(s,'RC4_BECOME_MERCHANT',{agentId:a.id});assert.equal(promoted.ok,true,JSON.stringify(promoted));
   assert.equal(actor(s,a.id).profession,'merchant');
@@ -75,10 +75,10 @@ function removeNeedItem(s,a,itemKind){
   s.rustPossessions.equipment=s.rustPossessions.equipment.filter(e=>s.rustPossessions.items.some(i=>i.id===e.itemId));
 }
 function setupObservedResale(){
-  const s=createWorld(925001,{mode:'independent',worldProfile:'same-world',population:4}),producer=s.agents[3],supplier=s.agents[1],merchant=s.agents[0],customer=s.agents[2];
+  const s=createWorld(925001,{mode:'independent',worldProfile:'same-world',population:4}),producer=s.agents[3],supplier=s.agents[0],merchant=s.agents[2],customer=s.agents[1];
   calm(producer,supplier,merchant,customer);
   Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
-  const item=craftItem(s,producer,'STONE_PICKAXE');
+  const item=craftItem(s,producer,'STONE_AXE');
   const supplierMarket=prepareMerchant(s,supplier,'supplier',{open:false});
   const offer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:supplier.id,itemKind:item.kind,unitPrice:49});
   assert.equal(offer.ok,true,JSON.stringify(offer));
@@ -92,8 +92,8 @@ function setupObservedResale(){
   const resale=command(s,'RC4_CREATE_LISTING',{agentId:supplier.id,itemId:item.id,unitPrice:70,requestId:'er5-upstream-70'});
   assert.equal(resale.ok,true,JSON.stringify(resale));
 
-  const merchantMarket=prepareMerchant(s,merchant,'merchant',{open:false});
-  assert.equal(customer.profession,'miner');assert.equal(customer.preference,'MINE');removeNeedItem(s,customer,'STONE_PICKAXE');calm(actor(s,merchant.id),customer);
+  const merchantMarket=prepareMerchant(s,merchant,'merchant',{open:false,qualificationItem:'STONE_PICKAXE'});
+  assert.equal(customer.profession,'woodcutter');assert.equal(customer.preference,'WOODCUT');removeNeedItem(s,customer,'STONE_AXE');calm(actor(s,merchant.id),customer);
   const supplyPoint=marketPoint(s,supplierMarket),m=actor(s,merchant.id),c=actor(s,customer.id);
   m.x=supplyPoint.x;m.y=supplyPoint.y;c.x=supplyPoint.x;c.y=supplyPoint.y;m.task=null;c.task=null;
   observeRc4Markets(s);
@@ -120,8 +120,8 @@ test('ER5 observed supply -> autonomous buy -> autonomous Listing -> canonical r
     ready,
     currentListing,
     knownListing:knownRc4Listings(merchant).find(l=>l.id===f.resaleId)??null,
-    demand:projected.signals?.find(x=>x.itemKind==='STONE_PICKAXE')??null,
-    sellerTradable:tradableRustItemIds(s,{agentId:f.supplierId,itemKind:'STONE_PICKAXE'}),
+    demand:projected.signals?.find(x=>x.itemKind==='STONE_AXE')??null,
+    sellerTradable:tradableRustItemIds(s,{agentId:f.supplierId,itemKind:'STONE_AXE'}),
     arrival:marketNow.ok?verifyCanonicalMarketArrival(s,{agentId:merchant.id,market:marketNow.market}):marketNow
   };
   assert.equal(ready.type,'BUY_LISTING',JSON.stringify(debug));
@@ -215,7 +215,7 @@ test('ER5 hidden/stale supply never authorizes remote buying and corrupt market 
   {
     const f=setupObservedResale(),s=f.s,m=actor(s,f.merchantId),c=actor(s,f.customerId);
     m.rc4MarketKnowledge.knownListings=[];m.rc4MarketKnowledge.knownMarkets=m.rc4MarketKnowledge.knownMarkets.filter(x=>x.marketId!==f.supplierMarket);
-    c.x=m.x;c.y=m.y;c.preference='MINE';m.task=null;
+    c.x=m.x;c.y=m.y;m.task=null;
     const before=serialize(s),snap=merchantAutonomySnapshot(s,m);
     assert.notEqual(snap.type,'TRAVEL_TO_MARKET');assert.notEqual(snap.type,'BUY_LISTING');assert.equal(serialize(s),before);
   }
