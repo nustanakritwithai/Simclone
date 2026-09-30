@@ -66,6 +66,49 @@ function setupMerchantMarket(s,merchant,{productDemand='STONE_PICKAXE',productPr
   return {marketId:made.marketId,offerId:offer.offerId,tradePoint:market.market};
 }
 
+function arriveImmediately(s,agentId,marketId){
+  const projected=projectHomeMarketForTrade(s,s.homeMarkets,{marketId});assert.equal(projected.ok,true,JSON.stringify(projected));
+  const a=live(s,agentId);a.task=null;a.x=projected.market.x;a.y=projected.market.y;
+  const travel=command(s,'RC4_TRAVEL_TO_MARKET',{agentId,marketId});assert.equal(travel.ok,true,JSON.stringify(travel));
+  const current=live(s,agentId);assert.ok(current.task?.rc4MarketTravel);assert.equal(current.task.path.length,0);
+  return projected.market;
+}
+
+function merchantAcquireBulkBasis(s,{merchantId,supplierId,marketId,itemKind='wood',quantity=10,unitPrice=1}={}){
+  const supplier=live(s,supplierId);
+  resourceStock(s,supplier)[itemKind]=Math.max(resourceStock(s,supplier)[itemKind]??0,900);
+  const offer=command(s,'RC4_CREATE_BUY_OFFER',{
+    agentId:merchantId,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind,quantityWanted:quantity,unitPrice
+  });
+  assert.equal(offer.ok,true,JSON.stringify(offer));
+  const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:supplierId,offerId:offer.offerId,quantity});
+  assert.equal(accepted.ok,true,JSON.stringify(accepted));
+  const procurement=s.merchantListings.listings.find(l=>l.id===accepted.listingId);assert.ok(procurement);
+  arriveImmediately(s,merchantId,marketId);
+  const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchantId,listingId:procurement.id,listingRevision:procurement.revision});
+  assert.equal(bought.ok,true,JSON.stringify(bought));
+  const ledger=s.merchantLedgers.ledgers.find(l=>l.merchantId===merchantId);assert.ok(ledger);
+  const basis=ledger.purchases.find(p=>p.transactionId===bought.transactionId);assert.ok(basis);
+  assert.equal(basis.assetType,TRADE_ASSET_TYPES.BULK_RESOURCE);assert.equal(basis.remainingQuantity,quantity);
+  return {transactionId:bought.transactionId,offerId:offer.offerId,quantity};
+}
+
+function merchantAcquirePhysicalBasis(s,{merchantId,supplierId,marketId,itemId,itemKind,unitPrice=2}={}){
+  const offer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchantId,itemKind,unitPrice});
+  assert.equal(offer.ok,true,JSON.stringify(offer));
+  const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:supplierId,offerId:offer.offerId,itemId});
+  assert.equal(accepted.ok,true,JSON.stringify(accepted));
+  const procurement=s.merchantListings.listings.find(l=>l.id===accepted.listingId);assert.ok(procurement);
+  arriveImmediately(s,merchantId,marketId);
+  const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchantId,listingId:procurement.id,listingRevision:procurement.revision});
+  assert.equal(bought.ok,true,JSON.stringify(bought));
+  const ledger=s.merchantLedgers.ledgers.find(l=>l.merchantId===merchantId);assert.ok(ledger);
+  const basis=ledger.purchases.find(p=>p.transactionId===bought.transactionId);assert.ok(basis);
+  assert.deepEqual(basis.remainingItemIds,[itemId]);
+  assert.deepEqual(s.rustPossessions.items.find(i=>i.id===itemId)?.location,{kind:'bag',agentId:merchantId});
+  return {transactionId:bought.transactionId,offerId:offer.offerId,itemId};
+}
+
 function addBulkListing(s,merchant,{itemKind='wood',quantity=10,unitPrice=1,requestId='er4-bulk'}={}){
   const listed=command(s,'RC4_CREATE_LISTING',{
     agentId:merchant.id,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind,quantity,unitPrice,requestId
@@ -100,27 +143,34 @@ function farWalkable(s,from,minDistance=18){
 function live(s,id){return s.agents.find(a=>a.id===id);}
 
 function setupBulkProcurement({observe=true,price=1,listingQuantity=10}={}){
-  const {s,merchant,crafter}=qualifiedCrafterFixture();
+  const {s,merchant,crafter}=qualifiedCrafterFixture(),merchantId=merchant.id,crafterId=crafter.id;
   merchant.preference='MINE';crafter.preference='BUILD';
   // RC4 commands automatically publish observations only to nearby actors. Keep
   // Crafter physically outside knowledge range while market/listing truth is created.
   const far=farWalkable(s,merchant);assert.ok(far,'far observation-safe fixture point');
   crafter.x=far.x;crafter.y=far.y;crafter.task=null;
   const market=setupMerchantMarket(s,merchant,{productDemand:'STONE_PICKAXE',productPrice:70});
-  Object.assign(resourceStock(s,merchant),{wood:900,stone:900,food:900});
-  const listing=addBulkListing(s,merchant,{itemKind:'wood',quantity:listingQuantity,unitPrice:price,requestId:'er4-wood'});
-  const stock=resourceStock(s,crafter);
+
+  // Merchant resale must have canonical COGS provenance. Acquire the exact bulk
+  // stock from the future ER4 buyer first through the released BuyOffer/Trade path.
+  merchantAcquireBulkBasis(s,{merchantId,supplierId:crafterId,marketId:market.marketId,itemKind:'wood',quantity:listingQuantity,unitPrice:1});
+  const currentMerchant=live(s,merchantId),currentCrafter=live(s,crafterId);
+  currentMerchant.preference='MINE';currentCrafter.preference='BUILD';currentMerchant.task=null;currentCrafter.task=null;
+  // Move Crafter back out of observation range before the Merchant creates resale supply.
+  const hidden=farWalkable(s,currentMerchant);assert.ok(hidden);currentCrafter.x=hidden.x;currentCrafter.y=hidden.y;
+  const listing=addBulkListing(s,currentMerchant,{itemKind:'wood',quantity:listingQuantity,unitPrice:price,requestId:'er4-wood'});
+  const stock=resourceStock(s,currentCrafter);
   stock.food=900;stock.stone=900;stock.wood=CRAFT_TRAINING_RULES.wood;
   if(observe){
-    const point=observeMarket(s,crafter,market.marketId);
-    merchant.x=point.x;merchant.y=point.y;
-    const start=nearbyReachable(s,point);assert.ok(start,'reachable market start');
-    crafter.x=start.x;crafter.y=start.y;crafter.task=null;
+    const point=observeMarket(s,currentCrafter,market.marketId);
+    const seller=live(s,merchantId);seller.x=point.x;seller.y=point.y;
+    const buyer=live(s,crafterId),start=nearbyReachable(s,point);assert.ok(start,'reachable market start');
+    buyer.x=start.x;buyer.y=start.y;buyer.task=null;
   }else{
     // Local productive need is visible, but no market observation is refreshed.
-    crafter.x=merchant.x;crafter.y=merchant.y;crafter.task=null;
+    const seller=live(s,merchantId),buyer=live(s,crafterId);buyer.x=seller.x;buyer.y=seller.y;buyer.task=null;
   }
-  return {s,merchantId:merchant.id,crafterId:crafter.id,market,listingId:listing.listingId};
+  return {s,merchantId,crafterId,market,listingId:listing.listingId};
 }
 
 test('ER4 exposes only read-only procurement intents from an ER3 material shortage',()=>{
@@ -255,25 +305,34 @@ test('ER4 autonomous observed Listing -> travel -> partial purchase -> ER3 craft
 });
 
 test('ER4 buys an observed physical Rust ingredient then ER3 crafts the demanded product',()=>{
-  const {s,merchant,crafter}=qualifiedCrafterFixture();
+  const {s,merchant,crafter}=qualifiedCrafterFixture(),merchantId=merchant.id,crafterId=crafter.id;
   assert.equal(knowsCraftRecipe(s,crafter,'HIDE_ARMOR'),true,'home construction should canonically unlock HIDE_ARMOR');
   merchant.preference='FORAGE';crafter.preference='BUILD';
+  const far=farWalkable(s,merchant);assert.ok(far);crafter.x=far.x;crafter.y=far.y;crafter.task=null;
   const market=setupMerchantMarket(s,merchant,{productDemand:'HIDE_ARMOR',productPrice:70});
-  freeBagSlot(s,merchant);
-  const loot=grantAdventureLoot(s,{agentId:merchant.id,claimKey:'er4-hide-supply',items:[{itemKind:'HIDE',quantity:1,rarity:'COMMON'}]});
+  freeBagSlot(s,live(s,merchantId));
+
+  // The exact HIDE is first owned by Crafter, then acquired by Merchant through
+  // canonical Trade so Merchant Ledger has a purchase cost basis before resale.
+  const supplier=live(s,crafterId);
+  const loot=grantAdventureLoot(s,{agentId:crafterId,claimKey:'er4-hide-supply',items:[{itemKind:'HIDE',quantity:1,rarity:'COMMON'}]});
   assert.equal(loot.ok,true,JSON.stringify(loot));
   const hideId=loot.itemIds[0];
-  const listed=command(s,'RC4_CREATE_LISTING',{agentId:merchant.id,itemId:hideId,unitPrice:5,requestId:'er4-hide'});
-  assert.equal(listed.ok,true,JSON.stringify(listed));
-  Object.assign(resourceStock(s,crafter),{food:900,wood:900,stone:900});
-  const point=observeMarket(s,crafter,market.marketId);
-  merchant.x=point.x;merchant.y=point.y;
-  const start=nearbyReachable(s,point);assert.ok(start);crafter.x=start.x;crafter.y=start.y;crafter.task=null;
+  merchantAcquirePhysicalBasis(s,{merchantId,supplierId:crafterId,marketId:market.marketId,itemId:hideId,itemKind:'HIDE',unitPrice:2});
 
-  const initial=demandDrivenCrafterSnapshot(s,crafter);
+  const currentMerchant=live(s,merchantId),currentCrafter=live(s,crafterId);
+  const hidden=farWalkable(s,currentMerchant);assert.ok(hidden);currentCrafter.x=hidden.x;currentCrafter.y=hidden.y;currentCrafter.task=null;
+  const listed=command(s,'RC4_CREATE_LISTING',{agentId:merchantId,itemId:hideId,unitPrice:5,requestId:'er4-hide'});
+  assert.equal(listed.ok,true,JSON.stringify(listed));
+  Object.assign(resourceStock(s,currentCrafter),{food:900,wood:900,stone:900});
+  const point=observeMarket(s,currentCrafter,market.marketId);
+  live(s,merchantId).x=point.x;live(s,merchantId).y=point.y;
+  const buyer=live(s,crafterId),start=nearbyReachable(s,point);assert.ok(start);buyer.x=start.x;buyer.y=start.y;buyer.task=null;
+
+  const initial=demandDrivenCrafterSnapshot(s,buyer);
   assert.equal(initial.status,'NEEDS_MATERIALS');assert.equal(initial.reason,'item-materials');assert.equal(initial.missing.HIDE,1);
 
-  const crafterId=crafter.id,startReceipts=s.tradeReplay.receipts.length;
+  const startReceipts=s.tradeReplay.receipts.length;
   let purchase=null;
   for(let i=0;i<240&&!purchase;i++){
     step(s,1);
