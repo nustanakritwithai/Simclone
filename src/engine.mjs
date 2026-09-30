@@ -585,7 +585,8 @@ function stepMerchantAutonomy(s){
         event(s,'market',(buyer?.name??('Clone #'+id))+' ซื้อ stock '+intent.itemKind+' x'+intent.quantity,id);
         // Trade settlement atomically replaces the live root. Stop this pass so
         // no pre-settlement references from the Merchant candidate list are reused.
-        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId,blockFallback};
+        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId,
+          itemKind:intent.itemKind,assetType:intent.assetType,blockFallback};
       }
     }else if(intent.type==='CREATE_BUY_OFFER'){
       r=command(s,'RC4_CREATE_BUY_OFFER',{
@@ -664,12 +665,17 @@ function stepCrafterMarketSupply(s){
   return {changed};
 }
 
-function stepCrafterMaterialProcurement(s){
+function stepCrafterMaterialProcurement(s,freshMerchantPurchase=null){
   const candidates=living(s).filter(a=>a.profession==='crafter').sort((a,b)=>a.id-b.id);
+  const blockFallback=new Set();
   let changed=false;
   for(const a of candidates){
     if(a.task?.rc4MarketTravel&&isEr6CrafterSupplyMarketTravelTask(a.task))continue;
     const intent=crafterMaterialProcurementDecision(s,a);
+    const freshSourcingHold=freshMerchantPurchase?.kind==='purchase'&&
+      freshMerchantPurchase.assetType===TRADE_ASSET_TYPES.BULK_RESOURCE&&intent?.status==='NEEDS_SUPPLY'&&
+      Array.isArray(intent.missing)&&intent.missing.some(x=>x.itemKind===freshMerchantPurchase.itemKind);
+    if(intent?.holdFallback===true||freshSourcingHold)blockFallback.add(a.id);
     if(intent?.status!=='SAT'||typeof intent.type!=='string')continue;
     if(intent.type==='WAIT_TRAVEL')continue;
     if(intent.type==='TRAVEL_TO_MARKET'){
@@ -689,11 +695,11 @@ function stepCrafterMaterialProcurement(s){
         event(s,'market',(buyer?.name??('Clone #'+intent.agentId))+' ซื้อวัตถุดิบ '+intent.itemKind+' x'+intent.quantity,intent.agentId);
         // RC4 atomic settlement replaces the live world root. Stop immediately so
         // no pre-settlement agent reference is reused in this procurement pass.
-        return {changed:true,rootReplaced:true,kind:'purchase',agentId:intent.agentId,listingId:intent.listingId,transactionId:r.transactionId};
+        return {changed:true,rootReplaced:true,kind:'purchase',agentId:intent.agentId,listingId:intent.listingId,transactionId:r.transactionId,blockFallback};
       }
     }
   }
-  return {changed,rootReplaced:false};
+  return {changed,rootReplaced:false,blockFallback};
 }
 
 function gain(s,a,key,targetId=null){
@@ -836,7 +842,7 @@ export function step(s,count=1,options={}){
       if(merchant)merchant.lastCareerEventTick=s.tick;
     }
     const merchantStep=stepMerchantAutonomy(s);
-    stepCrafterMaterialProcurement(s);
+    const crafterProcurementStep=stepCrafterMaterialProcurement(s,merchantStep);
     stepCrafterMarketSupply(s);
     const consumerStep=stepConsumerAutonomy(s);
     stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
@@ -855,7 +861,9 @@ export function step(s,count=1,options={}){
       if(!practiceAccepted&&!demandCraftAccepted&&!consumerStep.adventureReadinessWaiting.has(a.id)&&stepAutonomousAdventure(s,a))continue;
       const producerIntent=a.task?.rc4MarketTravel&&isEr6ConsumerMarketTravelTask(a.task)?null:rawProducerDecision(s,a);
       const producerStep=applyRawProducerIntent(s,a,producerIntent);
-      if(!a.task&&!producerStep.blockFallback&&!merchantStep.blockFallback.has(a.id))decide(s,a,book,producerIntent);
+      const crafterMarketHold=crafterProcurementStep.blockFallback?.has(a.id)===true&&
+        a.satiety>=RULES.hungry&&a.energy>=RULES.exhausted;
+      if(!a.task&&!producerStep.blockFallback&&!merchantStep.blockFallback.has(a.id)&&!crafterMarketHold)decide(s,a,book,producerIntent);
       const task=a.task;
       if(task&&!producerStep.holdTask){execute(s,a);if(a.task!==task)release(book,a,task);}
     }

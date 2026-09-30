@@ -344,11 +344,18 @@ function er5ObservedListingCandidates(world,actor,signal){
   return {status:'SAT',reason:'observed-listings',rows};
 }
 function er5AcceptedProcurement(world,actor,rows){
+  const ownOpenOfferIds=new Set((world?.merchantBuyOffers?.buyOffers??[])
+    .filter(o=>o?.status==='OPEN'&&o.buyerId===actor.id).map(o=>o.offerId));
+  if(!ownOpenOfferIds.size)return {status:'SAT',reason:'accepted-procurement',row:null};
+  const acceptedListingIds=new Set((world?.merchantListings?.listings??[])
+    .filter(l=>l?.status==='OPEN'&&l.buyOfferId&&ownOpenOfferIds.has(l.buyOfferId)).map(l=>l.id));
+  if(!acceptedListingIds.size)return {status:'SAT',reason:'accepted-procurement',row:null};
   const accepted=[];
   for(const signal of rows){
     const candidates=er5ObservedListingCandidates(world,actor,signal);
     if(candidates.status!=='SAT')return {status:'UNKNOWN',reason:candidates.reason,row:null};
     for(const row of candidates.rows){
+      if(!acceptedListingIds.has(row.listingId))continue;
       const listing=world?.merchantListings?.listings?.find(l=>l.id===row.listingId&&l.status==='OPEN');
       if(!listing?.buyOfferId||row.affordable!==true)continue;
       const offer=world?.merchantBuyOffers?.buyOffers?.find(o=>

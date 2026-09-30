@@ -213,7 +213,7 @@ test('ER5 unaffordable observed ask creates one funded BuyOffer and save/load do
 });
 
 test('ER5 accepted bulk procurement outranks unrelated open BuyOffer and settles canonically',()=>{
-  let s=createWorld(925006,{mode:'independent',worldProfile:'same-world',population:4});
+  let s=createWorld(925002,{mode:'independent',worldProfile:'same-world',population:4});
   let merchant=s.agents[0],producer=s.agents[3];calm(merchant,producer);
   Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
   const marketId=prepareMerchant(s,merchant,'accepted-bulk',{open:true});

@@ -207,6 +207,31 @@ test('ER4 hidden and stale Listings cannot authorize procurement; corrupt roots 
   }
 });
 
+test('ER4 observed Merchant sourcing holds safe generic material fallback without inventing supply',()=>{
+  const {s,merchant,crafter}=qualifiedCrafterFixture(),merchantId=merchant.id,crafterId=crafter.id;
+  merchant.preference='MINE';crafter.preference='BUILD';
+  const far=farWalkable(s,merchant);assert.ok(far);crafter.x=far.x;crafter.y=far.y;crafter.task=null;
+  const market=setupMerchantMarket(s,merchant,{productDemand:'STONE_PICKAXE',productPrice:70});
+  const buyer=live(s,crafterId),seller=live(s,merchantId),stock=resourceStock(s,buyer);
+  Object.assign(stock,{food:900,stone:900,wood:CRAFT_TRAINING_RULES.wood});
+  const point=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:market.marketId}).market;
+  buyer.x=point.x;buyer.y=point.y;buyer.task=null;seller.x=point.x;seller.y=point.y;seller.task=null;observeRc4Markets(s);
+  const sourcing=command(s,'RC4_CREATE_BUY_OFFER',{
+    agentId:merchantId,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantityWanted:3,unitPrice:1
+  });assert.equal(sourcing.ok,true,JSON.stringify(sourcing));
+  const snap=crafterMaterialProcurementSnapshot(s,live(s,crafterId));
+  assert.equal(snap.status,'NEEDS_SUPPLY',JSON.stringify(snap));
+  assert.equal(snap.reason,'observed-market-sourcing',JSON.stringify(snap));
+  assert.equal(snap.holdFallback,true);assert.equal(snap.sourcing.offerId,sourcing.offerId);
+  const before=materialAmount(s,live(s,crafterId),'wood');
+  step(s,1);
+  const after=live(s,crafterId);
+  assert.equal(materialAmount(s,after,'wood'),before,'waiting one safe tick cannot mint or gather hidden material');
+  assert.notEqual(after.task?.kind,'WOODCUT');
+  assert.notEqual(after.task?.purposeKind,'WOODCUT');
+  assert.deepEqual(validate(s),[]);
+});
+
 test('ER4 insufficient Wallet funds never creates credit or mutates market/material state',()=>{
   const {s,crafterId}=setupBulkProcurement({price:1000}),a=live(s,crafterId);
   const beforeWallet=JSON.stringify(s.currencyWallet),beforeListings=JSON.stringify(s.merchantListings),beforeMaterial=materialAmount(s,a,'wood');

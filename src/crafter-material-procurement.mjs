@@ -66,6 +66,24 @@ function listingCandidate(world,actor,projection,need){
   return rows;
 }
 
+function observedMarketSourcing(world,actor,projection,missing){
+  const needed=new Set(missing.map(x=>x.itemKind));
+  for(const signal of projection?.signals??[]){
+    if(!needed.has(signal.itemKind))continue;
+    const expected=validBulkTradeResourceKey(signal.itemKind)?TRADE_ASSET_TYPES.BULK_RESOURCE:TRADE_ASSET_TYPES.PHYSICAL_ITEM;
+    for(const source of signal.sources??[]){
+      if(!['BUY_OFFER','MERCHANT_STOCK_SHORTAGE_BUY_OFFER'].includes(source?.kind)||typeof source.evidenceId!=='string')continue;
+      const offer=world.merchantBuyOffers?.buyOffers?.find(o=>o.offerId===source.evidenceId&&o.status==='OPEN');
+      if(!offer||offer.buyerId===actor.id||offer.itemKind!==signal.itemKind||tradeAssetType(offer)!==expected)continue;
+      const buyer=world.agents?.find(a=>a.id===offer.buyerId&&a.alive&&a.profession==='merchant');if(!buyer)continue;
+      const market=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:offer.marketId});
+      if(!market.ok||market.market.open!==true)continue;
+      return {offerId:offer.offerId,marketId:offer.marketId,buyerId:offer.buyerId,itemKind:offer.itemKind};
+    }
+  }
+  return null;
+}
+
 function procurementPlan(world,agent){
   const actor=world?.agents?.find(a=>a.id===agent?.id)??null;
   if(!actor||actor!==agent)return view('UNKNOWN','actor');
@@ -88,6 +106,10 @@ function procurementPlan(world,agent){
 
   if(!candidates.length){
     if(travelling)return view('SAT','observed-supply-gone',{agentId:actor.id,type:'CANCEL_TRAVEL',recipeId:craft.recipeId,missing});
+    const sourcing=observedMarketSourcing(world,actor,projection,missing);
+    if(sourcing)return view('NEEDS_SUPPLY','observed-market-sourcing',{
+      agentId:actor.id,recipeId:craft.recipeId,missing,holdFallback:true,sourcing
+    });
     return view('NEEDS_SUPPLY','no-observed-listing',{agentId:actor.id,recipeId:craft.recipeId,missing});
   }
 
