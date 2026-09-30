@@ -73,6 +73,14 @@ jobs:
       - name: Verify active observation UI
         run: python tests/ui-smoke.py
 
+      - name: Upload playtest repair evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playtest-repair-evidence-${{ github.sha }}
+          path: evidence-ui/playtest-repair/
+          if-no-files-found: warn
+
       - name: Verify autonomous Adventurer Hunt and Combat
         run: python tests/adventure-autonomy-smoke.py
 
