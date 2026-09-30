@@ -117,7 +117,9 @@ export function poseForMotion(motion='idle',phase=0,overrides={}){
 export function solveCharacterRig(poseInput={},origin={x:0,y:0},scale=1){
   const pose={...basePose(),...poseInput},m=RIG_METRICS,s=finite(scale)&&scale>0?scale:1;
   const root={x:finite(origin?.x)?origin.x:0,y:(finite(origin?.y)?origin.y:0)+m.pelvisY*s};
-  const torsoAngle=180+pose.torsoLean;
+  // Pose-space convention: positive torsoLean bends toward the character's forward side.
+  // seg() uses the opposite angular sign from canvas rotation, so the torso/head offsets negate pose lean.
+  const torsoAngle=180-pose.torsoLean;
   const neck=seg(root,m.torso*s,torsoAngle);
   const shoulderAxis=rad(pose.torsoLean);
   const shoulderDx=Math.cos(shoulderAxis)*m.shoulderHalf*s;
@@ -135,7 +137,7 @@ export function solveCharacterRig(poseInput={},origin={x:0,y:0},scale=1){
   const ankleL=seg(kneeL,m.lowerLeg*s,pose.hipL+pose.kneeL);
   const kneeR=seg(hipR,m.upperLeg*s,pose.hipR);
   const ankleR=seg(kneeR,m.lowerLeg*s,pose.hipR+pose.kneeR);
-  const headCenter=seg(neck,m.headOffset*s,180+pose.torsoLean+pose.headTilt*.35);
+  const headCenter=seg(neck,m.headOffset*s,180-pose.torsoLean-pose.headTilt*.35);
 
   return freezeDeep({
     root,neck,headCenter,shoulderL,elbowL,wristL,shoulderR,elbowR,wristR,
