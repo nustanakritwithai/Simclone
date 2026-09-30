@@ -16,7 +16,7 @@ import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
 import {projectActorObservedDemand} from '../src/economic-demand.mjs';
 import {demandDrivenCrafterSnapshot} from '../src/demand-driven-crafter.mjs';
 import {merchantAutonomySnapshot} from '../src/rc4-merchant-policy.mjs';
-import {producerSurplusSnapshot} from '../src/raw-producer-autonomy.mjs';
+import {producerSurplusSnapshot,rawProducerDecision} from '../src/raw-producer-autonomy.mjs';
 import {RULES} from '../src/survival.mjs';
 import {adventureProgressionSnapshot} from '../src/adventure-progression.mjs';
 import {craftFixtureItem,craftFixtureTable,craftFixtureHome} from './fixtures/rc2-world.mjs';
@@ -360,10 +360,19 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
       equippedKind(s,f.consumerId,'WEAPON')==='EMBER_BLADE'&&equippedKind(s,f.consumerId,'ARMOR')==='HIDE_ARMOR')break;
   }
 
+  const producerNow=actor(s,f.producerId);
+  const producerDiag={
+    tick:s.tick,profession:producerNow?.profession,workDone:producerNow?.workDone,task:producerNow?.task??null,
+    surplus:producerSurplusSnapshot(s,producerNow,'wood'),decision:rawProducerDecision(s,producerNow),
+    offers:(s.merchantBuyOffers?.buyOffers??[]).filter(o=>o.itemKind==='wood').map(o=>({offerId:o.offerId,status:o.status,buyerId:o.buyerId,quantityWanted:o.quantityWanted,unitPrice:o.unitPrice})),
+    listings:(s.merchantListings?.listings??[]).filter(l=>l.itemKind==='wood').map(l=>({id:l.id,status:l.status,sellerId:l.sellerId,buyOfferId:l.buyOfferId??null,quantity:l.quantity,unitPrice:l.unitPrice})),
+    postStartWoodReceipts:s.tradeReplay.receipts.filter(r=>!startTx.has(r.transactionId)&&r.itemKind==='wood')
+      .map(r=>({transactionId:r.transactionId,sellerId:r.sellerId,buyerId:r.buyerId,quantity:r.quantity,unitPrice:r.unitPrice}))
+  };
   assert.deepEqual([...checkpoints].sort(),[
     'after-buy-offer','after-consumer-purchase','after-craft-completion','after-listing-creation',
     'after-merchant-purchase','after-resource-settlement','before-material-procurement','during-canonical-travel'
-  ].sort());
+  ].sort(),JSON.stringify(producerDiag));
   assert.ok(firstProducerReceipt,'Producer-origin raw material must settle to Merchant after START');
   assert.ok(firstMaterialToCrafterReceipt,'the same canonical resource path must continue Merchant -> Crafter');
   assert.equal(firstProducerReceipt.quantity,1);assert.equal(firstMaterialToCrafterReceipt.quantity,1);
