@@ -245,8 +245,12 @@ test('old-save style Woodcutter with real Builder evidence recovers canonically 
     assert.equal(s.productionPlan.enabled,false,'natural apprenticeship must keep RP1 off');
     assert.notEqual(target.craftTraining?.enabled,true,'natural apprenticeship must not enable manual Training');
   }
+  const stalledIntent=target?builderCrafterApprenticeshipIntent(s,target):null;
+  const stalledBag=target?s.rustPossessions.items.filter(item=>item.location?.kind==='bag'&&item.location.agentId===targetId).map(item=>({id:item.id,kind:item.kind})): [];
+  const stalledTrace={profession:target?.profession??null,alive:target?.alive??false,task:target?.task?.kind??null,intent:stalledIntent,bag:stalledBag,
+    ownStations:s.rustStations.stations.filter(st=>st.placedBy===targetId).map(st=>st.kind),profile:target?crafterFamilyProfile(s,target,'HAMMER'):null};
   assert.deepEqual(milestones,{rawMaterials:true,furnace:true,ironOre:true,charcoal:true,ironIngot:true,tier2:true},
-    'fresh-world apprenticeship must visibly traverse raw materials → own Furnace → ore/charcoal/iron → T2');
+    'fresh-world apprenticeship must visibly traverse raw materials → own Furnace → ore/charcoal/iron → T2 · '+JSON.stringify(stalledTrace));
   const ownFurnace=s.rustStations.stations.find(st=>st.complete&&st.kind==='FURNACE'&&st.placedBy===targetId);
   assert.ok(ownFurnace&&Number.isSafeInteger(ownFurnace.sourceItemId),'Furnace must be a real placed crafted item with provenance');
   assert.ok(target?.alive);

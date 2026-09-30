@@ -768,7 +768,12 @@ export function step(s,count=1,options={}){
     }
     stepMerchantAutonomy(s);
     stepCrafterMaterialProcurement(s);
-    stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
+    const productionStep=stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
+    // Canonical Builder recovery happens before the actor loop. If the recovered
+    // actor is idle, reserve the rest of this tick so generic decide() cannot
+    // immediately steal the next action before apprenticeship planning runs.
+    const recoveredBuilderId=productionStep?.builderApprenticeship===true&&productionStep.changed===true&&productionStep.profession==='builder'
+      ?productionStep.agentId:null;
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
     const agents=living(s),rotation=s.tick%Math.max(1,agents.length);
@@ -777,6 +782,7 @@ export function step(s,count=1,options={}){
       priority(x.a)-priority(y.a)||(priority(x.a)===0?x.a.satiety-y.a.satiety:priority(x.a)===1?x.a.energy-y.a.energy:0)||x.order-y.order);
     for(const {a} of order){
       if(a.task&&(!taskValid(s,a)||!adventureExpeditionTaskValid(s,a,a.task,{walkable}))){release(book,a,a.task);a.task=null;}
+      if(a.id===recoveredBuilderId&&!a.task)continue;
       const practice=craftTrainingIntent(s,a);
       const practiceAccepted=practice?command(s,'CRAFT_ITEM',practice).ok:false;
       const demandCraft=!practiceAccepted?demandDrivenCrafterIntent(s,a):null;

@@ -83,9 +83,22 @@ test('IC3 pending order acceptance commits materials exactly once and retry cann
  const snapshot=serialize(s);assert.equal(command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'CRAFTING_TABLE_LV1'}).reason,'craft-busy');assert.equal(serialize(s),snapshot);assert.equal(materialStock(s,a).wood,10);
 });
 test('IC3 another persons workbench does not satisfy personal Hammer crafting',()=>{
- const s=earnedWorld(),a=s.agents[0],other=s.rustStations.stations.find(st=>st.kind==='CRAFTING_TABLE_LV1'&&st.placedBy!==a.id);
+ const s=fresh();let a=null,other=null;
+ for(let i=0;i<1600&&!a;i++){
+  step(s,1);
+  for(const candidate of s.agents){
+   if(!candidate.alive||s.rustPossessions.orders.some(o=>o.agentId===candidate.id))continue;
+   const bagCount=s.rustPossessions.items.filter(item=>item.location?.kind==='bag'&&item.location.agentId===candidate.id).length;
+   const stranger=s.rustStations.stations.find(st=>st.complete&&st.kind==='CRAFTING_TABLE_LV1'&&st.placedBy!==candidate.id);
+   if(stranger&&bagCount<4){a=candidate;other=stranger;break;}
+  }
+ }
+ assert.ok(a&&other,'fixture must naturally expose a stranger workbench while the actor still has bag capacity');
+ const bagCount=s.rustPossessions.items.filter(item=>item.location?.kind==='bag'&&item.location.agentId===a.id).length;
+ assert.ok(bagCount<4,'bag capacity must not mask the ownership/station assertion');
  assert.equal(stationForRecipe(s,'HAMMER',a,other.id),null);
- assert.equal(command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'HAMMER',stationId:other.id}).reason,'station');
+ const result=command(s,'CRAFT_ITEM',{agentId:a.id,recipeId:'HAMMER',stationId:other.id});
+ assert.equal(result.reason,'station',JSON.stringify({reason:result.reason,bagCount,actorId:a.id,stationId:other.id,placedBy:other.placedBy}));
 });
 test('IC3 unfinished personal plan stays at same site while actor moves and after save/load',()=>{
  const s=fresh();step(s,100);const a=s.agents.find(a=>a.homePlan);assert.ok(a);
