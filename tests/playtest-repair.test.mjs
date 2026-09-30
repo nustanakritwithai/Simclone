@@ -5,6 +5,8 @@ import {createWorld,serialize,restore,day,hour} from '../src/engine.mjs?v=0.5.0'
 import {getBalance} from '../src/currency-wallet.mjs?v=0.5.0';
 import {hasRc4PurchaseNeed,rc4PersonalItemNeeds} from '../src/rc4-market-observation.mjs?v=0.5.0';
 
+// Investigation guards only: this suite must not create or bypass economy authorities.
+
 test('playtest #4: seed 230926 Tao has no canonical STONE_AXE purchase need',()=>{
   const world=createWorld(230926,{mode:'independent',worldProfile:'same-world'});
   const tao=world.agents.find(a=>a.name==='Tao');
