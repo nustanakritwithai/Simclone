@@ -14,6 +14,7 @@ import {installAdventureUI} from './adventure-ui.mjs?v=0.5.0';
 import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
 import {worldReadabilityRegions} from './display-world-readability.mjs?v=0.5.0';
 import {worldHitCandidate,resolveWorldHit,worldSelection,selectionFromWorldHit} from './read-models/world-hit-resolver.mjs?v=0.5.0';
+import {drawAgentCutout} from './character-cutout-renderer.mjs?v=0.5.0';
 import {rc4MarketReadModel,rc4WorldMarketMarkers} from './rc4-market-runtime.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -419,22 +420,13 @@ function drawHouseFeedback(c,h,time){
 }
 function person(c,a,time,bubble=null){
  let v=positions.get(a.id);if(!v){v={x:a.x,y:a.y};positions.set(a.id,v);}v.x+=(a.x-v.x)*.2;v.y+=(a.y-v.y)*.2;
- const p=proj(v.x,v.y),ap=a.appearance,moving=a.task?.path.length>0;
- const stride=moving?Math.sin(time*.012+a.id)*3:0;c.save();c.translate(p.x,p.y);
+ const p=proj(v.x,v.y),moving=Array.isArray(a.task?.path)&&a.task.path.length>0;
+ const next=moving?a.task.path[0]:null,mirror=!!next&&proj(next.x,next.y).x<proj(a.x,a.y).x;
+ const equipped=state.rustPossessions?.equipment?.find(e=>e.agentId===a.id&&equipmentSlotOf(e)==='hand'),equippedItem=equipped&&state.rustPossessions?.items?.find(i=>i.id===equipped.itemId),tool=equippedItem?.kind;
+ c.save();c.translate(p.x,p.y);
  ellipse(c,1,2,10,4,'#19312755');
  if(selection?.kind==='agent'&&String(selection.id)===String(a.id)){c.strokeStyle='#efd299';c.lineWidth=1.5;c.beginPath();c.ellipse(0,1,15,7,0,0,Math.PI*2);c.stroke();}
- line(c,[[-3,-9],[-4+stride,0]],'#344439',3);line(c,[[3,-9],[4-stride,0]],'#344439',3);
- polygon(c,[[-6,-20],[5,-20],[7,-7],[-7,-7]],ap.coat);
- line(c,[[-6,-18],[-9-stride*.6,-10]],ap.skin,3);line(c,[[6,-18],[9+stride*.6,-10]],ap.skin,3);
- c.fillStyle='#eadcb28a';c.fillRect(-6,-10,12,1);
- ellipse(c,0,-26,6.4,7.5,ap.skin);ellipse(c,0,-31,6.8,4.5,ap.hair);
- if(ap.style===1)ellipse(c,-6,-28,2.5,5,ap.hair);
- if(ap.style===2){c.fillStyle=ap.hair;c.fillRect(-6,-31,3,12);}
- ellipse(c,-2,-26,1,.9,'#29392e');ellipse(c,3,-26,1,.9,'#29392e');
- const equipped=state.rustPossessions?.equipment?.find(e=>e.agentId===a.id&&equipmentSlotOf(e)==='hand'),equippedItem=equipped&&state.rustPossessions?.items?.find(i=>i.id===equipped.itemId),tool=equippedItem?.kind;
- if(!moving&&tool==='STONE_AXE'){line(c,[[10,-12],[18,-23]],'#a69265',2);polygon(c,[[16,-24],[23,-21],[20,-16]],'#c4c9b4');}
- if(!moving&&tool==='STONE_PICKAXE')line(c,[[10,-12],[17,-26],[24,-24]],'#b5bba5',2);
- if(!moving&&tool==='HAMMER'){line(c,[[10,-12],[17,-23]],'#a69265',2.4);c.fillStyle='#b8bdad';c.fillRect(14,-27,9,5);}
+ drawAgentCutout(c,a,time,{tool,mirror,scale:1});
  drawAgentBubble(c,bubble);
  c.restore();
 }
