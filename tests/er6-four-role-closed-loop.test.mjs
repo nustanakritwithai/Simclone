@@ -122,7 +122,7 @@ function clearFixtureTravel(s,id){
     assert.equal(r.ok,true,JSON.stringify(r));
   }
 }
-function physicalPriceCalibration(s,{sellerId,merchantId,buyerId,marketId,itemKind,bid=30,ask=40,label}){
+function physicalPriceCalibration(s,{sellerId,merchantId,buyerId,marketId,itemKind,bid=1,ask=1,label}){
   const seller=actor(s,sellerId),itemId=give(s,seller,itemKind);
   moveFixtureToMarket(s,sellerId,marketId);
   const offer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchantId,itemKind,unitPrice:bid});
@@ -193,35 +193,38 @@ function craftedBy(s,id,kind){
 }
 
 function setupClosedLoop(){
-  const s=createWorld(926006,{mode:'independent',worldProfile:'same-world',population:5});
-  const merchantId=s.agents[0].id,crafterId=s.agents[1].id,consumerId=s.agents[2].id,producerId=s.agents[3].id,calibratorId=s.agents[4].id;
+  const s=createWorld(926006,{mode:'independent',worldProfile:'same-world',population:4});
+  const merchantId=s.agents[0].id,crafterId=s.agents[1].id,consumerId=s.agents[2].id,producerId=s.agents[3].id;
   const producer=actor(s,producerId);producer.preference='WOODCUT';Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
   assert.equal(adoptProfession(producer,'WOODCUT',s.tick).profession,'woodcutter');
   const producerAxe=give(s,producer,'STONE_AXE');assert.equal(command(s,'EQUIP_ITEM',{agentId:producerId,itemId:producerAxe}).ok,true);
 
   const marketId=prepareMerchant(s,merchantId);
-  qualifyAdventurer(s,calibratorId);
-  physicalPriceCalibration(s,{sellerId:producerId,merchantId,buyerId:calibratorId,marketId,itemKind:'EMBER_BLADE',label:'blade'});
-  physicalPriceCalibration(s,{sellerId:producerId,merchantId,buyerId:calibratorId,marketId,itemKind:'HIDE_ARMOR',label:'armor'});
-  assert.equal(equippedKind(s,calibratorId,'WEAPON'),'EMBER_BLADE');
-  assert.equal(equippedKind(s,calibratorId,'ARMOR'),'HIDE_ARMOR');
+  qualifyAdventurer(s,consumerId);
+  const calibrationBladeId=physicalPriceCalibration(s,{sellerId:producerId,merchantId,buyerId:consumerId,marketId,itemKind:'EMBER_BLADE',label:'blade'});
+  const calibrationArmorId=physicalPriceCalibration(s,{sellerId:producerId,merchantId,buyerId:consumerId,marketId,itemKind:'HIDE_ARMOR',label:'armor'});
+  assert.equal(equippedKind(s,consumerId,'WEAPON'),'EMBER_BLADE');
+  assert.equal(equippedKind(s,consumerId,'ARMOR'),'HIDE_ARMOR');
+  dropItem(s,actor(s,consumerId),s.rustPossessions.items.find(i=>i.id===calibrationBladeId));
+  dropItem(s,actor(s,consumerId),s.rustPossessions.items.find(i=>i.id===calibrationArmorId));
 
   prepareCrafter(s,crafterId);
-  qualifyAdventurer(s,consumerId);
   const blade=CRAFT_RECIPE_CATALOG.EMBER_BLADE;
   const firstWoodNeed=(blade.materials?.wood??0)+CRAFT_TRAINING_RULES.wood;
   Object.assign(resourceStock(s,actor(s,crafterId)),{food:900,wood:firstWoodNeed-2,stone:900});
   const p=marketPoint(s,marketId);
   actor(s,merchantId).x=p.x;actor(s,merchantId).y=p.y;calm(actor(s,merchantId));
-  placeNear(s,crafterId,p,1,2);placeNear(s,consumerId,p,1,2);placeFar(s,calibratorId,p,18);
-  placeNear(s,producerId,p,3,5);
+  placeNear(s,crafterId,p,1,2);placeNear(s,consumerId,p,1,2);placeNear(s,producerId,p,3,5);
   observeRc4Markets(s);
 
   bootstrapWoodPrice(s,{producerId,merchantId,crafterId,marketId});
   assert.equal(resourceStock(s,actor(s,crafterId)).wood,firstWoodNeed-1,'bootstrap leaves exactly one missing wood');
+  const producerReserve=producerSurplusSnapshot(s,actor(s,producerId),'wood');
+  assert.equal(producerReserve.status,'SAT',JSON.stringify(producerReserve));
+  resourceStock(s,actor(s,producerId)).wood=producerReserve.protectedReserve;
   actor(s,merchantId).x=p.x;actor(s,merchantId).y=p.y;calm(actor(s,merchantId));
-  placeNear(s,crafterId,p,1,2);placeNear(s,consumerId,p,1,2);placeNear(s,producerId,p,3,5);placeFar(s,calibratorId,p,18);
-  calm(actor(s,producerId),actor(s,crafterId),actor(s,consumerId),actor(s,merchantId),actor(s,calibratorId));
+  placeNear(s,crafterId,p,1,2);placeNear(s,consumerId,p,1,2);placeNear(s,producerId,p,3,5);
+  calm(actor(s,producerId),actor(s,crafterId),actor(s,consumerId),actor(s,merchantId));
   observeRc4Markets(s);
   assert.deepEqual(validate(s),[]);
 
@@ -229,13 +232,13 @@ function setupClosedLoop(){
   assert.equal(initialMerchant.status,'SAT',JSON.stringify(initialMerchant));
   assert.equal(initialMerchant.type,'CREATE_BUY_OFFER',JSON.stringify(initialMerchant));
   assert.equal(initialMerchant.itemKind,'wood','material brokerage must precede finished-goods procurement');
-  return {s,merchantId,crafterId,consumerId,producerId,calibratorId,marketId,firstWoodNeed};
+  return {s,merchantId,crafterId,consumerId,producerId,marketId,firstWoodNeed,producerReserve:producerReserve.protectedReserve};
 }
 
 test('ER6 final assembled four-role loop closes two autonomous cycles with conservation, save/load and long-horizon stability',()=>{
   const f=setupClosedLoop();let s=f.s;
   const startTick=s.tick,startCurrency=totalCurrency(s),startTx=new Set(s.tradeReplay.receipts.map(r=>r.transactionId));
-  const startProducerWood=resourceStock(s,actor(s,f.producerId)).wood;
+  const startProducerWork=actor(s,f.producerId).workDone;
   const checkpoints=new Set();
 
   // START: no fixture mutation or player trade command occurs below this line.
@@ -311,9 +314,9 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
   assert.equal(s.rustPossessions.items.filter(i=>i.id===firstBladeId).length,1,'exact first-cycle item cannot duplicate');
   assert.equal(s.rustPossessions.items.find(i=>i.id===firstBladeId)?.location?.agentId,f.consumerId);
   assert.equal(totalCurrency(s),startCurrency,'currency is conserved across both cycles');
-  assert.ok(resourceStock(s,actor(s,f.producerId)).wood<startProducerWood,'Producer supplies post-start wood');
+  assert.ok(actor(s,f.producerId).workDone>startProducerWork,'Producer must gather canonical wood after START');
   const reserve=producerSurplusSnapshot(s,actor(s,f.producerId),'wood');
-  assert.equal(reserve.status,'SAT');assert.ok(reserve.owned>=reserve.protectedReserve);
+  assert.equal(reserve.status,'SAT');assert.ok(reserve.owned>=reserve.protectedReserve);assert.equal(reserve.protectedReserve,f.producerReserve);
 
   const txIds=s.tradeReplay.receipts.map(r=>r.transactionId);
   assert.equal(new Set(txIds).size,txIds.length,'trade replay ids remain unique');
