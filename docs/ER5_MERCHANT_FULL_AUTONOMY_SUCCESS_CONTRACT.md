@@ -31,6 +31,8 @@ actor-observed demand
 
 ER5 owns policy only. Every mutation remains behind an existing canonical command/authority.
 
+Runtime activation is scoped to the Independent/Career Economy world line used by ER2–ER5. Legacy RC4 command-driven fixtures remain command-driven and must not gain surprise Merchant actions merely because ER5 policy exists.
+
 ## Existing authority map
 
 ER5 reuses, and does not replace:
