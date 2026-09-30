@@ -28,7 +28,7 @@ import {ironOreYieldForMining,addMaterialSet} from './material-economy.mjs?v=0.5
 import {housingCapacity,unfinishedHousing,evaluateModularHouses,pendingPlacements} from './housing.mjs?v=0.5.0';
 import {pendingPersonalPlacements} from './individual-housing.mjs?v=0.5.0';
 import {placementIdFor} from './rust-stations.mjs?v=0.5.0';
-import {ensureProductionPlan,productionCommand,stepProductionPlanning,validateProductionPlan} from './production-planning.mjs?v=0.5.0';
+import {ensureProductionPlan,productionCommand,stepProductionPlanning,validateProductionPlan,builderCrafterApprenticeshipIntent,builderCrafterApprenticeshipState} from './production-planning.mjs?v=0.5.0';
 import {ensureMentorshipState,mentorshipCommand,stepMentorship,endMentorshipsForAgent,validateMentorship} from './mentor-teaching.mjs?v=0.5.0';
 import {ensureSocialState,recordRelationshipEvidence,relationshipOf,householdOf,allHouseholds,activeResidenceOf,validateSocialState} from './relationships.mjs?v=0.5.0';
 import {householdResidenceCommand,endResidencesForAgent,residenceHome} from './household-residence.mjs?v=0.5.0';
@@ -493,7 +493,8 @@ function decide(s,a,book,producerIntent=null){
       ...(Number.isInteger(c.exploreCursor)?{exploreCursor:c.exploreCursor}:{}),...(c.placement?{placement:{...c.placement,socket:{...c.placement.socket}}}:{})};
     if(!claim(book,s,a)){c.status='reserved';a.task=null;continue;}
     rememberPlanSelection(s,a,c);
-    const career=adoptProfession(a,c.kind,s.tick);
+    const apprenticeship=builderCrafterApprenticeshipState(s,a);
+    const career=apprenticeship.active===true?{changed:false,reason:'builder-crafter-apprenticeship'}:adoptProfession(a,c.kind,s.tick);
     if(career.changed&&s.tick-(a.lastCareerEventTick??-999)>=60){event(s,'career',a.name+' เปลี่ยนอาชีพเป็น '+professionLabel(a.profession),a.id);a.lastCareerEventTick=s.tick;}
     c.status='selected';
     recordPredictionReceipt(s,a,actionPredictionEvidence(a,a.task,c));
@@ -774,7 +775,8 @@ function execute(s,a){
   }else if(t.work>=6){
     finishPersonalExploration(s,a,t);
     const belief=t.knowledgeKey?a.knowledgeState?.beliefs?.find(b=>b.key===t.knowledgeKey):null;
-    const qualification=noteExploreCompletion(a,{
+    const apprenticeship=builderCrafterApprenticeshipState(s,a);
+    const qualification=apprenticeship.active===true?{career:null}:noteExploreCompletion(a,{
       kind:t.kind,tick:s.tick,x:a.x,y:a.y,started:t.started,
       alive:a.alive===true,productive:canPerformProductiveWork(s,a),
       knowledge:t.knowledgeKey?(belief?.status??'UNKNOWN'):'none'
@@ -838,7 +840,9 @@ export function step(s,count=1,options={}){
       const demandCraft=!practiceAccepted?demandDrivenCrafterIntent(s,a):null;
       const demandCraftAccepted=demandCraft?command(s,'CRAFT_ITEM',demandCraft).ok:false;
       if(!practiceAccepted&&!demandCraftAccepted&&stepAutonomousAdventure(s,a))continue;
-      const producerIntent=a.task?.rc4MarketTravel&&isEr6ConsumerMarketTravelTask(a.task)?null:rawProducerDecision(s,a);
+      const apprenticeIntent=builderCrafterApprenticeshipIntent(s,a);
+      const producerIntent=a.task?.rc4MarketTravel&&isEr6ConsumerMarketTravelTask(a.task)?null:
+        (apprenticeIntent?.status==='SAT'&&apprenticeIntent.type==='GATHER'?apprenticeIntent:rawProducerDecision(s,a));
       applyRawProducerIntent(s,a,producerIntent);
       if(!a.task)decide(s,a,book,producerIntent);
       const task=a.task;
