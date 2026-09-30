@@ -127,12 +127,14 @@ export function consumerAutonomySnapshot(world,agent){
   const use=productiveToolUse(world,agent)??adventureGearUse(world,agent);
   const projection=projectActorObservedDemand(world,agent);
   if(projection.status!=='SAT')return unknown(agent.id,projection.reason??'demand-projection',projection);
+
+  // Existing canonical stock that satisfies a real use comes before shopping for
+  // another need. This keeps purchase -> actual use atomic at the policy level
+  // without inventing a second equipment authority.
+  if(use)return use;
+
   const needs=personalNeedsFromProjection(projection,agent.id);
   if(!needs.length){
-    // Put the acquired item into actual use before releasing the market journey.
-    // Keeping the canonical journey for one more policy step also prevents an
-    // Adventurer from starting a hunt between purchase and equipment.
-    if(use)return use;
     if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'need-cleared'});
     return sat({type:'IDLE',agentId:agent.id,reason:'no-consumer-need'});
   }
