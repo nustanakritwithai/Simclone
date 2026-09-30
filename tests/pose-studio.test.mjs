@@ -5,6 +5,7 @@ import {
   CHARACTER_BONES,CHARACTER_RIG_VERSION,POSE_PRESETS,RIG_METRICS,
   motionForAgent,poseForMotion,posePhaseForAgent,solveCharacterRig
 } from '../src/character-rig.mjs';
+import {CUTOUT_FACINGS,CUTOUT_PARTS,facingBack,facingFromWorldStep,facingMirror,validateCutoutAssetContract} from '../src/character-cutout-assets.mjs';
 
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const near=(a,b,eps=1e-9)=>Math.abs(a-b)<=eps;
@@ -59,4 +60,23 @@ test('rig and cutout renderer are deterministic 2D image-piece code, not 3D mode
   assert.doesNotMatch(renderer,/THREE\.|WebGLRenderingContext|\.gltf\b|\.glb\b/);
   assert.match(app,/drawAgentCutout\(c,a,time/);
   assert.doesNotMatch(app,/line\(c,\[\[-3,-9\],\[-4\+stride/);
+});
+
+test('isometric facing derives only from world step and supports four cutout views',()=>{
+  assert.deepEqual(CUTOUT_FACINGS,['front-left','front-right','back-left','back-right']);
+  assert.equal(facingFromWorldStep({x:0,y:0},{x:1,y:0}),'front-right');
+  assert.equal(facingFromWorldStep({x:0,y:0},{x:0,y:1}),'front-left');
+  assert.equal(facingFromWorldStep({x:0,y:0},{x:-1,y:0}),'back-left');
+  assert.equal(facingFromWorldStep({x:0,y:0},{x:0,y:-1}),'back-right');
+  assert.equal(facingMirror('front-left'),true);
+  assert.equal(facingBack('back-right'),true);
+  assert.deepEqual(validateCutoutAssetContract(),[]);
+  assert.equal(CUTOUT_PARTS.length,10);
+});
+
+test('world cutout facing stays render-only and never writes visual state into agents',()=>{
+  const app=readFileSync(new URL('../src/app.mjs',import.meta.url),'utf8');
+  assert.doesNotMatch(app,/\.visualFacing\s*=/);
+  assert.match(app,/v\.facing=facing/);
+  assert.match(app,/facingFromWorldStep\(a,next\)/);
 });
