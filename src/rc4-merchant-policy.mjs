@@ -391,6 +391,7 @@ export function merchantAutonomySnapshot(world,agent){
   if(!market)return er5View('SAT','home-market-required',{type:'CREATE_MARKET',agentId:actor.id,homeId:home.houseId});
 
   // Owned canonical resale stock is always offered before sourcing more.
+  let blocked=null;
   for(const signal of rows){
     const stock=er5SaleableStock(world,actor,ledger,signal);
     if(stock.status==='UNKNOWN')return er5View('UNKNOWN','stock-evidence',{agentId:actor.id,itemKind:signal.itemKind});
@@ -442,12 +443,18 @@ export function merchantAutonomySnapshot(world,agent){
       const funding=er5Funding(world,actor,{excludeOfferId:existing.offerId});
       const total=existing.unitPrice*existing.quantityWanted;
       if(funding.status!=='SAT'||!Number.isSafeInteger(total))return er5View('UNKNOWN','buy-offer-funding-evidence',{agentId:actor.id});
-      if(total>funding.available)return er5View('BLOCKED','buy-offer-unfunded',{agentId:actor.id,offerId:existing.offerId,required:total,available:funding.available});
+      if(total>funding.available){
+        blocked??=er5View('BLOCKED','buy-offer-unfunded',{agentId:actor.id,offerId:existing.offerId,required:total,available:funding.available});
+        continue;
+      }
       return er5View('SAT','buy-offer-open',{type:'WAIT_BUY_OFFER',agentId:actor.id,offerId:existing.offerId,itemKind:signal.itemKind});
     }
 
     const reference=er5ReferencePrice(signal,ledger);
-    if(!reference)return er5View('BLOCKED','price-evidence',{agentId:actor.id,itemKind:signal.itemKind});
+    if(!reference){
+      blocked??=er5View('BLOCKED','price-evidence',{agentId:actor.id,itemKind:signal.itemKind});
+      continue;
+    }
     const quote=quoteBidPrice({referenceUnitPrice:reference.price,discountBps:ER5_MERCHANT_AUTONOMY_RULES.bidDiscountBps});
     if(quote.state!=='SAT')return er5View(quote.state==='UNKNOWN'?'BLOCKED':'UNKNOWN',quote.reason??'bid-pricing',{agentId:actor.id,itemKind:signal.itemKind});
     const quantityWanted=Math.min(ER5_MERCHANT_AUTONOMY_RULES.maxUnitsPerCycle,shortage);
@@ -456,8 +463,10 @@ export function merchantAutonomySnapshot(world,agent){
       return er5View('UNKNOWN','buy-offer-total',{agentId:actor.id,itemKind:signal.itemKind});
     const funding=er5Funding(world,actor);
     if(funding.status!=='SAT')return funding;
-    if(required>funding.available)
-      return er5View('BLOCKED','insufficient-funded-capacity',{agentId:actor.id,itemKind:signal.itemKind,required,available:funding.available});
+    if(required>funding.available){
+      blocked??=er5View('BLOCKED','insufficient-funded-capacity',{agentId:actor.id,itemKind:signal.itemKind,required,available:funding.available});
+      continue;
+    }
     return er5View('SAT','create-funded-buy-offer',{
       type:'CREATE_BUY_OFFER',agentId:actor.id,marketId:market.marketId,itemKind:signal.itemKind,
       assetType:er5AssetType(signal),quantityWanted,unitPrice:quote.bidPrice,
@@ -466,7 +475,7 @@ export function merchantAutonomySnapshot(world,agent){
   }
 
   if(isCanonicalMarketTravelTask(actor.task))return er5View('SAT','demand-covered',{type:'CANCEL_TRAVEL',agentId:actor.id});
-  return er5View('IDLE','demand-covered',{agentId:actor.id});
+  return blocked??er5View('IDLE','demand-covered',{agentId:actor.id});
 }
 
 export function merchantAutonomyDecision(world,agent){
