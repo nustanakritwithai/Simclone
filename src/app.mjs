@@ -15,6 +15,7 @@ import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
 import {worldReadabilityRegions} from './display-world-readability.mjs?v=0.5.0';
 import {worldHitCandidate,resolveWorldHit,worldSelection,selectionFromWorldHit} from './read-models/world-hit-resolver.mjs?v=0.5.0';
 import {drawAgentCutout} from './character-cutout-renderer.mjs?v=0.5.0';
+import {facingFromWorldStep} from './character-cutout-assets.mjs?v=0.5.0';
 import {rc4MarketReadModel,rc4WorldMarketMarkers} from './rc4-market-runtime.mjs?v=0.5.0';
 const $=id=>document.getElementById(id),canvas=$('world'),ctx=canvas.getContext('2d'),dialog=$('dialog');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -421,12 +422,13 @@ function drawHouseFeedback(c,h,time){
 function person(c,a,time,bubble=null){
  let v=positions.get(a.id);if(!v){v={x:a.x,y:a.y};positions.set(a.id,v);}v.x+=(a.x-v.x)*.2;v.y+=(a.y-v.y)*.2;
  const p=proj(v.x,v.y),moving=Array.isArray(a.task?.path)&&a.task.path.length>0;
- const next=moving?a.task.path[0]:null,mirror=!!next&&proj(next.x,next.y).x<proj(a.x,a.y).x;
+ const next=moving?a.task.path[0]:null,facing=next?facingFromWorldStep(a,next):(a.visualFacing??'front-right');
+ if(next)a.visualFacing=facing;
  const equipped=state.rustPossessions?.equipment?.find(e=>e.agentId===a.id&&equipmentSlotOf(e)==='hand'),equippedItem=equipped&&state.rustPossessions?.items?.find(i=>i.id===equipped.itemId),tool=equippedItem?.kind;
  c.save();c.translate(p.x,p.y);
  ellipse(c,1,2,10,4,'#19312755');
  if(selection?.kind==='agent'&&String(selection.id)===String(a.id)){c.strokeStyle='#efd299';c.lineWidth=1.5;c.beginPath();c.ellipse(0,1,15,7,0,0,Math.PI*2);c.stroke();}
- drawAgentCutout(c,a,time,{tool,mirror,scale:.8});
+ drawAgentCutout(c,a,time,{tool,facing,scale:.8});
  drawAgentBubble(c,bubble);
  c.restore();
 }
