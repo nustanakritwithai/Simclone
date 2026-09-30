@@ -87,7 +87,7 @@
 .autonomy-status b{font-size:10px;letter-spacing:.9px}.autonomy-status span{font-size:9px;color:#bcd0b7}
 .quick-help .ui-icon{width:17px;height:17px}
 .ux-v2 .map-note{bottom:252px;left:50%}
-.ux-v2 .camera{bottom:126px;padding:3px;background:var(--panel);left:26px;flex-direction:column}
+.ux-v2 .camera{bottom:126px;padding:3px;background:var(--panel);left:105px;flex-direction:column}
 .ux-v2 .camera .iconbtn{min-width:44px;min-height:40px}
 .ux-v2 .camera .ui-icon{width:20px;height:20px}
 .ux-v2 .chronicle-strip .eyebrow{font-size:8px}
