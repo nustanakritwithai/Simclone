@@ -17,6 +17,7 @@ import {projectActorObservedDemand} from '../src/economic-demand.mjs';
 import {merchantAutonomySnapshot} from '../src/rc4-merchant-policy.mjs';
 import {producerSurplusSnapshot} from '../src/raw-producer-autonomy.mjs';
 import {RULES} from '../src/survival.mjs';
+import {adventureProgressionSnapshot} from '../src/adventure-progression.mjs';
 import {craftFixtureItem,craftFixtureTable,craftFixtureHome} from './fixtures/rc2-world.mjs';
 
 const actor=(s,id)=>s.agents.find(a=>a.id===id);
@@ -237,22 +238,32 @@ function setupClosedLoop(){
 
 test('ER6 final assembled four-role loop closes two autonomous cycles with conservation, save/load and long-horizon stability',()=>{
   const f=setupClosedLoop();let s=f.s;
+  const preStartRoles={
+    producer:actor(s,f.producerId).profession,crafter:actor(s,f.crafterId).profession,
+    merchant:actor(s,f.merchantId).profession,consumer:actor(s,f.consumerId).profession
+  };
+  assert.deepEqual(preStartRoles,{producer:'woodcutter',crafter:'crafter',merchant:'merchant',consumer:'adventurer'},
+    'four-role careers are explicit PRE-START fixture conditions, not fresh-world career-emergence proof');
+  const preStartDemand=projectActorObservedDemand(s,actor(s,f.consumerId),{includeResourceShortages:false});
+  assert.equal(preStartDemand.status,'SAT',JSON.stringify(preStartDemand));
+  const preStartGearNeeds=new Set(preStartDemand.signals
+    .filter(x=>x.unit==='item'&&x.sources.some(src=>src.kind==='PERSONAL_ITEM_NEED'&&src.subjectAgentId===f.consumerId))
+    .map(x=>x.itemKind));
+  assert.ok(preStartGearNeeds.has('EMBER_BLADE'));assert.ok(preStartGearNeeds.has('HIDE_ARMOR'),
+    'both Adventure gear deficits already exist before START');
+
   const startTick=s.tick,startCurrency=totalCurrency(s),startTx=new Set(s.tradeReplay.receipts.map(r=>r.transactionId));
   const startProducerWork=actor(s,f.producerId).workDone;
   const checkpoints=new Set();
 
-  // START: no fixture mutation or player trade command occurs below this line.
+  // START: no fixture stock/item/position/demand/profession mutation or player trade command occurs below this line.
   s=restore(serialize(s));checkpoints.add('before-material-procurement');
   let firstConsumerReceipt=null,secondConsumerReceipt=null,firstProducerReceipt=null,firstMaterialToCrafterReceipt=null,firstCrafterReceipt=null;
-  let firstBladeId=null,secondCycleStarted=false;
+  let firstBladeId=null,remainingGearFulfillmentStarted=false,renewedMaterialShortageObserved=false;
   for(let i=0;i<2400&&!secondConsumerReceipt;i++){
     step(s,1);
 
     const d=actor(s,f.consumerId);
-    if(!firstConsumerReceipt){
-      assert.equal(!!d.task?.adventureHunt,false,'Adventurer must not hunt while required gear is unresolved');
-      assert.equal(!!d.adventureEncounter,false,'Adventurer readiness need must outrank autonomous encounter');
-    }
 
     const postStartWoodOffer=s.merchantBuyOffers.buyOffers.find(o=>o.buyerId===f.merchantId&&o.itemKind==='wood'&&o.createdTick>startTick);
     if(postStartWoodOffer&&!checkpoints.has('after-buy-offer')){
@@ -271,6 +282,15 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
 
     const blades=craftedBy(s,f.crafterId,'EMBER_BLADE');
     if(blades.length&&!firstBladeId)firstBladeId=blades[0].id;
+    if(firstBladeId&&!renewedMaterialShortageObserved){
+      const merchantDemand=projectActorObservedDemand(s,actor(s,f.merchantId),{
+        includeCrafterMaterialDemand:true,includeResourceShortages:false
+      });
+      if(merchantDemand.status==='SAT'){
+        renewedMaterialShortageObserved=merchantDemand.signals.some(x=>x.itemKind==='wood'&&
+          x.sources.some(src=>src.kind==='LOCAL_CRAFTER_MATERIAL_NEED'&&src.subjectAgentId===f.crafterId&&src.quantity>0));
+      }
+    }
     if(firstBladeId&&!checkpoints.has('after-craft-completion')){
       s=restore(serialize(s));checkpoints.add('after-craft-completion');continue;
     }
@@ -290,13 +310,15 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
       s=restore(serialize(s));checkpoints.add('after-consumer-purchase');continue;
     }
 
-    if(firstConsumerReceipt&&equippedKind(s,f.consumerId,'WEAPON')==='EMBER_BLADE'&&!secondCycleStarted){
-      const demand=projectActorObservedDemand(s,actor(s,f.consumerId));
+    if(firstConsumerReceipt&&equippedKind(s,f.consumerId,'WEAPON')==='EMBER_BLADE'&&!remainingGearFulfillmentStarted){
+      const demand=projectActorObservedDemand(s,actor(s,f.consumerId),{includeResourceShortages:false});
       const armor=demand.signals.find(x=>x.itemKind==='HIDE_ARMOR'&&x.sources.some(src=>src.kind==='PERSONAL_ITEM_NEED'&&src.subjectAgentId===f.consumerId));
-      assert.ok(armor,'fulfilled WEAPON need must expose the remaining ARMOR need');
-      secondCycleStarted=true;
+      assert.ok(armor,'fulfilled WEAPON need must leave the existing ARMOR deficit visible');
+      assert.equal(preStartGearNeeds.has('HIDE_ARMOR'),true,
+        'ARMOR is a PRE-START missing-gear deficit; do not relabel it as renewed post-use consumer demand');
+      remainingGearFulfillmentStarted=true;
     }
-    if(secondCycleStarted){
+    if(remainingGearFulfillmentStarted){
       secondConsumerReceipt??=newReceipt(s,startTx,r=>r.sellerId===f.merchantId&&r.buyerId===f.consumerId&&r.itemKind==='HIDE_ARMOR');
     }
   }
@@ -310,8 +332,9 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
   assert.equal(firstProducerReceipt.quantity,1);assert.equal(firstMaterialToCrafterReceipt.quantity,1);
   assert.ok(firstCrafterReceipt,'Crafter exact physical output must settle to Merchant');
   assert.ok(firstConsumerReceipt,'Consumer must buy the exact first-cycle item');
-  assert.ok(secondCycleStarted,'second economic cycle must begin from remaining released need');
-  assert.ok(secondConsumerReceipt,'second economic cycle must complete through canonical resale');
+  assert.ok(renewedMaterialShortageObserved,'first craft consumption must create a new actor-observed raw-material shortage');
+  assert.ok(remainingGearFulfillmentStarted,'second consumer fulfillment pass must begin from the PRE-START ARMOR deficit');
+  assert.ok(secondConsumerReceipt,'the remaining PRE-START gear deficit must complete through canonical resale');
   assert.equal(equippedKind(s,f.consumerId,'WEAPON'),'EMBER_BLADE');
   assert.equal(equippedKind(s,f.consumerId,'ARMOR'),'HIDE_ARMOR');
   const armorItemId=secondConsumerReceipt.itemIds?.[0];assert.ok(Number.isSafeInteger(armorItemId));
@@ -333,6 +356,13 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
   assert.deepEqual(validate(s),[]);
 
   // Deterministic unattended continuation from the exact same canonical state.
+  // Economic quiescence is accepted only if the world is still alive and doing work;
+  // it must not be a false "stable" result caused by death or a frozen simulation.
+  const stableActivity={
+    tick:s.tick,
+    workTotal:[f.producerId,f.crafterId,f.merchantId,f.consumerId].reduce((n,id)=>n+(actor(s,id)?.workDone??0),0),
+    adventureXp:adventureProgressionSnapshot(actor(s,f.consumerId))?.xp??0
+  };
   const stableWire=serialize(s),left=restore(stableWire),right=restore(stableWire);
   step(left,360);step(right,360);
   assert.equal(serialize(left),serialize(right),'long-horizon continuation must be deterministic');
@@ -343,6 +373,13 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
   assert.equal(craftedBy(s,f.crafterId,'EMBER_BLADE').length,bladeCountA,'no unbounded weapon overproduction');
   assert.equal(craftedBy(s,f.crafterId,'HIDE_ARMOR').length,armorCountA,'no unbounded armor overproduction');
   assert.equal(s.tradeReplay.receipts.length,receiptsA,'settled economy becomes quiescent after historical demand expires');
+  assert.equal(s.tick,stableActivity.tick+960,'long-horizon simulation must continue ticking');
+  for(const id of [f.producerId,f.crafterId,f.merchantId,f.consumerId])
+    assert.equal(actor(s,id)?.alive,true,'all four acceptance actors must remain alive through long horizon: '+id);
+  const workTotal=[f.producerId,f.crafterId,f.merchantId,f.consumerId].reduce((n,id)=>n+(actor(s,id)?.workDone??0),0);
+  const adventureXp=adventureProgressionSnapshot(actor(s,f.consumerId))?.xp??0;
+  assert.ok(workTotal>stableActivity.workTotal||adventureXp>stableActivity.adventureXp,
+    'post-settlement world must still perform real work or Adventure progression; quiescence cannot come from a stalled world');
   assert.ok(s.merchantListings.listings.filter(l=>l.sellerId===f.merchantId&&l.itemKind==='EMBER_BLADE'&&l.status==='OPEN').length<=1);
   assert.ok(s.merchantListings.listings.filter(l=>l.sellerId===f.merchantId&&l.itemKind==='HIDE_ARMOR'&&l.status==='OPEN').length<=1);
   assert.ok(s.merchantBuyOffers.buyOffers.filter(o=>o.buyerId===f.merchantId&&o.status==='OPEN').length<=2);

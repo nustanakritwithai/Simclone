@@ -376,6 +376,18 @@ At minimum:
 
 UNKNOWN remains UNKNOWN.
 
+
+## Acceptance semantics lock — fixture vs renewed demand
+
+The assembled four-role acceptance may establish Producer / Crafter / Merchant / Adventurer roles and calibration evidence **before START**. That proves integration behavior only. It does **not** prove that a fresh untouched world autonomously creates all four careers; fresh-world career emergence is separate evidence and remains UNKNOWN unless separately proven.
+
+A second fulfillment must state its trigger precisely:
+- another gear slot that was already missing before START is **remaining pre-existing demand**;
+- material consumed by the first canonical craft may create a **new post-craft material shortage**;
+- only an actually new need created by released use/depletion semantics may be called **renewed post-use consumer demand**.
+
+These categories must not be substituted for one another in Candidate SAT evidence.
+
 ## Candidate SAT gate
 
 ER6 becomes **CANDIDATE SAT** only when one exact candidate head proves:
