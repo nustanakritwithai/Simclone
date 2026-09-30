@@ -281,7 +281,7 @@ function er5AskPrice(stock,signal){
   const basis=stock.type===TRADE_ASSET_TYPES.PHYSICAL_ITEM?stock.unlisted?.[0]?.basis:stock.basis;
   if(!basis||!isCanonicalMoney(basis.unitPrice,{allowZero:false}))return {state:'UNKNOWN',reason:'acquisition-cost'};
   const localStock=Math.min(MERCHANT_PRICING_SAFE_MAX,Math.max(0,(stock.listedQuantity??0)+(stock.availableQuantity??0)));
-  const recentDemand=Math.min(MERCHANT_PRICING_SAFE_MAX,Math.max(0,signal.demandQuantity??signal.liveDemandQuantity??0));
+  const recentDemand=Math.min(MERCHANT_PRICING_SAFE_MAX,Math.max(0,signal.stockShortageQuantity??signal.demandQuantity??signal.liveDemandQuantity??0));
   return quoteAskPrice({
     acquisitionCost:basis.unitPrice,
     marginBps:ER5_MERCHANT_AUTONOMY_RULES.askMarginBps,
