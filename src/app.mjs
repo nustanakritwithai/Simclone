@@ -420,10 +420,10 @@ function drawHouseFeedback(c,h,time){
  c.strokeStyle=h.status==='blocked'?'#d69b7a99':'#e1c98b99';c.lineWidth=.8;c.stroke();c.fillStyle='#efe0b8';c.fillText(label,p.x,p.y-58);c.restore();
 }
 function person(c,a,time,bubble=null){
- let v=positions.get(a.id);if(!v){v={x:a.x,y:a.y};positions.set(a.id,v);}v.x+=(a.x-v.x)*.2;v.y+=(a.y-v.y)*.2;
+ let v=positions.get(a.id);if(!v){v={x:a.x,y:a.y,facing:'front-right'};positions.set(a.id,v);}v.x+=(a.x-v.x)*.2;v.y+=(a.y-v.y)*.2;
  const p=proj(v.x,v.y),moving=Array.isArray(a.task?.path)&&a.task.path.length>0;
- const next=moving?a.task.path[0]:null,facing=next?facingFromWorldStep(a,next):(a.visualFacing??'front-right');
- if(next)a.visualFacing=facing;
+ const next=moving?a.task.path[0]:null,facing=next?facingFromWorldStep(a,next):(v.facing??'front-right');
+ if(next)v.facing=facing;
  const equipped=state.rustPossessions?.equipment?.find(e=>e.agentId===a.id&&equipmentSlotOf(e)==='hand'),equippedItem=equipped&&state.rustPossessions?.items?.find(i=>i.id===equipped.itemId),tool=equippedItem?.kind;
  c.save();c.translate(p.x,p.y);
  ellipse(c,1,2,10,4,'#19312755');
