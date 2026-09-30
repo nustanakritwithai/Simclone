@@ -47,12 +47,13 @@ import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adven
 import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
 import {crafterCareerCommand} from './crafter-career.mjs?v=0.5.0';
 import {ensureCrafterTierPolicy,migrateCrafterTierPolicy,validateCrafterTierPolicy} from './crafter-tier-policy.mjs?v=0.5.0';
-import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy,isEr5MerchantMarketTravelTask,isEr6ConsumerMarketTravelTask} from './rc4-market-runtime.mjs?v=0.5.0';
+import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy,isEr5MerchantMarketTravelTask,isEr6ConsumerMarketTravelTask,isEr6CrafterSupplyMarketTravelTask} from './rc4-market-runtime.mjs?v=0.5.0';
 import {rawProducerDecision,rawProducerGatherPressure} from './raw-producer-autonomy.mjs?v=0.5.0';
 import {demandDrivenCrafterIntent} from './demand-driven-crafter.mjs?v=0.5.0';
 import {crafterMaterialProcurementDecision} from './crafter-material-procurement.mjs?v=0.5.0';
 import {merchantAutonomyDecision} from './rc4-merchant-policy.mjs?v=0.5.0';
 import {consumerAutonomyDecision} from './er6-consumer-autonomy.mjs?v=0.5.0';
+import {crafterMarketSupplyDecision} from './er6-crafter-market-supply.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
 import {TRADE_ASSET_TYPES} from './trade-assets.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -625,10 +626,34 @@ function stepConsumerAutonomy(s){
   return {changed,rootReplaced:false};
 }
 
+function stepCrafterMarketSupply(s){
+  if(!isIndependent(s))return {changed:false};
+  const ids=living(s).filter(a=>a.profession==='crafter').map(a=>a.id).sort((a,b)=>a-b);
+  let changed=false;
+  for(const id of ids){
+    const a=s.agents.find(x=>x.id===id&&x.alive&&x.profession==='crafter');
+    if(!a)continue;
+    const intent=crafterMarketSupplyDecision(s,a);
+    if(intent?.status!=='SAT'||typeof intent.type!=='string'||['WAIT_TRAVEL','WAIT_SETTLEMENT'].includes(intent.type))continue;
+    let r=null;
+    if(intent.type==='TRAVEL_TO_MARKET'){
+      r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId,control:'ER6_CRAFTER_MARKET_SUPPLY'});
+    }else if(intent.type==='CANCEL_TRAVEL'){
+      r=command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
+    }else if(intent.type==='ACCEPT_BUY_OFFER'){
+      r=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:a.id,offerId:intent.offerId,itemId:intent.itemId});
+      if(r?.ok)event(s,'market',a.name+' ตอบรับคำสั่งซื้อ '+intent.itemKind+' ด้วยสินค้าที่คราฟต์จริง',a.id);
+    }
+    if(r?.ok)changed=true;
+  }
+  return {changed};
+}
+
 function stepCrafterMaterialProcurement(s){
   const candidates=living(s).filter(a=>a.profession==='crafter').sort((a,b)=>a.id-b.id);
   let changed=false;
   for(const a of candidates){
+    if(a.task?.rc4MarketTravel&&isEr6CrafterSupplyMarketTravelTask(a.task))continue;
     const intent=crafterMaterialProcurementDecision(s,a);
     if(intent?.status!=='SAT'||typeof intent.type!=='string')continue;
     if(intent.type==='WAIT_TRAVEL')continue;
@@ -797,6 +822,7 @@ export function step(s,count=1,options={}){
     }
     stepMerchantAutonomy(s);
     stepCrafterMaterialProcurement(s);
+    stepCrafterMarketSupply(s);
     stepConsumerAutonomy(s);
     stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
     const {book,rejected}=reservations(s);
