@@ -148,10 +148,108 @@ function directItemNeeds(world,subject){
   }
   return out;
 }
+function liveCrafterItemDemandProjection(world,actor,ttlTicks){
+  const knowledgeErrors=validateRc4MarketKnowledge(actor);
+  if(knowledgeErrors.length)return unknown(actor.id,world.tick,'market-knowledge-invalid',knowledgeErrors);
+  const rows=new Map(),markets=currentMarketMap(world,actor,ttlTicks);
+  const knownOffers=knownRc4BuyOffers(actor),knownListings=knownRc4Listings(actor);
+  const observedOfferNeeds=new Set();
+
+  // This lightweight projection intentionally covers only live physical-item
+  // evidence needed to decide what a nearby Crafter is currently trying to make.
+  // It does not recurse into ER1 history/resource/material projections.
+  for(const known of knownOffers){
+    if(!fresh(world.tick,known.observedTick,ttlTicks))continue;
+    const market=markets.get(known.marketId)?.current;
+    const current=world.merchantBuyOffers.buyOffers.find(o=>o.offerId===known.offerId);
+    if(!market||!current||current.status!=='OPEN'||!market.buyOfferIds.includes(current.offerId)||
+      !sameOfferObservation(known,current)||tradeAssetType(current)!==TRADE_ASSET_TYPES.PHYSICAL_ITEM)continue;
+    const buyer=world.agents.find(a=>a.id===current.buyerId&&a.alive);
+    const total=current.unitPrice*current.quantityWanted,balance=getBalance(world,current.buyerId);
+    if(!buyer||!Number.isSafeInteger(total)||!Number.isSafeInteger(balance)||balance<total)continue;
+    const row=ensureSignal(rows,{agentId:actor.id,itemKind:current.itemKind});
+    row.liveDemandQuantity+=current.quantityWanted;
+    observedOfferNeeds.add(current.buyerId+'|'+current.itemKind);
+    addSource(row,deepFreeze({
+      kind:current.buyerId===actor.id?'MERCHANT_STOCK_SHORTAGE_BUY_OFFER':'BUY_OFFER',
+      side:'DEMAND',evidenceId:current.offerId,marketId:current.marketId,buyerId:current.buyerId,
+      quantity:current.quantityWanted,unitPrice:current.unitPrice,
+      observedTick:known.observedTick,expiresTick:known.observedTick+ttlTicks
+    }));
+  }
+
+  for(const known of knownListings){
+    if(!fresh(world.tick,known.observedTick,ttlTicks))continue;
+    const market=markets.get(known.marketId)?.current;
+    const current=world.merchantListings.listings.find(l=>l.id===known.id);
+    if(!market||!current||current.status!=='OPEN'||!market.listingIds.includes(current.id)||
+      !sameListingObservation(known,current)||tradeAssetType(current)!==TRADE_ASSET_TYPES.PHYSICAL_ITEM)continue;
+    const tradable=tradableRustItemIds(world,{agentId:current.sellerId,itemKind:current.itemKind});
+    if(!tradable.includes(current.itemInstanceId))continue;
+    const row=ensureSignal(rows,{agentId:actor.id,itemKind:current.itemKind});
+    row.supplyQuantity+=current.quantity;
+    addSource(row,deepFreeze({
+      kind:'LISTING',side:'SUPPLY',evidenceId:current.id,marketId:current.marketId,
+      quantity:current.quantity,unitPrice:current.unitPrice,itemInstanceId:current.itemInstanceId,
+      observedTick:known.observedTick,expiresTick:known.observedTick+ttlTicks
+    }));
+  }
+
+  for(const subject of world.agents??[]){
+    if(!subject.alive||!withinKnowledgeRange(actor,subject))continue;
+    for(const need of directItemNeeds(world,subject)){
+      if(observedOfferNeeds.has(subject.id+'|'+need.itemKind))continue;
+      const quantity=positive(need.quantity)?need.quantity:1;
+      const row=ensureSignal(rows,{agentId:actor.id,itemKind:need.itemKind});
+      row.liveDemandQuantity+=quantity;
+      addSource(row,deepFreeze({
+        kind:subject.id===actor.id?'PERSONAL_ITEM_NEED':'LOCAL_ITEM_NEED',
+        side:'DEMAND',evidenceId:need.needId,subjectAgentId:subject.id,
+        quantity,purpose:need.purpose,fulfillment:need.fulfillment,slot:need.slot??null,
+        observedTick:world.tick,expiresTick:world.tick+1
+      }));
+    }
+  }
+
+  const ownTradableCounts=new Map();
+  for(const item of world.rustPossessions?.items??[]){
+    if(item.location?.kind!=='bag'||item.location.agentId!==actor.id||typeof item.kind!=='string')continue;
+    if(!tradableRustItemIds(world,{agentId:actor.id,itemKind:item.kind}).includes(item.id))continue;
+    ownTradableCounts.set(item.kind,(ownTradableCounts.get(item.kind)??0)+1);
+  }
+  const signals=[...rows.values()].map(row=>{
+    row.demandQuantity=row.liveDemandQuantity;
+    row.shortageQuantity=Math.max(0,row.demandQuantity-row.supplyQuantity);
+    row.ownStockQuantity=ownTradableCounts.get(row.itemKind)??0;
+    row.stockShortageQuantity=Math.max(0,row.demandQuantity-row.ownStockQuantity);
+    const sources=row.sources.slice().sort((a,b)=>
+      (a.observedTick??-1)-(b.observedTick??-1)||
+      String(a.kind).localeCompare(String(b.kind))||
+      String(a.evidenceId??'').localeCompare(String(b.evidenceId??''))
+    );
+    return deepFreeze({
+      signalId:row.signalId,itemKind:row.itemKind,unit:'item',tradable:true,representation:'physical-item-instance',
+      liveDemandQuantity:row.liveDemandQuantity,historicalDemandQuantity:0,demandQuantity:row.demandQuantity,
+      supplyQuantity:row.supplyQuantity,shortageQuantity:row.shortageQuantity,
+      ownStockQuantity:row.ownStockQuantity,stockShortageQuantity:row.stockShortageQuantity,
+      verifiedTradeCount:0,verifiedTradeQuantity:0,observedTick:row.observedTick,expiresTick:row.expiresTick,
+      marketIds:[...row.marketIds].sort(),sources,actionable:row.shortageQuantity>0
+    });
+  }).sort((a,b)=>a.itemKind.localeCompare(b.itemKind));
+  return deepFreeze({
+    version:ECONOMIC_DEMAND_VERSION,status:'SAT',authority:'READ_ONLY',scope:'ACTOR_OBSERVED',
+    agentId:actor.id,worldTick:world.tick,ttlTicks,signals
+  });
+}
+
 function readLocalCrafterMaterialNeeds(world,actor,rows,ttlTicks){
+  // Only Merchant policy consumes this brokerage signal. Keeping it merchant-only
+  // narrows the knowledge surface and avoids multiplying Crafter planning work
+  // across Producer/Crafter/Consumer demand projections every tick.
+  if(actor.profession!=='merchant')return;
   for(const subject of world.agents??[]){
     if(!subject.alive||subject.id===actor.id||subject.profession!=='crafter'||!withinKnowledgeRange(actor,subject))continue;
-    const subjectProjection=projectActorObservedDemand(world,subject,{ttlTicks,includeCrafterMaterialDemand:false});
+    const subjectProjection=liveCrafterItemDemandProjection(world,subject,ttlTicks);
     if(subjectProjection.status!=='SAT')continue;
     const plan=crafterProductionPlanFromProjection(world,subject,subjectProjection,{allowCanonicalMarketTravel:true});
     if(plan.status!=='NEEDS_MATERIALS'||plan.procurementRequired!==true||!plan.missing||typeof plan.missing!=='object')continue;
@@ -162,9 +260,8 @@ function readLocalCrafterMaterialNeeds(world,actor,rows,ttlTicks){
       row.liveDemandQuantity+=quantity;
       addSource(row,deepFreeze({
         kind:'LOCAL_CRAFTER_MATERIAL_NEED',side:'DEMAND',
-        evidenceId:'crafter-material:'+subject.id+':'+plan.recipeId+':'+itemKind,
-        subjectAgentId:subject.id,recipeId:plan.recipeId,productItemKind:plan.demand?.itemKind??null,
-        demandEvidenceId:plan.demand?.signalId??null,quantity,
+        evidenceId:'crafter-material:'+subject.id+':'+itemKind,
+        subjectAgentId:subject.id,quantity,
         observedTick:world.tick,expiresTick:world.tick+1
       }));
     }
