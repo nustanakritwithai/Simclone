@@ -284,6 +284,9 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
   let firstBladeId=null,firstArmorId=null,gearDeficitsAccounted=false,renewedMaterialShortageObserved=false;
   for(let i=0;i<2400;i++){
     step(s,1);
+    const pendingProducerReceipt=newReceipt(s,startTx,r=>r.sellerId===f.producerId&&r.buyerId===f.merchantId&&r.itemKind==='wood');
+    if(!pendingProducerReceipt)assert.equal(actor(s,f.producerId).profession,'woodcutter',
+      'Producer must retain its explicit PRE-START raw role while canonical procurement settlement is pending');
 
     const postStartWoodOffer=s.merchantBuyOffers.buyOffers.find(o=>o.buyerId===f.merchantId&&o.itemKind==='wood'&&o.createdTick>startTick);
     if(postStartWoodOffer&&!checkpoints.has('after-buy-offer')){

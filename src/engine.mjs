@@ -527,6 +527,10 @@ function stepAutonomousAdventure(s,a){
 
 function applyRawProducerIntent(s,a,intent){
   if(intent?.status!=='SAT')return {handled:false};
+  // An accepted procurement Listing is already a canonical commitment. While it
+  // remains open, do not fall through to generic job selection: EXPLORE can
+  // otherwise reassign the raw Producer's career before the Merchant settles it.
+  if(intent.type==='WAIT_SETTLEMENT')return {handled:true,kind:'wait-settlement',blockFallback:true};
   if(intent.type==='TRAVEL_TO_MARKET'){
     const r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId});
     return {handled:r.ok,kind:'travel',result:r};
@@ -841,8 +845,8 @@ export function step(s,count=1,options={}){
       const demandCraftAccepted=demandCraft?command(s,'CRAFT_ITEM',demandCraft).ok:false;
       if(!practiceAccepted&&!demandCraftAccepted&&!consumerStep.adventureReadinessWaiting.has(a.id)&&stepAutonomousAdventure(s,a))continue;
       const producerIntent=a.task?.rc4MarketTravel&&isEr6ConsumerMarketTravelTask(a.task)?null:rawProducerDecision(s,a);
-      applyRawProducerIntent(s,a,producerIntent);
-      if(!a.task)decide(s,a,book,producerIntent);
+      const producerStep=applyRawProducerIntent(s,a,producerIntent);
+      if(!a.task&&!producerStep.blockFallback)decide(s,a,book,producerIntent);
       const task=a.task;
       if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
     }
