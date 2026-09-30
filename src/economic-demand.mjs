@@ -18,7 +18,7 @@ import {tradableRustItemIds} from './rust-possessions.mjs?v=0.5.0';
 import {resourceStock,resourceAccount,personalTargets} from './individual-resources.mjs?v=0.5.0';
 import {materialAmount} from './material-economy.mjs?v=0.5.0';
 import {TRADE_ASSET_TYPES,tradeAssetType,validBulkTradeResourceKey} from './trade-assets.mjs?v=0.5.0';
-import {crafterProductionPlanFromProjection} from './crafter-production-plan.mjs?v=0.5.0';
+import {crafterMaterialNeedsForObservedItems} from './crafter-production-plan.mjs?v=0.5.0';
 
 export const ECONOMIC_DEMAND_VERSION='ER1-local-demand/1';
 export const ECONOMIC_DEMAND_TTL_TICKS=720;
@@ -242,26 +242,26 @@ function liveCrafterItemDemandProjection(world,actor,ttlTicks){
   });
 }
 
-function readLocalCrafterMaterialNeeds(world,actor,rows,ttlTicks){
-  // Only Merchant policy consumes this brokerage signal. Keeping it merchant-only
-  // narrows the knowledge surface and avoids multiplying Crafter planning work
-  // across Producer/Crafter/Consumer demand projections every tick.
-  if(actor.profession!=='merchant')return;
+function readLocalCrafterMaterialNeeds(world,actor,rows){
+  // Reuse only item demand that this observer has already legally seen in this
+  // projection. Never recurse into another actor's ER1 market projection.
+  const visibleItems=[...rows.values()]
+    .filter(row=>row.unit==='item'&&row.liveDemandQuantity>0)
+    .map(row=>row.itemKind)
+    .sort();
+  if(!visibleItems.length)return;
   for(const subject of world.agents??[]){
     if(!subject.alive||subject.id===actor.id||subject.profession!=='crafter'||!withinKnowledgeRange(actor,subject))continue;
-    const subjectProjection=liveCrafterItemDemandProjection(world,subject,ttlTicks);
-    if(subjectProjection.status!=='SAT')continue;
-    const plan=crafterProductionPlanFromProjection(world,subject,subjectProjection,{allowCanonicalMarketTravel:true});
-    if(plan.status!=='NEEDS_MATERIALS'||plan.procurementRequired!==true||!plan.missing||typeof plan.missing!=='object')continue;
-    for(const [itemKind,rawQuantity] of Object.entries(plan.missing)){
-      const quantity=Math.ceil(Number(rawQuantity));
-      if(!validBulkTradeResourceKey(itemKind)||!positive(quantity))continue;
-      const row=ensureSignal(rows,{agentId:actor.id,itemKind,unit:'bulk-resource',tradable:true,representation:'resource-counter'});
-      row.liveDemandQuantity+=quantity;
+    const projected=crafterMaterialNeedsForObservedItems(world,subject,visibleItems);
+    if(projected.status!=='SAT')continue;
+    for(const need of projected.needs){
+      if(!validBulkTradeResourceKey(need.materialKind)||!positive(need.quantity))continue;
+      const row=ensureSignal(rows,{agentId:actor.id,itemKind:need.materialKind,unit:'bulk-resource',tradable:true,representation:'resource-counter'});
+      row.liveDemandQuantity+=need.quantity;
       addSource(row,deepFreeze({
         kind:'LOCAL_CRAFTER_MATERIAL_NEED',side:'DEMAND',
-        evidenceId:'crafter-material:'+subject.id+':'+itemKind,
-        subjectAgentId:subject.id,quantity,
+        evidenceId:'crafter-material:'+subject.id+':'+need.materialKind,
+        subjectAgentId:subject.id,quantity:need.quantity,
         observedTick:world.tick,expiresTick:world.tick+1
       }));
     }
@@ -366,7 +366,7 @@ export function projectActorObservedDemand(world,agent,{ttlTicks=ECONOMIC_DEMAND
     }
   }
 
-  if(includeCrafterMaterialDemand)readLocalCrafterMaterialNeeds(world,actor,rows,ttlTicks);
+  if(includeCrafterMaterialDemand)readLocalCrafterMaterialNeeds(world,actor,rows);
   readResourceShortages(world,actor,rows);
 
   const observedListings=new Map(knownListings.map(l=>[l.id,l]));
