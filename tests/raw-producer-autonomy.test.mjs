@@ -137,6 +137,18 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
   assert.deepEqual(validate(s),[]);
 });
 
+test('ER2 accepted procurement remains WAIT_SETTLEMENT after its own Listing covers observed shortage',()=>{
+  const {s,producer,offer}=setupOffer({itemKind:'wood',quantity:1,unitPrice:3});
+  const reserve=personalTargets(s,producer).wood;resourceStock(s,producer).wood=reserve+2;
+  const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:offer.offerId,quantity:1});
+  assert.equal(accepted.ok,true,JSON.stringify(accepted));
+  const listing=s.merchantListings.listings.find(l=>l.id===accepted.listingId);assert.ok(listing);
+  const d=rawProducerDecision(s,producer);
+  assert.equal(d.status,'SAT',JSON.stringify(d));assert.equal(d.type,'WAIT_SETTLEMENT',JSON.stringify(d));
+  assert.equal(d.listingId,listing.id);assert.equal(d.offerId,offer.offerId);assert.equal(d.itemKind,'wood');
+  assert.equal(producer.profession,'woodcutter');assert.deepEqual(validate(s),[]);
+});
+
 test('ER2 competing BuyOffers cannot over-commit one producer surplus and exact replay stays idempotent',()=>{
   const {s,merchant,producer,market,offer}=setupOffer({itemKind:'wood',quantity:4,unitPrice:2});
   const reserve=personalTargets(s,producer).wood;resourceStock(s,producer).wood=reserve+5;

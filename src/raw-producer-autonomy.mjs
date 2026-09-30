@@ -169,6 +169,19 @@ function accountOpenListingForOffer(world,agent,offerId){
     tradeAssetType(l)===TRADE_ASSET_TYPES.BULK_RESOURCE&&sameAccountInShadow(ctx.shadow,ctx.actor,l.sellerId))
     .sort((a,b)=>String(a.id).localeCompare(String(b.id)))[0]??null;
 }
+function accountOpenProcurementCommitment(world,agent,profile){
+  const ctx=shadowFor(world,agent);if(!ctx)return null;
+  const rows=(world.merchantListings?.listings??[]).filter(l=>l?.status==='OPEN'&&l.buyOfferId&&
+    tradeAssetType(l)===TRADE_ASSET_TYPES.BULK_RESOURCE&&profile.resources.includes(l.itemKind)&&
+    sameAccountInShadow(ctx.shadow,ctx.actor,l.sellerId)).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  for(const listing of rows){
+    const offer=world.merchantBuyOffers?.buyOffers?.find(o=>o.offerId===listing.buyOfferId);
+    if(!offer||offer.status!=='OPEN'||tradeAssetType(offer)!==TRADE_ASSET_TYPES.BULK_RESOURCE)continue;
+    if(offer.marketId!==listing.marketId||offer.itemKind!==listing.itemKind||sameAccountInShadow(ctx.shadow,ctx.actor,offer.buyerId))continue;
+    return {listing,offer};
+  }
+  return null;
+}
 
 export function rawProducerDecision(world,agent){
   if(!world||!agent?.alive||world.agents?.find(a=>a.id===agent.id)!==agent)return view('UNKNOWN','actor');
@@ -179,6 +192,15 @@ export function rawProducerDecision(world,agent){
   if(agent.satiety<RULES.hungry||agent.energy<RULES.exhausted)
     return view('BLOCKED','survival',{action:profile.action});
   if(agent.task&&!marketTask)return view('BLOCKED','task',{action:profile.action});
+
+  // An accepted procurement Listing is an actor-owned canonical commitment even
+  // when that Listing now covers the observed shortage and removes the BuyOffer
+  // from the actionable demand projection. Hold the raw role until settlement.
+  const commitment=accountOpenProcurementCommitment(world,agent,profile);
+  if(commitment&&!marketTask)return view('SAT','listing-already-open',{
+    type:'WAIT_SETTLEMENT',agentId:agent.id,marketId:commitment.offer.marketId,
+    listingId:commitment.listing.id,offerId:commitment.offer.offerId,itemKind:commitment.offer.itemKind
+  });
 
   const observed=currentObservedOffers(world,agent,profile);
   if(observed.status!=='SAT')return observed;
