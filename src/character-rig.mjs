@@ -1,6 +1,7 @@
 /** Character Cutout Rig V0.1 — deterministic 2D skeleton for image-piece animation.
  * Pure pose/kinematics only. Rendering and image creation live in character-cutout-renderer.mjs.
  */
+import {motionForAgent as professionMotionForAgent} from './character-profession-motion.mjs?v=0.5.0';
 export const CHARACTER_RIG_VERSION='character-cutout-rig/0.1';
 
 export const CHARACTER_BONES=Object.freeze([
@@ -64,6 +65,68 @@ export function poseForMotion(motion='idle',phase=0,overrides={}){
       pose.shoulderL=-28+cycle*14;pose.shoulderR=38-cycle*38;
       pose.elbowL=24;pose.elbowR=-30-cycle*18;
       pose.hipL=-6;pose.hipR=7;pose.kneeL=6;pose.kneeR=8;
+      break;
+    case 'forage':
+      pose.torsoLean=24+abs*5;pose.headTilt=10;
+      pose.shoulderL=-34+cycle*8;pose.elbowL=30;pose.shoulderR=34-cycle*8;pose.elbowR=-30;
+      pose.hipL=-14;pose.kneeL=28;pose.hipR=14;pose.kneeR=28;
+      break;
+    case 'woodcut':{
+      const swing=(1-Math.cos(p*Math.PI*2))*.5;
+      pose.torsoLean=-5+22*swing;pose.headTilt=-3+5*swing;
+      pose.shoulderL=-80+55*swing;pose.elbowL=-28+18*swing;
+      pose.shoulderR=-112+95*swing;pose.elbowR=-32+18*swing;
+      pose.hipL=-12*swing;pose.hipR=16*swing;pose.kneeL=8+10*swing;pose.kneeR=10;
+      break;
+    }
+    case 'mine':{
+      const strike=(1-Math.cos(p*Math.PI*2))*.5;
+      pose.torsoLean=-8+28*strike;pose.headTilt=-4+6*strike;
+      pose.shoulderL=-100+70*strike;pose.elbowL=-24;
+      pose.shoulderR=-128+105*strike;pose.elbowR=-35;
+      pose.hipL=-8;pose.hipR=10;pose.kneeL=12;pose.kneeR=16;
+      break;
+    }
+    case 'build':
+      pose.torsoLean=8+abs*4;pose.headTilt=4;
+      pose.shoulderL=-20;pose.elbowL=22;pose.shoulderR=-72+cycle*34;pose.elbowR=-38-cycle*16;
+      pose.hipL=-5;pose.hipR=8;pose.kneeL=8;pose.kneeR=10;
+      break;
+    case 'craft':
+      pose.torsoLean=14;pose.headTilt=8;
+      pose.shoulderL=-42+cycle*12;pose.elbowL=38-cycle*8;
+      pose.shoulderR=42-cycle*12;pose.elbowR=-38+cycle*8;
+      pose.hipL=-4;pose.hipR=4;pose.kneeL=6;pose.kneeR=6;
+      break;
+    case 'process':
+      pose.torsoLean=12+abs*3;pose.headTilt=6;
+      pose.shoulderL=-28-cycle*14;pose.elbowL=26;pose.shoulderR=30+cycle*14;pose.elbowR=-26;
+      pose.hipL=-6;pose.hipR=6;pose.kneeL=8;pose.kneeR=8;
+      break;
+    case 'merchant-inspect':
+      pose.torsoLean=5+abs*2;pose.headTilt=6+wave*2;
+      pose.shoulderL=-28+cycle*5;pose.elbowL=46;pose.shoulderR=28-cycle*5;pose.elbowR=-46;
+      pose.hipL=-3;pose.hipR=3;pose.kneeL=4;pose.kneeR=4;
+      break;
+    case 'merchant-trade':
+      pose.torsoLean=4;pose.headTilt=2;
+      pose.shoulderL=18;pose.elbowL=34;pose.shoulderR=-58+wave*7;pose.elbowR=-18+wave*5;
+      pose.hipL=-4;pose.hipR=4;pose.kneeL=5;pose.kneeR=5;
+      break;
+    case 'hunt':
+      pose.torsoLean=14;pose.headTilt=-3;
+      pose.shoulderL=-30;pose.elbowL=24;pose.shoulderR=32;pose.elbowR=-26;
+      pose.hipL=-18;pose.kneeL=16;pose.hipR=22;pose.kneeR=20;
+      break;
+    case 'guard':
+      pose.torsoLean=8;pose.headTilt=-2;
+      pose.shoulderL=-58;pose.elbowL=42;pose.shoulderR=54;pose.elbowR=-42;
+      pose.hipL=-18;pose.kneeL=24;pose.hipR=18;pose.kneeR=24;
+      break;
+    case 'victory':
+      pose.torsoLean=-3+wave*1.5;pose.headTilt=-5;
+      pose.shoulderL=-138+wave*6;pose.elbowL=-20;pose.shoulderR=138-wave*6;pose.elbowR=20;
+      pose.hipL=-5;pose.hipR=5;pose.kneeL=4;pose.kneeR=4;
       break;
     case 'wave':
       pose.shoulderR=-125+wave*8;pose.elbowR=-45+wave*22;
@@ -146,13 +209,7 @@ export function solveCharacterRig(poseInput={},origin={x:0,y:0},scale=1){
   });
 }
 
-export function motionForAgent(agent){
-  if(agent?.adventureCombat?.status==='ACTIVE')return 'attack';
-  const moving=Array.isArray(agent?.task?.path)&&agent.task.path.length>0;
-  if(moving)return 'walk';
-  if(['BUILD','CRAFT','PROCESS','WOODCUT','MINE'].includes(agent?.task?.kind))return 'work';
-  return 'idle';
-}
+export const motionForAgent=professionMotionForAgent;
 
 export function posePhaseForAgent(agent,timeMs=0){
   const id=Number.isSafeInteger(agent?.id)?agent.id:0;
