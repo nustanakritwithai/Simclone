@@ -252,6 +252,9 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
   assert.ok(preStartGearNeeds.has('EMBER_BLADE'));assert.ok(preStartGearNeeds.has('HIDE_ARMOR'),
     'both Adventure gear deficits already exist before START');
 
+  const startLedger=s.merchantLedgers.ledgers.find(l=>l.merchantId===f.merchantId);assert.ok(startLedger);
+  const ledgerBefore={purchases:startLedger.purchases.length,sales:startLedger.sales.length,revenue:startLedger.revenue,
+    costOfGoodsSold:startLedger.costOfGoodsSold,realizedProfit:startLedger.realizedProfit};
   const startTick=s.tick,startCurrency=totalCurrency(s),startTx=new Set(s.tradeReplay.receipts.map(r=>r.transactionId));
   const startProducerWork=actor(s,f.producerId).workDone;
   const checkpoints=new Set();
@@ -351,6 +354,13 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
   const postStartCrafterWoodTrades=s.tradeReplay.receipts.filter(r=>!startTx.has(r.transactionId)&&r.sellerId===f.merchantId&&r.buyerId===f.crafterId&&r.itemKind==='wood');
   assert.ok(postStartProducerWoodTrades.length>=3,'two cycles require one + two Producer wood units');
   assert.ok(postStartCrafterWoodTrades.length>=3,'Merchant must relay all required post-start wood to Crafter');
+  const ledgerAfter=s.merchantLedgers.ledgers.find(l=>l.merchantId===f.merchantId);assert.ok(ledgerAfter);
+  assert.ok(ledgerAfter.purchases.length>ledgerBefore.purchases,'Merchant Ledger must ingest post-START sourcing');
+  assert.ok(ledgerAfter.sales.length>ledgerBefore.sales,'Merchant Ledger must ingest post-START resale');
+  assert.ok(ledgerAfter.revenue>ledgerBefore.revenue,'Merchant revenue must increase only from canonical committed resale');
+  assert.ok(ledgerAfter.costOfGoodsSold>ledgerBefore.costOfGoodsSold,'Merchant COGS must increase from canonical basis');
+  assert.equal(ledgerAfter.realizedProfit,ledgerAfter.revenue-ledgerAfter.costOfGoodsSold);
+  assert.notEqual(ledgerAfter.realizedProfit,ledgerBefore.realizedProfit,'post-START trades must change realized profit evidence');
   assert.deepEqual(validate(s),[]);
 
   // Deterministic unattended continuation from the exact same canonical state.
