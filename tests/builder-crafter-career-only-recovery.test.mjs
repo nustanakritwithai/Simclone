@@ -164,10 +164,10 @@ test('old-save style Woodcutter with real Builder evidence recovers canonically 
 
 test('recovery command is replay-safe immediately and after save/restore',()=>{
   let {s,targetId,target}=driftedNaturalWorld('WOODCUT');
-  const xp=buildEarnedXP(target),mastery=hammerProfile(s,targetId).total,careerBefore=target.career.length;
+  const xp=buildEarnedXP(target),mastery=hammerProfile(s,targetId).total,careerBefore=structuredClone(target.career);
   const eventsBefore=s.events.filter(e=>e.type==='career'&&e.agentId===targetId).length;
   const first=command(s,'RC5_RECOVER_BUILDER',{agentId:targetId});assert.equal(first.ok,true);assert.equal(first.changed,true);assert.equal(target.profession,'builder');
-  assert.equal(buildEarnedXP(target),xp);assert.equal(hammerProfile(s,targetId).total,mastery);assert.equal(target.career.length,careerBefore+1);
+  assert.equal(buildEarnedXP(target),xp);assert.equal(hammerProfile(s,targetId).total,mastery);assert.equal(target.career.length,Math.min(8,careerBefore.length+1));assert.notDeepEqual(target.career,careerBefore);assert.equal(target.career.at(-1)?.profession,'builder');assert.equal(target.career.at(-1)?.tick,s.tick);
   assert.equal(s.events.filter(e=>e.type==='career'&&e.agentId===targetId).length,eventsBefore+1);
   const once=serialize(s),second=command(s,'RC5_RECOVER_BUILDER',{agentId:targetId});assert.equal(second.ok,true);assert.equal(second.changed,false);assert.equal(second.reason,'already-builder');assert.equal(serialize(s),once);
   s=restore(once);target=s.agents.find(a=>a.id===targetId);const loaded=serialize(s),third=command(s,'RC5_RECOVER_BUILDER',{agentId:targetId});assert.equal(third.ok,true);assert.equal(third.changed,false);assert.equal(serialize(s),loaded);
@@ -185,7 +185,13 @@ test('Builder recovery rejects missing, incomplete and stranger-only housing evi
     assert.ok(homeOf(s,targetId));assert.equal(homeOf(s,targetId,{completeOnly:true}),null);assertRecoveryRejectedWithoutMutation(s,targetId,'construction-required');
   }
   {
-    const {s,targetId}=driftedNaturalWorld();
+    let {s,targetId}=naturalRecoveryWorld(),target=s.agents.find(a=>a.id===targetId),stranger=null;
+    for(let i=0;i<2000&&!stranger;i++){
+      step(s,1);target=s.agents.find(a=>a.id===targetId);
+      stranger=individualHouses(s).find(h=>h.complete&&h.ownerId!==targetId)??null;
+    }
+    assert.ok(stranger,'natural world must eventually contain a different owner completed home');assert.equal(target.profession,'builder','target must still be on Builder path before drift fixture');
+    const drift=adoptProfession(target,'WOODCUT',s.tick);assert.equal(drift.changed,true);
     s.rustStations.stations=s.rustStations.stations.filter(st=>!(st.placedBy===targetId&&structureKinds.has(st.kind)));
     assert.ok(individualHouses(s).some(h=>h.complete&&h.ownerId!==targetId),'a stranger completed home must still exist');
     assertRecoveryRejectedWithoutMutation(s,targetId,'construction-required');
@@ -217,7 +223,7 @@ test('Builder recovery rejects absent or malformed earned BUILD and HAMMER evide
 
 test('Merchant, Adventurer and Crafter are locked out of Builder recovery',()=>{
   {
-    const {s,targetId,target}=naturalRecoveryWorld();const changed=adoptProfession(target,'MERCHANT',s.tick,{qualifiedProfession:'merchant',qualification:'merchant-v1',evidenceId:'test-merchant-lock'});assert.equal(changed.changed,true);assert.equal(target.profession,'merchant');
+    const {s,targetId}=naturalRecoveryWorld(),target=s.agents.find(a=>a.id===targetId);const changed=adoptProfession(target,'MERCHANT',s.tick,{qualifiedProfession:'merchant',qualification:'merchant-v1',evidenceId:'test-merchant-lock'});assert.equal(changed.changed,true);assert.equal(target.profession,'merchant');
     assertRecoveryRejectedWithoutMutation(s,targetId,'special-profession-lock');
   }
   {
