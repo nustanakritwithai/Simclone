@@ -12,7 +12,7 @@ import {
   createBuyOfferCollection,validateBuyOfferCollection,createBuyOfferInCollection,transitionBuyOfferInCollection,
   proposeProducerBuyOfferMatch,applyBuyOfferSettlementInCollection,serializeBuyOfferCollection,restoreBuyOfferCollection
 } from '../src/merchant-buy-offer.mjs';
-import {quoteAskPrice,deriveScarcityAdjustmentBps} from '../src/merchant-pricing.mjs';
+import {quoteAskPrice,quoteBidPrice,deriveScarcityAdjustmentBps} from '../src/merchant-pricing.mjs';
 import {
   createMerchantLedger,applyTradeKernelCommitToLedger,assessTradeKernelResult,validateCommittedTradeReceipt,
   validateMerchantLedger,serializeMerchantLedger,restoreMerchantLedger,tradeReceiptFingerprint,tradeReceiptIntegrityFingerprint,
@@ -146,6 +146,13 @@ test('Pricing V1 is deterministic, integer-currency, and bounded by merchant-loc
   const a=quoteAskPrice(input),b=quoteAskPrice(JSON.parse(JSON.stringify(input)));
   assert.deepEqual(a,b);assert.equal(a.state,'SAT');assert.equal(a.askPrice,a.acquisitionCost+a.marginAmount+a.scarcityAdjustment);assert.ok(Number.isSafeInteger(a.askPrice));
   assert.ok(Math.abs(a.scarcityAdjustmentBps)<=2500);assert.equal(deriveScarcityAdjustmentBps({localStock:999,targetStock:1,recentDemand:0}),-2500);assert.equal(quoteAskPrice({marginBps:1000}).state,'UNKNOWN');
+});
+
+test('ER5 bid pricing is deterministic, bounded and keeps reference evidence explicit',()=>{
+  assert.equal(quoteBidPrice({referenceUnitPrice:100,discountBps:3000}).bidPrice,70);
+  assert.equal(quoteBidPrice({referenceUnitPrice:1,discountBps:3000}).bidPrice,1);
+  assert.equal(quoteBidPrice({discountBps:3000}).state,'UNKNOWN');
+  assert.equal(quoteBidPrice({referenceUnitPrice:100,discountBps:9999}).state,'VIOL');
 });
 
 test('canonical receipt shape validates exact fingerprint, integrity fingerprint and item identity',()=>{
