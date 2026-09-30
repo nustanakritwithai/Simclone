@@ -91,3 +91,14 @@ test('positive torso lean bends forward instead of reclining backward',()=>{
   const work=solveCharacterRig(poseForMotion('work',.25),{x:0,y:0},1);
   assert.ok(work.neck.x>work.root.x);
 });
+
+test('attack strike travels from overhead to downward follow-through',()=>{
+  const windupPose=poseForMotion('attack',.08),impactPose=poseForMotion('attack',.58),followPose=poseForMotion('attack',.88);
+  const windup=solveCharacterRig(windupPose,{x:0,y:0},1);
+  const impact=solveCharacterRig(impactPose,{x:0,y:0},1);
+  const follow=solveCharacterRig(followPose,{x:0,y:0},1);
+  assert.ok(windupPose.shoulderR<impactPose.shoulderR,'right shoulder must rotate from overhead toward downward');
+  assert.ok(windup.wristR.y<impact.wristR.y,'weapon hand must travel downward on screen during strike');
+  assert.ok(impact.wristR.y<=follow.wristR.y+1e-9,'follow-through must not visibly reverse into a bottom-up swing');
+  assert.ok(followPose.shoulderR>=impactPose.shoulderR-1e-9,'attack must hold the downward follow-through until phase wrap');
+});
