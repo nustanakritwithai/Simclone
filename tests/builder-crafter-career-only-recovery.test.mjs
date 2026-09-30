@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createWorld,command,step,serialize,restore,validate} from '../src/engine.mjs';
 import {adoptProfession,noteExploreCompletion} from '../src/kingdom-utility.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
-import {addMaterialSet} from '../src/material-economy.mjs';
+import {addMaterialSet,materialAmount} from '../src/material-economy.mjs';
 import {homeOf,individualHouses} from '../src/individual-housing.mjs';
 import {crafterFamilyProfile,evaluateBuilderRecovery} from '../src/crafter-career.mjs';
 import {
@@ -145,9 +145,28 @@ test('old-save style Woodcutter with real Builder evidence recovers canonically 
   assert.ok(target.career.length>=driftCareer.length);
   assert.equal(target.career.at(-1)?.profession,'builder');
 
+  assert.equal(s.productionPlan.enabled,false,'natural apprenticeship must keep RP1 off');
+  assert.notEqual(target.craftTraining?.enabled,true,'natural apprenticeship must not enable manual Training');
+  const milestones={rawMaterials:false,furnace:false,ironOre:false,charcoal:false,ironIngot:false,tier2:false};
+  const observeNaturalApprenticeship=()=>{
+    const stock=resourceStock(s,target),profile=crafterFamilyProfile(s,target,'HAMMER');
+    milestones.rawMaterials ||= (stock?.wood??0)>0&&(stock?.stone??0)>0;
+    milestones.furnace ||= s.rustStations.stations.some(st=>st.complete&&st.kind==='FURNACE'&&st.placedBy===targetId);
+    milestones.ironOre ||= materialAmount(s,target,'ironOre')>0;
+    milestones.charcoal ||= materialAmount(s,target,'charcoal')>0;
+    milestones.ironIngot ||= materialAmount(s,target,'ironIngot')>0;
+    milestones.tier2 ||= profile.status==='SAT'&&(profile.profile?.counts?.[2]??0)>0;
+  };
+  observeNaturalApprenticeship();
   for(let i=0;i<9000&&target?.alive&&target.profession!=='crafter';i++){
-    step(s,1);target=s.agents.find(a=>a.id===targetId);
+    step(s,1);target=s.agents.find(a=>a.id===targetId);observeNaturalApprenticeship();
+    assert.equal(s.productionPlan.enabled,false,'natural apprenticeship must keep RP1 off');
+    assert.notEqual(target.craftTraining?.enabled,true,'natural apprenticeship must not enable manual Training');
   }
+  assert.deepEqual(milestones,{rawMaterials:true,furnace:true,ironOre:true,charcoal:true,ironIngot:true,tier2:true},
+    'fresh-world apprenticeship must visibly traverse raw materials → own Furnace → ore/charcoal/iron → T2');
+  const ownFurnace=s.rustStations.stations.find(st=>st.complete&&st.kind==='FURNACE'&&st.placedBy===targetId);
+  assert.ok(ownFurnace&&Number.isSafeInteger(ownFurnace.sourceItemId),'Furnace must be a real placed crafted item with provenance');
   assert.ok(target?.alive);
   assert.equal(target.profession,'crafter','recovered Builder must continue autonomously to Crafter');
   const final=hammerProfile(s,targetId);
