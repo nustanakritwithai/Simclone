@@ -9,6 +9,7 @@ import {advanceCraft} from '../src/rust-possessions.mjs';
 import {projectHomeMarketForTrade} from '../src/home-market.mjs';
 import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
+import {resourceStock} from '../src/individual-resources.mjs';
 import {TRADE_ASSET_TYPES} from '../src/trade-assets.mjs';
 import {ECONOMIC_DEMAND_TTL_TICKS} from '../src/economic-demand.mjs';
 import {
@@ -71,8 +72,9 @@ function removeNeedItem(s,a,itemKind){
   s.rustPossessions.equipment=s.rustPossessions.equipment.filter(e=>s.rustPossessions.items.some(i=>i.id===e.itemId));
 }
 function setupObservedResale(){
-  const s=createWorld(925001),producer=s.agents[0],supplier=s.agents[1],merchant=s.agents[2],customer=s.agents[3];
+  const s=createWorld(925001,{mode:'independent',worldProfile:'same-world',population:4}),producer=s.agents[0],supplier=s.agents[1],merchant=s.agents[2],customer=s.agents[3];
   calm(producer,supplier,merchant,customer);
+  Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
   const item=craftItem(s,producer,'STONE_PICKAXE');
   const supplierMarket=prepareMerchant(s,supplier,'supplier',{open:false});
   const offer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:supplier.id,itemKind:item.kind,unitPrice:49});
@@ -146,9 +148,10 @@ test('ER5 observed supply -> autonomous buy -> autonomous Listing -> canonical r
 });
 
 test('ER5 unaffordable observed ask creates one funded BuyOffer and save/load does not duplicate it',()=>{
-  let s=createWorld(925002),supplier=s.agents[0],merchant=s.agents[1],producer=s.agents[2],customer=s.agents[3];
+  let s=createWorld(925002,{mode:'independent',worldProfile:'same-world',population:4}),supplier=s.agents[0],merchant=s.agents[1],producer=s.agents[2],customer=s.agents[3];
   const supplierId=supplier.id,merchantId=merchant.id,producerId=producer.id,customerId=customer.id;
   calm(supplier,merchant,producer,customer);
+  Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
   const producerItem=craftItem(s,producer,'STONE_PICKAXE');
   const supplierMarket=prepareMerchant(s,supplier,'bo-supplier',{open:true});
   const supplierStock=give(s,actor(s,supplierId),'STONE_PICKAXE');
@@ -215,7 +218,7 @@ test('ER5 hidden/stale supply never authorizes remote buying and corrupt market 
 });
 
 test('ER5 command guards reject unfunded BuyOffers and bulk stock overcommit',()=>{
-  const s=createWorld(925003),merchant=s.agents[0];calm(merchant);
+  const s=createWorld(925003,{mode:'independent',worldProfile:'same-world',population:4}),merchant=s.agents[0];calm(merchant);
   const market=prepareMerchant(s,merchant,'guards',{open:false});
   const first=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchant.id,itemKind:'STONE_PICKAXE',unitPrice:70});
   assert.equal(first.ok,true,JSON.stringify(first));
@@ -224,8 +227,8 @@ test('ER5 command guards reject unfunded BuyOffers and bulk stock overcommit',()
   assert.equal(unfunded.ok,false);assert.equal(unfunded.reason,'buy-offer-unfunded');
 
   // Close the BuyOffer commitment by using a fresh world for the stock-commitment proof.
-  const t=createWorld(925004),seller=t.agents[0];calm(seller);prepareMerchant(t,seller,'bulk',{open:false});
-  t.stock.wood=5;
+  const t=createWorld(925004,{mode:'independent',worldProfile:'same-world',population:4}),seller=t.agents[0];calm(seller);prepareMerchant(t,seller,'bulk',{open:false});
+  resourceStock(t,seller).wood=5;
   const a=command(t,'RC4_CREATE_LISTING',{agentId:seller.id,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantity:4,unitPrice:1,requestId:'er5-bulk-a'});
   assert.equal(a.ok,true,JSON.stringify(a));
   const b=command(t,'RC4_CREATE_LISTING',{agentId:seller.id,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantity:2,unitPrice:1,requestId:'er5-bulk-b'});
