@@ -110,7 +110,7 @@ test('ER5 observed supply -> autonomous buy -> autonomous Listing -> canonical r
 
   step(s,1);
   merchant=actor(s,f.merchantId);assert.ok(merchant.task?.rc4MarketTravel);assert.equal(merchant.task.path.length,0);
-  const ready=merchantAutonomyDecision(s,merchant);assert.equal(ready.type,'BUY_LISTING');
+  const ready=merchantAutonomyDecision(s,merchant);assert.equal(ready.type,'BUY_LISTING',JSON.stringify(ready));
   step(s,1);
 
   merchant=actor(s,f.merchantId);
