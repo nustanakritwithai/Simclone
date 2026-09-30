@@ -12,7 +12,7 @@ export const CHARACTER_BONES=Object.freeze([
 export const POSE_PRESETS=Object.freeze(['idle','walk','run','work','wave','attack']);
 
 export const RIG_METRICS=Object.freeze({
-  pelvisY:-8,
+  pelvisY:-18,
   torso:14,
   shoulderHalf:5,
   upperArm:8,
