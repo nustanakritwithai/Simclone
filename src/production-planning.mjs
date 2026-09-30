@@ -225,8 +225,21 @@ export function builderCrafterApprenticeshipState(s,a){
       homeId:recovery.homeId??null,profile:recovery.profile??null,evidenceId:recovery.evidenceId??null
     });
   }
-  const home=homeOf(s,a.id,{completeOnly:true});
-  if(!home||home.ownerId!==a.id)return apprenticeView('INELIGIBLE','construction-required',{active:false,agentId:a.id});
+  const home=homeOf(s,a.id);
+  if(!home?.complete){
+    const family=crafterFamilyProfile(s,a,APPRENTICE_FAMILY);
+    const planned=a.homePlan?.version==='home-plan-1'&&Number.isInteger(a.homePlan.x)&&Number.isInteger(a.homePlan.y);
+    const physicalCommitment=home?.ownerId===a.id;
+    const craftCommitment=planned&&family.status==='SAT'&&(family.profile?.total??0)>0;
+    if(physicalCommitment||craftCommitment)return apprenticeView('SAT','builder-home-construction',{
+      active:true,type:'HOME_BUILD',careerLock:true,agentId:a.id,homeId:home?.houseId??null,
+      commitment:physicalCommitment?'owned-incomplete-home':'planned-home-with-hammer',
+      profile:family.status==='SAT'?family.profile:null
+    });
+    if(planned&&family.status==='UNKNOWN')return apprenticeView('UNKNOWN',family.reason??'career-evidence',{active:false,agentId:a.id});
+    return apprenticeView('INELIGIBLE','construction-required',{active:false,agentId:a.id});
+  }
+  if(home.ownerId!==a.id)return apprenticeView('INELIGIBLE','construction-required',{active:false,agentId:a.id});
   const qualification=evaluateCrafterQualification(s,a.id);
   if(qualification.status==='UNKNOWN')return apprenticeView('UNKNOWN',qualification.reason,{active:false,agentId:a.id});
   if(qualification.status==='SAT')return apprenticeView('SAT','qualification-ready',{active:true,type:'PROMOTE',careerLock:true,agentId:a.id,homeId:home.houseId,profile:qualification.profile});
@@ -241,6 +254,9 @@ export function builderCrafterApprenticeshipIntent(s,a){
   const state=builderCrafterApprenticeshipState(s,a);
   if(state.status!=='SAT'||state.active!==true)return state;
   if(state.type==='PROMOTE'||state.type==='RECOVER')return state;
+  if(state.type==='HOME_BUILD')return apprenticeView('SAT','builder-home-construction',{
+    type:'WAIT',active:true,careerLock:true,agentId:a.id,homeId:state.homeId??null,commitment:state.commitment,profile:state.profile??null
+  });
   if(a.craftTraining?.enabled===true)return apprenticeView('BLOCKED','manual-training',{active:true,careerLock:true,agentId:a.id});
   if(a.adventureCombat?.status==='ACTIVE'||a.adventureEncounter)return apprenticeView('BLOCKED','adventure',{active:true,careerLock:true,agentId:a.id});
   if((s.rustPossessions?.orders??[]).some(o=>o.agentId===a.id)||(s.rustMaterials?.orders??[]).some(o=>o.agentId===a.id))
