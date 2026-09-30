@@ -390,6 +390,36 @@ export function merchantAutonomySnapshot(world,agent){
   const market=er5OwnMarket(world,actor);
   if(!market)return er5View('SAT','home-market-required',{type:'CREATE_MARKET',agentId:actor.id,homeId:home.houseId});
 
+  // Once ER5 starts a canonical market journey, keep that journey stable.
+  // Revalidate every demanded item against supply in the journey's target market
+  // before allowing unrelated higher-priority shortages to cancel it.
+  const travelling=isCanonicalMarketTravelTask(actor.task);
+  if(travelling){
+    const targetMarketId=actor.task.rc4MarketTravel.marketId;
+    let selected=null;
+    for(const signal of rows){
+      const stock=er5SaleableStock(world,actor,ledger,signal);
+      if(stock.status==='UNKNOWN')return er5View('UNKNOWN','stock-evidence',{agentId:actor.id,itemKind:signal.itemKind});
+      const covered=(stock.listedQuantity??0)+(stock.availableQuantity??0);
+      if(Math.max(0,signal.demandQuantity-covered)<1)continue;
+      const candidates=er5ObservedListingCandidates(world,actor,signal);
+      if(candidates.status!=='SAT')return er5View('UNKNOWN',candidates.reason,{agentId:actor.id,itemKind:signal.itemKind});
+      const sameMarket=candidates.rows.filter(x=>x.affordable&&x.marketId===targetMarketId);
+      if(sameMarket.length){selected=sameMarket[0];break;}
+    }
+    if(!selected)
+      return er5View('SAT','observed-supply-invalidated',{type:'CANCEL_TRAVEL',agentId:actor.id,marketId:targetMarketId});
+    const arrival=verifyCanonicalMarketArrival(world,{agentId:actor.id,market:selected.market});
+    if(arrival.state==='UNKNOWN')
+      return er5View('SAT','travelling',{type:'WAIT_TRAVEL',agentId:actor.id,marketId:selected.marketId,listingId:selected.listingId});
+    if(arrival.state!=='SAT')
+      return er5View('SAT','arrival-invalid',{type:'CANCEL_TRAVEL',agentId:actor.id,marketId:selected.marketId});
+    return er5View('SAT','ready-buy',{
+      ...selected,type:'BUY_LISTING',agentId:actor.id,
+      intent:er5Freeze({buyerId:actor.id,listingId:selected.listingId,listingRevision:selected.listingRevision,quantity:selected.quantity})
+    });
+  }
+
   // Owned canonical resale stock is always offered before sourcing more.
   let blocked=null;
   for(const signal of rows){
@@ -415,28 +445,12 @@ export function merchantAutonomySnapshot(world,agent){
     if(candidates.status!=='SAT')return er5View('UNKNOWN',candidates.reason,{agentId:actor.id,itemKind:signal.itemKind});
     const affordable=candidates.rows.filter(x=>x.affordable);
     if(affordable.length){
-      const selected=affordable[0],travelling=isCanonicalMarketTravelTask(actor.task);
-      if(travelling&&actor.task.rc4MarketTravel.marketId!==selected.marketId)
-        return er5View('SAT','travel-target-changed',{type:'CANCEL_TRAVEL',agentId:actor.id,marketId:actor.task.rc4MarketTravel.marketId});
-      if(travelling){
-        const arrival=verifyCanonicalMarketArrival(world,{agentId:actor.id,market:selected.market});
-        if(arrival.state==='UNKNOWN')
-          return er5View('SAT','travelling',{type:'WAIT_TRAVEL',agentId:actor.id,marketId:selected.marketId,listingId:selected.listingId});
-        if(arrival.state!=='SAT')
-          return er5View('SAT','arrival-invalid',{type:'CANCEL_TRAVEL',agentId:actor.id,marketId:selected.marketId});
-        return er5View('SAT','ready-buy',{
-          ...selected,type:'BUY_LISTING',agentId:actor.id,
-          intent:er5Freeze({buyerId:actor.id,listingId:selected.listingId,listingRevision:selected.listingRevision,quantity:selected.quantity})
-        });
-      }
+      const selected=affordable[0];
       return er5View('SAT','travel-to-observed-supply',{
         ...selected,type:'TRAVEL_TO_MARKET',agentId:actor.id,
         intent:er5Freeze({agentId:actor.id,marketId:selected.marketId})
       });
     }
-
-    if(isCanonicalMarketTravelTask(actor.task))
-      return er5View('SAT','observed-supply-invalidated',{type:'CANCEL_TRAVEL',agentId:actor.id,marketId:actor.task.rc4MarketTravel.marketId});
 
     const existing=er5ExistingOffer(world,actor,signal);
     if(existing){
@@ -474,7 +488,6 @@ export function merchantAutonomySnapshot(world,agent){
     });
   }
 
-  if(isCanonicalMarketTravelTask(actor.task))return er5View('SAT','demand-covered',{type:'CANCEL_TRAVEL',agentId:actor.id});
   return blocked??er5View('IDLE','demand-covered',{agentId:actor.id});
 }
 
