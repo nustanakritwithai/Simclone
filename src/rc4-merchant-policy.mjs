@@ -185,10 +185,12 @@ function er5OwnMarket(world,actor){
   return world?.homeMarkets?.markets?.find(m=>m.ownerAgentId===actor.id&&['open','closed'].includes(m.status))??null;
 }
 function er5DemandRows(projection){
+  const brokeragePriority=s=>(s?.sources??[]).some(x=>x?.kind==='LOCAL_CRAFTER_MATERIAL_NEED'&&x.side==='DEMAND')?0:1;
   return (projection?.signals??[]).filter(s=>
     s?.tradable===true&&typeof s.itemKind==='string'&&er5Positive(s.demandQuantity)&&
     (s.unit==='item'||s.unit==='bulk-resource')
   ).sort((a,b)=>
+    brokeragePriority(a)-brokeragePriority(b)||
     (b.stockShortageQuantity??0)-(a.stockShortageQuantity??0)||
     (b.shortageQuantity??0)-(a.shortageQuantity??0)||
     (b.liveDemandQuantity??0)-(a.liveDemandQuantity??0)||
