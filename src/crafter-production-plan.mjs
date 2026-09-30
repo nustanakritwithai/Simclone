@@ -133,7 +133,7 @@ export function crafterMaterialNeedsForObservedItems(s,a,itemKinds=[]){
 
   const needs=[];
   for(const itemKind of [...new Set(itemKinds.filter(x=>typeof x==='string'&&x.length>0))].sort()){
-    const route=routeForDemand(s,actor,itemKind);
+    const route=routeForDemand(s,actor,itemKind,{checkStationRoute:false});
     if(route.status==='UNKNOWN')return freeze({status:'UNKNOWN',reason:route.reason,agentId:actor.id,needs:[]});
     if(route.status!=='NEEDS_MATERIALS')continue;
     for(const [materialKind,rawQuantity] of Object.entries(route.missing??{})){
