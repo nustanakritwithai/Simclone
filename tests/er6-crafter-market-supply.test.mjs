@@ -8,8 +8,6 @@ import {recipeMastery} from '../src/craft-recipe-knowledge.mjs';
 import {projectHomeMarketForTrade} from '../src/home-market.mjs';
 import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
-import {merchantAutonomySnapshot} from '../src/rc4-merchant-policy.mjs';
-import {projectActorObservedDemand} from '../src/economic-demand.mjs';
 import {rc2World,craftFixtureItem} from './fixtures/rc2-world.mjs';
 import {
   ER6_CRAFTER_MARKET_SUPPLY_VERSION,crafterMarketSupplySnapshot
@@ -61,21 +59,6 @@ function reachableStart(s,agent,target,minDistance=3){
   return null;
 }
 
-function handoffDebug(s,f){
-  const merchant=live(s,f.merchantId),crafter=live(s,f.crafterId);
-  const listing=s.merchantListings.listings.find(l=>l.buyOfferId===f.offerId&&l.sellerId===f.crafterId)??null;
-  const offer=s.merchantBuyOffers.buyOffers.find(o=>o.offerId===f.offerId)??null;
-  const projection=projectActorObservedDemand(s,merchant);
-  return {
-    tick:s.tick,
-    item:s.rustPossessions.items.find(x=>x.id===f.itemId)??null,
-    listing,offer,
-    merchant:{id:merchant.id,x:merchant.x,y:merchant.y,task:merchant.task,balance:getBalance(s,merchant.id),decision:merchantAutonomySnapshot(s,merchant)},
-    crafter:{id:crafter.id,x:crafter.x,y:crafter.y,task:crafter.task,balance:getBalance(s,crafter.id)},
-    demand:projection.status==='SAT'?projection.signals.find(x=>x.itemKind==='STONE_PICKAXE')??null:projection
-  };
-}
-
 function setup(){
   const s=rc2World(),merchant=s.agents[0],crafter=qualifiedCrafter(s,s.agents[1]);
   const market=merchantMarket(s,merchant);
@@ -123,7 +106,7 @@ test('ER6 Crafter autonomously walks to observed BuyOffer, exposes exact crafted
   }
   assert.equal(sawJourney,true);
   assert.equal(sawListing,true);
-  assert.equal(settled,true,JSON.stringify(handoffDebug(s,f)));
+  assert.equal(settled,true,'Merchant must receive exact Crafter output');
   assert.equal(s.rustPossessions.items.filter(x=>x.id===f.itemId).length,1);
   assert.equal(getBalance(s,f.crafterId),sellerBefore+40);
   assert.equal(getBalance(s,f.merchantId),buyerBefore-40);
@@ -146,7 +129,7 @@ test('ER6 Crafter supply journey save/load safely loses ephemeral provenance and
     const item=s.rustPossessions.items.find(x=>x.id===f.itemId);
     settled=item?.location?.kind==='bag'&&item.location.agentId===f.merchantId;
   }
-  assert.equal(settled,true,JSON.stringify(handoffDebug(s,f)));
+  assert.equal(settled,true,'restored handoff must settle once');
   const rows=s.merchantListings.listings.filter(l=>l.buyOfferId===f.offerId&&l.sellerId===f.crafterId);
   assert.equal(rows.length,1,'restore must not duplicate the BuyOffer-bound Listing');
   assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===rows[0].id).length,1);
