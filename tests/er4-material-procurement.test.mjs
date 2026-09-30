@@ -268,9 +268,10 @@ test('ER4 buys an observed physical Rust ingredient then ER3 crafts the demanded
     purchase=s.tradeReplay.receipts.slice(startReceipts).find(r=>r.buyerId===crafterId&&r.itemKind==='HIDE')??null;
   }
   assert.ok(purchase);assert.equal(purchase.itemInstanceId,hideId);assert.equal(purchase.quantity,1);
-  const ownedHide=s.rustPossessions.items.find(i=>i.id===hideId);assert.ok(ownedHide);
+  const ownedHide=s.rustPossessions.items.find(i=>i.id===hideId)??null;
   // ER3 may already have escrowed the HIDE into a craft order in the same tick.
-  assert.ok(ownedHide.location?.agentId===crafterId||!s.rustPossessions.items.some(i=>i.id===hideId));
+  assert.ok(ownedHide?.location?.agentId===crafterId||
+    s.rustPossessions.orders.some(o=>o.agentId===crafterId&&o.reservedItems?.some(r=>r.itemId===hideId)));
 
   let armor=null;
   for(let i=0;i<320&&!armor;i++){
