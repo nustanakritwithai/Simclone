@@ -14,6 +14,7 @@ import {recipeMastery} from '../src/craft-recipe-knowledge.mjs';
 import {projectHomeMarketForTrade} from '../src/home-market.mjs';
 import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
 import {projectActorObservedDemand} from '../src/economic-demand.mjs';
+import {demandDrivenCrafterSnapshot} from '../src/demand-driven-crafter.mjs';
 import {merchantAutonomySnapshot} from '../src/rc4-merchant-policy.mjs';
 import {producerSurplusSnapshot} from '../src/raw-producer-autonomy.mjs';
 import {RULES} from '../src/survival.mjs';
@@ -180,6 +181,10 @@ function bootstrapWoodPrice(s,{producerId,merchantId,crafterId,marketId}){
     agentId:merchantId,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantity:1,unitPrice:5,requestId:'er6-final-wood-price'
   });assert.equal(resale.ok,true,JSON.stringify(resale));
   moveFixtureToMarket(s,crafterId,marketId);observeRc4Markets(s);
+  const need=demandDrivenCrafterSnapshot(s,actor(s,crafterId),{allowCanonicalMarketTravel:true});
+  assert.equal(need.status,'NEEDS_MATERIALS',JSON.stringify(need));
+  assert.equal(need.recipeId,'EMBER_BLADE',JSON.stringify(need));
+  assert.equal(need.missing?.wood,2,JSON.stringify(need));
   const listing=s.merchantListings.listings.find(l=>l.id===resale.listingId);assert.ok(listing);
   const purchased=command(s,'RC4_BUY_LISTING',{buyerId:crafterId,listingId:listing.id,listingRevision:listing.revision,quantity:1});
   assert.equal(purchased.ok,true,JSON.stringify(purchased));clearFixtureTravel(s,crafterId);
