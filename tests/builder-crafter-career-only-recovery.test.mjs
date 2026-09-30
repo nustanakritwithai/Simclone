@@ -95,10 +95,14 @@ test('near-qualified natural Builder keeps career lock across save/load and the 
 
   // Synthetic qualification setup uses the canonical Adventurer evidence authority.
   // It does not assign profession directly and stops at 2/3.
-  const starts=[Math.max(0,s.tick-2),Math.max(0,s.tick-1)];
-  for(let i=0;i<2;i++){
-    const q=noteExploreCompletion(target,{kind:'EXPLORE',alive:true,productive:true,knowledge:'none',tick:s.tick,x:target.x,y:target.y+i,started:starts[i]});
-    assert.equal(q.counted,true);assert.equal(q.accepted,i+1);assert.equal(q.career,null);
+  const existing=target.adventurerQualification?.accepted??0;
+  assert.ok(existing>=0&&existing<=2,'natural committed Builder may have at most 2/3 Adventurer evidence');
+  for(let accepted=existing;accepted<2;accepted++){
+    let started=Math.max(0,s.tick-20-accepted);
+    const used=new Set((target.adventurerQualification?.recent??[]).map(row=>row.id));
+    while(used.has(`${started}:${target.x}:${target.y}`)&&started>0)started--;
+    const q=noteExploreCompletion(target,{kind:'EXPLORE',alive:true,productive:true,knowledge:'none',tick:s.tick,x:target.x,y:target.y,started});
+    assert.equal(q.counted,true);assert.equal(q.accepted,accepted+1);assert.equal(q.career,null);
   }
   assert.equal(target.adventurerQualification.accepted,2);
   assert.equal(target.profession,'builder');
