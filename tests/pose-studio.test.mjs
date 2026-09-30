@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
-  CHARACTER_BONES,CHARACTER_RIG_VERSION,POSE_PRESETS,RIG_METRICS,
+  ACTION_MOTIONS,CHARACTER_BONES,CHARACTER_RIG_VERSION,POSE_PRESETS,RIG_METRICS,
   motionForAgent,poseForMotion,posePhaseForAgent,solveCharacterRig
 } from '../src/character-rig.mjs';
 import {CUTOUT_FACINGS,CUTOUT_PARTS,facingBack,facingFromWorldStep,facingMirror,validateCutoutAssetContract} from '../src/character-cutout-assets.mjs';
@@ -17,6 +17,7 @@ test('Pose Studio rig exposes the required articulated 2D body',()=>{
     'upperLegL','lowerLegL','upperLegR','lowerLegR'
   ]);
   assert.deepEqual(POSE_PRESETS,['idle','walk','run','work','wave','attack']);
+  assert.deepEqual(ACTION_MOTIONS,['rest','eat','forage','woodcut','mine','build','craft','process','hunt']);
 });
 
 test('skeleton solve is deterministic and preserves connected segment lengths',()=>{
@@ -45,9 +46,23 @@ test('walk and run alternate opposite limbs while idle stays bounded',()=>{
 test('agent motion derives from existing task/combat state without writing gameplay',()=>{
   assert.equal(motionForAgent({id:1,task:null}),'idle');
   assert.equal(motionForAgent({id:1,task:{kind:'EXPLORE',path:[{x:1,y:1}]}}),'walk');
-  assert.equal(motionForAgent({id:1,task:{kind:'BUILD',path:[]}}),'work');
+  for(const [kind,motion] of Object.entries({REST:'rest',EAT:'eat',FORAGE:'forage',WOODCUT:'woodcut',MINE:'mine',BUILD:'build',CRAFT:'craft',PROCESS:'process',HUNT:'hunt'}))
+    assert.equal(motionForAgent({id:1,task:{kind,path:[]}}),motion);
+  assert.equal(motionForAgent({id:1,task:{kind:'HUNT',path:[{x:1,y:1}]}}),'hunt');
   assert.equal(motionForAgent({id:1,adventureCombat:{status:'ACTIVE'},task:null}),'attack');
   assert.equal(posePhaseForAgent({id:7,task:null},12345),posePhaseForAgent({id:7,task:null},12345));
+});
+
+test('action poses are distinct, finite and keep the same skeleton topology',()=>{
+  const signatures=new Set();
+  for(const motion of ACTION_MOTIONS){
+    const pose=poseForMotion(motion,.37),rig=solveCharacterRig(pose,{x:0,y:0},1);
+    for(const point of [rig.root,rig.neck,rig.headCenter,rig.elbowL,rig.wristL,rig.elbowR,rig.wristR,rig.kneeL,rig.ankleL,rig.kneeR,rig.ankleR]){
+      assert.equal(Number.isFinite(point.x)&&Number.isFinite(point.y),true,motion);
+    }
+    signatures.add(JSON.stringify(pose));
+  }
+  assert.equal(signatures.size,ACTION_MOTIONS.length);
 });
 
 test('rig and cutout renderer are deterministic 2D image-piece code, not 3D model code',()=>{
