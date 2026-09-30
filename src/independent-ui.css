@@ -19,3 +19,27 @@
 .household-summary,.autonomous-life-summary{display:grid;gap:2px;margin:6px 0;padding:6px 8px;border:1px solid #d6be7e33;border-radius:8px;background:#102920}
 .household-summary span,.autonomous-life-summary span{display:block;color:#d7dfcf}.household-summary b,.autonomous-life-summary b{color:#efdeaa}
 @media(max-width:700px){.household-summary,.autonomous-life-summary{padding:5px 7px;font-size:10px}}
+
+.personal-home-actions{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.personal-home-actions .secondary{padding:6px 8px;font-size:9px}
+#dialog[data-kind="pose-studio"]{width:min(620px,calc(100vw - 24px))}
+.pose-studio-panel{display:grid;gap:12px}
+#pose-studio-canvas{display:block;width:100%;height:min(52vh,390px);border:1px solid #d6be7e33;border-radius:12px;background:#0f241d;touch-action:none}
+.pose-studio-presets{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.pose-studio-presets .secondary{padding:9px 7px;font-size:10px}
+.pose-studio-phase{display:grid;grid-template-columns:auto auto;gap:7px 12px;align-items:center;font-size:11px;color:#c9d5c3}
+.pose-studio-phase b{justify-self:end;color:#efdeaa}.pose-studio-phase input{grid-column:1/-1;width:100%}
+@media(max-width:700px){
+ .personal-home-actions{gap:3px}.personal-home-actions .secondary{padding:5px 6px;font-size:8px}
+ #dialog[data-kind="pose-studio"]{padding:14px}
+ #pose-studio-canvas{height:46vh;min-height:300px}
+ .pose-studio-presets{grid-template-columns:repeat(2,1fr)}
+}
+
+.pose-joint-editor{border:1px solid #d6be7e22;border-radius:10px;padding:10px}.pose-joint-editor summary{cursor:pointer;color:#efdeaa;font-size:11px}
+.pose-joint-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px;margin:12px 0}.pose-joint-grid label{display:grid;gap:5px;font-size:9px;color:#b8c7b6}.pose-joint-grid input{width:100%}
+@media(max-width:460px){.pose-joint-grid{grid-template-columns:1fr}}
+
+.pose-studio-facing{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.pose-studio-facing .secondary{padding:7px 5px;font-size:8px;text-transform:uppercase}
+@media(max-width:460px){.pose-studio-facing{grid-template-columns:repeat(2,1fr)}}
