@@ -44,6 +44,7 @@ export const RC4_MERCHANT_AUTONOMY_RULES=Object.freeze({
   maxPromotionsPerStep:1,
 });
 const RC4_ROOT_FIELDS=Object.freeze(['homeMarkets','merchantListings','merchantBuyOffers','merchantReservations','currencyWallet','tradeReplay','merchantLedgers']);
+const er5MerchantTravelTasks=new WeakSet();
 
 const clone=v=>structuredClone(v);
 const validMoney=v=>Number.isSafeInteger(v)&&v>0;
@@ -367,6 +368,8 @@ function txId(world,{listingId,buyerId,reservationId}){
   return deterministicId('TX:',{tick:world.tick,listingId,buyerId,reservationId});
 }
 
+export function isEr5MerchantMarketTravelTask(task){return isCanonicalMarketTravelTask(task)&&er5MerchantTravelTasks.has(task);}
+
 export function prepareRc4MarketTravel(world,{agentId,marketId}={}){
   const marketResult=projectHomeMarketForTrade(world,world.homeMarkets,{marketId});
   if(!marketResult.ok||marketResult.market.open!==true)return fail('market-closed','ตลาดยังไม่เปิด');
@@ -635,6 +638,7 @@ function rc4CommandInternal(world,type,data={}){
   if(type==='RC4_TRAVEL_TO_MARKET'){
     const prepared=prepareRc4MarketTravel(world,data);if(!prepared.ok)return prepared;
     prepared.agent.task=prepared.task;prepared.agent.moveTick=0;
+    if(data.control==='ER5_MERCHANT_AUTONOMY')er5MerchantTravelTasks.add(prepared.task);
     return {ok:true,agentId:prepared.agent.id,marketId:data.marketId,pathLength:prepared.task.path.length,message:'กำลังเดินไปตลาด'};
   }
 
