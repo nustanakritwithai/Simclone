@@ -487,6 +487,19 @@ with sync_playwright() as p:
  repair_probe('A3 Adventure reads canonical Merchant profession label',merchant_label=='พ่อค้า')
  repair.screenshot(path=str(repair_out/'adventure-1188x761.png'))
 
+ # A2/A3 mobile acceptance: same canonical Merchant projection, no hidden/clipped data.
+ mobile_repair=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
+ boot_with_html(mobile_repair,independent_html,json.dumps(merchant_saved,ensure_ascii=False),settle_ms=0,freeze_world=True)
+ mobile_repair.wait_for_timeout(100);mobile_repair.locator('#adventure-launch').tap();mobile_repair.wait_for_selector('#dialog[open] .adv-dialog')
+ mobile_overflow=mobile_repair.evaluate("""()=>{const d=document.querySelector('#dialog'),body=document.querySelector('#dialog-body'),a=document.querySelector('.adv-dialog');
+   return{dialog:[d.clientWidth,d.scrollWidth],body:[body.clientWidth,body.scrollWidth],adventure:[a.clientWidth,a.scrollWidth]};}""")
+ repair_probe('A2 Adventure mobile 390x844 has no horizontal overflow',
+              mobile_overflow['dialog'][1]<=mobile_overflow['dialog'][0]+1 and mobile_overflow['body'][1]<=mobile_overflow['body'][0]+1 and mobile_overflow['adventure'][1]<=mobile_overflow['adventure'][0]+1)
+ mobile_repair.locator('[data-adv-action="open-agent"][data-agent="2"]').tap()
+ repair_probe('A3 Adventure mobile reads canonical Merchant profession label',
+              mobile_repair.locator('[data-adv-profile="2"] .adv-kicker').inner_text()=='พ่อค้า')
+ mobile_repair.screenshot(path=str(repair_out/'adventure-390x844.png'));mobile_repair.close()
+
  # B5 — freeze the simulation before saving, then freeze before the first restored frame.
  repair.locator('#dialog-close').click()
  repair.locator('#menu').click();before_save=snap(repair)
@@ -507,7 +520,15 @@ with sync_playwright() as p:
               loaded_exact['homeMarkets']==stored_exact['homeMarkets'] and
               loaded_exact['merchantListings']==stored_exact['merchantListings'])
  restored.screenshot(path=str(repair_out/'save-reload-frozen.png'))
- repair.close();restored.close()
+
+ # A normal load is intentionally live: once the document is visible, simulation resumes.
+ running=b.new_page(viewport={'width':1188,'height':761})
+ boot_with_html(running,independent_html,saved_exact,settle_ms=0,freeze_world=False)
+ running.wait_for_function('(tick)=>simclone.snapshot().tick>tick',arg=stored_exact['tick'],timeout=5000)
+ running_tick=snap(running)['tick']
+ print('PLAYTEST_REPAIR_RUNNING_RELOAD_DELTA',running_tick-stored_exact['tick'],flush=True)
+ repair_probe('B5 normal visible reload resumes forward instead of rewinding save',running_tick>stored_exact['tick'])
+ running.close();repair.close();restored.close()
 
  check('playtest repair UI invariants',not repair_violations)
  check('no JavaScript page errors',not errors)
