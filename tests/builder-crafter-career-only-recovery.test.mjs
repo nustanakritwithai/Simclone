@@ -71,6 +71,84 @@ function assertRecoveryRejectedWithoutMutation(s,targetId,reason,status='VIOL'){
   const r=command(s,'RC5_RECOVER_BUILDER',{agentId:targetId});assert.equal(r.ok,false);assert.equal(r.reason,reason);assert.equal(serialize(s),before);
 }
 
+function naturalHomeCommitmentWorld(seed=230926){
+  let s=createWorld(seed,{mode:'independent',worldProfile:'same-world',population:6}),target=null;
+  for(let i=0;i<3600&&!target;i++){
+    step(s,1);
+    target=s.agents.find(a=>{
+      if(!a.alive||a.profession!=='builder'||homeOf(s,a.id,{completeOnly:true}))return false;
+      const state=builderCrafterApprenticeshipState(s,a);
+      return state.status==='SAT'&&state.active===true&&state.type==='HOME_BUILD'&&state.reason==='builder-home-construction';
+    })??null;
+  }
+  assert.ok(target,'fresh world must naturally enter Builder home-construction commitment before home completion');
+  assert.equal(s.productionPlan.enabled,false);
+  assert.notEqual(target.craftTraining?.enabled,true);
+  return {s,targetId:target.id};
+}
+
+test('near-qualified natural Builder keeps career lock across save/load and the home-completion boundary',()=>{
+  let {s,targetId}=naturalHomeCommitmentWorld(230926),target=s.agents.find(a=>a.id===targetId);
+  const before=builderCrafterApprenticeshipState(s,target);
+  assert.equal(before.type,'HOME_BUILD');assert.equal(before.careerLock,true);
+  assert.equal(homeOf(s,targetId,{completeOnly:true}),null);
+
+  // Synthetic qualification setup uses the canonical Adventurer evidence authority.
+  // It does not assign profession directly and stops at 2/3.
+  const starts=[Math.max(0,s.tick-2),Math.max(0,s.tick-1)];
+  for(let i=0;i<2;i++){
+    const q=noteExploreCompletion(target,{kind:'EXPLORE',alive:true,productive:true,knowledge:'none',tick:s.tick,x:target.x,y:target.y+i,started:starts[i]});
+    assert.equal(q.counted,true);assert.equal(q.accepted,i+1);assert.equal(q.career,null);
+  }
+  assert.equal(target.adventurerQualification.accepted,2);
+  assert.equal(target.profession,'builder');
+
+  s=restore(serialize(s));target=s.agents.find(a=>a.id===targetId);
+  const loaded=builderCrafterApprenticeshipState(s,target);
+  assert.equal(loaded.status,'SAT');assert.equal(loaded.type,'HOME_BUILD');assert.equal(loaded.careerLock,true);
+  assert.equal(target.adventurerQualification.accepted,2);
+
+  let completed=false;
+  for(let i=0;i<3200&&target?.alive&&!completed;i++){
+    step(s,1);target=s.agents.find(a=>a.id===targetId);
+    assert.notEqual(target?.profession,'adventurer','committed Builder must not cross into Adventurer before own home completes');
+    assert.equal(target?.adventurerQualification?.accepted,2,'home-construction lock must suppress the qualifying third exploration');
+    completed=!!homeOf(s,targetId,{completeOnly:true});
+  }
+  assert.ok(target?.alive);assert.equal(completed,true,'committed Builder must finish the personal home naturally');
+  assert.equal(target.profession,'builder','home completion tick must still end on Builder');
+  assert.ok(buildEarnedXP(target)>0,'completed personal home must earn real BUILD XP');
+  const after=builderCrafterApprenticeshipState(s,target);
+  assert.equal(after.status,'SAT');assert.equal(after.active,true);assert.equal(after.careerLock,true);
+  assert.ok(['APPRENTICE','PROMOTE'].includes(after.type),JSON.stringify(after));
+  assert.deepEqual(validate(s),[]);
+});
+
+test('natural Builder home-commitment lock holds across two seeds without direct profession writes',t=>{
+  const evidence=[];
+  for(const seed of [230926,42]){
+    const s=createWorld(seed,{mode:'independent',worldProfile:'same-world',population:6});
+    const committed=new Set(),completed=new Set(),crafters=new Set();
+    for(let i=0;i<2600;i++){
+      step(s,1);
+      for(const a of s.agents){
+        const state=builderCrafterApprenticeshipState(s,a);
+        if(state.status==='SAT'&&state.type==='HOME_BUILD'&&state.careerLock===true)committed.add(a.id);
+        if(!committed.has(a.id))continue;
+        assert.notEqual(a.profession,'adventurer',`seed ${seed} actor ${a.id} escaped Builder track`);
+        if(homeOf(s,a.id,{completeOnly:true}))completed.add(a.id);
+        if(a.profession==='crafter')crafters.add(a.id);
+      }
+    }
+    assert.ok(committed.size>0,`seed ${seed} must naturally produce committed Builders`);
+    assert.ok(completed.size>0,`seed ${seed} must carry committed Builders through home completion`);
+    assert.equal(s.productionPlan.enabled,false);assert.ok(s.agents.every(a=>a.craftTraining?.enabled!==true));
+    assert.deepEqual(validate(s),[]);
+    evidence.push({seed,committed:committed.size,completed:completed.size,crafters:crafters.size});
+  }
+  t.diagnostic('natural-builder-lock-evidence '+JSON.stringify(evidence));
+});
+
 test('career-only Builder apprenticeship keeps the released 6 total / 2 T2 gate',()=>{
   let {s,targetId}=builderWorld();
   const a0=s.agents.find(x=>x.id===targetId);
