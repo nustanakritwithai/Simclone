@@ -3,6 +3,7 @@ export const MERCHANT_PRICING_VERSION='RC4-pricing/2';
 export const MERCHANT_PRICING_RULES=Object.freeze({
   maxMarginBps:50000,
   maxScarcityAdjustmentBps:2500,
+  maxBidDiscountBps:9000,
   maxObservationQuantity:1000000000,
 });
 
@@ -62,5 +63,19 @@ export function quoteAskPrice({acquisitionCost,marginBps=0,scarcity=null,
     if(!isCanonicalMoney(askPrice,{allowZero:false}))return {state:'VIOL',reason:'price-overflow'};
     return Object.freeze({state:'SAT',version:MERCHANT_PRICING_VERSION,acquisitionCost,marginBps,marginAmount,
       scarcityAdjustmentBps,scarcityAdjustment,askPrice});
+  }catch{return {state:'VIOL',reason:'price-overflow'};}
+}
+
+
+/** Reference market price - bounded deterministic discount = BuyOffer bid. */
+export function quoteBidPrice({referenceUnitPrice,discountBps=3000}={}){
+  if(referenceUnitPrice===undefined||referenceUnitPrice===null)return {state:'UNKNOWN',reason:'reference-price'};
+  if(!isCanonicalMoney(referenceUnitPrice,{allowZero:false}))return {state:'VIOL',reason:'reference-price'};
+  if(!int(discountBps,0,MERCHANT_PRICING_RULES.maxBidDiscountBps))return {state:'VIOL',reason:'discount'};
+  try{
+    const discountAmount=bpsAmount(referenceUnitPrice,discountBps);
+    const bidPrice=Math.max(1,referenceUnitPrice-discountAmount);
+    if(!isCanonicalMoney(bidPrice,{allowZero:false}))return {state:'VIOL',reason:'price-overflow'};
+    return Object.freeze({state:'SAT',version:MERCHANT_PRICING_VERSION,referenceUnitPrice,discountBps,discountAmount,bidPrice});
   }catch{return {state:'VIOL',reason:'price-overflow'};}
 }
