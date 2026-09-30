@@ -80,8 +80,10 @@ test('ER6 ER1 exposes only local live Crafter material shortage and remains read
   const source=wood.sources.find(x=>x.kind==='LOCAL_CRAFTER_MATERIAL_NEED'&&x.subjectAgentId===crafter.id);
   assert.ok(source,JSON.stringify(wood));
   assert.equal(source.side,'DEMAND');
-  assert.equal(source.productItemKind,'STONE_PICKAXE');
   assert.ok(Number.isSafeInteger(source.quantity)&&source.quantity>0);
+  assert.equal('recipeId' in source,false);
+  assert.equal('productItemKind' in source,false);
+  assert.equal('demandEvidenceId' in source,false);
   assert.equal(wood.tradable,true);
 });
 
