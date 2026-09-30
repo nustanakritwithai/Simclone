@@ -47,11 +47,12 @@ import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adven
 import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
 import {crafterCareerCommand} from './crafter-career.mjs?v=0.5.0';
 import {ensureCrafterTierPolicy,migrateCrafterTierPolicy,validateCrafterTierPolicy} from './crafter-tier-policy.mjs?v=0.5.0';
-import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy,isEr5MerchantMarketTravelTask} from './rc4-market-runtime.mjs?v=0.5.0';
+import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy,isEr5MerchantMarketTravelTask,isEr6ConsumerMarketTravelTask} from './rc4-market-runtime.mjs?v=0.5.0';
 import {rawProducerDecision,rawProducerGatherPressure} from './raw-producer-autonomy.mjs?v=0.5.0';
 import {demandDrivenCrafterIntent} from './demand-driven-crafter.mjs?v=0.5.0';
 import {crafterMaterialProcurementDecision} from './crafter-material-procurement.mjs?v=0.5.0';
 import {merchantAutonomyDecision} from './rc4-merchant-policy.mjs?v=0.5.0';
+import {consumerAutonomyDecision} from './er6-consumer-autonomy.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
 import {TRADE_ASSET_TYPES} from './trade-assets.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -594,6 +595,36 @@ function stepMerchantAutonomy(s){
   return {changed,rootReplaced:false};
 }
 
+function stepConsumerAutonomy(s){
+  if(!isIndependent(s))return {changed:false,rootReplaced:false};
+  const ids=living(s).filter(a=>a.profession!=='merchant'&&a.profession!=='crafter').map(a=>a.id).sort((a,b)=>a-b);
+  let changed=false;
+  for(const id of ids){
+    const a=s.agents.find(x=>x.id===id&&x.alive&&x.profession!=='merchant'&&x.profession!=='crafter');
+    if(!a)continue;
+    const intent=consumerAutonomyDecision(s,a);
+    if(intent?.status!=='SAT'||typeof intent.type!=='string'||['IDLE','WAIT_TRAVEL'].includes(intent.type))continue;
+    let r=null;
+    if(intent.type==='TRAVEL_TO_MARKET'){
+      r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId,control:'ER6_CONSUMER_AUTONOMY'});
+    }else if(intent.type==='CANCEL_TRAVEL'){
+      r=command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
+    }else if(intent.type==='BUY_LISTING'){
+      r=command(s,'RC4_BUY_LISTING',intent.intent);
+      if(r?.ok){
+        const buyer=s.agents.find(x=>x.id===id);
+        event(s,'market',(buyer?.name??('Clone #'+id))+' ซื้อเพื่อใช้งาน '+intent.itemKind+' x'+intent.quantity,id);
+        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId};
+      }
+    }else if(intent.type==='EQUIP_ITEM'){
+      r=command(s,'EQUIP_ITEM',{agentId:a.id,itemId:intent.itemId});
+      if(r?.ok)event(s,'market',a.name+' นำ '+intent.itemKind+' ที่ซื้อมาใช้กับงาน',a.id);
+    }
+    if(r?.ok)changed=true;
+  }
+  return {changed,rootReplaced:false};
+}
+
 function stepCrafterMaterialProcurement(s){
   const candidates=living(s).filter(a=>a.profession==='crafter').sort((a,b)=>a.id-b.id);
   let changed=false;
@@ -766,6 +797,7 @@ export function step(s,count=1,options={}){
     }
     stepMerchantAutonomy(s);
     stepCrafterMaterialProcurement(s);
+    stepConsumerAutonomy(s);
     stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
@@ -780,7 +812,7 @@ export function step(s,count=1,options={}){
       const demandCraft=!practiceAccepted?demandDrivenCrafterIntent(s,a):null;
       const demandCraftAccepted=demandCraft?command(s,'CRAFT_ITEM',demandCraft).ok:false;
       if(!practiceAccepted&&!demandCraftAccepted&&stepAutonomousAdventure(s,a))continue;
-      const producerIntent=rawProducerDecision(s,a);
+      const producerIntent=a.task?.rc4MarketTravel&&isEr6ConsumerMarketTravelTask(a.task)?null:rawProducerDecision(s,a);
       applyRawProducerIntent(s,a,producerIntent);
       if(!a.task)decide(s,a,book,producerIntent);
       const task=a.task;
