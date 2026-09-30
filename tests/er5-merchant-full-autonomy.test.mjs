@@ -75,7 +75,7 @@ function removeNeedItem(s,a,itemKind){
   s.rustPossessions.equipment=s.rustPossessions.equipment.filter(e=>s.rustPossessions.items.some(i=>i.id===e.itemId));
 }
 function setupObservedResale(){
-  const s=createWorld(925001,{mode:'independent',worldProfile:'same-world',population:4}),producer=s.agents[0],supplier=s.agents[1],merchant=s.agents[2],customer=s.agents[3];
+  const s=createWorld(925001,{mode:'independent',worldProfile:'same-world',population:4}),producer=s.agents[3],supplier=s.agents[1],merchant=s.agents[2],customer=s.agents[0];
   calm(producer,supplier,merchant,customer);
   Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
   const item=craftItem(s,producer,'STONE_PICKAXE');
