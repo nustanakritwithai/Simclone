@@ -465,6 +465,21 @@ with sync_playwright() as p:
   print('PLAYTEST_REPAIR_OVERLAPS',w,h,collision['rows'],flush=True)
   repair_probe(f'A1 {w}x{h} toolbar/camera hit areas separated',len(collision['rows'])==0)
   repair_probe(f'A1 {w}x{h} market center targets market',collision['marketCenter'])
+  if (w,h) in [(1188,761),(1440,900)]:
+   try:
+    q.locator('#market').click(timeout=2500)
+    repair_probe(f'A1 {w}x{h} real Market click opens market dialog',
+                 q.locator('#dialog').evaluate('(e)=>e.open') and q.locator('#dialog-title').inner_text()=='ตลาด RC4')
+    q.locator('#dialog-close').click()
+    q.locator('#market').click(timeout=2500);q.locator('#dialog-close').click()
+    repair_probe(f'A1 {w}x{h} Market opens and closes repeatedly',not q.locator('#dialog').evaluate('(e)=>e.open'))
+    q.locator('#market').focus();q.keyboard.press('Enter')
+    repair_probe(f'A1 {w}x{h} focused Market opens with Enter',
+                 q.locator('#dialog').evaluate('(e)=>e.open') and q.locator('#dialog-title').inner_text()=='ตลาด RC4')
+    q.locator('#dialog-close').click()
+   except Exception as exc:
+    print('PLAYTEST_REPAIR_MARKET_INTERACTION_ERROR',w,h,repr(exc),flush=True)
+    repair_probe(f'A1 {w}x{h} real Market interaction path',False)
   q.screenshot(path=str(repair_out/f'layout-{w}x{h}.png'))
   q.close()
 
@@ -486,6 +501,12 @@ with sync_playwright() as p:
  print('PLAYTEST_REPAIR_PROFESSION_LABEL',merchant_label,flush=True)
  repair_probe('A3 Adventure reads canonical Merchant profession label',merchant_label=='พ่อค้า')
  repair.screenshot(path=str(repair_out/'adventure-1188x761.png'))
+ repair.locator('#dialog-close').click()
+ repair.locator('#adventure-launch').focus();repair.keyboard.press('Enter');repair.wait_for_selector('#dialog[open] .adv-dialog')
+ repair_probe('A2 Adventure reopens from keyboard without alternate UI state',repair.locator('#dialog').get_attribute('data-kind')=='adventure')
+ repair.locator('#dialog-close').click()
+ repair.locator('#adventure-launch').click();repair.wait_for_selector('#dialog[open] .adv-dialog')
+ repair_probe('A2 Adventure reopens repeatedly by real click',repair.locator('#dialog').get_attribute('data-kind')=='adventure')
 
  # A2/A3 mobile acceptance: same canonical Merchant projection, no hidden/clipped data.
  mobile_repair=b.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
