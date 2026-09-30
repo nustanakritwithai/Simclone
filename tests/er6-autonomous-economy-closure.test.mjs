@@ -312,3 +312,18 @@ test('ER6 canonical no-path cheapest market falls back to a reachable observed l
   s.tiles[index]=prior;
   assert.deepEqual(validate(s),[]);
 });
+
+
+test('ER6 wholly unaffordable observed gear does not suppress Adventure forever',()=>{
+  const s=createWorld(926016,{mode:'independent',worldProfile:'same-world',population:4});
+  const producer=s.agents[3],merchant=s.agents[0],consumer=s.agents[2];
+  calm(producer,merchant,consumer);Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
+  const marketId=prepareMerchant(s,merchant,'unaffordable-only');
+  acquireAndResell(s,{producer,merchant,marketId,itemKind:'EMBER_BLADE',ask:101,label:'unaffordable-only-blade'});
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  assert.equal(getBalance(s,consumer.id),100);
+  const snap=consumerAutonomySnapshot(s,consumer);
+  assert.equal(snap.status,'BLOCKED',JSON.stringify(snap));
+  assert.equal(snap.reason,'no-affordable-observed-supply');
+  assert.equal(adventurerCanResumeHunt(s,consumer.id),true,'insufficient funds cannot become permanent gear-wait');
+});

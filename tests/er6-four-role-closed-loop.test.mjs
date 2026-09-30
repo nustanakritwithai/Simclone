@@ -236,7 +236,7 @@ function setupClosedLoop(){
   return {s,merchantId,crafterId,consumerId,producerId,marketId,firstWoodNeed,producerReserve:producerReserve.protectedReserve};
 }
 
-test('ER6 final assembled four-role loop closes two autonomous cycles with conservation, save/load and long-horizon stability',()=>{
+test('ER6 final four-role loop proves renewed material shortage, two gear fulfillments, conservation and live long horizon',()=>{
   const f=setupClosedLoop();let s=f.s;
   const preStartRoles={
     producer:actor(s,f.producerId).profession,crafter:actor(s,f.crafterId).profession,
@@ -262,8 +262,6 @@ test('ER6 final assembled four-role loop closes two autonomous cycles with conse
   let firstBladeId=null,remainingGearFulfillmentStarted=false,renewedMaterialShortageObserved=false;
   for(let i=0;i<2400&&!secondConsumerReceipt;i++){
     step(s,1);
-
-    const d=actor(s,f.consumerId);
 
     const postStartWoodOffer=s.merchantBuyOffers.buyOffers.find(o=>o.buyerId===f.merchantId&&o.itemKind==='wood'&&o.createdTick>startTick);
     if(postStartWoodOffer&&!checkpoints.has('after-buy-offer')){
