@@ -392,10 +392,21 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
       equippedKind(s,f.consumerId,'WEAPON')==='EMBER_BLADE'&&equippedKind(s,f.consumerId,'ARMOR')==='HIDE_ARMOR')break;
   }
 
-  const producerNow=actor(s,f.producerId);
+  const producerNow=actor(s,f.producerId),merchantNow=actor(s,f.merchantId);
+  const merchantMarket=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:f.marketId});
   const producerDiag={
     tick:s.tick,profession:producerNow?.profession,workDone:producerNow?.workDone,task:producerNow?.task??null,
     surplus:producerSurplusSnapshot(s,producerNow,'wood'),decision:rawProducerDecision(s,producerNow),
+    merchant:{
+      profession:merchantNow?.profession,x:merchantNow?.x,y:merchantNow?.y,
+      satiety:merchantNow?.satiety,energy:merchantNow?.energy,task:merchantNow?.task??null,
+      decision:merchantAutonomySnapshot(s,merchantNow),
+      market:merchantMarket.ok?merchantMarket.market:merchantMarket,
+      knownWoodListings:(merchantNow?.rc4MarketKnowledge?.knownListings??[]).filter(l=>l.itemKind==='wood')
+        .map(l=>({id:l.id,status:l.status,marketId:l.marketId,sellerId:l.sellerId,buyOfferId:l.buyOfferId??null,quantity:l.quantity,unitPrice:l.unitPrice,observedTick:l.observedTick})),
+      knownWoodOffers:(merchantNow?.rc4MarketKnowledge?.knownBuyOffers??[]).filter(o=>o.itemKind==='wood')
+        .map(o=>({offerId:o.offerId,status:o.status,marketId:o.marketId,buyerId:o.buyerId,quantityWanted:o.quantityWanted,unitPrice:o.unitPrice,observedTick:o.observedTick}))
+    },
     offers:(s.merchantBuyOffers?.buyOffers??[]).filter(o=>o.itemKind==='wood').map(o=>({offerId:o.offerId,status:o.status,buyerId:o.buyerId,quantityWanted:o.quantityWanted,unitPrice:o.unitPrice})),
     listings:(s.merchantListings?.listings??[]).filter(l=>l.itemKind==='wood').map(l=>({id:l.id,status:l.status,sellerId:l.sellerId,buyOfferId:l.buyOfferId??null,quantity:l.quantity,unitPrice:l.unitPrice})),
     postStartWoodReceipts:s.tradeReplay.receipts.filter(r=>!startTx.has(r.transactionId)&&r.itemKind==='wood')

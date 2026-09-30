@@ -163,9 +163,10 @@ test('ER2 accepted procurement outranks unrelated work, persists across save/loa
   const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchant.id,listingId:listing.id,listingRevision:listing.revision});
   assert.equal(bought.ok,true,JSON.stringify(bought));
   assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===listing.id).length,1);
-  const exit=rawProducerDecision(s,producer);
+  const liveProducer=actor(s,producer.id);
+  const exit=rawProducerDecision(s,liveProducer);
   assert.equal(exit.status,'BLOCKED',JSON.stringify(exit));assert.equal(exit.reason,'task',JSON.stringify(exit));
-  assert.equal(producer.profession,'woodcutter');assert.deepEqual(validate(s),[]);
+  assert.equal(liveProducer.profession,'woodcutter');assert.deepEqual(validate(s),[]);
 });
 
 test('ER2 competing BuyOffers cannot over-commit one producer surplus and exact replay stays idempotent',()=>{
