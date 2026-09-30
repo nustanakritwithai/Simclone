@@ -9,6 +9,7 @@ import {recipeMastery,validateRecipeKnowledge} from './craft-recipe-knowledge.mj
 import {adoptProfession} from './kingdom-utility.mjs?v=0.5.0';
 
 export const CRAFTER_CAREER_VERSION='RC5-crafter-v1';
+export const BUILDER_RECOVERY_VERSION='RC5-builder-recovery/1';
 export const CRAFTER_FAMILIES=Object.freeze({
   STONE_AXE:'TOOLSMITH',
   STONE_PICKAXE:'TOOLSMITH',
@@ -62,6 +63,47 @@ export function crafterCareerSnapshot(state,agent){
   return result(SAT,'profile',{profiles,best});
 }
 
+const BUILDER_RECOVERY_ORDINARY=new Set(['forager','woodcutter','miner']);
+
+/** Old-save recovery is evidence-gated. A current ordinary profession is not
+ * enough: the actor must own a completed home, have earned BUILD XP from real
+ * work, and already have real HAMMER-family recipe completion evidence.
+ */
+export function evaluateBuilderRecovery(state,agentId){
+  if(!state||!Number.isSafeInteger(agentId)||agentId<1)return result(UNKNOWN,'agent');
+  const agent=(state.agents??[]).find(a=>a.id===agentId)??null;
+  if(!agent)return result(UNKNOWN,'agent');
+  if(agent.alive!==true||!canPerformProductiveWork(state,agent))return result(VIOL,'actor-ineligible',{agentId});
+  if(agent.profession==='builder')return result(SAT,'already-builder',{agentId,evidenceId:null});
+  if(agent.profession==='merchant'||agent.profession==='adventurer'||agent.profession==='crafter')
+    return result(VIOL,'special-profession-lock',{agentId});
+  if(!BUILDER_RECOVERY_ORDINARY.has(agent.profession))
+    return result(VIOL,'ordinary-profession-required',{agentId});
+  const home=homeOf(state,agentId,{completeOnly:true});
+  if(!home||home.ownerId!==agentId)return result(VIOL,'construction-required',{agentId});
+  const build=agent.skillProvenance?.bySkill?.BUILD;
+  if(!build||typeof build.earnedXP!=='number'||!Number.isFinite(build.earnedXP)||build.earnedXP<0)
+    return result(UNKNOWN,'build-evidence',{agentId,homeId:home.houseId});
+  if(build.earnedXP<=0)return result(VIOL,'build-work-required',{agentId,homeId:home.houseId});
+  const family=crafterFamilyProfile(state,agent,'HAMMER');
+  if(family.status!==SAT||!family.profile)return result(UNKNOWN,family.reason??'recipe-evidence',{agentId,homeId:home.houseId});
+  if(family.profile.total<1)return result(VIOL,'craft-foundation-required',{agentId,homeId:home.houseId,profile:family.profile});
+  const evidenceId=['RC5R',agentId,home.houseId,build.earnedXP,family.profile.total,family.profile.counts[2]].join(':');
+  return result(SAT,'builder-recovery-satisfied',{agentId,homeId:home.houseId,buildEarnedXP:build.earnedXP,profile:family.profile,evidenceId,recoveryVersion:BUILDER_RECOVERY_VERSION});
+}
+
+export function recoverBuilderProfessionFromState(state,agentId,tick=state?.tick){
+  const qualification=evaluateBuilderRecovery(state,agentId);
+  const agent=state?.agents?.find(a=>a.id===agentId)??null;
+  if(!agent)return {ok:false,changed:false,status:qualification.status,reason:qualification.reason,profession:undefined,qualification};
+  if(!Number.isInteger(tick)||tick<0||tick!==state.tick)return {ok:false,changed:false,status:UNKNOWN,reason:'tick',profession:agent.profession,qualification};
+  if(!qualification.qualified)return {ok:false,changed:false,status:qualification.status,reason:qualification.reason,profession:agent.profession,qualification};
+  if(agent.profession==='builder')return {ok:true,changed:false,status:SAT,reason:'already-builder',profession:'builder',qualification};
+  const transition=adoptProfession(agent,'BUILD',tick);
+  const status=agent.profession==='builder'?SAT:UNKNOWN;
+  return {...transition,ok:status===SAT,status,qualification};
+}
+
 /** Qualification reads current-root authorities directly:
  * - canonical profession
  * - productive lifecycle
@@ -108,9 +150,20 @@ export function adoptCrafterProfessionFromState(state,agentId,tick=state?.tick){
 
 /** Command accepts identity only. Extra evidence-like fields fail closed. */
 export function crafterCareerCommand(state,type,data={}){
-  if(type!=='RC5_BECOME_CRAFTER')return null;
+  if(type!=='RC5_BECOME_CRAFTER'&&type!=='RC5_RECOVER_BUILDER')return null;
   if(!data||typeof data!=='object'||Array.isArray(data)||Object.keys(data).sort().join('|')!=='agentId'||!Number.isSafeInteger(data.agentId)||data.agentId<1)
-    return {ok:false,changed:false,status:UNKNOWN,reason:'input',message:'ข้อมูลสมัครช่างประดิษฐ์ไม่ถูกต้อง'};
+    return {ok:false,changed:false,status:UNKNOWN,reason:'input',message:'ข้อมูลเส้นทางอาชีพช่างไม่ถูกต้อง'};
+  if(type==='RC5_RECOVER_BUILDER'){
+    const out=recoverBuilderProfessionFromState(state,data.agentId,state.tick);
+    const message=out.ok?(out.changed?'กลับเข้าสู่เส้นทางช่างก่อสร้างจากหลักฐานเดิมแล้ว':'อยู่ในเส้นทางช่างก่อสร้างแล้ว'):
+      out.reason==='construction-required'?'ต้องมีบ้านของตัวเองที่สร้างเสร็จก่อน':
+      out.reason==='build-work-required'?'ยังไม่มี BUILD XP ที่ได้จากงานก่อสร้างจริง':
+      out.reason==='craft-foundation-required'?'ยังไม่มีหลักฐานผลิตตระกูล HAMMER จริง':
+      out.reason==='special-profession-lock'?'อาชีพพิเศษปัจจุบันถูกล็อกอยู่':
+      out.reason==='ordinary-profession-required'?'อาชีพปัจจุบันไม่อยู่ในกลุ่มที่กู้เส้นทาง Builder ได้':
+      out.reason==='actor-ineligible'?'ช่วงวัยหรือสถานะนี้ยังกู้เส้นทางอาชีพไม่ได้':'ยังยืนยันหลักฐานกู้เส้นทาง Builder ไม่ได้';
+    return {...out,agentId:data.agentId,message};
+  }
   const out=adoptCrafterProfessionFromState(state,data.agentId,state.tick);
   const message=out.ok?(out.changed?'เลื่อนอาชีพเป็นช่างประดิษฐ์แล้ว':'เป็นช่างประดิษฐ์อยู่แล้ว'):
     out.reason==='builder-required'?'ต้องเป็นช่างก่อสร้างก่อน':
