@@ -426,7 +426,7 @@ function person(c,a,time,bubble=null){
  c.save();c.translate(p.x,p.y);
  ellipse(c,1,2,10,4,'#19312755');
  if(selection?.kind==='agent'&&String(selection.id)===String(a.id)){c.strokeStyle='#efd299';c.lineWidth=1.5;c.beginPath();c.ellipse(0,1,15,7,0,0,Math.PI*2);c.stroke();}
- drawAgentCutout(c,a,time,{tool,mirror,scale:1});
+ drawAgentCutout(c,a,time,{tool,mirror,scale:.8});
  drawAgentBubble(c,bubble);
  c.restore();
 }
