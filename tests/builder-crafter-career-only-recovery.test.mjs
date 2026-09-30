@@ -242,6 +242,8 @@ test('old-save style Woodcutter with real Builder evidence recovers canonically 
   observeNaturalApprenticeship();
   for(let i=0;i<9000&&target?.alive&&target.profession!=='crafter';i++){
     step(s,1);target=s.agents.find(a=>a.id===targetId);observeNaturalApprenticeship();
+    assert.notEqual(target?.profession,'merchant','evidence-backed Builder apprenticeship must not be overwritten by autonomous Merchant entry');
+    assert.notEqual(target?.profession,'adventurer','evidence-backed Builder apprenticeship must not be overwritten by Adventurer qualification');
     assert.equal(s.productionPlan.enabled,false,'natural apprenticeship must keep RP1 off');
     assert.notEqual(target.craftTraining?.enabled,true,'natural apprenticeship must not enable manual Training');
   }
