@@ -279,9 +279,10 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
 
   // START: no fixture stock/item/position/demand/profession mutation or player trade command occurs below this line.
   s=restore(serialize(s));checkpoints.add('before-material-procurement');
-  let firstConsumerReceipt=null,secondConsumerReceipt=null,firstProducerReceipt=null,firstMaterialToCrafterReceipt=null,firstCrafterReceipt=null;
-  let firstBladeId=null,remainingGearFulfillmentStarted=false,renewedMaterialShortageObserved=false;
-  for(let i=0;i<2400&&!secondConsumerReceipt;i++){
+  let bladeConsumerReceipt=null,armorConsumerReceipt=null,firstProducerReceipt=null,firstMaterialToCrafterReceipt=null;
+  let bladeCrafterReceipt=null,armorCrafterReceipt=null;
+  let firstBladeId=null,firstArmorId=null,gearDeficitsAccounted=false,renewedMaterialShortageObserved=false;
+  for(let i=0;i<2400&&!(bladeConsumerReceipt&&armorConsumerReceipt);i++){
     step(s,1);
 
     const postStartWoodOffer=s.merchantBuyOffers.buyOffers.find(o=>o.buyerId===f.merchantId&&o.itemKind==='wood'&&o.createdTick>startTick);
@@ -299,9 +300,13 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
       s=restore(serialize(s));checkpoints.add('after-resource-settlement');continue;
     }
 
-    const blades=craftedBy(s,f.crafterId,'EMBER_BLADE');
+    const blades=craftedBy(s,f.crafterId,'EMBER_BLADE'),armors=craftedBy(s,f.crafterId,'HIDE_ARMOR');
     if(blades.length&&!firstBladeId)firstBladeId=blades[0].id;
-    if(firstBladeId&&!renewedMaterialShortageObserved){
+    if(armors.length&&!firstArmorId)firstArmorId=armors[0].id;
+    // Canonical policy may craft the already-ready Armor before the Blade whose
+    // material procurement is still pending. Either order is valid; the closure
+    // proof requires both exact post-START Crafter outputs, not a fixture-imposed order.
+    if((firstBladeId||firstArmorId)&&!renewedMaterialShortageObserved){
       const merchantDemand=projectActorObservedDemand(s,actor(s,f.merchantId),{
         includeCrafterMaterialDemand:true,includeResourceShortages:false
       });
@@ -314,8 +319,9 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
       s=restore(serialize(s));checkpoints.add('after-craft-completion');continue;
     }
 
-    firstCrafterReceipt??=newReceipt(s,startTx,r=>r.sellerId===f.crafterId&&r.buyerId===f.merchantId&&r.itemKind==='EMBER_BLADE'&&r.itemIds?.includes(firstBladeId));
-    if(firstCrafterReceipt&&!checkpoints.has('after-merchant-purchase')){
+    bladeCrafterReceipt??=firstBladeId?newReceipt(s,startTx,r=>r.sellerId===f.crafterId&&r.buyerId===f.merchantId&&r.itemKind==='EMBER_BLADE'&&r.itemIds?.includes(firstBladeId)):null;
+    armorCrafterReceipt??=firstArmorId?newReceipt(s,startTx,r=>r.sellerId===f.crafterId&&r.buyerId===f.merchantId&&r.itemKind==='HIDE_ARMOR'&&r.itemIds?.includes(firstArmorId)):null;
+    if(bladeCrafterReceipt&&!checkpoints.has('after-merchant-purchase')){
       s=restore(serialize(s));checkpoints.add('after-merchant-purchase');continue;
     }
 
@@ -324,21 +330,26 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
       s=restore(serialize(s));checkpoints.add('after-listing-creation');continue;
     }
 
-    firstConsumerReceipt??=newReceipt(s,startTx,r=>r.sellerId===f.merchantId&&r.buyerId===f.consumerId&&r.itemKind==='EMBER_BLADE'&&r.itemIds?.includes(firstBladeId));
-    if(firstConsumerReceipt&&!checkpoints.has('after-consumer-purchase')){
+    bladeConsumerReceipt??=firstBladeId?newReceipt(s,startTx,r=>r.sellerId===f.merchantId&&r.buyerId===f.consumerId&&r.itemKind==='EMBER_BLADE'&&r.itemIds?.includes(firstBladeId)):null;
+    armorConsumerReceipt??=firstArmorId?newReceipt(s,startTx,r=>r.sellerId===f.merchantId&&r.buyerId===f.consumerId&&r.itemKind==='HIDE_ARMOR'&&r.itemIds?.includes(firstArmorId)):null;
+    if(bladeConsumerReceipt&&!checkpoints.has('after-consumer-purchase')){
       s=restore(serialize(s));checkpoints.add('after-consumer-purchase');continue;
     }
 
-    if(firstConsumerReceipt&&equippedKind(s,f.consumerId,'WEAPON')==='EMBER_BLADE'&&!remainingGearFulfillmentStarted){
-      const demand=projectActorObservedDemand(s,actor(s,f.consumerId),{includeResourceShortages:false});
-      const armor=demand.signals.find(x=>x.itemKind==='HIDE_ARMOR'&&x.sources.some(src=>src.kind==='PERSONAL_ITEM_NEED'&&src.subjectAgentId===f.consumerId));
-      assert.ok(armor,'fulfilled WEAPON need must leave the existing ARMOR deficit visible');
+    if(bladeConsumerReceipt&&equippedKind(s,f.consumerId,'WEAPON')==='EMBER_BLADE'&&!gearDeficitsAccounted){
       assert.equal(preStartGearNeeds.has('HIDE_ARMOR'),true,
         'ARMOR is a PRE-START missing-gear deficit; do not relabel it as renewed post-use consumer demand');
-      remainingGearFulfillmentStarted=true;
-    }
-    if(remainingGearFulfillmentStarted){
-      secondConsumerReceipt??=newReceipt(s,startTx,r=>r.sellerId===f.merchantId&&r.buyerId===f.consumerId&&r.itemKind==='HIDE_ARMOR');
+      if(!armorConsumerReceipt){
+        const demand=projectActorObservedDemand(s,actor(s,f.consumerId),{includeResourceShortages:false});
+        const armor=demand.signals.find(x=>x.itemKind==='HIDE_ARMOR'&&
+          x.sources.some(src=>src.kind==='PERSONAL_ITEM_NEED'&&src.subjectAgentId===f.consumerId));
+        assert.ok(armor,'if ARMOR has not already settled, its PRE-START deficit must remain visible after WEAPON fulfillment');
+      }else{
+        assert.equal(armorConsumerReceipt.itemIds?.includes(firstArmorId),true,
+          'an earlier ARMOR fulfillment must be the exact post-START Crafter output');
+        assert.equal(equippedKind(s,f.consumerId,'ARMOR'),'HIDE_ARMOR');
+      }
+      gearDeficitsAccounted=true;
     }
   }
 
@@ -349,18 +360,27 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
   assert.ok(firstProducerReceipt,'Producer-origin raw material must settle to Merchant after START');
   assert.ok(firstMaterialToCrafterReceipt,'the same canonical resource path must continue Merchant -> Crafter');
   assert.equal(firstProducerReceipt.quantity,1);assert.equal(firstMaterialToCrafterReceipt.quantity,1);
-  assert.ok(firstCrafterReceipt,'Crafter exact physical output must settle to Merchant');
-  assert.ok(firstConsumerReceipt,'Consumer must buy the exact first-cycle item');
-  assert.ok(renewedMaterialShortageObserved,'first craft consumption must create a new actor-observed raw-material shortage');
-  assert.ok(remainingGearFulfillmentStarted,'second consumer fulfillment pass must begin from the PRE-START ARMOR deficit');
-  assert.ok(secondConsumerReceipt,'the remaining PRE-START gear deficit must complete through canonical resale');
+  assert.ok(bladeCrafterReceipt,'Crafter exact physical Blade output must settle to Merchant');
+  assert.ok(armorCrafterReceipt,'Crafter exact physical Armor output must settle to Merchant');
+  assert.ok(bladeConsumerReceipt,'Consumer must buy the exact Crafter Blade');
+  assert.ok(armorConsumerReceipt,'Consumer must buy the exact Crafter Armor');
+  assert.ok(renewedMaterialShortageObserved,'post-START craft consumption must create a new actor-observed raw-material shortage');
+  assert.ok(gearDeficitsAccounted,'both PRE-START gear deficits must remain correctly accounted regardless of canonical fulfillment order');
   assert.equal(equippedKind(s,f.consumerId,'WEAPON'),'EMBER_BLADE');
   assert.equal(equippedKind(s,f.consumerId,'ARMOR'),'HIDE_ARMOR');
-  const armorItemId=secondConsumerReceipt.itemIds?.[0];assert.ok(Number.isSafeInteger(armorItemId));
-  assert.equal(s.rustPossessions.items.find(i=>i.id===armorItemId)?.createdBy,f.crafterId,'second-cycle armor must be Crafter output');
-  assert.equal(s.rustPossessions.items.filter(i=>i.id===armorItemId).length,1,'second-cycle item cannot duplicate');
-  assert.equal(s.rustPossessions.items.filter(i=>i.id===firstBladeId).length,1,'exact first-cycle item cannot duplicate');
+  assert.ok(Number.isSafeInteger(firstBladeId));assert.ok(Number.isSafeInteger(firstArmorId));
+  assert.equal(bladeConsumerReceipt.itemIds?.includes(firstBladeId),true);
+  assert.equal(armorConsumerReceipt.itemIds?.includes(firstArmorId),true);
+  assert.equal(s.rustPossessions.items.find(i=>i.id===firstBladeId)?.createdBy,f.crafterId,'Blade must be post-START Crafter output');
+  assert.equal(s.rustPossessions.items.find(i=>i.id===firstArmorId)?.createdBy,f.crafterId,'Armor must be post-START Crafter output');
+  assert.equal(s.rustPossessions.items.filter(i=>i.id===firstArmorId).length,1,'exact Armor item cannot duplicate');
+  assert.equal(s.rustPossessions.items.filter(i=>i.id===firstBladeId).length,1,'exact Blade item cannot duplicate');
   assert.equal(s.rustPossessions.items.find(i=>i.id===firstBladeId)?.location?.agentId,f.consumerId);
+  assert.equal(s.rustPossessions.items.find(i=>i.id===firstArmorId)?.location?.agentId,f.consumerId);
+  const weaponEquip=s.rustPossessions.equipment.find(e=>e.agentId===f.consumerId&&(e.slot??'hand')==='WEAPON');
+  const armorEquip=s.rustPossessions.equipment.find(e=>e.agentId===f.consumerId&&(e.slot??'hand')==='ARMOR');
+  assert.equal(weaponEquip?.itemId,firstBladeId,'Consumer must equip the exact purchased Blade instance');
+  assert.equal(armorEquip?.itemId,firstArmorId,'Consumer must equip the exact purchased Armor instance');
   assert.equal(totalCurrency(s),startCurrency,'currency is conserved across both cycles');
   assert.ok(actor(s,f.producerId).workDone>startProducerWork,'Producer must gather canonical wood after START');
   const reserve=producerSurplusSnapshot(s,actor(s,f.producerId),'wood');
