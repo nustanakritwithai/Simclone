@@ -49,6 +49,7 @@ import {crafterCareerCommand} from './crafter-career.mjs?v=0.5.0';
 import {ensureCrafterTierPolicy,migrateCrafterTierPolicy,validateCrafterTierPolicy} from './crafter-tier-policy.mjs?v=0.5.0';
 import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy} from './rc4-market-runtime.mjs?v=0.5.0';
 import {rawProducerDecision,rawProducerGatherPressure} from './raw-producer-autonomy.mjs?v=0.5.0';
+import {demandDrivenCrafterIntent} from './demand-driven-crafter.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
@@ -690,7 +691,9 @@ export function step(s,count=1,options={}){
       if(a.task&&(!taskValid(s,a)||!adventureExpeditionTaskValid(s,a,a.task,{walkable}))){release(book,a,a.task);a.task=null;}
       const practice=craftTrainingIntent(s,a);
       const practiceAccepted=practice?command(s,'CRAFT_ITEM',practice).ok:false;
-      if(!practiceAccepted&&stepAutonomousAdventure(s,a))continue;
+      const demandCraft=!practiceAccepted?demandDrivenCrafterIntent(s,a):null;
+      const demandCraftAccepted=demandCraft?command(s,'CRAFT_ITEM',demandCraft).ok:false;
+      if(!practiceAccepted&&!demandCraftAccepted&&stepAutonomousAdventure(s,a))continue;
       const producerIntent=rawProducerDecision(s,a);
       applyRawProducerIntent(s,a,producerIntent);
       if(!a.task)decide(s,a,book,producerIntent);
