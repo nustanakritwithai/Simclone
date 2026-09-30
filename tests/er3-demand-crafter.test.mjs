@@ -33,6 +33,15 @@ function freeBagSlot(s,a){
   return item.id;
 }
 
+function dropTradableKind(s,a,itemKind){
+  const equipped=new Set((s.rustPossessions.equipment??[]).filter(e=>e.agentId===a.id).map(e=>e.itemId));
+  const rows=s.rustPossessions.items
+    .filter(i=>i.kind===itemKind&&i.location?.kind==='bag'&&i.location.agentId===a.id&&!equipped.has(i.id))
+    .sort((x,y)=>x.id-y.id);
+  for(const item of rows)item.location={kind:'drop',sourceAgentId:a.id,tick:s.tick,x:a.x,y:a.y};
+  return rows.map(i=>i.id);
+}
+
 function qualifiedCrafterFixture({localNeed=true}={}){
   const s=rc2World(),consumer=s.agents[0],crafter=s.agents[1],stock=resourceStock(s,crafter);
   assert.equal(adoptProfession(crafter,'BUILD',s.tick).changed,true);
@@ -124,10 +133,10 @@ test('ER3 hidden BuyOffer does not leak into Crafter production and stale observ
     addBuyOffer(s,crafter,{itemKind:'EMBER_BLADE',observe:true});
     const knownMarket=knownRc4Markets(crafter)[0],knownOffer=knownRc4BuyOffers(crafter)[0];
     assert.ok(knownMarket&&knownOffer);
-    const realMarket=crafter.rc4MarketKnowledge.knownMarkets.find(x=>x.marketId===knownMarket.marketId);
-    const realOffer=crafter.rc4MarketKnowledge.knownBuyOffers.find(x=>x.offerId===knownOffer.offerId);
-    realMarket.observedTick=s.tick-ECONOMIC_DEMAND_TTL_TICKS-1;
-    realOffer.observedTick=s.tick-ECONOMIC_DEMAND_TTL_TICKS-1;
+    // Advance canonical simulation time beyond ER1 TTL. Do not forge a negative
+    // observation tick: malformed knowledge must remain UNKNOWN, while valid old
+    // knowledge must simply expire to no actionable demand.
+    s.tick+=ECONOMIC_DEMAND_TTL_TICKS+1;
     const snap=demandDrivenCrafterSnapshot(s,crafter);
     assert.equal(snap.status,'IDLE');assert.equal(demandDrivenCrafterIntent(s,crafter),null);
   }
@@ -161,7 +170,10 @@ test('ER3 cannot craft an unknown demanded recipe and generic demand never jumps
       !(i.location?.kind==='bag'&&i.location.agentId===consumer.id&&i.kind==='HAMMER'));
     s.rustPossessions.equipment=s.rustPossessions.equipment.filter(e=>e.agentId!==consumer.id||
       s.rustPossessions.items.some(i=>i.id===e.itemId));
-    freeBagSlot(s,crafter);
+    // Qualification/progression produced real HAMMER stock. Move only tradable
+    // surplus out of the Crafter bag so this test proves recipe/tier selection
+    // rather than correctly short-circuiting on already-owned physical supply.
+    assert.ok(dropTradableKind(s,crafter,'HAMMER').length>0);
     const snap=demandDrivenCrafterSnapshot(s,crafter);
     assert.equal(snap.status,'READY_CRAFT');
     assert.equal(snap.demand.itemKind,'HAMMER');
@@ -178,6 +190,7 @@ test('ER3 missing station/materials/reserve fail closed and never mint inputs',(
       !(i.location?.kind==='bag'&&i.location.agentId===consumer.id&&i.kind==='HAMMER'));
     s.rustPossessions.equipment=s.rustPossessions.equipment.filter(e=>e.agentId!==consumer.id||
       s.rustPossessions.items.some(i=>i.id===e.itemId));
+    assert.ok(dropTradableKind(s,crafter,'HAMMER').length>0);
     s.rustStations.stations=s.rustStations.stations.filter(st=>st.kind!=='CRAFTING_TABLE_LV1');
     const snap=demandDrivenCrafterSnapshot(s,crafter);
     assert.equal(snap.status,'BLOCKED');assert.equal(snap.reason,'station');
