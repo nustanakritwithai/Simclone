@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ลานหมู่บ้าน · สไปรต์อาชีพ</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #142b26;
+      --surface: #1b3830;
+      --raised: #23463c;
+      --fg: #f0eee3;
+      --muted: #a9bfb1;
+      --primary: #dfc187;
+      --line: #3e5c50;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 16px/1.5 "Noto Sans Thai", sans-serif;
+    }
+    main { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+    h1 { font-size: 1.8rem; margin: 0.2rem 0; }
+    .kicker { letter-spacing: 0.28em; font-size: 0.7rem; color: var(--primary); font-weight: 700; }
+    .muted { color: var(--muted); }
+    .jobs { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.25rem; }
+    button {
+      min-height: 44px;
+      border: 0;
+      border-radius: 0.6rem;
+      background: var(--raised);
+      color: var(--fg);
+      padding: 0.4rem 1rem;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    button[aria-pressed="true"] { background: var(--primary); color: #1a2a1c; font-weight: 700; }
+    .yard {
+      margin-top: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      overflow: hidden;
+      background: var(--surface);
+    }
+    .stage {
+      position: relative;
+      height: 28rem;
+      overflow: hidden;
+      background: radial-gradient(ellipse at 50% 72%, #7ea56a 0%, #4d7352 26%, #1d4034 68%, #142b26 100%);
+    }
+    .pad { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1rem; border-top: 1px solid var(--line); }
+    .row { display: flex; gap: 0.5rem; }
+    .pad button { width: 6rem; }
+    .actor { position: absolute; width: auto; pointer-events: none; transform: translate(-50%, -100%); }
+    .ring {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      width: 100%;
+      height: 1.25rem;
+      transform: translate(-50%, 50%) scaleX(1.25);
+      border: 2px solid var(--primary);
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--primary) 20%, transparent);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="kicker">SIMCLONE</p>
+    <h1>ลานหมู่บ้าน</h1>
+    <p class="muted">เลือกอาชีพแล้วเดินดูชุด เครื่องไม่หายตอนยืน A ไปซ้ายของจอ D ไปขวา หน้านี้เป็นภาพอย่างเดียว ไม่ได้สั่งงานในหมู่บ้าน</p>
+    <div class="jobs" id="jobs"></div>
+    <p id="detail"></p>
+    <section class="yard">
+      <div class="stage" id="stage"></div>
+      <div class="pad">
+        <button type="button" data-pad="pad-up">ขึ้น</button>
+        <div class="row">
+          <button type="button" data-pad="pad-left">ซ้าย</button>
+          <button type="button" data-pad="pad-right">ขวา</button>
+        </div>
+        <button type="button" data-pad="pad-down">ลง</button>
+        <p class="muted" id="status"></p>
+      </div>
+    </section>
+  </main>
+  <script>
+    const JOBS = [
+      { id: "forager", name: "ผู้หาอาหาร", verb: "หาอาหาร", tool: "ตะกร้าเบอร์รี่ที่สะโพก สายเขียว", detail: "เก็บผลจากพุ่มรอบลาน", focus: "bush" },
+      { id: "woodcutter", name: "คนตัดไม้", verb: "ตัดไม้", tool: "ขวานสั้นชิดตัว ปลอกแขนหนัง", detail: "ทำงานกับกองท่อนไม้ข้างบ้าน", focus: "logs" },
+      { id: "miner", name: "คนขุดหิน", verb: "ขุดหิน", tool: "อีเต้อสั้น ผ้าคอสีเทา", detail: "ขุดก้อนหินแม่น้ำริมลาน", focus: "stone" },
+      { id: "builder", name: "ช่างก่อสร้าง", verb: "สร้างบ้าน", tool: "ค้อนชิดอก ผ้ากันเปื้อนหนัง ถุงตะปู", detail: "ซ่อมและก่อบ้านมุงจาก", focus: "house" },
+      { id: "adventurer", name: "นักผจญภัย", verb: "สำรวจ", tool: "ย่ามและผ้าห่มม้วน ไม่มีดาบ คันธนู หรือผ้าคลุม", detail: "เดินสำรวจลาน ไม่ต่อสู้ และไม่มีจุดงานเฉพาะ", focus: null }
+    ];
+    const SPOTS = [
+      { id: "house", src: "sprites/house.png", alt: "บ้านมุงจาก", x: 54, y: 36, h: 156 },
+      { id: "bush", src: "sprites/props/prop-1.png", alt: "พุ่มเบอร์รี่", x: 16, y: 62, h: 72 },
+      { id: "logs", src: "sprites/props/prop-2.png", alt: "ท่อนไม้", x: 82, y: 48, h: 64 },
+      { id: "stone", src: "sprites/props/prop-3.png", alt: "หินแม่น้ำ", x: 22, y: 40, h: 52 },
+      { id: "pot", src: "sprites/props/prop-4.png", alt: "หม้อดิน", x: 70, y: 58, h: 58 },
+      { id: "crate", src: "sprites/props/prop-5.png", alt: "ลังไม้", x: 38, y: 72, h: 56 },
+      { id: "lamp", src: "sprites/props/prop-6.png", alt: "ตะเกียง", x: 64, y: 44, h: 62 },
+      { id: "sapling", src: "sprites/props/prop-7.png", alt: "ต้นอ่อน", x: 12, y: 30, h: 78 },
+      { id: "basket", src: "sprites/props/prop-8.png", alt: "ตะกร้าธัญพืช", x: 78, y: 74, h: 58 },
+      { id: "fire", src: "sprites/props/prop-9.png", alt: "กองไฟ", x: 46, y: 84, h: 64 }
+    ];
+    const keys = new Set();
+    const pose = { x: 48, y: 64, face: "down", frame: 0, moving: false };
+    let job = JOBS[0];
+    const stage = document.getElementById("stage");
+    const clone = document.createElement("img");
+    clone.alt = job.name;
+    clone.className = "actor";
+    clone.style.height = "118px";
+    const urlCache = new Map();
+    let paintGen = 0;
+    function spriteUrl(path) {
+      if (!urlCache.has(path)) {
+        urlCache.set(path, fetch(path + ".b64").then((res) => {
+          if (!res.ok) throw new Error(path);
+          return res.text();
+        }).then((text) => "data:image/png;base64," + text.replace(/\s+/g, "")));
+      }
+      return urlCache.get(path);
+    }
+    const nodes = new Map();
+    for (const spot of SPOTS) {
+      const wrap = document.createElement("div");
+      wrap.className = "actor";
+      wrap.style.height = spot.h + "px";
+      const img = document.createElement("img");
+      img.alt = spot.alt;
+      img.style.height = "100%";
+      img.style.display = "block";
+      spriteUrl(spot.src).then((src) => { img.src = src; });
+      const ring = document.createElement("span");
+      ring.className = "ring";
+      ring.hidden = true;
+      wrap.append(ring, img);
+      nodes.set(spot.id, { wrap, ring });
+      stage.append(wrap);
+    }
+    stage.append(clone);
+
+    const jobsEl = document.getElementById("jobs");
+    for (const item of JOBS) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = item.name;
+      button.setAttribute("aria-pressed", String(item.id === job.id));
+      button.addEventListener("click", () => {
+        job = item;
+        for (const other of jobsEl.querySelectorAll("button")) {
+          other.setAttribute("aria-pressed", String(other === button));
+        }
+        draw();
+      });
+      jobsEl.append(button);
+    }
+
+    function faceLabel(face) {
+      if (face === "left") return "ไปทางซ้าย";
+      if (face === "right") return "ไปทางขวา";
+      if (face === "up") return "เข้าหาบ้าน";
+      return "ลงมาด้านหน้า";
+    }
+    function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+    function inHouse(x, y) { return x > 40 && x < 68 && y > 22 && y < 40; }
+    function slide(x, y, nx, ny) {
+      if (!inHouse(nx, ny)) return { x: nx, y: ny };
+      if (!inHouse(nx, y)) return { x: nx, y };
+      if (!inHouse(x, ny)) return { x, y: ny };
+      return { x, y };
+    }
+    function draw() {
+      const n = pose.moving ? pose.frame + 1 : 1;
+      const framePath = "sprites/jobs/" + job.id + "/" + pose.face + "-" + n + ".png";
+      const token = ++paintGen;
+      spriteUrl(framePath).then((src) => { if (token === paintGen) clone.src = src; });
+      clone.alt = job.name;
+      clone.style.left = pose.x + "%";
+      clone.style.top = pose.y + "%";
+      clone.style.zIndex = String(Math.round(pose.y));
+      for (const spot of SPOTS) {
+        const node = nodes.get(spot.id);
+        node.wrap.style.left = spot.x + "%";
+        node.wrap.style.top = spot.y + "%";
+        node.wrap.style.zIndex = String(Math.round(spot.y));
+        node.ring.hidden = spot.id !== job.focus;
+      }
+      document.getElementById("detail").innerHTML = "<strong>" + job.name + "</strong> <span class='muted'>· " + job.verb + " · " + job.tool + ". " + job.detail + "</span>";
+      document.getElementById("status").textContent = pose.moving ? job.name + " " + faceLabel(pose.face) : job.name + " ยืนพัก · " + job.verb;
+      for (const button of document.querySelectorAll("[data-pad]")) {
+        const code = button.getAttribute("data-pad");
+        const on = pose.moving && (
+          (code === "pad-left" && pose.face === "left") ||
+          (code === "pad-right" && pose.face === "right") ||
+          (code === "pad-up" && pose.face === "up") ||
+          (code === "pad-down" && pose.face === "down")
+        );
+        button.setAttribute("aria-pressed", String(on));
+      }
+    }
+    const MOVE = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+    addEventListener("keydown", (e) => { if (MOVE.includes(e.code)) { e.preventDefault(); keys.add(e.code); } });
+    addEventListener("keyup", (e) => keys.delete(e.code));
+    addEventListener("blur", () => { for (const code of MOVE) keys.delete(code); });
+    for (const button of document.querySelectorAll("[data-pad]")) {
+      const code = button.getAttribute("data-pad");
+      button.addEventListener("pointerdown", (e) => { e.preventDefault(); button.setPointerCapture(e.pointerId); keys.add(code); });
+      button.addEventListener("pointerup", () => keys.delete(code));
+      button.addEventListener("pointercancel", () => keys.delete(code));
+    }
+    let last = performance.now();
+    let walkAcc = 0;
+    function loop(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      let dx = 0, dy = 0;
+      if (keys.has("KeyA") || keys.has("ArrowLeft") || keys.has("pad-left")) dx -= 1;
+      if (keys.has("KeyD") || keys.has("ArrowRight") || keys.has("pad-right")) dx += 1;
+      if (keys.has("KeyW") || keys.has("ArrowUp") || keys.has("pad-up")) dy -= 1;
+      if (keys.has("KeyS") || keys.has("ArrowDown") || keys.has("pad-down")) dy += 1;
+      const moving = dx !== 0 || dy !== 0;
+      if (moving) {
+        const len = Math.hypot(dx, dy);
+        dx /= len; dy /= len;
+        const nx = clamp(pose.x + dx * 26 * dt, 8, 92);
+        const ny = clamp(pose.y + dy * 26 * dt, 18, 92);
+        const slid = slide(pose.x, pose.y, nx, ny);
+        pose.x = slid.x; pose.y = slid.y;
+        pose.face = Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? "left" : "right") : (dy < 0 ? "up" : "down");
+        pose.moving = true;
+        walkAcc += dt;
+        if (walkAcc >= 0.16) { walkAcc = 0; pose.frame = (pose.frame + 1) % 4; }
+      } else {
+        pose.moving = false;
+        walkAcc = 0;
+        pose.frame = 0;
+      }
+      draw();
+      requestAnimationFrame(loop);
+    }
+    draw();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
