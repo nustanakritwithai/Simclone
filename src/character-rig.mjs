@@ -133,12 +133,14 @@ export function poseForMotion(motion='idle',phase=0,overrides={}){
       pose.shoulderL=-8;pose.elbowL=8;pose.headTilt=wave*4;
       break;
     case 'attack':{
-      const strike=Math.sin(Math.min(1,p)*Math.PI);
-      pose.torsoLean=12*strike;
-      pose.shoulderR=-35-95*strike;pose.elbowR=-18-28*strike;
-      pose.shoulderL=20+20*strike;pose.elbowL=18;
-      pose.hipL=-10*strike;pose.hipR=14*strike;
-      pose.kneeL=10*strike;pose.kneeR=18*strike;
+      // Top-down strike: start overhead, cut downward, then hold follow-through.
+      // Reset happens only at the phase wrap so the visible swing never runs bottom-up.
+      const raw=clamp((p-.12)/.48,0,1),strike=raw*raw*(3-2*raw);
+      pose.torsoLean=2+14*strike;
+      pose.shoulderR=-138+158*strike;pose.elbowR=-42+52*strike;
+      pose.shoulderL=14+22*strike;pose.elbowL=18;
+      pose.hipL=-4-10*strike;pose.hipR=6+12*strike;
+      pose.kneeL=4+10*strike;pose.kneeR=8+14*strike;
       break;
     }
     case 'jump':{
