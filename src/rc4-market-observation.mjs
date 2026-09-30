@@ -45,12 +45,29 @@ export function knownRc4Markets(agent){return clone(agent?.rc4MarketKnowledge?.k
 export function knownRc4Listings(agent){return clone(agent?.rc4MarketKnowledge?.knownListings??[]);}
 export function knownRc4BuyOffers(agent){return clone(agent?.rc4MarketKnowledge?.knownBuyOffers??[]);}
 export function knowsRc4Market(agent,marketId){return agent?.rc4MarketKnowledge?.knownMarkets?.some(m=>m.marketId===marketId)===true;}
-/** Need is derived from the current productive goal and physical possessions, not UI flags. */
+/** Need is derived from canonical profession/goal and physical possessions, never UI flags. */
 export function rc4PersonalItemNeeds(world,agent){
   if(!agent?.alive)return [];
-  const held=new Set((world.rustPossessions?.items??[]).filter(i=>i.location?.kind==='bag'&&i.location.agentId===agent.id).map(i=>i.kind));
-  return Object.values(ITEM_CATALOG).filter(i=>i.workAction===agent.preference&&!held.has(i.id))
+  const items=world.rustPossessions?.items??[],equipment=world.rustPossessions?.equipment??[];
+  const held=new Set(items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===agent.id).map(i=>i.kind));
+  const needs=Object.values(ITEM_CATALOG).filter(i=>i.workAction===agent.preference&&!held.has(i.id))
     .map(i=>({needId:'work-tool:'+agent.id+':'+i.id,itemKind:i.id,quantity:1,purpose:'productive-work',fulfillment:'carry'}));
+  if(agent.profession==='adventurer'){
+    const equipped=new Set();
+    for(const e of equipment){
+      if(e.agentId!==agent.id)continue;
+      const item=items.find(i=>i.id===e.itemId&&i.location?.kind==='bag'&&i.location.agentId===agent.id);
+      const slot=item&&ITEM_CATALOG[item.kind]?.equipSlot;if(slot)equipped.add(slot);
+    }
+    for(const slot of ['WEAPON','ARMOR']){
+      if(equipped.has(slot))continue;
+      const candidates=Object.values(ITEM_CATALOG).filter(i=>i.category==='gear'&&i.equipSlot===slot).sort((a,b)=>a.id.localeCompare(b.id));
+      if(candidates.some(i=>held.has(i.id)))continue;
+      const selected=candidates[0];if(!selected)continue;
+      needs.push({needId:'adventure-equipment:'+agent.id+':'+slot,itemKind:selected.id,quantity:1,purpose:'adventure-readiness',fulfillment:'equip',slot});
+    }
+  }
+  return needs.sort((a,b)=>a.needId.localeCompare(b.needId)||a.itemKind.localeCompare(b.itemKind));
 }
 export function hasRc4PurchaseNeed(world,agent,listing){
   if(!agent?.alive||!listing)return false;
