@@ -5,12 +5,12 @@ import {ADVENTURE_ZONES,canEnterAdventureZone,adventureZoneById} from './adventu
 import {monsterDefinition} from './adventure-monsters.mjs?v=0.5.0';
 import {itemById} from './crafting-catalog.mjs?v=0.5.0';
 import {equipmentSlotOf} from './rust-possessions.mjs?v=0.5.0';
+import {professionLabel} from './kingdom-utility.mjs?v=0.5.0';
 
 export const ADVENTURE_UI_VERSION='adventure-ui/v1';
 
 const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const pct=(value,max)=>max>0?Math.max(0,Math.min(100,Math.round(value/max*100))):0;
-const professionLabel=profession=>profession==='adventurer'?'นักผจญภัย':({forager:'คนหาอาหาร',woodcutter:'คนตัดไม้',miner:'คนขุดแร่',builder:'ช่างก่อสร้าง'}[profession]??'ยังไม่มีอาชีพ');
 const slotLabel=slot=>({WEAPON:'อาวุธ',ARMOR:'เกราะ',ACCESSORY:'เครื่องประดับ'}[slot]??slot);
 
 function qualification(agent){
@@ -103,6 +103,7 @@ export function installAdventureUI({read,openDialog,closeDialog,execute,select,c
       '<b>'+esc(a.name)+'</b><small>'+esc(professionLabel(a.profession))+' · EXPLORE '+qualification(a)+'/3</small></button>').join('');
     openDialog('โลกนักผจญภัย','ADVENTURE · LIVE',
       '<section class="adv-dialog"><div class="adv-roster">'+roster+'</div>'+(agent?agentPanel(agent):'<div class="adv-notice">ยังไม่มี Clone ที่มีชีวิต</div>')+'</section>');
+    const dialog=document.getElementById('dialog');if(dialog)dialog.dataset.kind='adventure';
   }
   function run(type,data,{close=false,success=null}={}){
     const result=execute(type,data);
