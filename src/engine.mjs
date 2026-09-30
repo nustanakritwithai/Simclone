@@ -784,8 +784,10 @@ function execute(s,a){
   }else if(t.work>=6){
     finishPersonalExploration(s,a,t);
     const belief=t.knowledgeKey?a.knowledgeState?.beliefs?.find(b=>b.key===t.knowledgeKey):null;
+    // Resource-directed reconnaissance keeps its productive purpose. Only true
+    // EXPLORE completions may count toward Adventurer qualification.
     const qualification=noteExploreCompletion(a,{
-      kind:t.kind,tick:s.tick,x:a.x,y:a.y,started:t.started,
+      kind:t.purposeKind??t.kind,tick:s.tick,x:a.x,y:a.y,started:t.started,
       alive:a.alive===true,productive:canPerformProductiveWork(s,a),
       knowledge:t.knowledgeKey?(belief?.status??'UNKNOWN'):'none'
     });

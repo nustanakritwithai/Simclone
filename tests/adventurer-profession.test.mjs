@@ -9,10 +9,11 @@ function adult(seed=11){
   a.satiety=100;a.energy=100;a.hp=100;
   return {s,a};
 }
-function finishExplore(s,a,{started=s.tick,knowledgeKey}={}){
+function finishExplore(s,a,{started=s.tick,knowledgeKey,purposeKind}={}){
   a.satiety=100;a.energy=100;
   a.task={kind:'EXPLORE',targetId:null,x:a.x,y:a.y,path:[],work:5,started,score:1,policy:RULES.jobPolicy};
   if(knowledgeKey)a.task.knowledgeKey=knowledgeKey;
+  if(purposeKind)a.task.purposeKind=purposeKind;
   step(s,1);
 }
 
@@ -25,6 +26,14 @@ test('EXPLORE has no profession mapping and one completion does not adopt',()=>{
   assert.equal(a.adventurerQualification.accepted,1);
   assert.equal(a.adventurerQualification.recent.length,1);
   assert.notEqual(a.profession,'adventurer');
+  assert.deepEqual(validate(s),[]);
+});
+
+test('resource-purpose exploration does not count toward Adventurer qualification',()=>{
+  const {s,a}=adult(17),before=a.profession;
+  for(let i=0;i<4;i++)finishExplore(s,a,{purposeKind:'WOODCUT'});
+  assert.equal(a.adventurerQualification,undefined);
+  assert.equal(a.profession,before);
   assert.deepEqual(validate(s),[]);
 });
 
