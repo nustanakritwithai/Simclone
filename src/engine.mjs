@@ -50,6 +50,7 @@ import {ensureCrafterTierPolicy,migrateCrafterTierPolicy,validateCrafterTierPoli
 import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy} from './rc4-market-runtime.mjs?v=0.5.0';
 import {rawProducerDecision,rawProducerGatherPressure} from './raw-producer-autonomy.mjs?v=0.5.0';
 import {demandDrivenCrafterIntent} from './demand-driven-crafter.mjs?v=0.5.0';
+import {crafterMaterialProcurementDecision} from './crafter-material-procurement.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
@@ -541,6 +542,37 @@ function applyRawProducerIntent(s,a,intent){
   return {handled:false};
 }
 
+function stepCrafterMaterialProcurement(s){
+  const candidates=living(s).filter(a=>a.profession==='crafter').sort((a,b)=>a.id-b.id);
+  let changed=false;
+  for(const a of candidates){
+    const intent=crafterMaterialProcurementDecision(s,a);
+    if(intent?.status!=='SAT'||typeof intent.type!=='string')continue;
+    if(intent.type==='WAIT_TRAVEL')continue;
+    if(intent.type==='TRAVEL_TO_MARKET'){
+      const r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId});
+      if(r.ok)changed=true;
+      continue;
+    }
+    if(intent.type==='CANCEL_TRAVEL'){
+      const r=command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
+      if(r.ok)changed=true;
+      continue;
+    }
+    if(intent.type==='BUY_LISTING'){
+      const r=command(s,'RC4_BUY_LISTING',intent.intent);
+      if(r.ok){
+        const buyer=s.agents.find(x=>x.id===intent.agentId);
+        event(s,'market',(buyer?.name??('Clone #'+intent.agentId))+' ซื้อวัตถุดิบ '+intent.itemKind+' x'+intent.quantity,intent.agentId);
+        // RC4 atomic settlement replaces the live world root. Stop immediately so
+        // no pre-settlement agent reference is reused in this procurement pass.
+        return {changed:true,rootReplaced:true,kind:'purchase',agentId:intent.agentId,listingId:intent.listingId,transactionId:r.transactionId};
+      }
+    }
+  }
+  return {changed,rootReplaced:false};
+}
+
 function gain(s,a,key,targetId=null){
   if(!SKILLS.includes(key))return;
   const old=level(a.skills[key]);a.skills[key]+=5;a.workDone++;
@@ -680,6 +712,7 @@ export function step(s,count=1,options={}){
       const merchant=s.agents.find(a=>a.id===rc4Step.agentId);
       if(merchant)merchant.lastCareerEventTick=s.tick;
     }
+    stepCrafterMaterialProcurement(s);
     stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
