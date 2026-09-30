@@ -138,7 +138,7 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
 });
 
 test('ER2 accepted procurement outranks unrelated work, persists across save/load, and releases after settlement',()=>{
-  const {s,merchant,producer,offer}=setupOffer({itemKind:'wood',quantity:1,unitPrice:3});
+  const {s,merchant,producer,market,offer}=setupOffer({itemKind:'wood',quantity:1,unitPrice:3});
   const reserve=personalTargets(s,producer).wood;resourceStock(s,producer).wood=reserve+2;
   const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:offer.offerId,quantity:1});
   assert.equal(accepted.ok,true,JSON.stringify(accepted));
@@ -159,6 +159,7 @@ test('ER2 accepted procurement outranks unrelated work, persists across save/loa
   assert.equal(producer.adventurerQualification,undefined);
 
   merchant.task=null;merchant.satiety=100;merchant.energy=100;
+  arrive(s,merchant,market.marketId);
   const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchant.id,listingId:listing.id,listingRevision:listing.revision});
   assert.equal(bought.ok,true,JSON.stringify(bought));
   assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===listing.id).length,1);
