@@ -151,7 +151,10 @@ test('ER5 observed supply -> autonomous buy -> autonomous Listing -> canonical r
   const travel=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:customer.id,marketId:f.merchantMarket});assert.equal(travel.ok,true,JSON.stringify(travel));
   assert.equal(actor(s,customer.id).task.path.length,0);
   const sold=command(s,'RC4_BUY_LISTING',{buyerId:customer.id,listingId:resale.id,listingRevision:resale.revision});
-  assert.equal(sold.ok,true,JSON.stringify(sold));
+  const customerAtSale={alive:customer.alive,profession:customer.profession,preference:customer.preference,
+    heldItems:s.rustPossessions.items.filter(i=>i.location?.kind==='bag'&&i.location.agentId===customer.id).map(i=>({id:i.id,kind:i.kind})),
+    demand:projectActorObservedDemand(s,customer).signals?.find(x=>x.itemKind==='STONE_PICKAXE')??null};
+  assert.equal(sold.ok,true,JSON.stringify({sold,customerAtSale}));
 
   merchant=actor(s,f.merchantId);customer=actor(s,f.customerId);
   const ledger=s.merchantLedgers.ledgers.find(l=>l.merchantId===merchant.id);
