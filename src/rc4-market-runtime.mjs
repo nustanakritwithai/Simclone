@@ -34,6 +34,8 @@ import {
 import {createCanonicalMarketTravelTask,verifyCanonicalMarketArrival,isCanonicalMarketTravelTask,canPreemptForCanonicalMarketTravel,retainCanonicalMarketTravelOnCommit} from './navigation-arrival-evidence.mjs?v=0.5.0';
 import {rawProducerOfferGate,rawProducerSettlementGate} from './raw-producer-autonomy.mjs?v=0.5.0';
 import {crafterMaterialPurchaseAuthorization} from './crafter-material-procurement.mjs?v=0.5.0';
+import {merchantAutonomousPurchaseAuthorization} from './rc4-merchant-policy.mjs?v=0.5.0';
+import {sameResourceAccount} from './individual-resources.mjs?v=0.5.0';
 
 export const RC4_ECONOMY_ROOT_VERSION='RC4-economy-root/1';
 export const RC4_MERCHANT_AUTONOMY_RULES=Object.freeze({
@@ -241,6 +243,40 @@ function ownMarket(world,ownerId){
 function listingById(world,id){return world.merchantListings?.listings?.find(x=>x.id===id)??null;}
 function offerById(world,id){return world.merchantBuyOffers?.buyOffers?.find(x=>x.offerId===id)??null;}
 
+function openBuyOfferCommitment(world,buyerId,{excludeOfferId=null}={}){
+  let committed=0;
+  for(const offer of world.merchantBuyOffers?.buyOffers??[]){
+    if(offer?.status!=='OPEN'||offer.buyerId!==buyerId||offer.offerId===excludeOfferId)continue;
+    const total=offer.unitPrice*offer.quantityWanted;
+    if(!positive(offer.quantityWanted)||!validMoney(offer.unitPrice)||!Number.isSafeInteger(total)||total<1)
+      return {ok:false,reason:'buy-offer-funding-evidence'};
+    committed+=total;
+    if(!Number.isSafeInteger(committed))return {ok:false,reason:'buy-offer-funding-overflow'};
+  }
+  return {ok:true,committed};
+}
+function spendableAfterBuyOffers(world,buyerId,{excludeOfferId=null}={}){
+  const balance=getBalance(world,buyerId);
+  if(!Number.isSafeInteger(balance)||balance<0)return {ok:false,reason:'wallet-evidence'};
+  const open=openBuyOfferCommitment(world,buyerId,{excludeOfferId});
+  if(!open.ok)return open;
+  return {ok:true,balance,committed:open.committed,available:Math.max(0,balance-open.committed)};
+}
+function openBulkListingCommitment(world,agent,itemKind,{excludeListingId=null}={}){
+  const shadow=clone(world),actor=shadow.agents?.find(a=>a.id===agent.id&&a.alive);
+  if(!actor)return {ok:false,reason:'seller'};
+  let quantity=0;
+  for(const listing of shadow.merchantListings?.listings??[]){
+    if(listing?.status!=='OPEN'||listing.id===excludeListingId||listing.itemKind!==itemKind||
+      tradeAssetType(listing)!==TRADE_ASSET_TYPES.BULK_RESOURCE)continue;
+    const seller=shadow.agents?.find(a=>a.id===listing.sellerId&&a.alive);
+    if(!seller||!sameResourceAccount(shadow,actor,seller))continue;
+    quantity+=listing.quantity;
+    if(!Number.isSafeInteger(quantity))return {ok:false,reason:'bulk-stock-commitment-overflow'};
+  }
+  return {ok:true,quantity};
+}
+
 function canonicalMarketAdapter(){
   return Object.freeze({
     market:(state,marketId)=>{
@@ -385,12 +421,24 @@ function buyListing(world,{buyerId,listingId,listingRevision,quantity}={}){
   }
   const buyer=world.agents.find(a=>a.id===buyerId&&a.alive);if(!buyer)return fail('buyer','ไม่พบผู้ซื้อ');
   if(!knowsRc4Market(buyer,listing.marketId))return fail('market-unknown','ไม่รู้จักตลาดนี้');
+  if(buyer.profession==='merchant'){
+    const required=listing.unitPrice*purchaseQuantity;
+    const funding=spendableAfterBuyOffers(world,buyer.id,{excludeOfferId:listing.buyOfferId??null});
+    if(!Number.isSafeInteger(required)||required<1||!funding.ok)return fail(funding.reason??'merchant-funding','ตรวจเงิน Merchant ไม่ได้');
+    if(required>funding.available)return fail('merchant-funding-committed','เงิน Merchant ถูกผูกกับ Buy Offer อื่น',
+      {required,balance:funding.balance,committed:funding.committed,available:funding.available});
+  }
   const normalNeed=hasRc4PurchaseNeed(world,buyer,listing);
   const crafterNeed=normalNeed?null:crafterMaterialPurchaseAuthorization(world,buyer,listing,{quantity:purchaseQuantity});
-  if(!normalNeed&&crafterNeed.status!=='SAT')
-    return fail(crafterNeed.status==='UNKNOWN'?'item-need-unknown':'item-not-needed',
-      crafterNeed.status==='UNKNOWN'?'ตรวจความต้องการซื้อไม่ได้':'ไม่มีความต้องการสินค้านี้จากงานหรือวัตถุดิบจริง',
-      {detail:crafterNeed});
+  const merchantNeed=!normalNeed&&crafterNeed.status!=='SAT'&&buyer.profession==='merchant'
+    ?merchantAutonomousPurchaseAuthorization(world,buyer,listing,{quantity:purchaseQuantity})
+    :null;
+  if(!normalNeed&&crafterNeed.status!=='SAT'&&merchantNeed?.status!=='SAT'){
+    const evidence=merchantNeed??crafterNeed,unknown=crafterNeed.status==='UNKNOWN'||merchantNeed?.status==='UNKNOWN';
+    return fail(unknown?'item-need-unknown':'item-not-needed',
+      unknown?'ตรวจความต้องการซื้อไม่ได้':'ไม่มีความต้องการสินค้านี้จากงาน วัตถุดิบ หรือ stock Merchant จริง',
+      {detail:evidence});
+  }
   const marketResult=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:listing.marketId});
   if(!marketResult.ok||marketResult.market.open!==true)return fail('market','ตลาดปิด');
   const arrival=verifyCanonicalMarketArrival(world,{agentId:buyerId,market:marketResult.market});
@@ -538,8 +586,13 @@ function rc4CommandInternal(world,type,data={}){
       label=item.kind;
     }else if(assetType===TRADE_ASSET_TYPES.BULK_RESOURCE){
       if(!validBulkTradeResourceKey(data.itemKind)||!positive(data.quantity)||data.quantity>128)return fail('bulk-listing','ข้อมูล bulk Listing ไม่ถูกต้อง');
-      if(Math.floor(materialAmount(world,agent,data.itemKind))<data.quantity)return fail('materials','ทรัพยากรไม่พอ');
       id=bulkListingIdFor({marketId:market.marketId,sellerId:agent.id,itemKind:data.itemKind,requestId:data.requestId??null});
+      const committed=openBulkListingCommitment(world,agent,data.itemKind,{excludeListingId:id});
+      if(!committed.ok)return fail(committed.reason,'ตรวจ stock commitment ไม่ได้');
+      const owned=Math.floor(materialAmount(world,agent,data.itemKind));
+      if(!Number.isSafeInteger(owned)||owned<0)return fail('materials','ตรวจทรัพยากรไม่ได้');
+      if(owned-committed.quantity<data.quantity)return fail('bulk-stock-committed','ทรัพยากรส่วนนี้ถูก Listing อื่นผูกไว้แล้ว',
+        {owned,committed:committed.quantity,available:Math.max(0,owned-committed.quantity)});
       input={id,marketId:market.marketId,sellerId:agent.id,itemKind:data.itemKind,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,
         quantity:data.quantity,unitPrice:data.unitPrice,status:'OPEN'};
       label=data.itemKind;
@@ -564,6 +617,13 @@ function rc4CommandInternal(world,type,data={}){
       ...(assetType===TRADE_ASSET_TYPES.BULK_RESOURCE?{assetType:TRADE_ASSET_TYPES.BULK_RESOURCE}:{}),
       quantityWanted,unitPrice:data.unitPrice,createdTick:world.tick});
     if(made.state!=='SAT')return fail(made.reason,'สร้าง Buy Offer ไม่ได้');
+    if(!made.duplicate){
+      const total=made.offer.unitPrice*made.offer.quantityWanted;
+      const funding=spendableAfterBuyOffers(world,agent.id);
+      if(!Number.isSafeInteger(total)||total<1||!funding.ok)return fail(funding.reason??'buy-offer-funding','ตรวจเงินสำหรับ Buy Offer ไม่ได้');
+      if(total>funding.available)return fail('buy-offer-unfunded','เงินที่ยังไม่ผูกกับ Buy Offer อื่นไม่พอ',
+        {required:total,balance:funding.balance,committed:funding.committed,available:funding.available});
+    }
     const ref=attachHomeMarketBuyOfferReference(world,world.homeMarkets,made.referenceRequest);
     if(!ref.ok)return fail(ref.reason,'ผูก Buy Offer เข้าตลาดไม่ได้');
     world.merchantBuyOffers=made.collection;world.homeMarkets=ref.marketState;
