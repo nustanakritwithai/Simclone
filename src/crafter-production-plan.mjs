@@ -71,7 +71,7 @@ function reserveCheck(s,a,preview){
     :{status:'SAT',reason:'reserve-ok',missing:{}};
 }
 
-function routeForDemand(s,a,itemKind){
+function routeForDemand(s,a,itemKind,{checkStationRoute=true}={}){
   if(validateRecipeKnowledge(s,a).length)return {status:'UNKNOWN',reason:'recipe-evidence',recipe:null};
   if(validateCrafterTierPolicy(s).length)return {status:'UNKNOWN',reason:'crafter-tier-evidence',recipe:null};
 
@@ -109,7 +109,10 @@ function routeForDemand(s,a,itemKind){
   if(preview.stationId!==null){
     const station=s.rustStations?.stations?.find(st=>st.id===preview.stationId)??null;
     if(!station)return {status:'UNKNOWN',reason:'station-evidence',recipe,preview};
-    if(routeDistance(routeField(s,a),station)<0)return {status:'BLOCKED',reason:'no-path',recipe,preview};
+    // ER6 local material observation may skip the expensive route-field build.
+    // Actual ER3 craft/ER4 procurement still use checkStationRoute=true and remain
+    // the authority that proves a reachable station/path before any commitment.
+    if(checkStationRoute&&routeDistance(routeField(s,a),station)<0)return {status:'BLOCKED',reason:'no-path',recipe,preview};
   }
   return {status:'READY',reason:'ready',recipe,preview};
 }
@@ -144,7 +147,7 @@ export function crafterMaterialNeedsForObservedItems(s,a,itemKinds=[]){
     needs:[...merged].map(([materialKind,quantity])=>({materialKind,quantity})).sort((x,y)=>x.materialKind.localeCompare(y.materialKind))});
 }
 
-export function crafterProductionPlanFromProjection(s,a,projection,{allowCanonicalMarketTravel=false}={}){
+export function crafterProductionPlanFromProjection(s,a,projection,{allowCanonicalMarketTravel=false,checkStationRoute=true}={}){
   const identity=canonicalCrafter(s,a);
   if(identity.status!=='SAT')return view(identity.status,identity.reason);
   const actor=identity.actor;
@@ -166,7 +169,7 @@ export function crafterProductionPlanFromProjection(s,a,projection,{allowCanonic
 
   let needsMaterials=null,blocked=null;
   for(const signal of rows){
-    const route=routeForDemand(s,actor,signal.itemKind);
+    const route=routeForDemand(s,actor,signal.itemKind,{checkStationRoute});
     if(route.status==='UNKNOWN')
       return view('UNKNOWN',route.reason,{agentId:actor.id,demand:demandView(signal),recipeId:route.recipe?.id??null});
     if(route.status==='READY'){
