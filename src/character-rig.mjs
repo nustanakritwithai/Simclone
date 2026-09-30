@@ -9,7 +9,7 @@ export const CHARACTER_BONES=Object.freeze([
   'upperLegL','lowerLegL','upperLegR','lowerLegR'
 ]);
 
-export const POSE_PRESETS=Object.freeze(['idle','walk','run','work','wave','attack']);
+export const POSE_PRESETS=Object.freeze(['idle','walk','run','work','wave','attack','jump','fall','land','crouch','hit']);
 
 export const RIG_METRICS=Object.freeze({
   pelvisY:-18,
@@ -77,6 +77,31 @@ export function poseForMotion(motion='idle',phase=0,overrides={}){
       pose.hipL=-10*strike;pose.hipR=14*strike;
       pose.kneeL=10*strike;pose.kneeR=18*strike;
       break;
+    }
+    case 'jump':{
+      const air=Math.sin(Math.min(1,p)*Math.PI);
+      pose.torsoLean=-5*air;
+      pose.shoulderL=35*air;pose.shoulderR=-35*air;
+      pose.elbowL=25*air;pose.elbowR=-25*air;
+      pose.hipL=18*air;pose.hipR=12*air;pose.kneeL=48*air;pose.kneeR=42*air;
+      break;
+    }
+    case 'fall':
+      pose.torsoLean=-8;pose.shoulderL=-50;pose.shoulderR=50;pose.elbowL=22;pose.elbowR=-22;
+      pose.hipL=8;pose.hipR=8;pose.kneeL=28;pose.kneeR=28;break;
+    case 'land':{
+      const settle=1-Math.min(1,p/.55);
+      pose.torsoLean=16*settle;pose.shoulderL=-24*settle;pose.shoulderR=24*settle;
+      pose.hipL=-38*settle;pose.hipR=-38*settle;pose.kneeL=84*settle;pose.kneeR=84*settle;break;
+    }
+    case 'crouch':
+      pose.torsoLean=10;pose.shoulderL=-8;pose.shoulderR=8;
+      pose.hipL=-34;pose.hipR=-34;pose.kneeL=76;pose.kneeR=76;break;
+    case 'hit':{
+      const hit=Math.sin(Math.min(1,p)*Math.PI);
+      pose.torsoLean=-18*hit;pose.headTilt=10*hit;
+      pose.shoulderL=24*hit;pose.shoulderR=-30*hit;pose.elbowL=18*hit;pose.elbowR=-20*hit;
+      pose.hipL=8*hit;pose.hipR=-6*hit;pose.kneeL=10*hit;pose.kneeR=16*hit;break;
     }
     case 'idle':
     default:
