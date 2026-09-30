@@ -243,6 +243,10 @@ function liveCrafterItemDemandProjection(world,actor,ttlTicks){
 }
 
 function readLocalCrafterMaterialNeeds(world,actor,rows){
+  // Only Merchant policy consumes brokerage demand. Keeping this projection
+  // merchant-scoped prevents Producer/Crafter/Consumer demand reads from paying
+  // the Crafter material-planning cost every tick.
+  if(actor.profession!=='merchant')return;
   // Reuse only item demand that this observer has already legally seen in this
   // projection. Never recurse into another actor's ER1 market projection.
   const visibleItems=[...rows.values()]
