@@ -1,0 +1,19 @@
+name: Career Economy Natural Diagnostic
+
+on:
+  push:
+    branches:
+      - "fix/career-autonomy-builder-apprentice-20260930"
+
+permissions:
+  contents: read
+
+jobs:
+  natural-economy:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact diagnostic source
+        uses: actions/checkout@v6
+      - name: Run 20-day natural economy diagnostic
+        run: node scripts/career-economy-natural-diagnostic.mjs 230926 7200
