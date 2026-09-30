@@ -80,3 +80,14 @@ test('world cutout facing stays render-only and never writes visual state into a
   assert.match(app,/v\.facing=facing/);
   assert.match(app,/facingFromWorldStep\(a,next\)/);
 });
+
+test('positive torso lean bends forward instead of reclining backward',()=>{
+  const neutral=solveCharacterRig({torsoLean:0,headTilt:0},{x:0,y:0},1);
+  const forward=solveCharacterRig({torsoLean:20,headTilt:0},{x:0,y:0},1);
+  const backward=solveCharacterRig({torsoLean:-20,headTilt:0},{x:0,y:0},1);
+  assert.ok(forward.neck.x>neutral.neck.x);
+  assert.ok(forward.headCenter.x>neutral.headCenter.x);
+  assert.ok(backward.neck.x<neutral.neck.x);
+  const work=solveCharacterRig(poseForMotion('work',.25),{x:0,y:0},1);
+  assert.ok(work.neck.x>work.root.x);
+});
