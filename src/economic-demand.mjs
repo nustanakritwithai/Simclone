@@ -293,7 +293,7 @@ function readResourceShortages(world,actor,rows){
   }
 }
 
-export function projectActorObservedDemand(world,agent,{ttlTicks=ECONOMIC_DEMAND_TTL_TICKS,includeCrafterMaterialDemand=true}={}){
+export function projectActorObservedDemand(world,agent,{ttlTicks=ECONOMIC_DEMAND_TTL_TICKS,includeCrafterMaterialDemand=false}={}){
   const actor=world?.agents?.find(a=>a.id===agent?.id&&a.alive);
   if(!world||!actor||!safeTick(world.tick)||!positive(ttlTicks))return unknown(agent?.id,world?.tick,'projection-input');
   const roots=rootErrors(world);
