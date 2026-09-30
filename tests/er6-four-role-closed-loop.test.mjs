@@ -208,8 +208,10 @@ function setupClosedLoop(){
   const calibrationArmorId=physicalPriceCalibration(s,{sellerId:producerId,merchantId,buyerId:consumerId,marketId,itemKind:'HIDE_ARMOR',label:'armor'});
   assert.equal(equippedKind(s,consumerId,'WEAPON'),'EMBER_BLADE');
   assert.equal(equippedKind(s,consumerId,'ARMOR'),'HIDE_ARMOR');
+  // Keep the calibrated armor equipped only while the canonical wood-price fixture
+  // settles. That leaves one real missing Blade need for ER4 to authorize the Crafter
+  // wood purchase instead of forcing a purchase when its selected recipe needs none.
   dropItem(s,actor(s,consumerId),s.rustPossessions.items.find(i=>i.id===calibrationBladeId));
-  dropItem(s,actor(s,consumerId),s.rustPossessions.items.find(i=>i.id===calibrationArmorId));
 
   prepareCrafter(s,crafterId);
   const blade=CRAFT_RECIPE_CATALOG.EMBER_BLADE;
@@ -221,6 +223,10 @@ function setupClosedLoop(){
   observeRc4Markets(s);
 
   bootstrapWoodPrice(s,{producerId,merchantId,crafterId,marketId});
+  // Both Adventure gear deficits are PRE-START conditions. Expose the already
+  // calibrated armor deficit only after price bootstrap so it cannot hijack the
+  // fixture's Blade material authorization.
+  dropItem(s,actor(s,consumerId),s.rustPossessions.items.find(i=>i.id===calibrationArmorId));
   assert.equal(resourceStock(s,actor(s,crafterId)).wood,firstWoodNeed-1,'bootstrap leaves exactly one missing wood');
   const producerReserve=producerSurplusSnapshot(s,actor(s,producerId),'wood');
   assert.equal(producerReserve.status,'SAT',JSON.stringify(producerReserve));
