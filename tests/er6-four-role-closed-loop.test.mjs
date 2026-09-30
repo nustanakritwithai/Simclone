@@ -301,8 +301,21 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
   for(let i=0;i<2400;i++){
     step(s,1);
     const pendingProducerReceipt=newReceipt(s,startTx,r=>r.sellerId===f.producerId&&r.buyerId===f.merchantId&&r.itemKind==='wood');
-    if(!pendingProducerReceipt)assert.equal(actor(s,f.producerId).profession,'woodcutter',
-      'Producer must retain its explicit PRE-START raw role while canonical procurement settlement is pending');
+    if(!pendingProducerReceipt){
+      const producerNow=actor(s,f.producerId),merchantNow=actor(s,f.merchantId);
+      const producerRoleDiag={
+        tick:s.tick,
+        producer:{profession:producerNow.profession,task:producerNow.task,workDone:producerNow.workDone,
+          qualification:producerNow.adventurerQualification??null,career:producerNow.career??null,
+          surplus:producerSurplusSnapshot(s,producerNow,'wood'),decision:rawProducerDecision(s,producerNow)},
+        merchant:{profession:merchantNow.profession,task:merchantNow.task,decision:merchantAutonomySnapshot(s,merchantNow)},
+        offers:(s.merchantBuyOffers?.buyOffers??[]).filter(o=>o.itemKind==='wood')
+          .map(o=>({offerId:o.offerId,status:o.status,buyerId:o.buyerId,quantityWanted:o.quantityWanted,unitPrice:o.unitPrice})),
+        listings:(s.merchantListings?.listings??[]).filter(l=>l.itemKind==='wood')
+          .map(l=>({id:l.id,status:l.status,sellerId:l.sellerId,buyOfferId:l.buyOfferId??null,quantity:l.quantity,unitPrice:l.unitPrice}))
+      };
+      assert.equal(producerNow.profession,'woodcutter',JSON.stringify(producerRoleDiag));
+    }
 
     const postStartWoodOffer=s.merchantBuyOffers.buyOffers.find(o=>o.buyerId===f.merchantId&&o.itemKind==='wood'&&o.createdTick>startTick);
     if(postStartWoodOffer&&!checkpoints.has('after-buy-offer')){
