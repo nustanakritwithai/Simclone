@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 import {createWorld,command,step,serialize,restore,validate,walkable} from '../src/engine.mjs';
-import {houseSite} from '../src/housing.mjs';
+import {personalHomeSite} from '../src/individual-housing.mjs';
 import {canonicalEdge} from '../src/rust-stations.mjs';
 import {advanceCraft} from '../src/rust-possessions.mjs';
 import {projectHomeMarketForTrade} from '../src/home-market.mjs';
@@ -25,7 +25,8 @@ function give(s,a,kind){
 }
 function equip(s,a,itemId){s.rustPossessions.equipment.push({agentId:a.id,itemId});}
 function completeHome(s,a,label){
-  const site=houseSite(s,walkable).origin;a.x=site.x;a.y=site.y;a.task=null;
+  const planned=personalHomeSite(s,a,walkable);assert.ok(planned,'independent personal home site');
+  const site=planned.origin;a.x=site.x;a.y=site.y;a.task=null;
   const hammer=give(s,a,'HAMMER');equip(s,a,hammer);
   const place=(kind,socket)=>{
     const id=give(s,a,kind);
