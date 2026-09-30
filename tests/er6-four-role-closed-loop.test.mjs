@@ -158,6 +158,16 @@ function placeNear(s,id,p,min=1,max=5){
   }
   throw new Error('nearby walkable cell');
 }
+function placeProducerOnVisibleWood(s,id,market){
+  const a=actor(s,id);
+  const nodes=s.nodes.filter(n=>n.type==='wood'&&n.amount>=2)
+    .map(n=>({node:n,distance:Math.abs(n.x-market.x)+Math.abs(n.y-market.y)}))
+    .filter(x=>x.distance>=2&&x.distance<=8&&Array.isArray(pathTo(s,{...a,x:x.node.x,y:x.node.y},market)))
+    .sort((x,y)=>x.distance-y.distance||x.node.id-y.node.id);
+  const found=nodes[0];assert.ok(found,'PRE-START Producer needs a real visible wood node within observed-market range');
+  a.x=found.node.x;a.y=found.node.y;a.task=null;a.moveTick=0;
+  return found.node;
+}
 function placeFar(s,id,p,min=18){
   const a=actor(s,id);
   for(let y=0;y<96;y++)for(let x=0;x<96;x++){
@@ -246,9 +256,11 @@ function setupClosedLoop(){
   assert.equal(producerReserve.status,'SAT',JSON.stringify(producerReserve));
   resourceStock(s,actor(s,producerId)).wood=producerReserve.protectedReserve;
   actor(s,merchantId).x=p.x;actor(s,merchantId).y=p.y;calm(actor(s,merchantId));
-  placeNear(s,crafterId,p,1,2);placeNear(s,consumerId,p,1,2);placeNear(s,producerId,p,3,5);
+  placeNear(s,crafterId,p,1,2);placeNear(s,consumerId,p,1,2);
+  const startWoodNode=placeProducerOnVisibleWood(s,producerId,p);
   calm(actor(s,producerId),actor(s,crafterId),actor(s,consumerId),actor(s,merchantId));
   observeRc4Markets(s);
+  assert.ok(startWoodNode.amount>=2,'Producer START supply is a real world wood node, not injected personal stock');
   assert.deepEqual(validate(s),[]);
 
   const initialMerchant=merchantAutonomySnapshot(s,actor(s,merchantId));
