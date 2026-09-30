@@ -16,7 +16,7 @@ test('Pose Studio rig exposes the required articulated 2D body',()=>{
     'torso','head','upperArmL','lowerArmL','upperArmR','lowerArmR',
     'upperLegL','lowerLegL','upperLegR','lowerLegR'
   ]);
-  assert.deepEqual(POSE_PRESETS,['idle','walk','run','work','wave','attack']);
+  assert.deepEqual(POSE_PRESETS,['idle','walk','run','work','wave','attack','jump','fall','land','crouch','hit']);
 });
 
 test('skeleton solve is deterministic and preserves connected segment lengths',()=>{
