@@ -47,7 +47,7 @@ import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adven
 import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
 import {crafterCareerCommand} from './crafter-career.mjs?v=0.5.0';
 import {ensureCrafterTierPolicy,migrateCrafterTierPolicy,validateCrafterTierPolicy} from './crafter-tier-policy.mjs?v=0.5.0';
-import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy} from './rc4-market-runtime.mjs?v=0.5.0';
+import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy,isEr5MerchantMarketTravelTask} from './rc4-market-runtime.mjs?v=0.5.0';
 import {rawProducerDecision,rawProducerGatherPressure} from './raw-producer-autonomy.mjs?v=0.5.0';
 import {demandDrivenCrafterIntent} from './demand-driven-crafter.mjs?v=0.5.0';
 import {crafterMaterialProcurementDecision} from './crafter-material-procurement.mjs?v=0.5.0';
@@ -545,11 +545,15 @@ function applyRawProducerIntent(s,a,intent){
 }
 
 function stepMerchantAutonomy(s){
+  if(!isIndependent(s))return {changed:false,rootReplaced:false};
   const ids=living(s).filter(a=>a.profession==='merchant').map(a=>a.id).sort((a,b)=>a-b);
   let changed=false;
   for(const id of ids){
     const a=s.agents.find(x=>x.id===id&&x.alive&&x.profession==='merchant');
     if(!a)continue;
+    // ER5 must not hijack a canonical market journey started by UI/tests/another
+    // economic policy. Runtime-private ownership is intentionally lost on save/load.
+    if(a.task?.rc4MarketTravel&&!isEr5MerchantMarketTravelTask(a.task))continue;
     const intent=merchantAutonomyDecision(s,a);
     if(intent?.status!=='SAT'||typeof intent.type!=='string')continue;
     let r=null;
@@ -559,7 +563,7 @@ function stepMerchantAutonomy(s){
     }else if(intent.type==='OPEN_MARKET'){
       r=command(s,'RC4_OPEN_MARKET',{agentId:a.id,marketId:intent.marketId});
     }else if(intent.type==='TRAVEL_TO_MARKET'){
-      r=command(s,'RC4_TRAVEL_TO_MARKET',intent.intent??{agentId:a.id,marketId:intent.marketId});
+      r=command(s,'RC4_TRAVEL_TO_MARKET',{...(intent.intent??{agentId:a.id,marketId:intent.marketId}),control:'ER5_MERCHANT_AUTONOMY'});
     }else if(intent.type==='CANCEL_TRAVEL'){
       r=command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
     }else if(intent.type==='BUY_LISTING'){
