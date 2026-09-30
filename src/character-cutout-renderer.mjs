@@ -1,4 +1,5 @@
 import {motionForAgent,poseForMotion,posePhaseForAgent,solveCharacterRig} from './character-rig.mjs?v=0.5.0';
+import {cutoutAssetKey,facingBack,facingMirror} from './character-cutout-assets.mjs?v=0.5.0';
 
 /** 2D cutout renderer.
  * Bones transform raster image pieces. No 3D mesh/model/geometry authority.
@@ -6,7 +7,7 @@ import {motionForAgent,poseForMotion,posePhaseForAgent,solveCharacterRig} from '
 export const CHARACTER_CUTOUT_RENDERER_VERSION='character-cutout-renderer/0.1';
 
 const atlasCache=new Map();
-const keyFor=a=>[a?.coat,a?.skin,a?.hair,a?.style].join('|');
+
 
 function surface(w,h){
   if(typeof OffscreenCanvas!=='undefined')return new OffscreenCanvas(w,h);
@@ -32,23 +33,29 @@ function torsoImage(a){
   c.strokeStyle='#eee4ba77';c.lineWidth=1;c.beginPath();c.moveTo(14,4);c.lineTo(14,29);c.stroke();
   return s;
 }
-function headImage(a){
+function headImage(a,{back=false}={}){
   const s=surface(30,32),c=s.getContext('2d');c.clearRect(0,0,s.width,s.height);
   ellipse(c,15,18,9,11,a.skin);ellipse(c,15,9,10,6,a.hair);
   if(a.style===1)ellipse(c,7,14,3,8,a.hair);
   if(a.style===2){c.fillStyle=a.hair;c.fillRect(5,7,4,17);}
-  ellipse(c,12,17,1.15,1,a.hair);ellipse(c,19,17,1.15,1,a.hair);
-  c.strokeStyle='#a66c54';c.lineWidth=1;c.beginPath();c.moveTo(12,24);c.quadraticCurveTo(15,26,19,23);c.stroke();
+  if(back){
+    c.fillStyle=a.hair;c.beginPath();c.roundRect(6,8,18,18,7);c.fill();
+    c.fillStyle='#ffffff22';c.fillRect(10,9,8,2);
+  }else{
+    ellipse(c,12,17,1.15,1,a.hair);ellipse(c,19,17,1.15,1,a.hair);
+    c.strokeStyle='#a66c54';c.lineWidth=1;c.beginPath();c.moveTo(12,24);c.quadraticCurveTo(15,26,19,23);c.stroke();
+  }
   return s;
 }
 
-export function prototypePartAtlas(appearance){
-  const key=keyFor(appearance);
+export function prototypePartAtlas(appearance,facing='front-right'){
+  const key=cutoutAssetKey(appearance,facing);
   if(atlasCache.has(key))return atlasCache.get(key);
   const a={coat:appearance?.coat??'#8a9c82',skin:appearance?.skin??'#d5a47c',hair:appearance?.hair??'#3c3028',style:Number(appearance?.style??0)};
   const atlas=Object.freeze({
     sourceKind:'prototype-image-pieces',
-    head:headImage(a),
+    facing,
+    head:headImage(a,{back:facingBack(facing)}),
     torso:torsoImage(a),
     upperArmL:limbImage(a.coat,{w:10,h:24,hand:a.skin}),
     lowerArmL:limbImage(a.skin,{w:8,h:22,hand:a.skin}),
@@ -108,12 +115,14 @@ export function drawRiggedCharacter(c,{
   phase=0,
   overrides=null,
   scale=1,
-  mirror=false,
+  mirror=null,
+  facing='front-right',
   showBones=false,
   tool=null
 }={}){
-  const pose=poseForMotion(motion,phase,overrides??{}),rig=solveCharacterRig(pose,{x:0,y:0},scale),atlas=prototypePartAtlas(appearance);
-  c.save();if(mirror)c.scale(-1,1);
+  const pose=poseForMotion(motion,phase,overrides??{}),rig=solveCharacterRig(pose,{x:0,y:0},scale),atlas=prototypePartAtlas(appearance,facing);
+  const shouldMirror=mirror===null?facingMirror(facing):!!mirror;
+  c.save();if(shouldMirror)c.scale(-1,1);
   drawBetween(c,atlas.upperArmL,rig.shoulderL,rig.elbowL,6*scale);
   drawBetween(c,atlas.lowerArmL,rig.elbowL,rig.wristL,5*scale);
   drawBetween(c,atlas.upperLegL,rig.hipL,rig.kneeL,6.4*scale);
@@ -130,7 +139,7 @@ export function drawRiggedCharacter(c,{
   return rig;
 }
 
-export function drawAgentCutout(c,agent,timeMs,{showBones=false,tool=null,mirror=false,scale=1}={}){
+export function drawAgentCutout(c,agent,timeMs,{showBones=false,tool=null,mirror=null,facing='front-right',scale=1}={}){
   const motion=motionForAgent(agent),phase=posePhaseForAgent(agent,timeMs);
-  return drawRiggedCharacter(c,{appearance:agent.appearance,motion,phase,showBones,tool,mirror,scale});
+  return drawRiggedCharacter(c,{appearance:agent.appearance,motion,phase,showBones,tool,mirror,facing,scale});
 }
