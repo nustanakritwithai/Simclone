@@ -92,11 +92,20 @@ function nearbyReachable(s,target,minDistance=2){
   return null;
 }
 
+function farWalkable(s,from,minDistance=18){
+  return (s.nodes??[]).filter(n=>walkable(s,n.x,n.y)&&Math.abs(n.x-from.x)+Math.abs(n.y-from.y)>=minDistance)
+    .sort((a,b)=>(Math.abs(b.x-from.x)+Math.abs(b.y-from.y))-(Math.abs(a.x-from.x)+Math.abs(a.y-from.y))||a.id-b.id)[0]??null;
+}
+
 function live(s,id){return s.agents.find(a=>a.id===id);}
 
 function setupBulkProcurement({observe=true,price=1,listingQuantity=10}={}){
   const {s,merchant,crafter}=qualifiedCrafterFixture();
   merchant.preference='MINE';crafter.preference='BUILD';
+  // RC4 commands automatically publish observations only to nearby actors. Keep
+  // Crafter physically outside knowledge range while market/listing truth is created.
+  const far=farWalkable(s,merchant);assert.ok(far,'far observation-safe fixture point');
+  crafter.x=far.x;crafter.y=far.y;crafter.task=null;
   const market=setupMerchantMarket(s,merchant,{productDemand:'STONE_PICKAXE',productPrice:70});
   Object.assign(resourceStock(s,merchant),{wood:900,stone:900,food:900});
   const listing=addBulkListing(s,merchant,{itemKind:'wood',quantity:listingQuantity,unitPrice:price,requestId:'er4-wood'});
@@ -107,6 +116,9 @@ function setupBulkProcurement({observe=true,price=1,listingQuantity=10}={}){
     merchant.x=point.x;merchant.y=point.y;
     const start=nearbyReachable(s,point);assert.ok(start,'reachable market start');
     crafter.x=start.x;crafter.y=start.y;crafter.task=null;
+  }else{
+    // Local productive need is visible, but no market observation is refreshed.
+    crafter.x=merchant.x;crafter.y=merchant.y;crafter.task=null;
   }
   return {s,merchantId:merchant.id,crafterId:crafter.id,market,listingId:listing.listingId};
 }
