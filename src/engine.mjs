@@ -47,11 +47,13 @@ import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adven
 import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
 import {crafterCareerCommand} from './crafter-career.mjs?v=0.5.0';
 import {ensureCrafterTierPolicy,migrateCrafterTierPolicy,validateCrafterTierPolicy} from './crafter-tier-policy.mjs?v=0.5.0';
-import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy} from './rc4-market-runtime.mjs?v=0.5.0';
+import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy,isEr5MerchantMarketTravelTask} from './rc4-market-runtime.mjs?v=0.5.0';
 import {rawProducerDecision,rawProducerGatherPressure} from './raw-producer-autonomy.mjs?v=0.5.0';
 import {demandDrivenCrafterIntent} from './demand-driven-crafter.mjs?v=0.5.0';
 import {crafterMaterialProcurementDecision} from './crafter-material-procurement.mjs?v=0.5.0';
+import {merchantAutonomyDecision} from './rc4-merchant-policy.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
+import {TRADE_ASSET_TYPES} from './trade-assets.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
 export {evaluateModularHouses};
 export {relationshipOf,householdOf,allHouseholds};
@@ -542,6 +544,56 @@ function applyRawProducerIntent(s,a,intent){
   return {handled:false};
 }
 
+function stepMerchantAutonomy(s){
+  if(!isIndependent(s))return {changed:false,rootReplaced:false};
+  const ids=living(s).filter(a=>a.profession==='merchant').map(a=>a.id).sort((a,b)=>a-b);
+  let changed=false;
+  for(const id of ids){
+    const a=s.agents.find(x=>x.id===id&&x.alive&&x.profession==='merchant');
+    if(!a)continue;
+    // ER5 must not hijack a canonical market journey started by UI/tests/another
+    // economic policy. Runtime-private ownership is intentionally lost on save/load.
+    if(a.task?.rc4MarketTravel&&!isEr5MerchantMarketTravelTask(a.task))continue;
+    const intent=merchantAutonomyDecision(s,a);
+    if(intent?.status!=='SAT'||typeof intent.type!=='string')continue;
+    let r=null;
+    if(intent.type==='WAIT_TRAVEL'||intent.type==='WAIT_BUY_OFFER')continue;
+    if(intent.type==='CREATE_MARKET'){
+      r=command(s,'RC4_CREATE_MARKET',{agentId:a.id});
+    }else if(intent.type==='OPEN_MARKET'){
+      r=command(s,'RC4_OPEN_MARKET',{agentId:a.id,marketId:intent.marketId});
+    }else if(intent.type==='TRAVEL_TO_MARKET'){
+      r=command(s,'RC4_TRAVEL_TO_MARKET',{...(intent.intent??{agentId:a.id,marketId:intent.marketId}),control:'ER5_MERCHANT_AUTONOMY'});
+    }else if(intent.type==='CANCEL_TRAVEL'){
+      r=command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
+    }else if(intent.type==='BUY_LISTING'){
+      r=command(s,'RC4_BUY_LISTING',intent.intent);
+      if(r?.ok){
+        const buyer=s.agents.find(x=>x.id===id);
+        event(s,'market',(buyer?.name??('Clone #'+id))+' ซื้อ stock '+intent.itemKind+' x'+intent.quantity,id);
+        // Trade settlement atomically replaces the live root. Stop this pass so
+        // no pre-settlement references from the Merchant candidate list are reused.
+        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId};
+      }
+    }else if(intent.type==='CREATE_BUY_OFFER'){
+      r=command(s,'RC4_CREATE_BUY_OFFER',{
+        agentId:a.id,assetType:intent.assetType,itemKind:intent.itemKind,
+        quantityWanted:intent.quantityWanted,unitPrice:intent.unitPrice
+      });
+      if(r?.ok&&!r.duplicate)event(s,'market',a.name+' เปิดรับซื้อ '+intent.itemKind+' x'+intent.quantityWanted,a.id);
+    }else if(intent.type==='CREATE_LISTING'){
+      const data={
+        agentId:a.id,assetType:intent.assetType,unitPrice:intent.unitPrice,requestId:intent.requestId,
+        ...(intent.assetType===TRADE_ASSET_TYPES.BULK_RESOURCE?{itemKind:intent.itemKind,quantity:intent.quantity}:{itemId:intent.itemId})
+      };
+      r=command(s,'RC4_CREATE_LISTING',data);
+      if(r?.ok&&!r.duplicate)event(s,'market',a.name+' ลงขาย '+intent.itemKind+' x'+intent.quantity,a.id);
+    }
+    if(r?.ok)changed=true;
+  }
+  return {changed,rootReplaced:false};
+}
+
 function stepCrafterMaterialProcurement(s){
   const candidates=living(s).filter(a=>a.profession==='crafter').sort((a,b)=>a.id-b.id);
   let changed=false;
@@ -712,6 +764,7 @@ export function step(s,count=1,options={}){
       const merchant=s.agents.find(a=>a.id===rc4Step.agentId);
       if(merchant)merchant.lastCareerEventTick=s.tick;
     }
+    stepMerchantAutonomy(s);
     stepCrafterMaterialProcurement(s);
     stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
     const {book,rejected}=reservations(s);
