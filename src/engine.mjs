@@ -530,7 +530,7 @@ function applyRawProducerIntent(s,a,intent){
   // An accepted procurement Listing is already a canonical commitment. While it
   // remains open, do not fall through to generic job selection: EXPLORE can
   // otherwise reassign the raw Producer's career before the Merchant settles it.
-  if(intent.type==='WAIT_SETTLEMENT')return {handled:true,kind:'wait-settlement',blockFallback:true};
+  if(intent.type==='WAIT_SETTLEMENT')return {handled:true,kind:'wait-settlement',blockFallback:true,holdTask:true};
   if(intent.type==='TRAVEL_TO_MARKET'){
     const r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId});
     return {handled:r.ok,kind:'travel',result:r};
@@ -785,7 +785,7 @@ function execute(s,a){
     finishPersonalExploration(s,a,t);
     const belief=t.knowledgeKey?a.knowledgeState?.beliefs?.find(b=>b.key===t.knowledgeKey):null;
     const qualification=noteExploreCompletion(a,{
-      kind:t.kind,tick:s.tick,x:a.x,y:a.y,started:t.started,
+      kind:t.purposeKind??t.kind,tick:s.tick,x:a.x,y:a.y,started:t.started,
       alive:a.alive===true,productive:canPerformProductiveWork(s,a),
       knowledge:t.knowledgeKey?(belief?.status??'UNKNOWN'):'none'
     });
@@ -852,7 +852,7 @@ export function step(s,count=1,options={}){
       const producerStep=applyRawProducerIntent(s,a,producerIntent);
       if(!a.task&&!producerStep.blockFallback)decide(s,a,book,producerIntent);
       const task=a.task;
-      if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
+      if(task&&!producerStep.holdTask){execute(s,a);if(a.task!==task)release(book,a,task);}
     }
     stepWildMonsterLifecycle(s);
     const teaching=stepMentorship(s);if(teaching)event(s,'mentor',teaching.message,teaching.mentorId);

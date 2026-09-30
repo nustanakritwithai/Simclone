@@ -137,15 +137,33 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
   assert.deepEqual(validate(s),[]);
 });
 
-test('ER2 accepted procurement remains WAIT_SETTLEMENT after its own Listing covers observed shortage',()=>{
-  const {s,producer,offer}=setupOffer({itemKind:'wood',quantity:1,unitPrice:3});
+test('ER2 accepted procurement outranks unrelated work, persists across save/load, and releases after settlement',()=>{
+  const {s,merchant,producer,offer}=setupOffer({itemKind:'wood',quantity:1,unitPrice:3});
   const reserve=personalTargets(s,producer).wood;resourceStock(s,producer).wood=reserve+2;
   const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:offer.offerId,quantity:1});
   assert.equal(accepted.ok,true,JSON.stringify(accepted));
   const listing=s.merchantListings.listings.find(l=>l.id===accepted.listingId);assert.ok(listing);
+
+  producer.task={kind:'EXPLORE',targetId:null,x:producer.x,y:producer.y,path:[],work:5,started:s.tick,score:1,policy:'survival-0.2'};
   const d=rawProducerDecision(s,producer);
   assert.equal(d.status,'SAT',JSON.stringify(d));assert.equal(d.type,'WAIT_SETTLEMENT',JSON.stringify(d));
   assert.equal(d.listingId,listing.id);assert.equal(d.offerId,offer.offerId);assert.equal(d.itemKind,'wood');
+
+  const loaded=restore(serialize(s)),lp=loaded.agents.find(a=>a.id===producer.id);
+  assert.equal(lp.task?.kind,'EXPLORE');assert.equal(rawProducerDecision(loaded,lp).type,'WAIT_SETTLEMENT');
+
+  merchant.task={kind:'REST',targetId:merchant.id,x:merchant.x,y:merchant.y,path:[],work:0,started:s.tick,score:1,policy:'survival-0.2',fieldRest:true};
+  step(s,1);
+  assert.equal(producer.profession,'woodcutter');
+  assert.equal(producer.task?.kind,'EXPLORE');assert.equal(producer.task?.work,5);
+  assert.equal(producer.adventurerQualification,undefined);
+
+  merchant.task=null;merchant.satiety=100;merchant.energy=100;
+  const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchant.id,listingId:listing.id,listingRevision:listing.revision});
+  assert.equal(bought.ok,true,JSON.stringify(bought));
+  assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===listing.id).length,1);
+  const exit=rawProducerDecision(s,producer);
+  assert.equal(exit.status,'BLOCKED',JSON.stringify(exit));assert.equal(exit.reason,'task',JSON.stringify(exit));
   assert.equal(producer.profession,'woodcutter');assert.deepEqual(validate(s),[]);
 });
 
