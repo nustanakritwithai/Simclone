@@ -68,6 +68,24 @@ function personalNeedsFromProjection(projection,agentId){
   return rows.sort((a,b)=>String(a.needId).localeCompare(String(b.needId))||a.itemKind.localeCompare(b.itemKind));
 }
 
+function adventureGearUse(world,agent){
+  if(agent.profession!=='adventurer')return null;
+  const equipped=new Map((world.rustPossessions?.equipment??[])
+    .filter(e=>e.agentId===agent.id).map(e=>[e.slot??'hand',e.itemId]));
+  const rows=(world.rustPossessions?.items??[])
+    .filter(i=>i.location?.kind==='bag'&&i.location.agentId===agent.id)
+    .filter(i=>{
+      const def=ITEM_CATALOG[i.kind];
+      return def?.category==='gear'&&['WEAPON','ARMOR'].includes(def.equipSlot)&&!equipped.has(def.equipSlot);
+    }).sort((a,b)=>{
+      const da=ITEM_CATALOG[a.kind],db=ITEM_CATALOG[b.kind];
+      return da.equipSlot.localeCompare(db.equipSlot)||a.id-b.id;
+    });
+  if(!rows.length)return null;
+  const item=rows[0],def=ITEM_CATALOG[item.kind];
+  return sat({type:'EQUIP_ITEM',agentId:agent.id,itemId:item.id,itemKind:item.kind,slot:def.equipSlot,reason:'adventure-gear-owned'});
+}
+
 function candidateKnowledge(world,agent,need,projection){
   const signal=projection.signals.find(s=>s.unit==='item'&&s.itemKind===need.itemKind)??null;
   if(!signal)return {markets:[],listings:[]};
@@ -106,13 +124,16 @@ export function consumerAutonomySnapshot(world,agent){
   const ownTravel=!!agent.task?.rc4MarketTravel&&isEr6ConsumerMarketTravelTask(agent.task);
   if(agent.task?.rc4MarketTravel&&!ownTravel)return blocked(agent.id,'foreign-market-travel');
 
-  const use=productiveToolUse(world,agent);
+  const use=productiveToolUse(world,agent)??adventureGearUse(world,agent);
   const projection=projectActorObservedDemand(world,agent);
   if(projection.status!=='SAT')return unknown(agent.id,projection.reason??'demand-projection',projection);
   const needs=personalNeedsFromProjection(projection,agent.id);
   if(!needs.length){
-    if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'need-cleared'});
+    // Put the acquired item into actual use before releasing the market journey.
+    // Keeping the canonical journey for one more policy step also prevents an
+    // Adventurer from starting a hunt between purchase and equipment.
     if(use)return use;
+    if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'need-cleared'});
     return sat({type:'IDLE',agentId:agent.id,reason:'no-consumer-need'});
   }
 
