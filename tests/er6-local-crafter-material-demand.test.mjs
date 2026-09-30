@@ -6,6 +6,10 @@ import {adoptProfession} from '../src/kingdom-utility.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
 import {recipeMastery} from '../src/craft-recipe-knowledge.mjs';
 import {projectActorObservedDemand} from '../src/economic-demand.mjs';
+import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
+import {crafterMaterialProcurementSnapshot} from '../src/crafter-material-procurement.mjs';
+import {merchantAutonomySnapshot} from '../src/rc4-merchant-policy.mjs';
+import {TRADE_ASSET_TYPES} from '../src/trade-assets.mjs';
 import {rc2World,craftFixtureItem} from './fixtures/rc2-world.mjs';
 
 const calm=(...rows)=>{for(const a of rows){a.hp=a.satiety=a.energy=100;a.task=null;a.moveTick=0;}};
@@ -93,4 +97,47 @@ test('ER6 local Crafter material signal disappears out of range or after shortag
   const cleared=projectActorObservedDemand(second.s,second.merchant);
   assert.equal(cleared.status,'SAT');
   assert.equal(cleared.signals.some(s=>s.sources.some(x=>x.kind==='LOCAL_CRAFTER_MATERIAL_NEED'&&x.subjectAgentId===second.crafter.id)),false);
+});
+
+
+test('ER6 Merchant turns observed Crafter material shortage into funded bulk BuyOffer using verified price history',()=>{
+  const {s,merchant,crafter}=setup();
+  // Establish one real historical price before the autonomous proof. The Merchant
+  // sells one canonical wood unit to the Crafter through ER4; no price oracle or
+  // synthetic Ledger row is introduced.
+  resourceStock(s,merchant).wood=1;
+  const market=s.homeMarkets.markets.find(m=>m.ownerAgentId===merchant.id);assert.ok(market);
+  assert.equal(command(s,'RC4_OPEN_MARKET',{agentId:merchant.id,marketId:market.marketId}).ok,true);
+  merchant.x=market.storefrontSocket.x;merchant.y=market.storefrontSocket.y;crafter.x=merchant.x;crafter.y=merchant.y;
+  merchant.task=null;crafter.task=null;observeRc4Markets(s);
+  const listed=command(s,'RC4_CREATE_LISTING',{
+    agentId:merchant.id,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantity:1,unitPrice:5,requestId:'er6-price-bootstrap-wood'
+  });
+  assert.equal(listed.ok,true,JSON.stringify(listed));
+  observeRc4Markets(s);
+  const plan=crafterMaterialProcurementSnapshot(s,crafter);
+  assert.equal(plan.status,'SAT',JSON.stringify(plan));
+  assert.equal(plan.type,'TRAVEL_TO_MARKET');assert.equal(plan.itemKind,'wood');
+  assert.equal(command(s,'RC4_TRAVEL_TO_MARKET',{agentId:crafter.id,marketId:market.marketId}).ok,true);
+  const arrived=crafterMaterialProcurementSnapshot(s,crafter);
+  assert.equal(arrived.type,'BUY_LISTING',JSON.stringify(arrived));
+  const bought=command(s,'RC4_BUY_LISTING',arrived.intent);assert.equal(bought.ok,true,JSON.stringify(bought));
+  assert.equal(resourceStock(s,merchant).wood,0);
+  assert.ok(resourceStock(s,crafter).wood>0);
+  const ledger=s.merchantLedgers.ledgers.find(l=>l.merchantId===merchant.id);assert.ok(ledger);
+  assert.ok(ledger.sales.some(x=>x.itemKind==='wood'&&x.unitPrice===5));
+
+  merchant.task=null;crafter.task=null;nearby(s,merchant,crafter);observeRc4Markets(s);
+  const demand=projectActorObservedDemand(s,merchant);
+  const wood=demand.signals.find(x=>x.unit==='bulk-resource'&&x.itemKind==='wood');
+  assert.ok(wood?.sources.some(x=>x.kind==='LOCAL_CRAFTER_MATERIAL_NEED'),JSON.stringify(wood));
+  const decision=merchantAutonomySnapshot(s,merchant);
+  assert.equal(decision.status,'SAT',JSON.stringify(decision));
+  assert.equal(decision.type,'CREATE_BUY_OFFER',JSON.stringify(decision));
+  assert.equal(decision.itemKind,'wood');
+  assert.equal(decision.assetType,TRADE_ASSET_TYPES.BULK_RESOURCE);
+  assert.equal(decision.referencePrice,5);
+  assert.ok(['verified-trade','own-ledger-sale'].includes(decision.referenceSource));
+  assert.ok(Number.isSafeInteger(decision.unitPrice)&&decision.unitPrice>0);
+  assert.deepEqual(validate(s),[]);
 });
