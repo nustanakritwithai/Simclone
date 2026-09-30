@@ -545,7 +545,11 @@ function applyRawProducerIntent(s,a,intent){
     if(!r.ok)return {handled:false,kind:'accept',result:r};
     if(a.task?.rc4MarketTravel)command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
     event(s,'market',a.name+' ตอบรับคำสั่งซื้อ '+intent.itemKind+' x'+intent.quantity,a.id);
-    return {handled:true,kind:'accept',result:r};
+    // Acceptance creates a canonical open procurement Listing immediately.
+    // Keep this same tick owned by the raw-producer flow; otherwise generic
+    // EXPLORE selection can change the Producer career before WAIT_SETTLEMENT
+    // becomes visible on the next tick.
+    return {handled:true,kind:'accept',result:r,blockFallback:true};
   }
   return {handled:false};
 }
