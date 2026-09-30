@@ -135,7 +135,7 @@ export function poseForMotion(motion='idle',phase=0,overrides={}){
     case 'attack':{
       // Top-down strike: start overhead, cut downward, then hold follow-through.
       // Reset happens only at the phase wrap so the visible swing never runs bottom-up.
-      const raw=clamp((p-.12)/.48,0,1),strike=raw*raw*(3-2*raw);
+      const raw=clamp((p-.12)/.40,0,1),strike=raw*raw*(3-2*raw);
       pose.torsoLean=2+14*strike;
       pose.shoulderR=-138+158*strike;pose.elbowR=-42+52*strike;
       pose.shoulderL=14+22*strike;pose.elbowL=18;
