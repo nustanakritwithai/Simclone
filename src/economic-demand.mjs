@@ -304,7 +304,7 @@ function readResourceShortages(world,actor,rows){
   }
 }
 
-export function projectActorObservedDemand(world,agent,{ttlTicks=ECONOMIC_DEMAND_TTL_TICKS,includeCrafterMaterialDemand=false}={}){
+export function projectActorObservedDemand(world,agent,{ttlTicks=ECONOMIC_DEMAND_TTL_TICKS,includeCrafterMaterialDemand=false,includeResourceShortages=true}={}){
   const actor=world?.agents?.find(a=>a.id===agent?.id&&a.alive);
   if(!world||!actor||!safeTick(world.tick)||!positive(ttlTicks))return unknown(agent?.id,world?.tick,'projection-input');
   const roots=rootErrors(world);
@@ -382,7 +382,7 @@ export function projectActorObservedDemand(world,agent,{ttlTicks=ECONOMIC_DEMAND
   }
 
   if(includeCrafterMaterialDemand)readLocalCrafterMaterialNeeds(world,actor,rows);
-  readResourceShortages(world,actor,rows);
+  if(includeResourceShortages)readResourceShortages(world,actor,rows);
 
   const observedListings=new Map(knownListings.map(l=>[l.id,l]));
   for(const receipt of world.tradeReplay.receipts){

@@ -10,6 +10,8 @@ import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
 import {resourceStock} from '../src/individual-resources.mjs';
 import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
 import {ECONOMIC_DEMAND_TTL_TICKS} from '../src/economic-demand.mjs';
+import {noteExploreCompletion} from '../src/kingdom-utility.mjs';
+import {worldBounds} from '../src/world-bounds.mjs';
 import {
   ER6_CONSUMER_AUTONOMY_VERSION,consumerAutonomySnapshot
 } from '../src/er6-consumer-autonomy.mjs';
@@ -108,6 +110,44 @@ function setupConsumerResale(){
   return {s,producerId:producer.id,merchantId:merchant.id,consumerId:consumer.id,marketId,itemId:item.id,listingId:listed.listingId};
 }
 
+function qualifyAdventureFixture(s,a){
+  for(let i=0;i<3;i++){
+    s.tick++;
+    const r=noteExploreCompletion(a,{kind:'EXPLORE',tick:s.tick,x:a.x,y:a.y,started:s.tick,alive:true,productive:true,knowledge:'none'});
+    assert.equal(r.counted,true);
+  }
+  assert.equal(a.profession,'adventurer');
+  calm(a);
+}
+function acquireAndResell(s,{producer,merchant,marketId,itemKind,bid=5,ask=20,label}){
+  const itemId=give(s,producer,itemKind);
+  const offer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchant.id,itemKind,unitPrice:bid});
+  assert.equal(offer.ok,true,JSON.stringify(offer));
+  const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:offer.offerId,itemId});
+  assert.equal(accepted.ok,true,JSON.stringify(accepted));
+  arriveImmediately(s,merchant.id,marketId);
+  const procurement=s.merchantListings.listings.find(l=>l.id===accepted.listingId);assert.ok(procurement);
+  const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchant.id,listingId:procurement.id,listingRevision:procurement.revision});
+  assert.equal(bought.ok,true,JSON.stringify(bought));
+  merchant.task=null;merchant.moveTick=0;
+  const listed=command(s,'RC4_CREATE_LISTING',{agentId:merchant.id,itemId,unitPrice:ask,requestId:'er6-regression-'+label});
+  assert.equal(listed.ok,true,JSON.stringify(listed));
+  return {itemId,listingId:listed.listingId};
+}
+function observeMarketFixture(s,a,marketId){
+  const p=marketPoint(s,marketId);
+  a.x=p.x;a.y=p.y;a.task=null;a.moveTick=0;observeRc4Markets(s);
+  return p;
+}
+function adventurerCanResumeHunt(s,id,maxTicks=12){
+  for(let i=0;i<maxTicks;i++){
+    step(s,1);
+    const a=actor(s,id);
+    if(a?.task?.adventureHunt||a?.adventureEncounter||a?.adventureCombat)return true;
+  }
+  return false;
+}
+
 test('ER6 consumer projection is read-only and rejects hidden/stale supply',()=>{
   const f=setupConsumerResale(),s=f.s,c=actor(s,f.consumerId);
   assert.equal(ER6_CONSUMER_AUTONOMY_VERSION,'ER6-consumer-autonomy/1');
@@ -181,5 +221,94 @@ test('ER6 save/load during consumer travel loses runtime provenance safely and r
   assert.equal(bought,true,'restored consumer safely replans and buys');
   assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===f.listingId&&r.buyerId===f.consumerId).length,1);
   assert.equal(totalCurrency(s),totalBefore);
+  assert.deepEqual(validate(s),[]);
+});
+
+
+test('ER6 malformed knownListings fails closed before array access and never mutates world',()=>{
+  const f=setupConsumerResale(),s=f.s,c=actor(s,f.consumerId);
+  c.rc4MarketKnowledge.knownListings={corrupt:true};
+  const before=serialize(s);
+  let snap=null;
+  assert.doesNotThrow(()=>{snap=consumerAutonomySnapshot(s,c);});
+  assert.equal(snap.status,'UNKNOWN');
+  assert.equal(snap.reason,'market-knowledge-invalid');
+  assert.equal(serialize(s),before);
+});
+
+test('ER6 skips an unavailable first Adventure gear need and buys a later observed need',()=>{
+  const s=createWorld(926011,{mode:'independent',worldProfile:'same-world',population:4});
+  const producer=s.agents[3],merchant=s.agents[0],consumer=s.agents[2];
+  calm(producer,merchant,consumer);Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
+  const marketId=prepareMerchant(s,merchant,'need-fallback');
+  const blade=acquireAndResell(s,{producer,merchant,marketId,itemKind:'EMBER_BLADE',ask:20,label:'need-fallback-blade'});
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  const snap=consumerAutonomySnapshot(s,consumer);
+  assert.equal(snap.status,'SAT',JSON.stringify(snap));
+  assert.equal(snap.type,'TRAVEL_TO_MARKET');
+  assert.equal(snap.listingId,blade.listingId,'missing ARMOR supply must not hide buyable WEAPON');
+  assert.equal(snap.itemKind,'EMBER_BLADE');
+});
+
+test('ER6 skips an unaffordable first gear need when a later need is affordable',()=>{
+  const s=createWorld(926012,{mode:'independent',worldProfile:'same-world',population:4});
+  const producer=s.agents[3],merchant=s.agents[0],consumer=s.agents[2];
+  calm(producer,merchant,consumer);Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
+  const marketId=prepareMerchant(s,merchant,'fund-fallback');
+  acquireAndResell(s,{producer,merchant,marketId,itemKind:'HIDE_ARMOR',ask:101,label:'fund-armor'});
+  const blade=acquireAndResell(s,{producer,merchant,marketId,itemKind:'EMBER_BLADE',ask:20,label:'fund-blade'});
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  assert.equal(getBalance(s,consumer.id),100);
+  const snap=consumerAutonomySnapshot(s,consumer);
+  assert.equal(snap.status,'SAT',JSON.stringify(snap));
+  assert.equal(snap.listingId,blade.listingId);
+  assert.equal(snap.itemKind,'EMBER_BLADE');
+});
+
+test('ER6 Adventurer does not wait forever when observed market has no actionable gear supply',()=>{
+  const s=createWorld(926013,{mode:'independent',worldProfile:'same-world',population:4});
+  const merchant=s.agents[0],consumer=s.agents[2];
+  calm(merchant,consumer);
+  const marketId=prepareMerchant(s,merchant,'no-gear');
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  const snap=consumerAutonomySnapshot(s,consumer);
+  assert.equal(snap.status,'BLOCKED');
+  assert.equal(snap.reason,'no-observed-supply');
+  assert.equal(adventurerCanResumeHunt(s,consumer.id),true,'unavailable gear cannot suppress autonomous hunting indefinitely');
+});
+
+test('ER6 closed retained market knowledge cannot trap Adventurer in gear wait',()=>{
+  const s=createWorld(926014,{mode:'independent',worldProfile:'same-world',population:4});
+  const merchant=s.agents[0],consumer=s.agents[2];
+  calm(merchant,consumer);
+  const marketId=prepareMerchant(s,merchant,'closed-market');
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  assert.equal(command(s,'RC4_CLOSE_MARKET',{agentId:merchant.id,marketId}).ok,true);
+  const snap=consumerAutonomySnapshot(s,consumer);
+  assert.equal(snap.status,'BLOCKED');
+  assert.equal(snap.reason,'no-observed-supply');
+  assert.equal(adventurerCanResumeHunt(s,consumer.id),true);
+});
+
+test('ER6 canonical no-path cheapest market falls back to a reachable observed listing',()=>{
+  const s=createWorld(926015,{mode:'independent',worldProfile:'same-world',population:4});
+  const cheapMerchant=s.agents[0],reachableMerchant=s.agents[1],consumer=s.agents[2],producer=s.agents[3];
+  calm(cheapMerchant,reachableMerchant,consumer,producer);Object.assign(resourceStock(s,producer),{food:700,wood:700,stone:700});
+  const cheapMarket=prepareMerchant(s,cheapMerchant,'cheap');
+  const reachableMarket=prepareMerchant(s,reachableMerchant,'reachable');
+  const cheap=acquireAndResell(s,{producer,merchant:cheapMerchant,marketId:cheapMarket,itemKind:'EMBER_BLADE',ask:10,label:'cheap-blade'});
+  const reachable=acquireAndResell(s,{producer,merchant:reachableMerchant,marketId:reachableMarket,itemKind:'EMBER_BLADE',ask:20,label:'reachable-blade'});
+  qualifyAdventureFixture(s,consumer);
+  const cheapPoint=observeMarketFixture(s,consumer,cheapMarket);
+  const reachablePoint=observeMarketFixture(s,consumer,reachableMarket);
+  const bounds=worldBounds(s),index=cheapPoint.y*bounds.w+cheapPoint.x,prior=s.tiles[index];
+  assert.notEqual(prior,'water','fixture needs a previously reachable cheap storefront');
+  s.tiles[index]='water';
+  consumer.x=reachablePoint.x;consumer.y=reachablePoint.y;consumer.task=null;consumer.moveTick=0;
+  const snap=consumerAutonomySnapshot(s,consumer);
+  assert.equal(snap.status,'SAT',JSON.stringify(snap));
+  assert.notEqual(snap.listingId,cheap.listingId);
+  assert.equal(snap.listingId,reachable.listingId,'canonical no-path market must be skipped, not retried forever');
+  s.tiles[index]=prior;
   assert.deepEqual(validate(s),[]);
 });

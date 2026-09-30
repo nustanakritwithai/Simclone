@@ -7,12 +7,12 @@
  * behind their canonical commands in engine/runtime.
  */
 import {customerMarketDecision,selectKnownCustomerListing} from './rc4-customer-market-policy.mjs?v=0.5.0';
-import {knownRc4Markets,knownRc4Listings} from './rc4-market-observation.mjs?v=0.5.0';
+import {validateRc4MarketKnowledge,knownRc4Markets,knownRc4Listings} from './rc4-market-observation.mjs?v=0.5.0';
 import {actorDirectItemNeeds,projectActorObservedDemand} from './economic-demand.mjs?v=0.5.0';
 import {getBalance} from './currency-wallet.mjs?v=0.5.0';
 import {projectHomeMarketForTrade} from './home-market.mjs?v=0.5.0';
 import {verifyCanonicalMarketArrival} from './navigation-arrival-evidence.mjs?v=0.5.0';
-import {isEr6ConsumerMarketTravelTask} from './rc4-market-runtime.mjs?v=0.5.0';
+import {isEr6ConsumerMarketTravelTask,prepareRc4MarketTravel} from './rc4-market-runtime.mjs?v=0.5.0';
 import {ITEM_CATALOG} from './crafting-catalog.mjs?v=0.5.0';
 import {TRADE_ASSET_TYPES,tradeAssetType} from './trade-assets.mjs?v=0.5.0';
 
@@ -140,18 +140,24 @@ export function consumerAutonomySnapshot(world,agent){
     if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'need-cleared'});
     return sat({type:'IDLE',agentId:agent.id,reason:'no-consumer-need'});
   }
+  const knowledgeErrors=validateRc4MarketKnowledge(agent);
+  if(knowledgeErrors.length)return unknown(agent.id,'market-knowledge-invalid',knowledgeErrors);
   const knownMarkets=knownRc4Markets(agent);
   if(!knownMarkets.length){
     if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'observed-market-gone'});
     return blocked(agent.id,'no-observed-market',{need:clone(directNeeds[0])});
   }
   const neededKinds=new Set(directNeeds.map(n=>n.itemKind));
-  if(!knownRc4Listings(agent).some(l=>physicalListing(l)&&neededKinds.has(l.itemKind))){
+  const knownListings=knownRc4Listings(agent);
+  if(!knownListings.some(l=>l&&physicalListing(l)&&neededKinds.has(l.itemKind))){
     if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'observed-supply-gone'});
     return blocked(agent.id,'no-observed-supply',{need:clone(directNeeds[0])});
   }
 
-  const projection=projectActorObservedDemand(world,agent);
+  // Consumer decisions only use item demand. Household/resource shortage projection
+  // is unrelated here and clones the world, so skip that read-only work without
+  // weakening any item/listing/market validation.
+  const projection=projectActorObservedDemand(world,agent,{includeResourceShortages:false});
   if(projection.status!=='SAT')return unknown(agent.id,projection.reason??'demand-projection',projection);
   const needs=personalNeedsFromProjection(projection,agent.id);
   if(!needs.length){
@@ -159,42 +165,79 @@ export function consumerAutonomySnapshot(world,agent){
     return sat({type:'IDLE',agentId:agent.id,reason:'no-consumer-need'});
   }
 
-  const need=needs[0],knowledge=candidateKnowledge(world,agent,need,projection);
-  if(!knowledge.listings.length||!knowledge.markets.length){
-    if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'observed-supply-gone'});
-    return blocked(agent.id,'no-observed-supply',{need:clone(need)});
-  }
   const balance=getBalance(world,agent.id);
   if(!Number.isSafeInteger(balance)||balance<0)return unknown(agent.id,'wallet');
 
-  const allowedListingIds=new Set(knowledge.listings.map(l=>String(l.listingId)));
   const travelMarketId=ownTravel?agent.task.rc4MarketTravel.marketId:null;
-  const local=travelMarketId?localArrival(world,agent,travelMarketId,allowedListingIds):{};
-  const policyState={
-    tick:world.tick,
-    agent:{id:agent.id,alive:true,x:agent.x,y:agent.y},
-    needs:[clone(need)],
-    wallet:{balance},
-    knowledge:{knownMarkets:knowledge.markets,knownListings:knowledge.listings},
-    localMarkets:local.localMarkets??[],
-    intentJournal:[],
-    transactionResults:[],
-    ...(local.positionEvidence?{positionEvidence:local.positionEvidence}:{}),
-    ...(local.arrivalEvidence?{arrivalEvidence:local.arrivalEvidence}:{}),
-    ...(ownTravel?{travelGoal:{agentId:agent.id,marketId:travelMarketId,status:'walking'}}:{})
-  };
-  const selected=selectKnownCustomerListing(policyState,need);
-  if(!selected){
-    if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'purchase-no-longer-actionable'});
-    return blocked(agent.id,'no-affordable-observed-supply',{need:clone(need),balance});
+  let selectedNeed=null,selectedKnowledge=null,selectedState=null,selected=null;
+  let sawSupply=false,sawAffordable=false,sawNoPath=false,travelFailure=null;
+
+  // A missing/unaffordable first need must not mask a later need that can be
+  // satisfied. Within each need, keep RC4 price ordering but discard only markets
+  // that canonical Navigation proves have no path.
+  for(const need of needs){
+    const base=candidateKnowledge(world,agent,need,projection);
+    let listings=base.listings,markets=base.markets;
+    if(ownTravel){
+      listings=listings.filter(l=>String(l.marketId)===String(travelMarketId));
+      markets=markets.filter(m=>String(m.marketId)===String(travelMarketId));
+    }
+    if(!listings.length||!markets.length)continue;
+    sawSupply=true;
+    let remaining=listings.slice();
+    while(remaining.length){
+      const marketIds=new Set(remaining.map(l=>String(l.marketId)));
+      const knowledge={listings:remaining,markets:markets.filter(m=>marketIds.has(String(m.marketId)))};
+      const allowedListingIds=new Set(knowledge.listings.map(l=>String(l.listingId)));
+      const local=ownTravel?localArrival(world,agent,travelMarketId,allowedListingIds):{};
+      const state={
+        tick:world.tick,
+        agent:{id:agent.id,alive:true,x:agent.x,y:agent.y},
+        needs:[clone(need)],
+        wallet:{balance},
+        knowledge:{knownMarkets:knowledge.markets,knownListings:knowledge.listings},
+        localMarkets:local.localMarkets??[],
+        intentJournal:[],
+        transactionResults:[],
+        ...(local.positionEvidence?{positionEvidence:local.positionEvidence}:{}),
+        ...(local.arrivalEvidence?{arrivalEvidence:local.arrivalEvidence}:{}),
+        ...(ownTravel?{travelGoal:{agentId:agent.id,marketId:travelMarketId,status:'walking'}}:{})
+      };
+      const candidate=selectKnownCustomerListing(state,need);
+      if(!candidate)break;
+      sawAffordable=true;
+      if(!ownTravel){
+        const prepared=prepareRc4MarketTravel(world,{agentId:agent.id,marketId:candidate.marketId});
+        if(!prepared.ok){
+          if(prepared.reason==='no-path'){
+            sawNoPath=true;
+            remaining=remaining.filter(l=>String(l.marketId)!==String(candidate.marketId));
+            continue;
+          }
+          travelFailure=prepared.reason??'unavailable';
+          break;
+        }
+      }
+      selectedNeed=need;selectedKnowledge=knowledge;selectedState=state;selected=candidate;break;
+    }
+    if(selected||travelFailure)break;
   }
 
+  if(!selected){
+    if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'purchase-no-longer-actionable'});
+    const reason=travelFailure?'market-travel-'+travelFailure:
+      sawNoPath?'no-reachable-observed-supply':
+      sawSupply&&!sawAffordable?'no-affordable-observed-supply':'no-observed-supply';
+    return blocked(agent.id,reason,{need:clone(needs[0]),needs:clone(needs),balance});
+  }
+
+  const need=selectedNeed,knowledge=selectedKnowledge,policyState=selectedState;
   const decision=customerMarketDecision(policyState);
   if(decision?.type==='CREATE_TRAVEL_GOAL')return sat({
     type:'TRAVEL_TO_MARKET',agentId:agent.id,marketId:decision.marketId,listingId:decision.listingId,needId:need.needId,
-    intent:{agentId:agent.id,marketId:decision.marketId}
+    itemKind:need.itemKind,intent:{agentId:agent.id,marketId:decision.marketId}
   });
-  if(decision?.type==='WAIT_TRAVEL')return sat({type:'WAIT_TRAVEL',agentId:agent.id,marketId:decision.marketId,listingId:decision.listingId,needId:need.needId});
+  if(decision?.type==='WAIT_TRAVEL')return sat({type:'WAIT_TRAVEL',agentId:agent.id,marketId:decision.marketId,listingId:decision.listingId,needId:need.needId,itemKind:need.itemKind});
   if(decision?.type==='SUBMIT_PURCHASE'){
     const listing=knowledge.listings.find(l=>String(l.listingId)===String(decision.listingId));
     if(!listing||!Number.isSafeInteger(listing.snapshotVersion)||listing.snapshotVersion<1)return unknown(agent.id,'listing-revision');
@@ -206,15 +249,12 @@ export function consumerAutonomySnapshot(world,agent){
     });
   }
 
-  // The pure RC4 customer policy requires canonical arrival proof before a local
-  // purchase. If the actor is already standing in range without a Navigation-owned
-  // journey, create a zero/short path through the canonical travel command rather
-  // than fabricating arrival evidence.
   if(!ownTravel&&selected)return sat({
     type:'TRAVEL_TO_MARKET',agentId:agent.id,marketId:selected.marketId,listingId:selected.listingId,needId:need.needId,
-    reason:'canonical-arrival-required',intent:{agentId:agent.id,marketId:selected.marketId}
+    itemKind:need.itemKind,reason:'canonical-arrival-required',intent:{agentId:agent.id,marketId:selected.marketId}
   });
   return blocked(agent.id,'customer-policy-no-action',{need:clone(need)});
+
 }
 
 export const consumerAutonomyDecision=consumerAutonomySnapshot;

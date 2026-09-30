@@ -5,7 +5,8 @@
  * actor-observed ER1 demand plus canonical Rust ownership and proposes existing
  * RC4 travel / BuyOffer response commands.
  */
-import {projectActorObservedDemand} from './economic-demand.mjs?v=0.5.0';
+import {ECONOMIC_DEMAND_TTL_TICKS,projectActorObservedDemand} from './economic-demand.mjs?v=0.5.0';
+import {validateRc4MarketKnowledge,knownRc4BuyOffers} from './rc4-market-observation.mjs?v=0.5.0';
 import {tradableRustItemIds} from './rust-possessions.mjs?v=0.5.0';
 import {projectHomeMarketForTrade} from './home-market.mjs?v=0.5.0';
 import {TRADE_ASSET_TYPES,tradeAssetType} from './trade-assets.mjs?v=0.5.0';
@@ -70,7 +71,22 @@ export function crafterMarketSupplySnapshot(world,agent){
   if(actor.task&&!marketTask)return view('BLOCKED','task',{agentId:actor.id});
   if(marketTask&&!ownTravel)return view('BLOCKED','foreign-market-travel',{agentId:actor.id});
 
-  const projection=projectActorObservedDemand(world,actor);
+  const knowledgeErrors=validateRc4MarketKnowledge(actor);
+  if(knowledgeErrors.length)return view('UNKNOWN','market-knowledge-invalid',{agentId:actor.id,errors:knowledgeErrors});
+  if(!ownTravel){
+    const craftedKinds=new Set((world.rustPossessions?.items??[])
+      .filter(i=>i?.createdBy===actor.id&&i.craft&&typeof i.craft==='object'&&
+        i.location?.kind==='bag'&&i.location.agentId===actor.id)
+      .map(i=>i.kind));
+    if(!craftedKinds.size)return view('IDLE','no-crafted-tradable-stock',{agentId:actor.id});
+    const potential=knownRc4BuyOffers(actor).some(o=>
+      o&&o.status==='OPEN'&&craftedKinds.has(o.itemKind)&&tradeAssetType(o)===TRADE_ASSET_TYPES.PHYSICAL_ITEM&&
+      Number.isSafeInteger(o.observedTick)&&o.observedTick<=world.tick&&world.tick-o.observedTick<=ECONOMIC_DEMAND_TTL_TICKS
+    );
+    if(!potential)return view('IDLE','no-observed-physical-buy-offer',{agentId:actor.id});
+  }
+
+  const projection=projectActorObservedDemand(world,actor,{includeResourceShortages:false});
   if(projection.status!=='SAT')return view('UNKNOWN',projection.reason??'demand-evidence',{agentId:actor.id});
 
   const rows=candidates(world,actor,projection);

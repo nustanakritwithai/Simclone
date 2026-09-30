@@ -605,10 +605,6 @@ function stepConsumerAutonomy(s){
     const a=s.agents.find(x=>x.id===id&&x.alive&&x.profession!=='merchant'&&x.profession!=='crafter');
     if(!a)continue;
     const intent=consumerAutonomyDecision(s,a);
-    const readinessNeed=intent?.detail?.need?.purpose==='adventure-readiness';
-    if(a.profession==='adventurer'&&intent?.status==='BLOCKED'&&readinessNeed&&
-      ['no-observed-supply','no-affordable-observed-supply'].includes(intent.reason))
-      adventureReadinessWaiting.add(a.id);
     if(intent?.status!=='SAT'||typeof intent.type!=='string'||['IDLE','WAIT_TRAVEL'].includes(intent.type))continue;
     let r=null;
     if(intent.type==='TRAVEL_TO_MARKET'){
