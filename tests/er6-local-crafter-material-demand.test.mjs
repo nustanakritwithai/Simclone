@@ -72,7 +72,7 @@ function setup(){
 
 test('ER6 ER1 exposes only local live Crafter material shortage and remains read-only',()=>{
   const {s,merchant,crafter}=setup(),before=serialize(s);
-  const projection=projectActorObservedDemand(s,merchant);
+  const projection=projectActorObservedDemand(s,merchant,{includeCrafterMaterialDemand:true});
   assert.equal(projection.status,'SAT');
   assert.equal(serialize(s),before,'projection must not mutate world');
   const wood=projection.signals.find(x=>x.unit==='bulk-resource'&&x.itemKind==='wood');
@@ -90,13 +90,13 @@ test('ER6 ER1 exposes only local live Crafter material shortage and remains read
 test('ER6 local Crafter material signal disappears out of range or after shortage clears',()=>{
   const first=setup();
   farAway(first.s,first.crafter,first.merchant);
-  const remote=projectActorObservedDemand(first.s,first.merchant);
+  const remote=projectActorObservedDemand(first.s,first.merchant,{includeCrafterMaterialDemand:true});
   assert.equal(remote.status,'SAT');
   assert.equal(remote.signals.some(s=>s.sources.some(x=>x.kind==='LOCAL_CRAFTER_MATERIAL_NEED'&&x.subjectAgentId===first.crafter.id)),false);
 
   const second=setup();
   resourceStock(second.s,second.crafter).wood=999;
-  const cleared=projectActorObservedDemand(second.s,second.merchant);
+  const cleared=projectActorObservedDemand(second.s,second.merchant,{includeCrafterMaterialDemand:true});
   assert.equal(cleared.status,'SAT');
   assert.equal(cleared.signals.some(s=>s.sources.some(x=>x.kind==='LOCAL_CRAFTER_MATERIAL_NEED'&&x.subjectAgentId===second.crafter.id)),false);
 });
@@ -130,7 +130,7 @@ test('ER6 Merchant turns observed Crafter material shortage into funded bulk Buy
   assert.ok(ledger.sales.some(x=>x.itemKind==='wood'&&x.unitPrice===5));
 
   merchant.task=null;crafter.task=null;nearby(s,merchant,crafter);observeRc4Markets(s);
-  const demand=projectActorObservedDemand(s,merchant);
+  const demand=projectActorObservedDemand(s,merchant,{includeCrafterMaterialDemand:true});
   const wood=demand.signals.find(x=>x.unit==='bulk-resource'&&x.itemKind==='wood');
   assert.ok(wood?.sources.some(x=>x.kind==='LOCAL_CRAFTER_MATERIAL_NEED'),JSON.stringify(wood));
   const decision=merchantAutonomySnapshot(s,merchant);
