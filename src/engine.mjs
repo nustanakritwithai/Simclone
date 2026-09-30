@@ -597,13 +597,18 @@ function stepMerchantAutonomy(s){
 }
 
 function stepConsumerAutonomy(s){
-  if(!isIndependent(s))return {changed:false,rootReplaced:false};
+  const adventureReadinessWaiting=new Set();
+  if(!isIndependent(s))return {changed:false,rootReplaced:false,adventureReadinessWaiting};
   const ids=living(s).filter(a=>a.profession!=='merchant'&&a.profession!=='crafter').map(a=>a.id).sort((a,b)=>a-b);
   let changed=false;
   for(const id of ids){
     const a=s.agents.find(x=>x.id===id&&x.alive&&x.profession!=='merchant'&&x.profession!=='crafter');
     if(!a)continue;
     const intent=consumerAutonomyDecision(s,a);
+    const readinessNeed=intent?.detail?.need?.purpose==='adventure-readiness';
+    if(a.profession==='adventurer'&&intent?.status==='BLOCKED'&&readinessNeed&&
+      ['no-observed-supply','no-affordable-observed-supply'].includes(intent.reason))
+      adventureReadinessWaiting.add(a.id);
     if(intent?.status!=='SAT'||typeof intent.type!=='string'||['IDLE','WAIT_TRAVEL'].includes(intent.type))continue;
     let r=null;
     if(intent.type==='TRAVEL_TO_MARKET'){
@@ -615,15 +620,16 @@ function stepConsumerAutonomy(s){
       if(r?.ok){
         const buyer=s.agents.find(x=>x.id===id);
         event(s,'market',(buyer?.name??('Clone #'+id))+' ซื้อเพื่อใช้งาน '+intent.itemKind+' x'+intent.quantity,id);
-        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId};
+        if(a.profession==='adventurer'&&intent.purpose==='adventure-readiness')adventureReadinessWaiting.add(id);
+        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId,adventureReadinessWaiting};
       }
     }else if(intent.type==='EQUIP_ITEM'){
       r=command(s,'EQUIP_ITEM',{agentId:a.id,itemId:intent.itemId});
-      if(r?.ok)event(s,'market',a.name+' นำ '+intent.itemKind+' ที่ซื้อมาใช้กับงาน',a.id);
+      if(r?.ok){event(s,'market',a.name+' นำ '+intent.itemKind+' ที่ซื้อมาใช้กับงาน',a.id);if(a.profession==='adventurer'&&['WEAPON','ARMOR'].includes(intent.slot))adventureReadinessWaiting.add(a.id);}
     }
     if(r?.ok)changed=true;
   }
-  return {changed,rootReplaced:false};
+  return {changed,rootReplaced:false,adventureReadinessWaiting};
 }
 
 function stepCrafterMarketSupply(s){
@@ -823,7 +829,7 @@ export function step(s,count=1,options={}){
     stepMerchantAutonomy(s);
     stepCrafterMaterialProcurement(s);
     stepCrafterMarketSupply(s);
-    stepConsumerAutonomy(s);
+    const consumerStep=stepConsumerAutonomy(s);
     stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
@@ -837,7 +843,7 @@ export function step(s,count=1,options={}){
       const practiceAccepted=practice?command(s,'CRAFT_ITEM',practice).ok:false;
       const demandCraft=!practiceAccepted?demandDrivenCrafterIntent(s,a):null;
       const demandCraftAccepted=demandCraft?command(s,'CRAFT_ITEM',demandCraft).ok:false;
-      if(!practiceAccepted&&!demandCraftAccepted&&stepAutonomousAdventure(s,a))continue;
+      if(!practiceAccepted&&!demandCraftAccepted&&!consumerStep.adventureReadinessWaiting.has(a.id)&&stepAutonomousAdventure(s,a))continue;
       const producerIntent=a.task?.rc4MarketTravel&&isEr6ConsumerMarketTravelTask(a.task)?null:rawProducerDecision(s,a);
       applyRawProducerIntent(s,a,producerIntent);
       if(!a.task)decide(s,a,book,producerIntent);
