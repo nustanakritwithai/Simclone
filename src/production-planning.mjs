@@ -181,7 +181,7 @@ function apprenticeCraftPlan(s,a,recipeId){
     if(Object.keys(preview.missing).some(k=>['wood','stone'].includes(k))){
       const raw=apprenticeGatherNeed(s,a,recipe.materials);if(raw)return raw;
     }
-    if(Object.hasOwn(preview.missing,'ironIngot'))return apprenticeMetalPlan(s,a,Math.max(1,preview.missing.ironIngot));
+    if(Object.hasOwn(preview.missing,'ironIngot'))return apprenticeMetalPlan(s,a,2);
   }
   return apprenticeView(preview.reason==='recipe-knowledge'||preview.reason==='crafter-tier-evidence'?'UNKNOWN':'BLOCKED',preview.reason??'craft-preview',{careerLock:true,agentId:a.id,recipeId,missing:{...(preview.missing??{})}});
 }
@@ -252,6 +252,8 @@ export function builderCrafterApprenticeshipIntent(s,a){
   if(profile.counts[2]>=2&&profile.total>=6)return apprenticeView('SAT','qualification-ready',{type:'PROMOTE',active:true,careerLock:true,agentId:a.id,profile});
   if(!knowsCraftRecipe(s,a,'HAMMER_T2'))return apprenticeCraftPlan(s,a,'HAMMER');
   if(profile.counts[2]<2){
+    const t2Recipe=recipeById('HAMMER_T2'),reserve=apprenticeGatherNeed(s,a,t2Recipe.materials);
+    if(reserve)return reserve;
     const t2=craftPreview(s,{agentId:a.id,recipeId:'HAMMER_T2'});
     if(t2.ok)return apprenticeView('SAT','apprentice-tier2',{type:'CRAFT',active:true,careerLock:true,agentId:a.id,recipeId:'HAMMER_T2'});
     if(t2.reason==='item-materials')return apprenticeCraftPlan(s,a,'HAMMER');
@@ -259,7 +261,7 @@ export function builderCrafterApprenticeshipIntent(s,a){
       if(Object.keys(t2.missing).some(k=>['wood','stone'].includes(k))){
         const need=apprenticeGatherNeed(s,a,recipeById('HAMMER_T2').materials);if(need)return need;
       }
-      if(Object.hasOwn(t2.missing,'ironIngot'))return apprenticeMetalPlan(s,a,Math.max(1,t2.missing.ironIngot));
+      if(Object.hasOwn(t2.missing,'ironIngot'))return apprenticeMetalPlan(s,a,2);
     }
     return apprenticeView(t2.reason==='recipe-knowledge'||t2.reason==='crafter-tier-evidence'?'UNKNOWN':'BLOCKED',t2.reason??'tier2',{active:true,careerLock:true,agentId:a.id,recipeId:'HAMMER_T2',missing:{...(t2.missing??{})}});
   }
