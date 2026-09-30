@@ -446,6 +446,70 @@ with sync_playwright() as p:
   for sel in ['#pause','#menu']:
    r=q.locator(sel).bounding_box();check(f'{w}x{h} {sel} on screen',r['x']>=0 and r['x']+r['width']<=w+1)
   q.screenshot(path=str(OUT/f'world-{w}x{h}.png'))
+ # Playtest repair probes: reproduce layout/profession reports on the exact candidate runtime.
+ repair_out=OUT/'playtest-repair';repair_out.mkdir(parents=True,exist_ok=True)
+ repair_violations=[]
+ def repair_probe(name,condition):
+  state='SAT' if condition else 'VIOL'
+  print('PLAYTEST_REPAIR',state,name,flush=True)
+  if not condition:repair_violations.append(name)
+
+ # A1 — camera controls must never share a pointer hit area with the left toolbar.
+ for w,h in [(1188,761),(1188,650),(1440,900)]:
+  q=b.new_page(viewport={'width':w,'height':h});boot(q);paused(q)
+  collision=q.evaluate("""()=>{const hit=(a,b)=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
+    const tools=[...document.querySelectorAll('.toolbar button')],cams=[...document.querySelectorAll('.camera button')],rows=[];
+    for(const t of tools)for(const c of cams){const tr=t.getBoundingClientRect(),cr=c.getBoundingClientRect();if(hit(tr,cr))rows.push(t.id+'<->'+c.id);}
+    const m=document.querySelector('#market').getBoundingClientRect(),x=m.left+m.width/2,y=m.top+m.height/2,e=document.elementFromPoint(x,y);
+    return{rows,marketCenter:e?.closest?.('#market')?.id==='market'};}""")
+  print('PLAYTEST_REPAIR_OVERLAPS',w,h,collision['rows'],flush=True)
+  repair_probe(f'A1 {w}x{h} toolbar/camera hit areas separated',len(collision['rows'])==0)
+  repair_probe(f'A1 {w}x{h} market center targets market',collision['marketCenter'])
+  q.screenshot(path=str(repair_out/f'layout-{w}x{h}.png'))
+  q.close()
+
+ # A2/A3 — use a valid Independent-world save whose Nira profession is canonical Merchant.
+ merchant_saved=json.loads(json.dumps(adventure_saved))
+ merchant_nira=next(a for a in merchant_saved['agents'] if a['name']=='Nira')
+ merchant_nira['profession']='merchant';merchant_nira['professionSinceTick']=merchant_saved['tick']
+ merchant_nira['career']=(merchant_nira.get('career') or [])[-7:]+[{'tick':merchant_saved['tick'],'profession':'merchant'}]
+ repair=b.new_page(viewport={'width':1188,'height':761})
+ boot_with_html(repair,independent_html,json.dumps(merchant_saved,ensure_ascii=False),settle_ms=0,freeze_world=True)
+ repair.wait_for_timeout(100);repair.locator('#adventure-launch').click();repair.wait_for_selector('#dialog[open] .adv-dialog')
+ overflow=repair.evaluate("""()=>{const d=document.querySelector('#dialog'),body=document.querySelector('#dialog-body'),a=document.querySelector('.adv-dialog');
+   return{dialog:[d.clientWidth,d.scrollWidth],body:[body.clientWidth,body.scrollWidth],adventure:[a.clientWidth,a.scrollWidth]};}""")
+ print('PLAYTEST_REPAIR_ADVENTURE_WIDTHS',overflow,flush=True)
+ repair_probe('A2 Adventure dialog has no horizontal overflow',
+              overflow['dialog'][1]<=overflow['dialog'][0]+1 and overflow['body'][1]<=overflow['body'][0]+1 and overflow['adventure'][1]<=overflow['adventure'][0]+1)
+ repair.locator('[data-adv-action="open-agent"][data-agent="2"]').click()
+ merchant_label=repair.locator('[data-adv-profile="2"] .adv-kicker').inner_text()
+ print('PLAYTEST_REPAIR_PROFESSION_LABEL',merchant_label,flush=True)
+ repair_probe('A3 Adventure reads canonical Merchant profession label',merchant_label=='พ่อค้า')
+ repair.screenshot(path=str(repair_out/'adventure-1188x761.png'))
+
+ # B5 — freeze the simulation before saving, then freeze before the first restored frame.
+ repair.locator('#dialog-close').click()
+ repair.locator('#menu').click();before_save=snap(repair)
+ repair.locator('[data-action="save"]').click()
+ saved_exact=repair.evaluate('localStorage.getItem("simclone:world:v1")')
+ stored_exact=json.loads(saved_exact)
+ repair_probe('B5 manual save stores the paused canonical tick',stored_exact['tick']==before_save['tick'])
+ saved_day=repair.locator('#day').inner_text();saved_clock=repair.locator('#clock').inner_text()
+ restored=b.new_page(viewport={'width':1188,'height':761})
+ boot_with_html(restored,independent_html,saved_exact,settle_ms=0,freeze_world=True);restored.wait_for_timeout(100)
+ loaded_exact=snap(restored)
+ repair_probe('B5 frozen reload restores exact canonical tick',loaded_exact['tick']==stored_exact['tick'])
+ repair_probe('B5 frozen reload restores the same UI day/clock',restored.locator('#day').inner_text()==saved_day and restored.locator('#clock').inner_text()==saved_clock)
+ repair_probe('B5 profession/wallet/item/market roots survive exact reload',
+              [(a['id'],a['profession'],a['skills'].get('ADVENTURE')) for a in loaded_exact['agents']]==[(a['id'],a['profession'],a['skills'].get('ADVENTURE')) for a in stored_exact['agents']] and
+              loaded_exact['currencyWallet']==stored_exact['currencyWallet'] and
+              loaded_exact['rustPossessions']['items']==stored_exact['rustPossessions']['items'] and
+              loaded_exact['homeMarkets']==stored_exact['homeMarkets'] and
+              loaded_exact['merchantListings']==stored_exact['merchantListings'])
+ restored.screenshot(path=str(repair_out/'save-reload-frozen.png'))
+ repair.close();restored.close()
+
+ check('playtest repair UI invariants',not repair_violations)
  check('no JavaScript page errors',not errors)
  result={'result':'PASS','checks':checks,'count':len(checks),'pageErrors':errors,'limitations':['Modules loaded in memory because browser HTTP blocked','Storage is explicit test double, not native browser persistence','Not tested on physical Android','Live Pages load not verified by this fixture']}
  (OUT/'results.json').write_text(json.dumps(result,ensure_ascii=False,indent=2))
