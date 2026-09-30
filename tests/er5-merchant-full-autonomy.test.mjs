@@ -113,6 +113,9 @@ test('ER5 observed supply -> autonomous buy -> autonomous Listing -> canonical r
   merchant=actor(s,f.merchantId);
   assert.deepEqual(s.rustPossessions.items.find(i=>i.id===f.itemId).location,{kind:'bag',agentId:merchant.id});
   assert.equal(getBalance(s,merchant.id),30);
+  // Keep the upstream Merchant from opening a second competing BuyOffer while
+  // this proof isolates the target Merchant's deterministic resale price.
+  actor(s,f.supplierId).satiety=0;
   assert.equal(s.merchantLedgers.ledgers.find(l=>l.merchantId===merchant.id).purchases.at(-1).unitPrice,70);
 
   merchant.task=null;merchant.hp=merchant.satiety=merchant.energy=100;
