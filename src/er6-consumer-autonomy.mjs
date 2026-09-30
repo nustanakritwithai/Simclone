@@ -8,7 +8,7 @@
  */
 import {customerMarketDecision,selectKnownCustomerListing} from './rc4-customer-market-policy.mjs?v=0.5.0';
 import {knownRc4Markets,knownRc4Listings} from './rc4-market-observation.mjs?v=0.5.0';
-import {projectActorObservedDemand} from './economic-demand.mjs?v=0.5.0';
+import {actorDirectItemNeeds,projectActorObservedDemand} from './economic-demand.mjs?v=0.5.0';
 import {getBalance} from './currency-wallet.mjs?v=0.5.0';
 import {projectHomeMarketForTrade} from './home-market.mjs?v=0.5.0';
 import {verifyCanonicalMarketArrival} from './navigation-arrival-evidence.mjs?v=0.5.0';
@@ -125,14 +125,34 @@ export function consumerAutonomySnapshot(world,agent){
   if(agent.task?.rc4MarketTravel&&!ownTravel)return blocked(agent.id,'foreign-market-travel');
 
   const use=productiveToolUse(world,agent)??adventureGearUse(world,agent);
-  const projection=projectActorObservedDemand(world,agent);
-  if(projection.status!=='SAT')return unknown(agent.id,projection.reason??'demand-projection',projection);
 
   // Existing canonical stock that satisfies a real use comes before shopping for
   // another need. This keeps purchase -> actual use atomic at the policy level
   // without inventing a second equipment authority.
   if(use)return use;
 
+  // Cheap fail-closed precheck: use ER1's own direct-need derivation and retained
+  // actor knowledge before paying for full economy-root validation every tick.
+  // A candidate that survives this precheck is still authorized only by the full
+  // actor-observed projection below, so hidden/stale supply stays non-actionable.
+  const directNeeds=actorDirectItemNeeds(world,agent);
+  if(!directNeeds.length){
+    if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'need-cleared'});
+    return sat({type:'IDLE',agentId:agent.id,reason:'no-consumer-need'});
+  }
+  const knownMarkets=knownRc4Markets(agent);
+  if(!knownMarkets.length){
+    if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'observed-market-gone'});
+    return blocked(agent.id,'no-observed-market',{need:clone(directNeeds[0])});
+  }
+  const neededKinds=new Set(directNeeds.map(n=>n.itemKind));
+  if(!knownRc4Listings(agent).some(l=>physicalListing(l)&&neededKinds.has(l.itemKind))){
+    if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'observed-supply-gone'});
+    return blocked(agent.id,'no-observed-supply',{need:clone(directNeeds[0])});
+  }
+
+  const projection=projectActorObservedDemand(world,agent);
+  if(projection.status!=='SAT')return unknown(agent.id,projection.reason??'demand-projection',projection);
   const needs=personalNeedsFromProjection(projection,agent.id);
   if(!needs.length){
     if(ownTravel)return sat({type:'CANCEL_TRAVEL',agentId:agent.id,reason:'need-cleared'});

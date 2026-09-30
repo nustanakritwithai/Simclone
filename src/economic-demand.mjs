@@ -148,6 +148,17 @@ function directItemNeeds(world,subject){
   }
   return out;
 }
+/** Cheap read-only personal item-need projection for policy prechecks.
+ * Reuses the exact ER1 need derivation without validating/scanning every
+ * economy root when the actor cannot possibly take a market action yet.
+ */
+export function actorDirectItemNeeds(world,agent){
+  const actor=world?.agents?.find(a=>a.id===agent?.id&&a.alive)??null;
+  if(!world||!actor)return deepFreeze([]);
+  return deepFreeze(directItemNeeds(world,actor)
+    .map(need=>({...need}))
+    .sort((a,b)=>String(a.needId??'').localeCompare(String(b.needId??''))||String(a.itemKind??'').localeCompare(String(b.itemKind??''))));
+}
 function liveCrafterItemDemandProjection(world,actor,ttlTicks){
   const knowledgeErrors=validateRc4MarketKnowledge(actor);
   if(knowledgeErrors.length)return unknown(actor.id,world.tick,'market-knowledge-invalid',knowledgeErrors);
