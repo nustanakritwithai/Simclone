@@ -45,6 +45,7 @@ export const RC4_MERCHANT_AUTONOMY_RULES=Object.freeze({
 });
 const RC4_ROOT_FIELDS=Object.freeze(['homeMarkets','merchantListings','merchantBuyOffers','merchantReservations','currencyWallet','tradeReplay','merchantLedgers']);
 const er5MerchantTravelTasks=new WeakSet();
+const er6ConsumerTravelTasks=new WeakSet();
 
 const clone=v=>structuredClone(v);
 const validMoney=v=>Number.isSafeInteger(v)&&v>0;
@@ -369,6 +370,7 @@ function txId(world,{listingId,buyerId,reservationId}){
 }
 
 export function isEr5MerchantMarketTravelTask(task){return isCanonicalMarketTravelTask(task)&&er5MerchantTravelTasks.has(task);}
+export function isEr6ConsumerMarketTravelTask(task){return isCanonicalMarketTravelTask(task)&&er6ConsumerTravelTasks.has(task);}
 
 export function prepareRc4MarketTravel(world,{agentId,marketId}={}){
   const marketResult=projectHomeMarketForTrade(world,world.homeMarkets,{marketId});
@@ -639,6 +641,7 @@ function rc4CommandInternal(world,type,data={}){
     const prepared=prepareRc4MarketTravel(world,data);if(!prepared.ok)return prepared;
     prepared.agent.task=prepared.task;prepared.agent.moveTick=0;
     if(data.control==='ER5_MERCHANT_AUTONOMY')er5MerchantTravelTasks.add(prepared.task);
+    if(data.control==='ER6_CONSUMER_AUTONOMY')er6ConsumerTravelTasks.add(prepared.task);
     return {ok:true,agentId:prepared.agent.id,marketId:data.marketId,pathLength:prepared.task.path.length,message:'กำลังเดินไปตลาด'};
   }
 
