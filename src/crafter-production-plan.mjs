@@ -114,6 +114,36 @@ function routeForDemand(s,a,itemKind){
   return {status:'READY',reason:'ready',recipe,preview};
 }
 
+/** Project only material shortages for item demand already visible to the caller.
+ * No ER1 recursion: this helper never discovers demand or market knowledge.
+ */
+export function crafterMaterialNeedsForObservedItems(s,a,itemKinds=[]){
+  const identity=canonicalCrafter(s,a);
+  if(identity.status!=='SAT')return freeze({status:identity.status,reason:identity.reason,agentId:a?.id??null,needs:[]});
+  const actor=identity.actor;
+  if(actor.craftTraining?.enabled===true||actor.adventureCombat?.status==='ACTIVE'||actor.adventureEncounter||
+    (actor.task&&!isCanonicalMarketTravelTask(actor.task))||
+    (s.rustPossessions?.orders??[]).some(o=>o.agentId===actor.id)||(s.rustMaterials?.orders??[]).some(o=>o.agentId===actor.id)||
+    !homeOf(s,actor.id,{completeOnly:true})||
+    actor.hp<CRAFT_TRAINING_RULES.hp||actor.satiety<CRAFT_TRAINING_RULES.satiety||actor.energy<CRAFT_TRAINING_RULES.energy)
+    return freeze({status:'BLOCKED',reason:'crafter-unavailable',agentId:actor.id,needs:[]});
+
+  const needs=[];
+  for(const itemKind of [...new Set(itemKinds.filter(x=>typeof x==='string'&&x.length>0))].sort()){
+    const route=routeForDemand(s,actor,itemKind);
+    if(route.status==='UNKNOWN')return freeze({status:'UNKNOWN',reason:route.reason,agentId:actor.id,needs:[]});
+    if(route.status!=='NEEDS_MATERIALS')continue;
+    for(const [materialKind,rawQuantity] of Object.entries(route.missing??{})){
+      const quantity=Math.ceil(Number(rawQuantity));
+      if(Number.isSafeInteger(quantity)&&quantity>0)needs.push({materialKind,quantity});
+    }
+  }
+  const merged=new Map();
+  for(const row of needs)merged.set(row.materialKind,Math.max(merged.get(row.materialKind)??0,row.quantity));
+  return freeze({status:'SAT',reason:'observed-item-material-needs',agentId:actor.id,
+    needs:[...merged].map(([materialKind,quantity])=>({materialKind,quantity})).sort((x,y)=>x.materialKind.localeCompare(y.materialKind))});
+}
+
 export function crafterProductionPlanFromProjection(s,a,projection,{allowCanonicalMarketTravel=false}={}){
   const identity=canonicalCrafter(s,a);
   if(identity.status!=='SAT')return view(identity.status,identity.reason);
