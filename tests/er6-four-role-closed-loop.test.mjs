@@ -209,13 +209,15 @@ function setupClosedLoop(){
 
   const marketId=prepareMerchant(s,merchantId);
   qualifyAdventurer(s,consumerId);
+  // Suppress only the live ARMOR deficit during wood price bootstrap without
+  // creating Armor trade history that could outrank the Blade material shortage.
+  // This staging item is PRE-START fixture state and is equipped through the same
+  // canonical Adventure gear authority as runtime purchases.
+  const stagingArmorId=give(s,actor(s,consumerId),'HIDE_ARMOR');
+  assert.equal(command(s,'EQUIP_ADVENTURE_GEAR',{agentId:consumerId,itemId:stagingArmorId}).ok,true);
   const calibrationBladeId=physicalPriceCalibration(s,{sellerId:producerId,merchantId,buyerId:consumerId,marketId,itemKind:'EMBER_BLADE',label:'blade'});
-  const calibrationArmorId=physicalPriceCalibration(s,{sellerId:producerId,merchantId,buyerId:consumerId,marketId,itemKind:'HIDE_ARMOR',label:'armor'});
   assert.equal(equippedKind(s,consumerId,'WEAPON'),'EMBER_BLADE');
   assert.equal(equippedKind(s,consumerId,'ARMOR'),'HIDE_ARMOR');
-  // Keep the calibrated armor equipped only while the canonical wood-price fixture
-  // settles. That leaves one real missing Blade need for ER4 to authorize the Crafter
-  // wood purchase instead of forcing a purchase when its selected recipe needs none.
   dropItem(s,actor(s,consumerId),s.rustPossessions.items.find(i=>i.id===calibrationBladeId));
 
   prepareCrafter(s,crafterId);
@@ -228,9 +230,12 @@ function setupClosedLoop(){
   observeRc4Markets(s);
 
   bootstrapWoodPrice(s,{producerId,merchantId,crafterId,marketId});
-  // Both Adventure gear deficits are PRE-START conditions. Expose the already
-  // calibrated armor deficit only after price bootstrap so it cannot hijack the
-  // fixture's Blade material authorization.
+  // Calibrate Armor only after the Blade-backed wood bootstrap. Then remove the
+  // staging and calibrated Armor before START so both gear deficits are genuinely
+  // PRE-START conditions while all price history remains canonical trade history.
+  dropItem(s,actor(s,consumerId),s.rustPossessions.items.find(i=>i.id===stagingArmorId));
+  const calibrationArmorId=physicalPriceCalibration(s,{sellerId:producerId,merchantId,buyerId:consumerId,marketId,itemKind:'HIDE_ARMOR',label:'armor'});
+  assert.equal(equippedKind(s,consumerId,'ARMOR'),'HIDE_ARMOR');
   dropItem(s,actor(s,consumerId),s.rustPossessions.items.find(i=>i.id===calibrationArmorId));
   assert.equal(resourceStock(s,actor(s,crafterId)).wood,firstWoodNeed-1,'bootstrap leaves exactly one missing wood');
   const producerReserve=producerSurplusSnapshot(s,actor(s,producerId),'wood');
