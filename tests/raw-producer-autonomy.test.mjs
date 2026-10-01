@@ -59,6 +59,29 @@ test('ER2 version and raw career capabilities are explicit and bounded',()=>{
   assert.equal(rawProducerCapability({profession:'merchant'},'wood'),null);
 });
 
+test('ER2 legacy worker keeps preferred raw-producer intent across temporary generic profession drift',()=>{
+  const {s,producer}=setupOffer({itemKind:'wood',quantity:2});
+  const reserve=personalTargets(s,producer).wood;
+  resourceStock(s,producer).wood=reserve;
+  producer.profession='miner';
+  producer.professionSinceTick=s.tick;
+  producer.career.push({tick:s.tick,profession:'miner'});
+  producer.preference='WOODCUT';
+  assert.equal(rawProducerCapability(producer,'wood'),null,'exported profession capability remains strict');
+  const resumed=rawProducerDecision(s,producer);
+  assert.equal(resumed.status,'SAT',JSON.stringify(resumed));
+  assert.equal(resumed.type,'GATHER',JSON.stringify(resumed));
+  assert.equal(resumed.action,'WOODCUT');
+  assert.equal(resumed.itemKind,'wood');
+  for(const special of ['merchant','crafter','adventurer']){
+    producer.profession=special;
+    const blocked=rawProducerDecision(s,producer);
+    assert.equal(blocked.status,'INELIGIBLE',special+': '+JSON.stringify(blocked));
+    assert.equal(blocked.reason,'raw-producer-profession');
+  }
+  assert.deepEqual(validate(s),[]);
+});
+
 test('ER2 surplus is owned minus canonical household reserve and cohabitants raise that reserve',()=>{
   const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:3}),dependent=s.agents[1],producer=s.agents[2];
   Object.assign(resourceStock(s,producer),{wood:500,stone:500,food:500});
