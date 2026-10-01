@@ -10,11 +10,11 @@ import {
 
 export {ER3_CRAFTER_DEMAND_VERSION};
 
-export function demandDrivenCrafterSnapshot(s,a,{allowCanonicalMarketTravel=false,allowGenericExplore=false}={}){
+export function demandDrivenCrafterSnapshot(s,a,{allowCanonicalMarketTravel=false,allowGenericExplore=false,allowMarketPreemptibleTask=false}={}){
   // Material-demand projection is disabled here to avoid feeding another
   // Crafter's procurement need back into the product-selection pass.
   const projection=projectActorObservedDemand(s,a,{includeCrafterMaterialDemand:false,includeResourceShortages:false});
-  return crafterProductionPlanFromProjection(s,a,projection,{allowCanonicalMarketTravel,allowGenericExplore});
+  return crafterProductionPlanFromProjection(s,a,projection,{allowCanonicalMarketTravel,allowGenericExplore,allowMarketPreemptibleTask});
 }
 
 export function demandDrivenCrafterIntent(s,a){
