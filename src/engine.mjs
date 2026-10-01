@@ -47,11 +47,13 @@ import {autonomousAdventureIntent,chooseAutonomousAdventureTarget} from './adven
 import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './craft-training.mjs?v=0.5.0';
 import {crafterCareerCommand} from './crafter-career.mjs?v=0.5.0';
 import {ensureCrafterTierPolicy,migrateCrafterTierPolicy,validateCrafterTierPolicy} from './crafter-tier-policy.mjs?v=0.5.0';
-import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy,isEr5MerchantMarketTravelTask} from './rc4-market-runtime.mjs?v=0.5.0';
+import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy,isEr5MerchantMarketTravelTask,isEr6ConsumerMarketTravelTask,isEr6CrafterSupplyMarketTravelTask} from './rc4-market-runtime.mjs?v=0.5.0';
 import {rawProducerDecision,rawProducerGatherPressure} from './raw-producer-autonomy.mjs?v=0.5.0';
 import {demandDrivenCrafterIntent} from './demand-driven-crafter.mjs?v=0.5.0';
 import {crafterMaterialProcurementDecision} from './crafter-material-procurement.mjs?v=0.5.0';
 import {merchantAutonomyDecision} from './rc4-merchant-policy.mjs?v=0.5.0';
+import {consumerAutonomyDecision} from './er6-consumer-autonomy.mjs?v=0.5.0';
+import {crafterMarketSupplyDecision} from './er6-crafter-market-supply.mjs?v=0.5.0';
 import {consumeCanonicalMarketTravelStep} from './navigation-arrival-evidence.mjs?v=0.5.0';
 import {TRADE_ASSET_TYPES} from './trade-assets.mjs?v=0.5.0';
 export {ARCHIVE_VERSION,HISTORY_LIMITS,allPeople,findPerson,retainedCount,SKILL_PROVENANCE_VERSION,KNOWLEDGE_VERSION,KNOWLEDGE_LIMITS,BELIEF_STATUS,activeKnowledge};
@@ -523,8 +525,21 @@ function stepAutonomousAdventure(s,a){
   return false;
 }
 
+function isPreemptibleEconomicExplore(task){
+  return task?.kind==='EXPLORE'&&!task?.purposeKind&&!task?.knowledgeKey&&
+    !task?.adventureExpedition&&!task?.adventureHunt&&!task?.rc4MarketTravel;
+}
+function preemptIdleExplore(a){
+  if(!isPreemptibleEconomicExplore(a?.task))return false;
+  a.task=null;a.moveTick=0;return true;
+}
+
 function applyRawProducerIntent(s,a,intent){
   if(intent?.status!=='SAT')return {handled:false};
+  // An accepted procurement Listing is already a canonical commitment. While it
+  // remains open, do not fall through to generic job selection: EXPLORE can
+  // otherwise reassign the raw Producer's career before the Merchant settles it.
+  if(intent.type==='WAIT_SETTLEMENT')return {handled:true,kind:'wait-settlement',blockFallback:true,holdTask:true};
   if(intent.type==='TRAVEL_TO_MARKET'){
     const r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId});
     return {handled:r.ok,kind:'travel',result:r};
@@ -539,13 +554,18 @@ function applyRawProducerIntent(s,a,intent){
     if(!r.ok)return {handled:false,kind:'accept',result:r};
     if(a.task?.rc4MarketTravel)command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
     event(s,'market',a.name+' ตอบรับคำสั่งซื้อ '+intent.itemKind+' x'+intent.quantity,a.id);
-    return {handled:true,kind:'accept',result:r};
+    // Acceptance creates a canonical open procurement Listing immediately.
+    // Keep this same tick owned by the raw-producer flow; otherwise generic
+    // EXPLORE selection can change the Producer career before WAIT_SETTLEMENT
+    // becomes visible on the next tick.
+    return {handled:true,kind:'accept',result:r,blockFallback:true};
   }
   return {handled:false};
 }
 
 function stepMerchantAutonomy(s){
-  if(!isIndependent(s))return {changed:false,rootReplaced:false};
+  const blockFallback=new Set();
+  if(!isIndependent(s))return {changed:false,rootReplaced:false,blockFallback};
   const ids=living(s).filter(a=>a.profession==='merchant').map(a=>a.id).sort((a,b)=>a-b);
   let changed=false;
   for(const id of ids){
@@ -557,7 +577,9 @@ function stepMerchantAutonomy(s){
     const intent=merchantAutonomyDecision(s,a);
     if(intent?.status!=='SAT'||typeof intent.type!=='string')continue;
     let r=null;
-    if(intent.type==='WAIT_TRAVEL'||intent.type==='WAIT_BUY_OFFER')continue;
+    if(intent.type==='WAIT_TRAVEL')continue;
+    if(intent.type==='WAIT_BUY_OFFER'){blockFallback.add(id);continue;}
+    preemptIdleExplore(a);
     if(intent.type==='CREATE_MARKET'){
       r=command(s,'RC4_CREATE_MARKET',{agentId:a.id});
     }else if(intent.type==='OPEN_MARKET'){
@@ -573,7 +595,9 @@ function stepMerchantAutonomy(s){
         event(s,'market',(buyer?.name??('Clone #'+id))+' ซื้อ stock '+intent.itemKind+' x'+intent.quantity,id);
         // Trade settlement atomically replaces the live root. Stop this pass so
         // no pre-settlement references from the Merchant candidate list are reused.
-        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId};
+        blockFallback.add(id);
+        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId,
+          itemKind:intent.itemKind,assetType:intent.assetType,blockFallback};
       }
     }else if(intent.type==='CREATE_BUY_OFFER'){
       r=command(s,'RC4_CREATE_BUY_OFFER',{
@@ -589,18 +613,84 @@ function stepMerchantAutonomy(s){
       r=command(s,'RC4_CREATE_LISTING',data);
       if(r?.ok&&!r.duplicate)event(s,'market',a.name+' ลงขาย '+intent.itemKind+' x'+intent.quantity,a.id);
     }
-    if(r?.ok)changed=true;
+    if(r?.ok){
+      changed=true;
+      if(intent.type==='CREATE_BUY_OFFER')blockFallback.add(id);
+    }
   }
-  return {changed,rootReplaced:false};
+  return {changed,rootReplaced:false,blockFallback};
 }
 
-function stepCrafterMaterialProcurement(s){
+function stepConsumerAutonomy(s){
+  const adventureReadinessWaiting=new Set();
+  if(!isIndependent(s))return {changed:false,rootReplaced:false,adventureReadinessWaiting};
+  const ids=living(s).filter(a=>a.profession!=='merchant'&&a.profession!=='crafter').map(a=>a.id).sort((a,b)=>a-b);
+  let changed=false;
+  for(const id of ids){
+    const a=s.agents.find(x=>x.id===id&&x.alive&&x.profession!=='merchant'&&x.profession!=='crafter');
+    if(!a)continue;
+    const intent=consumerAutonomyDecision(s,a);
+    if(intent?.status!=='SAT'||typeof intent.type!=='string'||['IDLE','WAIT_TRAVEL'].includes(intent.type))continue;
+    let r=null;
+    if(intent.type==='TRAVEL_TO_MARKET'){
+      r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId,control:'ER6_CONSUMER_AUTONOMY'});
+    }else if(intent.type==='CANCEL_TRAVEL'){
+      r=command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
+    }else if(intent.type==='BUY_LISTING'){
+      r=command(s,'RC4_BUY_LISTING',intent.intent);
+      if(r?.ok){
+        const buyer=s.agents.find(x=>x.id===id);
+        event(s,'market',(buyer?.name??('Clone #'+id))+' ซื้อเพื่อใช้งาน '+intent.itemKind+' x'+intent.quantity,id);
+        if(a.profession==='adventurer'&&intent.purpose==='adventure-readiness')adventureReadinessWaiting.add(id);
+        return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId,adventureReadinessWaiting};
+      }
+    }else if(intent.type==='EQUIP_ITEM'||intent.type==='EQUIP_ADVENTURE_GEAR'){
+      r=command(s,intent.type,{agentId:a.id,itemId:intent.itemId});
+      if(r?.ok){event(s,'market',a.name+' นำ '+intent.itemKind+' ที่ซื้อมาใช้กับงาน',a.id);if(intent.type==='EQUIP_ADVENTURE_GEAR')adventureReadinessWaiting.add(a.id);}
+    }
+    if(r?.ok)changed=true;
+  }
+  return {changed,rootReplaced:false,adventureReadinessWaiting};
+}
+
+function stepCrafterMarketSupply(s){
+  if(!isIndependent(s))return {changed:false};
+  const ids=living(s).filter(a=>a.profession==='crafter').map(a=>a.id).sort((a,b)=>a-b);
+  let changed=false;
+  for(const id of ids){
+    const a=s.agents.find(x=>x.id===id&&x.alive&&x.profession==='crafter');
+    if(!a)continue;
+    const intent=crafterMarketSupplyDecision(s,a);
+    if(intent?.status!=='SAT'||typeof intent.type!=='string'||['WAIT_TRAVEL','WAIT_SETTLEMENT'].includes(intent.type))continue;
+    preemptIdleExplore(a);
+    let r=null;
+    if(intent.type==='TRAVEL_TO_MARKET'){
+      r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId,control:'ER6_CRAFTER_MARKET_SUPPLY'});
+    }else if(intent.type==='CANCEL_TRAVEL'){
+      r=command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
+    }else if(intent.type==='ACCEPT_BUY_OFFER'){
+      r=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:a.id,offerId:intent.offerId,itemId:intent.itemId});
+      if(r?.ok)event(s,'market',a.name+' ตอบรับคำสั่งซื้อ '+intent.itemKind+' ด้วยสินค้าที่คราฟต์จริง',a.id);
+    }
+    if(r?.ok)changed=true;
+  }
+  return {changed};
+}
+
+function stepCrafterMaterialProcurement(s,freshMerchantPurchase=null){
   const candidates=living(s).filter(a=>a.profession==='crafter').sort((a,b)=>a.id-b.id);
+  const blockFallback=new Set();
   let changed=false;
   for(const a of candidates){
+    if(a.task?.rc4MarketTravel&&isEr6CrafterSupplyMarketTravelTask(a.task))continue;
     const intent=crafterMaterialProcurementDecision(s,a);
+    const freshSourcingHold=freshMerchantPurchase?.kind==='purchase'&&
+      freshMerchantPurchase.assetType===TRADE_ASSET_TYPES.BULK_RESOURCE&&intent?.status==='NEEDS_SUPPLY'&&
+      Array.isArray(intent.missing)&&intent.missing.some(x=>x.itemKind===freshMerchantPurchase.itemKind);
+    if(intent?.holdFallback===true||freshSourcingHold)blockFallback.add(a.id);
     if(intent?.status!=='SAT'||typeof intent.type!=='string')continue;
     if(intent.type==='WAIT_TRAVEL')continue;
+    preemptIdleExplore(a);
     if(intent.type==='TRAVEL_TO_MARKET'){
       const r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId});
       if(r.ok)changed=true;
@@ -618,11 +708,11 @@ function stepCrafterMaterialProcurement(s){
         event(s,'market',(buyer?.name??('Clone #'+intent.agentId))+' ซื้อวัตถุดิบ '+intent.itemKind+' x'+intent.quantity,intent.agentId);
         // RC4 atomic settlement replaces the live world root. Stop immediately so
         // no pre-settlement agent reference is reused in this procurement pass.
-        return {changed:true,rootReplaced:true,kind:'purchase',agentId:intent.agentId,listingId:intent.listingId,transactionId:r.transactionId};
+        return {changed:true,rootReplaced:true,kind:'purchase',agentId:intent.agentId,listingId:intent.listingId,transactionId:r.transactionId,blockFallback};
       }
     }
   }
-  return {changed,rootReplaced:false};
+  return {changed,rootReplaced:false,blockFallback};
 }
 
 function gain(s,a,key,targetId=null){
@@ -718,8 +808,9 @@ function execute(s,a){
   }else if(t.work>=6){
     finishPersonalExploration(s,a,t);
     const belief=t.knowledgeKey?a.knowledgeState?.beliefs?.find(b=>b.key===t.knowledgeKey):null;
+    const exploreKind=t.purposeKind??t.kind;
     const qualification=noteExploreCompletion(a,{
-      kind:t.kind,tick:s.tick,x:a.x,y:a.y,started:t.started,
+      kind:exploreKind,tick:s.tick,x:a.x,y:a.y,started:t.started,
       alive:a.alive===true,productive:canPerformProductiveWork(s,a),
       knowledge:t.knowledgeKey?(belief?.status??'UNKNOWN'):'none'
     });
@@ -764,9 +855,11 @@ export function step(s,count=1,options={}){
       const merchant=s.agents.find(a=>a.id===rc4Step.agentId);
       if(merchant)merchant.lastCareerEventTick=s.tick;
     }
-    stepMerchantAutonomy(s);
-    stepCrafterMaterialProcurement(s);
-    stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
+    const merchantStep=stepMerchantAutonomy(s);
+    const crafterProcurementStep=stepCrafterMaterialProcurement(s,merchantStep);
+    stepCrafterMarketSupply(s);
+    const consumerStep=stepConsumerAutonomy(s);
+    stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data),{blockedAgentIds:crafterProcurementStep.blockFallback});
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
     const agents=living(s),rotation=s.tick%Math.max(1,agents.length);
@@ -779,12 +872,19 @@ export function step(s,count=1,options={}){
       const practiceAccepted=practice?command(s,'CRAFT_ITEM',practice).ok:false;
       const demandCraft=!practiceAccepted?demandDrivenCrafterIntent(s,a):null;
       const demandCraftAccepted=demandCraft?command(s,'CRAFT_ITEM',demandCraft).ok:false;
-      if(!practiceAccepted&&!demandCraftAccepted&&stepAutonomousAdventure(s,a))continue;
-      const producerIntent=rawProducerDecision(s,a);
-      applyRawProducerIntent(s,a,producerIntent);
-      if(!a.task)decide(s,a,book,producerIntent);
+      const producerIntent=a.task?.rc4MarketTravel&&isEr6ConsumerMarketTravelTask(a.task)?null:rawProducerDecision(s,a);
+      const producerMarketPriority=producerIntent?.status==='SAT'&&
+        ['GATHER','TRAVEL_TO_MARKET','ACCEPT_BUY_OFFER','WAIT_SETTLEMENT','CANCEL_TRAVEL'].includes(producerIntent.type)&&
+        a.adventureCombat?.status!=='ACTIVE'&&!a.adventureEncounter;
+      if(producerMarketPriority)preemptIdleExplore(a);
+      if(!practiceAccepted&&!demandCraftAccepted&&!consumerStep.adventureReadinessWaiting.has(a.id)&&
+        !producerMarketPriority&&stepAutonomousAdventure(s,a))continue;
+      const producerStep=applyRawProducerIntent(s,a,producerIntent);
+      const crafterMarketHold=crafterProcurementStep.blockFallback?.has(a.id)===true&&
+        a.satiety>=RULES.hungry&&a.energy>=RULES.exhausted;
+      if(!a.task&&!producerStep.blockFallback&&!merchantStep.blockFallback.has(a.id)&&!crafterMarketHold)decide(s,a,book,producerIntent);
       const task=a.task;
-      if(task){execute(s,a);if(a.task!==task)release(book,a,task);}
+      if(task&&!producerStep.holdTask){execute(s,a);if(a.task!==task)release(book,a,task);}
     }
     stepWildMonsterLifecycle(s);
     const teaching=stepMentorship(s);if(teaching)event(s,'mentor',teaching.message,teaching.mentorId);

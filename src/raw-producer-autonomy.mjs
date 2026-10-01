@@ -32,6 +32,52 @@ export function rawProducerCapability(agent,itemKind=null){
   if(itemKind!==null&&!profile.resources.includes(itemKind))return null;
   return profile;
 }
+const LEGACY_WORKER_PROFESSIONS=new Set(['forager','woodcutter','miner','builder']);
+const PREFERENCE_CAPABILITY=Object.freeze({
+  FORAGE:RAW_PRODUCER_CAPABILITIES.forager,
+  WOODCUT:RAW_PRODUCER_CAPABILITIES.woodcutter,
+  MINE:RAW_PRODUCER_CAPABILITIES.miner,
+});
+function rawProducerIntentCapability(world,agent){
+  // Legacy jobs are intentionally fluid. A generic scarcity task may temporarily
+  // move a worker between forager/woodcutter/miner/builder. Preserve the actor's
+  // explicit productive preference as the Raw Producer intent so observed market
+  // demand can pull the worker back through the existing planner/adoptProfession path.
+  if(LEGACY_WORKER_PROFESSIONS.has(agent?.profession))
+    return PREFERENCE_CAPABILITY[agent?.preference]??rawProducerCapability(agent);
+  // Real EXPLORE is still allowed to promote an established Producer to Adventurer.
+  // Only canonical committed raw-trade history lets that actor continue answering
+  // later raw BuyOffers; ordinary Adventurers and every other special career remain
+  // outside ER2. This is derived continuity, never a second profession write.
+  if(agent?.profession==='adventurer'&&hasEstablishedRawProducerTrade(world,agent))
+    return PREFERENCE_CAPABILITY[agent?.preference]??null;
+  return null;
+}
+export function hasEstablishedRawProducerTrade(world,agent){
+  if(!world||!agent?.alive||world.agents?.find(a=>a.id===agent.id)!==agent)return false;
+  const profile=PREFERENCE_CAPABILITY[agent.preference]??null;
+  if(!profile)return false;
+  const receipts=world.tradeReplay?.receipts,listings=world.merchantListings?.listings,offers=world.merchantBuyOffers?.buyOffers;
+  const payments=world.currencyWallet?.receipts,reservations=world.merchantReservations?.reservations;
+  if(!Array.isArray(receipts)||!Array.isArray(listings)||!Array.isArray(offers)||!Array.isArray(payments)||!Array.isArray(reservations))return false;
+  for(const receipt of receipts){
+    if(receipt?.sellerId!==agent.id||tradeAssetType(receipt)!==TRADE_ASSET_TYPES.BULK_RESOURCE||!profile.resources.includes(receipt.itemKind))continue;
+    const listing=listings.find(l=>l.id===receipt.listingId&&l.sellerId===agent.id&&l.buyOfferId&&l.status==='FILLED'&&
+      l.marketId===receipt.marketId&&l.itemKind===receipt.itemKind&&tradeAssetType(l)===TRADE_ASSET_TYPES.BULK_RESOURCE);
+    if(!listing)continue;
+    const offer=offers.find(o=>o.offerId===listing.buyOfferId&&o.status==='FILLED'&&o.buyerId===receipt.buyerId&&
+      o.marketId===receipt.marketId&&o.itemKind===receipt.itemKind&&tradeAssetType(o)===TRADE_ASSET_TYPES.BULK_RESOURCE);
+    if(!offer)continue;
+    const reservation=reservations.find(r=>r.id===receipt.reservationId&&r.status==='COMMITTED'&&
+      r.transactionId===receipt.transactionId&&r.listingId===receipt.listingId&&r.buyerId===receipt.buyerId&&r.sellerId===agent.id);
+    if(!reservation)continue;
+    const payment=payments.find(p=>p.transactionId===receipt.transactionId&&p.kind==='TRANSFER'&&
+      p.fromAgentId===receipt.buyerId&&p.toAgentId===agent.id&&p.amount===receipt.totalPrice&&
+      p.evidence?.operation==='TRADE_TRANSFER'&&p.evidence.listingId===receipt.listingId&&p.evidence.reservationId===receipt.reservationId);
+    if(payment)return true;
+  }
+  return false;
+}
 function shadowFor(world,agent){
   const shadow=clone(world),actor=shadow.agents?.find(a=>a.id===agent?.id&&a.alive===true)??null;
   return actor?{shadow,actor}:null;
@@ -137,7 +183,7 @@ export function rawProducerSettlementGate(world,{sellerId,itemKind,quantity,list
 }
 
 function currentObservedOffers(world,agent,profile){
-  const demand=projectActorObservedDemand(world,agent);
+  const demand=projectActorObservedDemand(world,agent,{includeResourceShortages:false});
   if(demand.status!=='SAT')return view('UNKNOWN',demand.reason??'demand',{offers:[]});
   const known=new Map(knownRc4BuyOffers(agent).map(o=>[o.offerId,o]));
   const rows=[];
@@ -169,16 +215,46 @@ function accountOpenListingForOffer(world,agent,offerId){
     tradeAssetType(l)===TRADE_ASSET_TYPES.BULK_RESOURCE&&sameAccountInShadow(ctx.shadow,ctx.actor,l.sellerId))
     .sort((a,b)=>String(a.id).localeCompare(String(b.id)))[0]??null;
 }
+function accountOpenProcurementCommitment(world,agent,profile){
+  const rows=(world.merchantListings?.listings??[]).filter(l=>l?.status==='OPEN'&&l.buyOfferId&&
+    tradeAssetType(l)===TRADE_ASSET_TYPES.BULK_RESOURCE&&profile.resources.includes(l.itemKind)&&
+    l.sellerId===agent.id).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  if(!rows.length)return null;
+  // Most ticks have no accepted procurement for this Producer. Avoid building the
+  // account shadow unless canonical open work actually exists.
+  const ctx=shadowFor(world,agent);if(!ctx)return null;
+  for(const listing of rows){
+    const offer=world.merchantBuyOffers?.buyOffers?.find(o=>o.offerId===listing.buyOfferId);
+    if(!offer||offer.status!=='OPEN'||tradeAssetType(offer)!==TRADE_ASSET_TYPES.BULK_RESOURCE)continue;
+    if(offer.marketId!==listing.marketId||offer.itemKind!==listing.itemKind||sameAccountInShadow(ctx.shadow,ctx.actor,offer.buyerId))continue;
+    return {listing,offer};
+  }
+  return null;
+}
 
 export function rawProducerDecision(world,agent){
   if(!world||!agent?.alive||world.agents?.find(a=>a.id===agent.id)!==agent)return view('UNKNOWN','actor');
   if(!isIndependent(world))return view('INELIGIBLE','independent-world-required');
-  const profile=rawProducerCapability(agent);if(!profile)return view('INELIGIBLE','raw-producer-profession');
+  const profile=rawProducerIntentCapability(world,agent);if(!profile)return view('INELIGIBLE','raw-producer-profession');
   if(!canPerformProductiveWork(world,agent))return view('INELIGIBLE','productive-stage');
   const marketTask=isCanonicalMarketTravelTask(agent.task);
+  const genericExplore=agent.task?.kind==='EXPLORE'&&!agent.task?.purposeKind&&!agent.task?.knowledgeKey&&
+    !agent.task?.adventureExpedition&&!agent.task?.adventureHunt;
   if(agent.satiety<RULES.hungry||agent.energy<RULES.exhausted)
     return view('BLOCKED','survival',{action:profile.action});
-  if(agent.task&&!marketTask)return view('BLOCKED','task',{action:profile.action});
+
+  // This Producer's accepted procurement Listing is canonical owned work.
+  // It outranks unrelated work already in progress, but never survival.
+  // No lock state is stored: FILLED/CANCELLED/invalid BuyOffers or Listings
+  // disappear from this projection and the previous task can continue.
+  const commitment=accountOpenProcurementCommitment(world,agent,profile);
+  if(commitment&&!marketTask)return view('SAT','listing-already-open',{
+    type:'WAIT_SETTLEMENT',agentId:agent.id,marketId:commitment.offer.marketId,
+    listingId:commitment.listing.id,offerId:commitment.offer.offerId,itemKind:commitment.offer.itemKind
+  });
+  // Generic idle roaming is preemptible when actor-observed market work appears.
+  // Survival, purposeful exploration and every other task remain protected.
+  if(agent.task&&!marketTask&&!genericExplore)return view('BLOCKED','task',{action:profile.action});
 
   const observed=currentObservedOffers(world,agent,profile);
   if(observed.status!=='SAT')return observed;

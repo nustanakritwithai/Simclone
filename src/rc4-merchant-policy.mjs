@@ -185,10 +185,12 @@ function er5OwnMarket(world,actor){
   return world?.homeMarkets?.markets?.find(m=>m.ownerAgentId===actor.id&&['open','closed'].includes(m.status))??null;
 }
 function er5DemandRows(projection){
+  const brokeragePriority=s=>(s?.sources??[]).some(x=>x?.kind==='LOCAL_CRAFTER_MATERIAL_NEED'&&x.side==='DEMAND')?0:1;
   return (projection?.signals??[]).filter(s=>
     s?.tradable===true&&typeof s.itemKind==='string'&&er5Positive(s.demandQuantity)&&
     (s.unit==='item'||s.unit==='bulk-resource')
   ).sort((a,b)=>
+    brokeragePriority(a)-brokeragePriority(b)||
     (b.stockShortageQuantity??0)-(a.stockShortageQuantity??0)||
     (b.shortageQuantity??0)-(a.shortageQuantity??0)||
     (b.liveDemandQuantity??0)-(a.liveDemandQuantity??0)||
@@ -199,6 +201,20 @@ function er5DemandRows(projection){
 }
 function er5AssetType(signal){
   return signal?.unit==='bulk-resource'?TRADE_ASSET_TYPES.BULK_RESOURCE:TRADE_ASSET_TYPES.PHYSICAL_ITEM;
+}
+function er5IndependentDemandQuantity(signal,actor){
+  let live=0;
+  for(const source of signal?.sources??[]){
+    if(source?.side!=='DEMAND')continue;
+    // A Merchant's own stock-shortage BuyOffer is commitment evidence, not new
+    // customer demand. Counting it back into its own demand creates a self-loop
+    // where WAIT_BUY_OFFER can starve unrelated live needs forever.
+    if(source.kind==='MERCHANT_STOCK_SHORTAGE_BUY_OFFER'&&source.buyerId===actor.id)continue;
+    const quantity=source.quantity;
+    if(er5Positive(quantity))live+=quantity;
+  }
+  const history=er5Safe(signal?.historicalDemandQuantity)?signal.historicalDemandQuantity:0;
+  return Math.max(live,history);
 }
 function er5OpenOffers(world,actor,{excludeOfferId=null}={}){
   return (world?.merchantBuyOffers?.buyOffers??[]).filter(o=>
@@ -227,13 +243,26 @@ function er5PhysicalBasis(ledger,itemId,itemKind){
   }
   return null;
 }
-function er5BulkBasis(ledger,itemKind){
+function er5BulkBasisState(ledger,itemKind,committedQuantity=0){
+  if(!er5Safe(committedQuantity))return null;
+  const rows=[];let totalQuantity=0;
   for(const purchase of ledger?.purchases??[]){
     if(tradeAssetType(purchase)!==TRADE_ASSET_TYPES.BULK_RESOURCE||purchase.itemKind!==itemKind)continue;
-    if(er5Positive(purchase.remainingQuantity))
-      return {transactionId:purchase.transactionId,unitPrice:purchase.unitPrice,remainingQuantity:purchase.remainingQuantity};
+    if(!er5Safe(purchase.remainingQuantity))return null;
+    if(!er5Positive(purchase.remainingQuantity))continue;
+    totalQuantity+=purchase.remainingQuantity;
+    if(!Number.isSafeInteger(totalQuantity))return null;
+    rows.push({transactionId:purchase.transactionId,unitPrice:purchase.unitPrice,remainingQuantity:purchase.remainingQuantity});
   }
-  return null;
+  // Open resale Listings reserve purchased basis FIFO without mutating the Ledger.
+  // Pick the first basis row with unlisted capacity for the next canonical Listing.
+  let skip=committedQuantity,basis=null;
+  for(const row of rows){
+    if(skip>=row.remainingQuantity){skip-=row.remainingQuantity;continue;}
+    basis={...row,remainingQuantity:row.remainingQuantity-skip};
+    break;
+  }
+  return {totalQuantity,basis};
 }
 function er5OpenOwnListings(world,actor,itemKind){
   return (world?.merchantListings?.listings??[]).filter(l=>
@@ -268,14 +297,16 @@ function er5SaleableStock(world,actor,ledger,signal){
     const listedWithBasis=open.filter(l=>tradeAssetType(l)===type&&!!er5PhysicalBasis(ledger,l.itemInstanceId,signal.itemKind)).length;
     return {type,ownedQuantity:owned.length,listedQuantity:listedWithBasis,availableQuantity:unlisted.length,unlisted};
   }
-  const basis=er5BulkBasis(ledger,signal.itemKind);
   const owned=Math.floor(materialAmount(world,actor,signal.itemKind));
   const committed=er5BulkCommittedByActor(world,actor,signal.itemKind);
   if(!er5Safe(owned)||committed===null)return {type,status:'UNKNOWN'};
-  const basisQuantity=basis?.remainingQuantity??0;
-  const available=Math.max(0,Math.min(owned,basisQuantity)-committed);
+  const basisState=er5BulkBasisState(ledger,signal.itemKind,committed);
+  if(!basisState)return {type,status:'UNKNOWN'};
+  const backedQuantity=Math.min(owned,basisState.totalQuantity);
+  const available=Math.max(0,backedQuantity-committed);
   const listedQuantity=open.filter(l=>tradeAssetType(l)===type).reduce((n,l)=>n+l.quantity,0);
-  return {type,ownedQuantity:owned,listedQuantity,availableQuantity:available,basis};
+  return {type,ownedQuantity:owned,listedQuantity,availableQuantity:available,basis:basisState.basis,
+    basisQuantity:basisState.totalQuantity};
 }
 function er5AskPrice(stock,signal){
   const basis=stock.type===TRADE_ASSET_TYPES.PHYSICAL_ITEM?stock.unlisted?.[0]?.basis:stock.basis;
@@ -341,11 +372,42 @@ function er5ObservedListingCandidates(world,actor,signal){
     a.marketId.localeCompare(b.marketId)||a.listingId.localeCompare(b.listingId));
   return {status:'SAT',reason:'observed-listings',rows};
 }
+function er5AcceptedProcurement(world,actor,rows){
+  const ownOpenOfferIds=new Set((world?.merchantBuyOffers?.buyOffers??[])
+    .filter(o=>o?.status==='OPEN'&&o.buyerId===actor.id).map(o=>o.offerId));
+  if(!ownOpenOfferIds.size)return {status:'SAT',reason:'accepted-procurement',row:null};
+  const acceptedListingIds=new Set((world?.merchantListings?.listings??[])
+    .filter(l=>l?.status==='OPEN'&&l.buyOfferId&&ownOpenOfferIds.has(l.buyOfferId)).map(l=>l.id));
+  if(!acceptedListingIds.size)return {status:'SAT',reason:'accepted-procurement',row:null};
+  const accepted=[];
+  for(const signal of rows){
+    const candidates=er5ObservedListingCandidates(world,actor,signal);
+    if(candidates.status!=='SAT')return {status:'UNKNOWN',reason:candidates.reason,row:null};
+    for(const row of candidates.rows){
+      if(!acceptedListingIds.has(row.listingId))continue;
+      const listing=world?.merchantListings?.listings?.find(l=>l.id===row.listingId&&l.status==='OPEN');
+      if(!listing?.buyOfferId||row.affordable!==true)continue;
+      const offer=world?.merchantBuyOffers?.buyOffers?.find(o=>
+        o.offerId===listing.buyOfferId&&o.status==='OPEN'&&o.buyerId===actor.id
+      );
+      if(!offer)continue;
+      accepted.push({...row,buyOfferId:offer.offerId,offerCreatedTick:offer.createdTick});
+    }
+  }
+  accepted.sort((a,b)=>
+    (a.offerCreatedTick??0)-(b.offerCreatedTick??0)||
+    String(a.buyOfferId).localeCompare(String(b.buyOfferId))||
+    String(a.listingId).localeCompare(String(b.listingId))
+  );
+  return {status:'SAT',reason:'accepted-procurement',row:accepted[0]??null};
+}
 function er5Protected(world,actor){
   if(!canPerformProductiveWork(world,actor))return 'productive-stage';
   if(actor.adventureCombat?.status==='ACTIVE'||actor.adventureEncounter)return 'adventure';
   if(actor.satiety<RULES.hungry||actor.energy<RULES.exhausted)return 'survival';
-  if(actor.task&&!isCanonicalMarketTravelTask(actor.task))return 'task';
+  const genericExplore=actor.task?.kind==='EXPLORE'&&!actor.task?.purposeKind&&!actor.task?.knowledgeKey&&
+    !actor.task?.adventureExpedition&&!actor.task?.adventureHunt;
+  if(actor.task&&!isCanonicalMarketTravelTask(actor.task)&&!genericExplore)return 'task';
   return null;
 }
 function er5ListingIntent(world,actor,market,signal,stock){
@@ -377,12 +439,41 @@ export function merchantAutonomySnapshot(world,agent){
   if(!home)return er5View('BLOCKED','housing',{agentId:actor.id});
   const protectedReason=er5Protected(world,actor);
   if(protectedReason)return er5View('BLOCKED',protectedReason,{agentId:actor.id});
-  const projection=projectActorObservedDemand(world,actor);
+  const projection=projectActorObservedDemand(world,actor,{includeCrafterMaterialDemand:true,includeResourceShortages:false});
   if(projection.status!=='SAT'||projection.scope!=='ACTOR_OBSERVED'||!Array.isArray(projection.signals))
     return er5View('UNKNOWN',projection.reason??'demand-evidence',{agentId:actor.id,demandStatus:projection.status??'UNKNOWN'});
   const ledger=merchantLedgerFromCollection(world.merchantLedgers,actor.id);
   if(!ledger)return er5View('UNKNOWN','merchant-ledger',{agentId:actor.id});
   const rows=er5DemandRows(projection);
+  const accepted=er5AcceptedProcurement(world,actor,rows);
+  if(accepted.status!=='SAT')return er5View('UNKNOWN',accepted.reason??'accepted-procurement',{agentId:actor.id});
+  if(accepted.row){
+    const selected=accepted.row,travelling=isCanonicalMarketTravelTask(actor.task);
+    if(travelling){
+      const targetMarketId=actor.task.rc4MarketTravel.marketId;
+      if(targetMarketId!==selected.marketId)
+        return er5View('SAT','accepted-procurement-retarget',{
+          type:'CANCEL_TRAVEL',agentId:actor.id,marketId:targetMarketId,listingId:selected.listingId
+        });
+      const arrival=verifyCanonicalMarketArrival(world,{agentId:actor.id,market:selected.market});
+      if(arrival.state==='UNKNOWN')
+        return er5View('SAT','accepted-procurement-travelling',{
+          ...selected,type:'WAIT_TRAVEL',agentId:actor.id,marketId:selected.marketId,listingId:selected.listingId
+        });
+      if(arrival.state!=='SAT')
+        return er5View('SAT','accepted-procurement-arrival-invalid',{
+          type:'CANCEL_TRAVEL',agentId:actor.id,marketId:selected.marketId,listingId:selected.listingId
+        });
+      return er5View('SAT','accepted-procurement-ready',{
+        ...selected,type:'BUY_LISTING',agentId:actor.id,
+        intent:er5Freeze({buyerId:actor.id,listingId:selected.listingId,listingRevision:selected.listingRevision,quantity:selected.quantity})
+      });
+    }
+    return er5View('SAT','accepted-procurement-travel',{
+      ...selected,type:'TRAVEL_TO_MARKET',agentId:actor.id,
+      intent:er5Freeze({agentId:actor.id,marketId:selected.marketId})
+    });
+  }
   if(!rows.length){
     if(isCanonicalMarketTravelTask(actor.task))return er5View('SAT','demand-expired',{type:'CANCEL_TRAVEL',agentId:actor.id});
     return er5View('IDLE','no-observed-demand',{agentId:actor.id});
@@ -421,7 +512,7 @@ export function merchantAutonomySnapshot(world,agent){
   }
 
   // Owned canonical resale stock is always offered before sourcing more.
-  let blocked=null;
+  let blocked=null,waiting=null;
   for(const signal of rows){
     const stock=er5SaleableStock(world,actor,ledger,signal);
     if(stock.status==='UNKNOWN')return er5View('UNKNOWN','stock-evidence',{agentId:actor.id,itemKind:signal.itemKind});
@@ -461,7 +552,13 @@ export function merchantAutonomySnapshot(world,agent){
         blocked??=er5View('BLOCKED','buy-offer-unfunded',{agentId:actor.id,offerId:existing.offerId,required:total,available:funding.available});
         continue;
       }
-      return er5View('SAT','buy-offer-open',{type:'WAIT_BUY_OFFER',agentId:actor.id,offerId:existing.offerId,itemKind:signal.itemKind});
+      // Waiting on one valid offer must not starve another actionable demand row.
+      // Keep the commitment as the fallback decision, but continue scanning for
+      // travel, listing or a second funded BuyOffer first. If the only apparent
+      // demand is this Merchant's own BuyOffer, do not let it self-sustain WAIT.
+      if(er5IndependentDemandQuantity(signal,actor)>0)
+        waiting??=er5View('SAT','buy-offer-open',{type:'WAIT_BUY_OFFER',agentId:actor.id,offerId:existing.offerId,itemKind:signal.itemKind});
+      continue;
     }
 
     const reference=er5ReferencePrice(signal,ledger);
@@ -488,7 +585,7 @@ export function merchantAutonomySnapshot(world,agent){
     });
   }
 
-  return blocked??er5View('IDLE','demand-covered',{agentId:actor.id});
+  return waiting??blocked??er5View('IDLE','demand-covered',{agentId:actor.id});
 }
 
 export function merchantAutonomyDecision(world,agent){

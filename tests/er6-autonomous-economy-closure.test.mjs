@@ -1,0 +1,383 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import {createWorld,command,step,serialize,restore,validate,walkable} from '../src/engine.mjs';
+import {personalHomeSite} from '../src/individual-housing.mjs';
+import {canonicalEdge} from '../src/rust-stations.mjs';
+import {advanceCraft,toolMultiplier} from '../src/rust-possessions.mjs';
+import {ITEM_CATALOG} from '../src/crafting-catalog.mjs';
+import {projectHomeMarketForTrade} from '../src/home-market.mjs';
+import {observeRc4Markets} from '../src/rc4-market-observation.mjs';
+import {resourceStock} from '../src/individual-resources.mjs';
+import {getBalance,totalCurrency} from '../src/currency-wallet.mjs';
+import {ECONOMIC_DEMAND_TTL_TICKS} from '../src/economic-demand.mjs';
+import {noteExploreCompletion} from '../src/kingdom-utility.mjs';
+import {recordEarnedSkill} from '../src/skill-provenance.mjs';
+import {adventureXpForLevel} from '../src/adventure-progression.mjs';
+import {worldBounds} from '../src/world-bounds.mjs';
+import {
+  ER6_CONSUMER_AUTONOMY_VERSION,consumerAutonomySnapshot
+} from '../src/er6-consumer-autonomy.mjs';
+
+const actor=(s,id)=>s.agents.find(a=>a.id===id);
+const calm=(...agents)=>{for(const a of agents){a.hp=a.satiety=a.energy=100;a.task=null;a.moveTick=0;}};
+function give(s,a,kind){
+  const id=s.rustPossessions.nextItem++,def=ITEM_CATALOG[kind];
+  s.rustPossessions.items.push({id,kind,createdBy:a.id,createdTick:s.tick,
+    ...(def?.category==='gear'?{upgradeLevel:0}:{}),location:{kind:'bag',agentId:a.id}});
+  return id;
+}
+function equipFixture(s,a,itemId){s.rustPossessions.equipment.push({agentId:a.id,itemId});}
+function completeHome(s,a,label){
+  const planned=personalHomeSite(s,a,walkable);assert.ok(planned);
+  const {x,y}=planned.origin;a.x=x;a.y=y;a.task=null;
+  const hammer=give(s,a,'HAMMER');equipFixture(s,a,hammer);
+  const place=(kind,socket)=>{
+    const id=give(s,a,kind);
+    const r=command(s,'PLACE_STATION',{agentId:a.id,itemInstanceId:id,socket,placementId:'er6-home:'+label+':'+id});
+    assert.equal(r.ok,true,JSON.stringify(r));
+  };
+  place('WOOD_FOUNDATION',{type:'cell',x,y});
+  place('WOOD_WALL',canonicalEdge(x,y,'N'));
+  place('WOOD_WALL',canonicalEdge(x,y,'E'));
+  place('WOOD_WALL',canonicalEdge(x,y,'W'));
+  place('WOOD_DOORWAY',canonicalEdge(x,y,'S'));
+  place('WOOD_ROOF',{type:'cell',x,y});
+}
+function craftItem(s,a,recipeId){
+  a.task=null;
+  const order=command(s,'CRAFT_ITEM',{agentId:a.id,recipeId});assert.equal(order.ok,true,JSON.stringify(order));
+  let r=null;
+  for(let i=0;i<80&&!r?.completed;i++){s.tick++;r=advanceCraft(s,a.id);}
+  assert.equal(r?.completed,true,'canonical craft completes');
+  return s.rustPossessions.items.find(i=>i.id===r.itemId);
+}
+function prepareMerchant(s,a,label){
+  completeHome(s,a,label);
+  give(s,a,'STONE_AXE');
+  calm(a);
+  const made=command(s,'RC4_CREATE_MARKET',{agentId:a.id});assert.equal(made.ok,true,JSON.stringify(made));
+  const promoted=command(s,'RC4_BECOME_MERCHANT',{agentId:a.id});assert.equal(promoted.ok,true,JSON.stringify(promoted));
+  assert.equal(command(s,'RC4_OPEN_MARKET',{agentId:a.id,marketId:made.marketId}).ok,true);
+  return made.marketId;
+}
+function marketPoint(s,marketId){
+  const p=projectHomeMarketForTrade(s,s.homeMarkets,{marketId});assert.equal(p.ok,true,JSON.stringify(p));return p.market;
+}
+function arriveImmediately(s,agentId,marketId){
+  const p=marketPoint(s,marketId),a=actor(s,agentId);
+  a.task=null;a.x=p.x;a.y=p.y;observeRc4Markets(s);
+  const travel=command(s,'RC4_TRAVEL_TO_MARKET',{agentId,marketId});assert.equal(travel.ok,true,JSON.stringify(travel));
+  assert.equal(actor(s,agentId).task.path.length,0);
+}
+function removeNeedTool(s,a,kind){
+  const removed=new Set(s.rustPossessions.items.filter(i=>i.kind===kind&&i.location?.kind==='bag'&&i.location.agentId===a.id).map(i=>i.id));
+  s.rustPossessions.items=s.rustPossessions.items.filter(i=>!removed.has(i.id));
+  s.rustPossessions.equipment=s.rustPossessions.equipment.filter(e=>!removed.has(e.itemId));
+}
+function setupConsumerResale(){
+  const s=createWorld(926001,{mode:'independent',worldProfile:'same-world',population:4});
+  const producer=s.agents[3],merchant=s.agents[0],consumer=s.agents[2];
+  calm(producer,merchant,consumer);
+  Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
+  const item=craftItem(s,producer,'STONE_PICKAXE');
+  const marketId=prepareMerchant(s,merchant,'consumer');
+  const offer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchant.id,itemKind:'STONE_PICKAXE',unitPrice:40});
+  assert.equal(offer.ok,true,JSON.stringify(offer));
+  const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:offer.offerId,itemId:item.id});
+  assert.equal(accepted.ok,true,JSON.stringify(accepted));
+  arriveImmediately(s,merchant.id,marketId);
+  const procurement=s.merchantListings.listings.find(l=>l.id===accepted.listingId);assert.ok(procurement);
+  const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchant.id,listingId:procurement.id,listingRevision:procurement.revision});
+  assert.equal(bought.ok,true,JSON.stringify(bought));
+  actor(s,merchant.id).task=null;
+  const listed=command(s,'RC4_CREATE_LISTING',{agentId:merchant.id,itemId:item.id,unitPrice:60,requestId:'er6-consumer-resale'});
+  assert.equal(listed.ok,true,JSON.stringify(listed));
+
+  const c=actor(s,consumer.id);
+  assert.equal(c.preference,'MINE');assert.equal(c.profession,'miner');
+  removeNeedTool(s,c,'STONE_PICKAXE');
+  const p=marketPoint(s,marketId);
+  c.x=p.x;c.y=p.y;c.task=null;observeRc4Markets(s);
+  // Move after observation so the purchase is driven by retained personal knowledge,
+  // not by hidden world truth. The actual route is still computed canonically.
+  let start=null;
+  for(let r=3;r<10&&!start;r++)for(let dy=-r;dy<=r&&!start;dy++)for(let dx=-r;dx<=r;dx++){
+    if(Math.abs(dx)+Math.abs(dy)<r||!walkable(s,p.x+dx,p.y+dy))continue;
+    c.x=p.x+dx;c.y=p.y+dy;c.task=null;
+    const probe=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:c.id,marketId});
+    if(probe.ok&&actor(s,c.id).task.path.length>=3){start={x:c.x,y:c.y};actor(s,c.id).task=null;actor(s,c.id).moveTick=0;break;}
+    actor(s,c.id).task=null;actor(s,c.id).moveTick=0;
+  }
+  assert.ok(start,'reachable consumer start');
+  // Re-observe once at the market is intentionally not performed.
+  return {s,producerId:producer.id,merchantId:merchant.id,consumerId:consumer.id,marketId,itemId:item.id,listingId:listed.listingId};
+}
+
+function qualifyAdventureFixture(s,a){
+  a=actor(s,a.id);
+  for(let i=0;i<3;i++){
+    s.tick++;
+    const r=noteExploreCompletion(a,{kind:'EXPLORE',tick:s.tick,x:a.x,y:a.y,started:s.tick,alive:true,productive:true,knowledge:'none'});
+    assert.equal(r.counted,true);
+  }
+  assert.equal(a.profession,'adventurer');
+  const target=adventureXpForLevel(60),delta=target-a.skills.ADVENTURE;
+  if(delta>0){a.skills.ADVENTURE+=delta;assert.equal(recordEarnedSkill(a,'ADVENTURE',delta,s.tick,{action:'ER6_REGRESSION'}),true);}
+  calm(a);return a;
+}
+function acquireAndResell(s,{producer,merchant,marketId,itemKind,bid=5,ask=20,label}){
+  const producerId=producer.id,merchantId=merchant.id,itemId=give(s,actor(s,producerId),itemKind);
+  const offer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchantId,itemKind,unitPrice:bid});
+  assert.equal(offer.ok,true,JSON.stringify(offer));
+  const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId,offerId:offer.offerId,itemId});
+  assert.equal(accepted.ok,true,JSON.stringify(accepted));
+  arriveImmediately(s,merchantId,marketId);
+  const procurement=s.merchantListings.listings.find(l=>l.id===accepted.listingId);assert.ok(procurement);
+  const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchantId,listingId:procurement.id,listingRevision:procurement.revision});
+  assert.equal(bought.ok,true,JSON.stringify(bought));
+  const liveMerchant=actor(s,merchantId);liveMerchant.task=null;liveMerchant.moveTick=0;
+  const listed=command(s,'RC4_CREATE_LISTING',{agentId:merchantId,itemId,unitPrice:ask,requestId:'er6-regression-'+label});
+  assert.equal(listed.ok,true,JSON.stringify(listed));
+  return {itemId,listingId:listed.listingId};
+}
+function observeMarketFixture(s,a,marketId){
+  const p=marketPoint(s,marketId),live=actor(s,a.id);
+  live.x=p.x;live.y=p.y;live.task=null;live.moveTick=0;observeRc4Markets(s);
+  return p;
+}
+function adventurerCanResumeHunt(s,id,maxTicks=12){
+  for(let i=0;i<maxTicks;i++){
+    step(s,1);
+    const a=actor(s,id);
+    if(a?.task?.adventureHunt||a?.adventureEncounter||a?.adventureCombat)return true;
+  }
+  return false;
+}
+
+test('ER6 consumer projection is read-only and rejects hidden/stale supply',()=>{
+  const f=setupConsumerResale(),s=f.s,c=actor(s,f.consumerId);
+  assert.equal(ER6_CONSUMER_AUTONOMY_VERSION,'ER6-consumer-autonomy/1');
+  const before=serialize(s),snap=consumerAutonomySnapshot(s,c);
+  assert.equal(snap.status,'SAT');assert.equal(snap.type,'TRAVEL_TO_MARKET');assert.equal(snap.listingId,f.listingId);
+  assert.equal(serialize(s),before);
+
+  c.rc4MarketKnowledge.knownListings=[];
+  const hidden=consumerAutonomySnapshot(s,c);
+  assert.equal(hidden.status,'BLOCKED');assert.equal(hidden.reason,'no-observed-supply');
+
+  // Restore the fixture and age knowledge without an observation refresh.
+  const g=setupConsumerResale(),staleWorld=g.s,stale=actor(staleWorld,g.consumerId);
+  staleWorld.tick+=ECONOMIC_DEMAND_TTL_TICKS+1;
+  const staleSnap=consumerAutonomySnapshot(staleWorld,stale);
+  assert.equal(staleSnap.status,'BLOCKED');assert.equal(staleSnap.reason,'no-observed-supply');
+});
+
+test('ER6 autonomous consumer travels, buys exact canonical item, cancels journey, equips tool and preserves currency',()=>{
+  const f=setupConsumerResale();let s=f.s;
+  const totalBefore=totalCurrency(s),buyerBefore=getBalance(s,f.consumerId),merchantBefore=getBalance(s,f.merchantId);
+  let purchased=false,equipped=false;
+  for(let i=0;i<120;i++){
+    step(s,1);
+    const item=s.rustPossessions.items.find(x=>x.id===f.itemId);
+    purchased ||= item?.location?.kind==='bag'&&item.location.agentId===f.consumerId;
+    const eq=s.rustPossessions.equipment.find(e=>e.agentId===f.consumerId&&(e.slot??'hand')==='hand');
+    equipped ||= eq?.itemId===f.itemId;
+    if(purchased&&equipped&&!actor(s,f.consumerId).task?.rc4MarketTravel)break;
+  }
+  const consumer=actor(s,f.consumerId),merchant=actor(s,f.merchantId),item=s.rustPossessions.items.find(x=>x.id===f.itemId);
+  assert.equal(purchased,true,'consumer purchased exact item');
+  assert.equal(equipped,true,'consumer equipped purchased tool through Rust authority');
+  assert.deepEqual(item.location,{kind:'bag',agentId:f.consumerId});
+  assert.ok(toolMultiplier(s,consumer.id,'MINE')>1,'equipped purchased tool affects real productive work');
+  assert.equal(getBalance(s,f.consumerId),buyerBefore-60);
+  assert.equal(getBalance(s,f.merchantId),merchantBefore+60);
+  assert.equal(totalCurrency(s),totalBefore);
+  const ledger=s.merchantLedgers.ledgers.find(l=>l.merchantId===f.merchantId);
+  assert.equal(ledger.revenue,60);assert.equal(ledger.costOfGoodsSold,40);assert.equal(ledger.realizedProfit,20);
+  assert.equal(s.merchantListings.listings.find(l=>l.id===f.listingId).status,'FILLED');
+  assert.deepEqual(validate(s),[]);
+
+  const workBefore=consumer.workDone;
+  for(let i=0;i<240&&actor(s,f.consumerId).workDone===workBefore;i++)step(s,1);
+  assert.ok(actor(s,f.consumerId).workDone>workBefore,'consumer resumes real productive work with purchased tool equipped');
+
+  const wire=serialize(s);s=restore(wire);
+  const afterRestore=serialize(s);
+  for(let i=0;i<10;i++)step(s,1);
+  assert.equal(s.rustPossessions.items.filter(x=>x.id===f.itemId).length,1);
+  assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===f.listingId&&r.buyerId===f.consumerId).length,1);
+  assert.equal(totalCurrency(s),totalBefore);
+  assert.notEqual(serialize(s),'');
+  assert.ok(afterRestore.length>0);
+  assert.deepEqual(validate(s),[]);
+});
+
+
+test('ER6 Adventurer buys and equips exact physical weapon and armor through canonical gear authority across save/load',()=>{
+  let s=createWorld(926017,{mode:'independent',worldProfile:'same-world',population:4});
+  const producer=s.agents[3],merchant=s.agents[0],consumer=s.agents[2];
+  calm(producer,merchant,consumer);Object.assign(resourceStock(s,producer),{food:700,wood:700,stone:700});
+  const marketId=prepareMerchant(s,merchant,'gear-equip');
+  const blade=acquireAndResell(s,{producer,merchant,marketId,itemKind:'EMBER_BLADE',ask:20,label:'gear-equip-blade'});
+  const armor=acquireAndResell(s,{producer,merchant,marketId,itemKind:'HIDE_ARMOR',ask:20,label:'gear-equip-armor'});
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  const totalBefore=totalCurrency(s),buyerBefore=getBalance(s,consumer.id),merchantBefore=getBalance(s,merchant.id);
+
+  for(let i=0;i<240;i++){
+    step(s,1);
+    const weapon=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='WEAPON');
+    const body=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='ARMOR');
+    if(weapon?.itemId===blade.itemId&&body?.itemId===armor.itemId)break;
+  }
+
+  const weapon=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='WEAPON');
+  const body=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='ARMOR');
+  assert.equal(weapon?.itemId,blade.itemId,'canonical gear authority equips the exact purchased weapon instance');
+  assert.equal(body?.itemId,armor.itemId,'canonical gear authority equips the exact purchased armor instance');
+  assert.deepEqual(s.rustPossessions.items.find(i=>i.id===blade.itemId)?.location,{kind:'bag',agentId:consumer.id});
+  assert.deepEqual(s.rustPossessions.items.find(i=>i.id===armor.itemId)?.location,{kind:'bag',agentId:consumer.id});
+  assert.equal(s.rustPossessions.items.find(i=>i.id===blade.itemId)?.upgradeLevel,0);
+  assert.equal(s.rustPossessions.items.find(i=>i.id===armor.itemId)?.upgradeLevel,0);
+  assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===blade.listingId&&r.buyerId===consumer.id&&r.itemIds?.includes(blade.itemId)).length,1);
+  assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===armor.listingId&&r.buyerId===consumer.id&&r.itemIds?.includes(armor.itemId)).length,1);
+  assert.equal(getBalance(s,consumer.id),buyerBefore-40);
+  assert.equal(getBalance(s,merchant.id),merchantBefore+40);
+  assert.equal(totalCurrency(s),totalBefore);
+  assert.deepEqual(validate(s),[]);
+
+  s=restore(serialize(s));
+  const restoredWeapon=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='WEAPON');
+  const restoredArmor=s.rustPossessions.equipment.find(e=>e.agentId===consumer.id&&(e.slot??'hand')==='ARMOR');
+  assert.equal(restoredWeapon?.itemId,blade.itemId);
+  assert.equal(restoredArmor?.itemId,armor.itemId);
+  assert.equal(s.rustPossessions.items.filter(i=>i.id===blade.itemId).length,1);
+  assert.equal(s.rustPossessions.items.filter(i=>i.id===armor.itemId).length,1);
+  assert.equal(getBalance(s,consumer.id),buyerBefore-40);
+  assert.equal(getBalance(s,merchant.id),merchantBefore+40);
+  assert.equal(totalCurrency(s),totalBefore);
+  assert.deepEqual(validate(s),[]);
+});
+
+test('ER6 save/load during consumer travel loses runtime provenance safely and replans without replay',()=>{
+  const f=setupConsumerResale();let s=f.s;
+  step(s,1);
+  assert.ok(actor(s,f.consumerId).task?.rc4MarketTravel,'consumer starts canonical market journey');
+  const totalBefore=totalCurrency(s);
+  s=restore(serialize(s));
+  let bought=false;
+  for(let i=0;i<160;i++){
+    step(s,1);
+    const item=s.rustPossessions.items.find(x=>x.id===f.itemId);
+    if(item?.location?.kind==='bag'&&item.location.agentId===f.consumerId){bought=true;break;}
+  }
+  assert.equal(bought,true,'restored consumer safely replans and buys');
+  assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===f.listingId&&r.buyerId===f.consumerId).length,1);
+  assert.equal(totalCurrency(s),totalBefore);
+  assert.deepEqual(validate(s),[]);
+});
+
+
+test('ER6 malformed knownListings fails closed before array access and never mutates world',()=>{
+  const f=setupConsumerResale(),s=f.s,c=actor(s,f.consumerId);
+  c.rc4MarketKnowledge.knownListings={corrupt:true};
+  const before=serialize(s);
+  let snap=null;
+  assert.doesNotThrow(()=>{snap=consumerAutonomySnapshot(s,c);});
+  assert.equal(snap.status,'UNKNOWN');
+  assert.equal(snap.reason,'market-knowledge-invalid');
+  assert.equal(serialize(s),before);
+});
+
+test('ER6 skips an unavailable first Adventure gear need and buys a later observed need',()=>{
+  const s=createWorld(926011,{mode:'independent',worldProfile:'same-world',population:4});
+  const producer=s.agents[3],merchant=s.agents[0],consumer=s.agents[2];
+  calm(producer,merchant,consumer);Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
+  const marketId=prepareMerchant(s,merchant,'need-fallback');
+  const blade=acquireAndResell(s,{producer,merchant,marketId,itemKind:'EMBER_BLADE',ask:20,label:'need-fallback-blade'});
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  const snap=consumerAutonomySnapshot(s,actor(s,consumer.id));
+  assert.equal(snap.status,'SAT',JSON.stringify(snap));
+  assert.equal(snap.type,'TRAVEL_TO_MARKET');
+  assert.equal(snap.listingId,blade.listingId,'missing ARMOR supply must not hide buyable WEAPON');
+  assert.equal(snap.itemKind,'EMBER_BLADE');
+});
+
+test('ER6 skips an unaffordable first gear need when a later need is affordable',()=>{
+  const s=createWorld(926012,{mode:'independent',worldProfile:'same-world',population:4});
+  const producer=s.agents[3],merchant=s.agents[0],consumer=s.agents[2];
+  calm(producer,merchant,consumer);Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
+  const marketId=prepareMerchant(s,merchant,'fund-fallback');
+  acquireAndResell(s,{producer,merchant,marketId,itemKind:'HIDE_ARMOR',ask:101,label:'fund-armor'});
+  const blade=acquireAndResell(s,{producer,merchant,marketId,itemKind:'EMBER_BLADE',ask:20,label:'fund-blade'});
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  assert.equal(getBalance(s,consumer.id),100);
+  const snap=consumerAutonomySnapshot(s,actor(s,consumer.id));
+  assert.equal(snap.status,'SAT',JSON.stringify(snap));
+  assert.equal(snap.listingId,blade.listingId);
+  assert.equal(snap.itemKind,'EMBER_BLADE');
+});
+
+test('ER6 Adventurer does not wait forever when observed market has no actionable gear supply',()=>{
+  const s=createWorld(926013,{mode:'independent',worldProfile:'same-world',population:4});
+  const merchant=s.agents[0],consumer=s.agents[2];
+  calm(merchant,consumer);
+  const marketId=prepareMerchant(s,merchant,'no-gear');
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  const snap=consumerAutonomySnapshot(s,actor(s,consumer.id));
+  assert.equal(snap.status,'BLOCKED');
+  assert.equal(snap.reason,'no-observed-supply');
+  assert.equal(adventurerCanResumeHunt(s,consumer.id),true,'unavailable gear cannot suppress autonomous hunting indefinitely');
+});
+
+test('ER6 closed retained market knowledge cannot trap Adventurer in gear wait',()=>{
+  const s=createWorld(926014,{mode:'independent',worldProfile:'same-world',population:4});
+  const merchant=s.agents[0],consumer=s.agents[2];
+  calm(merchant,consumer);
+  const marketId=prepareMerchant(s,merchant,'closed-market');
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  assert.equal(command(s,'RC4_CLOSE_MARKET',{agentId:merchant.id,marketId}).ok,true);
+  const snap=consumerAutonomySnapshot(s,actor(s,consumer.id));
+  assert.equal(snap.status,'BLOCKED');
+  assert.equal(snap.reason,'no-observed-supply');
+  assert.equal(adventurerCanResumeHunt(s,consumer.id),true);
+});
+
+test('ER6 canonical no-path cheapest market falls back to a reachable observed listing',()=>{
+  const s=createWorld(926015,{mode:'independent',worldProfile:'same-world',population:4});
+  const cheapMerchant=s.agents[0],reachableMerchant=s.agents[1],consumer=s.agents[2],producer=s.agents[3];
+  calm(cheapMerchant,reachableMerchant,consumer,producer);Object.assign(resourceStock(s,producer),{food:700,wood:700,stone:700});
+  const cheapMarket=prepareMerchant(s,cheapMerchant,'cheap');
+  const reachableMarket=prepareMerchant(s,reachableMerchant,'reachable');
+  const cheap=acquireAndResell(s,{producer,merchant:cheapMerchant,marketId:cheapMarket,itemKind:'EMBER_BLADE',ask:10,label:'cheap-blade'});
+  const reachable=acquireAndResell(s,{producer,merchant:reachableMerchant,marketId:reachableMarket,itemKind:'EMBER_BLADE',ask:20,label:'reachable-blade'});
+  qualifyAdventureFixture(s,consumer);
+  const cheapPoint=observeMarketFixture(s,consumer,cheapMarket);
+  const reachablePoint=observeMarketFixture(s,consumer,reachableMarket);
+  const bounds=worldBounds(s),index=cheapPoint.y*bounds.w+cheapPoint.x,prior=s.tiles[index];
+  assert.notEqual(prior,'water','fixture needs a previously reachable cheap storefront');
+  s.tiles[index]='water';
+  const liveConsumer=actor(s,consumer.id);
+  liveConsumer.x=reachablePoint.x;liveConsumer.y=reachablePoint.y;liveConsumer.task=null;liveConsumer.moveTick=0;
+  const snap=consumerAutonomySnapshot(s,liveConsumer);
+  assert.equal(snap.status,'SAT',JSON.stringify(snap));
+  assert.notEqual(snap.listingId,cheap.listingId);
+  assert.equal(snap.listingId,reachable.listingId,'canonical no-path market must be skipped, not retried forever');
+  s.tiles[index]=prior;
+  assert.deepEqual(validate(s),[]);
+});
+
+
+test('ER6 wholly unaffordable observed gear does not suppress Adventure forever',()=>{
+  const s=createWorld(926016,{mode:'independent',worldProfile:'same-world',population:4});
+  const producer=s.agents[3],merchant=s.agents[0],consumer=s.agents[2];
+  calm(producer,merchant,consumer);Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
+  const marketId=prepareMerchant(s,merchant,'unaffordable-only');
+  acquireAndResell(s,{producer,merchant,marketId,itemKind:'EMBER_BLADE',ask:101,label:'unaffordable-only-blade'});
+  qualifyAdventureFixture(s,consumer);observeMarketFixture(s,consumer,marketId);
+  assert.equal(getBalance(s,consumer.id),100);
+  const snap=consumerAutonomySnapshot(s,actor(s,consumer.id));
+  assert.equal(snap.status,'BLOCKED',JSON.stringify(snap));
+  assert.equal(snap.reason,'no-affordable-observed-supply');
+  assert.equal(adventurerCanResumeHunt(s,consumer.id),true,'insufficient funds cannot become permanent gear-wait');
+});

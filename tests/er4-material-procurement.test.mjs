@@ -194,10 +194,12 @@ test('ER4 hidden and stale Listings cannot authorize procurement; corrupt roots 
     assert.equal(serialize(s),before);
   }
   {
-    const {s,crafterId}=setupBulkProcurement(),a=live(s,crafterId);
+    const {s,crafterId,market}=setupBulkProcurement(),a=live(s,crafterId);
     s.tick+=ECONOMIC_DEMAND_TTL_TICKS+1;
     const snap=crafterMaterialProcurementSnapshot(s,a);
-    assert.notEqual(snap.type,'BUY_LISTING');assert.notEqual(snap.type,'TRAVEL_TO_MARKET');
+    assert.notEqual(snap.type,'BUY_LISTING','stale supply can never authorize purchase');
+    assert.equal(snap.type,'TRAVEL_TO_MARKET',JSON.stringify(snap));
+    assert.equal(snap.reason,'stale-market-recheck');assert.equal(snap.marketId,market.marketId);
   }
   {
     const {s,crafterId}=setupBulkProcurement(),a=live(s,crafterId);
@@ -205,6 +207,90 @@ test('ER4 hidden and stale Listings cannot authorize procurement; corrupt roots 
     const snap=crafterMaterialProcurementSnapshot(s,a);
     assert.equal(snap.status,'UNKNOWN');
   }
+});
+
+test('ER4 stale known supply can preempt generic resource fallback once, while re-observed closure releases it',()=>{
+  const {s,merchantId,crafterId,market}=setupBulkProcurement();
+  let a=live(s,crafterId);
+  s.tick+=ECONOMIC_DEMAND_TTL_TICKS+1;
+  const woodNode=s.nodes.find(n=>n.type==='wood'&&n.amount>0);assert.ok(woodNode);
+  a.task={kind:'WOODCUT',targetId:woodNode.id,x:woodNode.x,y:woodNode.y,path:[],work:0,score:1,started:s.tick,policy:'survival-0.2'};
+  const recheck=crafterMaterialProcurementSnapshot(s,a);
+  assert.equal(recheck.status,'SAT',JSON.stringify(recheck));
+  assert.equal(recheck.type,'TRAVEL_TO_MARKET');assert.equal(recheck.reason,'stale-market-recheck');
+  assert.equal(recheck.marketId,market.marketId);
+  const travel=command(s,'RC4_TRAVEL_TO_MARKET',recheck.intent);
+  assert.equal(travel.ok,true,JSON.stringify(travel));
+  assert.ok(live(s,crafterId).task?.rc4MarketTravel,'canonical market travel preempts generic WOODCUT fallback');
+
+  assert.equal(command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:crafterId}).ok,true);
+  assert.equal(command(s,'RC4_CLOSE_MARKET',{agentId:merchantId,marketId:market.marketId}).ok,true);
+  a=live(s,crafterId);a.x=market.tradePoint?.x??market.x;a.y=market.tradePoint?.y??market.y;a.task=null;
+  observeRc4Markets(s);
+  const released=crafterMaterialProcurementSnapshot(s,a);
+  assert.notEqual(released.type,'TRAVEL_TO_MARKET','a re-observed closed market cannot trap stale recheck');
+  assert.notEqual(released.holdFallback,true,'failed stale knowledge must release generic fallback');
+  assert.deepEqual(validate(s),[]);
+});
+
+test('ER4 observed Merchant sourcing holds safe generic material fallback without inventing supply',()=>{
+  const {s,merchant,crafter}=qualifiedCrafterFixture(),merchantId=merchant.id,crafterId=crafter.id;
+  merchant.preference='MINE';crafter.preference='BUILD';
+  const far=farWalkable(s,merchant);assert.ok(far);crafter.x=far.x;crafter.y=far.y;crafter.task=null;
+  const market=setupMerchantMarket(s,merchant,{productDemand:'STONE_PICKAXE',productPrice:70});
+  const buyer=live(s,crafterId),seller=live(s,merchantId),stock=resourceStock(s,buyer);
+  Object.assign(stock,{food:900,stone:900,wood:CRAFT_TRAINING_RULES.wood});
+  const point=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:market.marketId}).market;
+  buyer.x=point.x;buyer.y=point.y;buyer.task=null;seller.x=point.x;seller.y=point.y;seller.task=null;observeRc4Markets(s);
+  const sourcing=command(s,'RC4_CREATE_BUY_OFFER',{
+    agentId:merchantId,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantityWanted:3,unitPrice:1
+  });assert.equal(sourcing.ok,true,JSON.stringify(sourcing));
+  const snap=crafterMaterialProcurementSnapshot(s,live(s,crafterId));
+  assert.equal(snap.status,'NEEDS_SUPPLY',JSON.stringify(snap));
+  assert.equal(snap.reason,'observed-market-sourcing',JSON.stringify(snap));
+  assert.equal(snap.holdFallback,true);assert.equal(snap.sourcing.offerId,sourcing.offerId);
+  const before=materialAmount(s,live(s,crafterId),'wood');
+  step(s,1);
+  const after=live(s,crafterId);
+  assert.equal(materialAmount(s,after,'wood'),before,'waiting one safe tick cannot mint or gather hidden material');
+  assert.notEqual(after.task?.kind,'WOODCUT');
+  assert.notEqual(after.task?.purposeKind,'WOODCUT');
+  assert.deepEqual(validate(s),[]);
+});
+
+test('ER4 observed verified Merchant purchase bridges FILLED sourcing offer until resale is listed',()=>{
+  const {s,merchant,crafter}=qualifiedCrafterFixture(),merchantId=merchant.id,crafterId=crafter.id;
+  merchant.preference='MINE';crafter.preference='BUILD';
+  const far=farWalkable(s,merchant);assert.ok(far);crafter.x=far.x;crafter.y=far.y;crafter.task=null;
+  const market=setupMerchantMarket(s,merchant,{productDemand:'STONE_PICKAXE',productPrice:70});
+  let buyer=live(s,crafterId),seller=live(s,merchantId);
+  Object.assign(resourceStock(s,buyer),{food:900,stone:900,wood:900});
+  const point=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:market.marketId}).market;
+  for(const a of [buyer,seller]){a.x=point.x;a.y=point.y;a.task=null;a.hp=a.satiety=a.energy=100;}
+  observeRc4Markets(s);
+
+  const acquired=merchantAcquireBulkBasis(s,{merchantId,supplierId:crafterId,marketId:market.marketId,itemKind:'wood',quantity:1,unitPrice:1});
+  buyer=live(s,crafterId);buyer.task=null;
+  Object.assign(resourceStock(s,buyer),{food:900,stone:900,wood:CRAFT_TRAINING_RULES.wood});
+  assert.equal(command(s,'SET_PRODUCTION_POLICY',{enabled:true}).ok,true);
+  const bridge=crafterMaterialProcurementSnapshot(s,buyer);
+  assert.equal(bridge.status,'NEEDS_SUPPLY',JSON.stringify(bridge));
+  assert.equal(bridge.reason,'observed-market-sourcing',JSON.stringify(bridge));
+  assert.equal(bridge.holdFallback,true);
+  assert.equal(bridge.sourcing.kind,'observed-filled-procurement');
+  assert.equal(bridge.sourcing.transactionId,acquired.transactionId);
+  const stale=restore(serialize(s));stale.tick+=ECONOMIC_DEMAND_TTL_TICKS+1;
+  const staleView=crafterMaterialProcurementSnapshot(stale,live(stale,crafterId));
+  assert.notEqual(staleView.holdFallback,true,'stale filled-procurement memory must release generic fallback');
+
+  seller=live(s,merchantId);
+  const listed=addBulkListing(s,seller,{itemKind:'wood',quantity:1,unitPrice:2,requestId:'er4-verified-bridge'});
+  assert.ok(listed.listingId);
+  const ready=crafterMaterialProcurementSnapshot(s,live(s,crafterId));
+  assert.equal(ready.status,'SAT',JSON.stringify(ready));
+  assert.equal(ready.type,'TRAVEL_TO_MARKET',JSON.stringify(ready));
+  assert.equal(ready.listingId,listed.listingId);
+  assert.deepEqual(validate(s),[]);
 });
 
 test('ER4 insufficient Wallet funds never creates credit or mutates market/material state',()=>{

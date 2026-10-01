@@ -184,6 +184,7 @@ test('ER5 unaffordable observed ask creates one funded BuyOffer and save/load do
   step(s,1);
   const offers=s.merchantBuyOffers.buyOffers.filter(o=>o.buyerId===merchantId&&o.itemKind==='STONE_PICKAXE'&&o.status==='OPEN');
   assert.equal(offers.length,1);assert.equal(offers[0].unitPrice,98);assert.equal(offers[0].quantityWanted,1);
+  assert.equal(actor(s,merchantId).task,null,'healthy Merchant waiting on its canonical BuyOffer must not wander into a generic job');
 
   actor(s,merchantId).task=null;const wire=serialize(s);s=restore(wire);
   merchant=actor(s,merchantId);merchant.task=null;merchant.hp=merchant.satiety=merchant.energy=100;
@@ -209,6 +210,82 @@ test('ER5 unaffordable observed ask creates one funded BuyOffer and save/load do
   assert.equal(replay.ok,false);assert.equal(serialize(s),beforeReplay,'completed procurement replay cannot charge or duplicate stock');
   assert.deepEqual(validate(s),[]);
   const saved=serialize(s);s=restore(saved);assert.equal(serialize(s),saved);
+});
+
+test('ER5 waiting BuyOffer does not starve unrelated actionable demand or self-sustain without independent demand',()=>{
+  {
+    const f=setupObservedResale(),s=f.s,m=actor(s,f.merchantId);
+    const unrelated=command(s,'RC4_CREATE_BUY_OFFER',{agentId:m.id,itemKind:'HIDE_ARMOR',unitPrice:1});
+    assert.equal(unrelated.ok,true,JSON.stringify(unrelated));
+    assert.equal(command(s,'RC4_OPEN_MARKET',{agentId:m.id,marketId:f.merchantMarket}).ok,true);
+    const snap=merchantAutonomySnapshot(s,actor(s,f.merchantId));
+    assert.equal(snap.status,'SAT',JSON.stringify(snap));
+    assert.equal(snap.type,'TRAVEL_TO_MARKET',JSON.stringify(snap));
+    assert.equal(snap.listingId,f.resaleId,'existing unrelated BuyOffer must not starve observed actionable supply');
+    assert.equal(snap.itemKind,'STONE_AXE');
+  }
+  {
+    const s=createWorld(925021,{mode:'independent',worldProfile:'same-world',population:4}),merchant=s.agents[0];
+    calm(...s.agents);
+    const marketId=prepareMerchant(s,merchant,'self-offer-only',{open:true});
+    const p=marketPoint(s,marketId);merchant.x=p.x;merchant.y=p.y;merchant.task=null;
+    const far=s.nodes.filter(n=>walkable(s,n.x,n.y)&&Math.abs(n.x-p.x)+Math.abs(n.y-p.y)>20)
+      .sort((a,b)=>b.id-a.id);
+    assert.ok(far.length>=s.agents.length-1,'fixture needs valid distant cells');
+    let farIndex=0;
+    for(const other of s.agents.filter(a=>a.id!==merchant.id)){
+      const cell=far[farIndex++];other.x=cell.x;other.y=cell.y;other.task=null;
+    }
+    observeRc4Markets(s);
+    const offer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchant.id,itemKind:'HIDE_ARMOR',unitPrice:1});
+    assert.equal(offer.ok,true,JSON.stringify(offer));
+    const snap=merchantAutonomySnapshot(s,actor(s,merchant.id));
+    assert.notEqual(snap.type,'WAIT_BUY_OFFER','own BuyOffer alone must not manufacture permanent live demand');
+    assert.equal(snap.status,'IDLE',JSON.stringify(snap));
+    assert.deepEqual(validate(s),[]);
+  }
+});
+
+test('ER5 accepted bulk procurement outranks unrelated open BuyOffer and settles canonically',()=>{
+  let s=createWorld(925002,{mode:'independent',worldProfile:'same-world',population:4});
+  let merchant=s.agents[0],producer=s.agents[3];calm(merchant,producer);
+  Object.assign(resourceStock(s,producer),{food:500,wood:500,stone:500});
+  const marketId=prepareMerchant(s,merchant,'accepted-bulk',{open:true});
+  const point=marketPoint(s,marketId);
+  producer.x=point.x;producer.y=point.y;producer.task=null;observeRc4Markets(s);
+  const travel=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:producer.id,marketId});assert.equal(travel.ok,true,JSON.stringify(travel));
+  assert.equal(actor(s,producer.id).task?.path?.length,0);
+
+  const wood=command(s,'RC4_CREATE_BUY_OFFER',{
+    agentId:merchant.id,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantityWanted:1,unitPrice:3
+  });assert.equal(wood.ok,true,JSON.stringify(wood));
+  s.tick++;
+  const armor=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchant.id,itemKind:'HIDE_ARMOR',unitPrice:1});
+  assert.equal(armor.ok,true,JSON.stringify(armor));
+  observeRc4Markets(s);
+
+  const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:wood.offerId,quantity:1});
+  assert.equal(accepted.ok,true,JSON.stringify(accepted));
+  if(actor(s,producer.id).task?.rc4MarketTravel)
+    assert.equal(command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:producer.id}).ok,true);
+
+  merchant=actor(s,merchant.id);merchant.x=point.x;merchant.y=point.y;merchant.task=null;merchant.hp=merchant.satiety=merchant.energy=100;
+  observeRc4Markets(s);
+  const snap=merchantAutonomySnapshot(s,merchant);
+  assert.equal(snap.status,'SAT',JSON.stringify(snap));
+  assert.equal(snap.type,'TRAVEL_TO_MARKET',JSON.stringify(snap));
+  assert.equal(snap.listingId,accepted.listingId,'accepted procurement must outrank unrelated WAIT_BUY_OFFER work');
+
+  step(s,1);merchant=actor(s,merchant.id);
+  assert.equal(merchant.task?.rc4MarketTravel?.marketId,marketId);
+  step(s,1);
+  merchant=actor(s,merchant.id);
+  assert.equal(merchant.task,null,'successful accepted procurement keeps the same tick owned by Merchant market flow');
+  assert.equal(s.merchantListings.listings.find(l=>l.id===accepted.listingId)?.status,'FILLED');
+  assert.equal(s.merchantBuyOffers.buyOffers.find(o=>o.offerId===wood.offerId)?.status,'FILLED');
+  assert.equal(s.merchantBuyOffers.buyOffers.find(o=>o.offerId===armor.offerId)?.status,'OPEN');
+  assert.equal(s.tradeReplay.receipts.filter(r=>r.listingId===accepted.listingId).length,1);
+  assert.deepEqual(validate(s),[]);
 });
 
 test('ER5 hidden/stale supply never authorizes remote buying and corrupt market knowledge remains UNKNOWN',()=>{

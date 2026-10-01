@@ -3,13 +3,15 @@
  * but owns no wallet, material, Rust item, market, trade, profession or task writes.
  */
 import {demandDrivenCrafterSnapshot} from './demand-driven-crafter.mjs?v=0.5.0';
-import {projectActorObservedDemand} from './economic-demand.mjs?v=0.5.0';
+import {projectActorObservedDemand,ECONOMIC_DEMAND_TTL_TICKS} from './economic-demand.mjs?v=0.5.0';
 import {getBalance} from './currency-wallet.mjs?v=0.5.0';
+import {knownRc4Markets,knownRc4Listings,knownRc4BuyOffers} from './rc4-market-observation.mjs?v=0.5.0';
 import {TRADE_ASSET_TYPES,tradeAssetType,validBulkTradeResourceKey} from './trade-assets.mjs?v=0.5.0';
 import {sameResourceAccount} from './individual-resources.mjs?v=0.5.0';
 import {projectHomeMarketForTrade} from './home-market.mjs?v=0.5.0';
 import {isCanonicalMarketTravelTask,verifyCanonicalMarketArrival} from './navigation-arrival-evidence.mjs?v=0.5.0';
 import {routeField,routeDistance} from './survival.mjs?v=0.5.0';
+import {merchantLedgerFromCollection} from './merchant-ledger.mjs?v=0.5.0';
 
 export const ER4_MATERIAL_PROCUREMENT_VERSION='ER4-material-procurement/1';
 
@@ -66,10 +68,83 @@ function listingCandidate(world,actor,projection,need){
   return rows;
 }
 
+function staleMarketRecheck(world,actor,missing){
+  const needed=new Set(missing.map(x=>x.itemKind));
+  if(!needed.size)return null;
+  const markets=knownRc4Markets(actor)
+    .filter(m=>m?.status==='open'&&Number.isSafeInteger(m.observedTick)&&m.observedTick>=0&&m.observedTick<=world.tick);
+  const evidence=[
+    ...knownRc4Listings(actor).filter(x=>x?.sellerId!==actor.id),
+    ...knownRc4BuyOffers(actor).filter(x=>x?.buyerId!==actor.id)
+  ].filter(x=>needed.has(x?.itemKind)&&Number.isSafeInteger(x.observedTick)&&x.observedTick>=0&&x.observedTick<=world.tick&&
+    world.tick-x.observedTick>ECONOMIC_DEMAND_TTL_TICKS);
+  const rows=[];
+  for(const market of markets){
+    const relevant=evidence.filter(x=>x.marketId===market.marketId);
+    if(!relevant.length)continue;
+    const latestEvidenceTick=Math.max(...relevant.map(x=>x.observedTick));
+    // A later market observation means the actor already came back after this
+    // stale evidence. With no fresh actionable row above, fall back instead of
+    // looping forever on the same memory.
+    if(market.observedTick>latestEvidenceTick)continue;
+    rows.push({marketId:market.marketId,marketObservedTick:market.observedTick,evidenceObservedTick:latestEvidenceTick});
+  }
+  return rows.sort((a,b)=>b.evidenceObservedTick-a.evidenceObservedTick||
+    b.marketObservedTick-a.marketObservedTick||a.marketId.localeCompare(b.marketId))[0]??null;
+}
+
+function observedMarketSourcing(world,actor,projection,missing){
+  const needed=new Set(missing.map(x=>x.itemKind));
+  for(const signal of projection?.signals??[]){
+    if(!needed.has(signal.itemKind))continue;
+    const expected=validBulkTradeResourceKey(signal.itemKind)?TRADE_ASSET_TYPES.BULK_RESOURCE:TRADE_ASSET_TYPES.PHYSICAL_ITEM;
+    for(const source of signal.sources??[]){
+      if(!['BUY_OFFER','MERCHANT_STOCK_SHORTAGE_BUY_OFFER'].includes(source?.kind)||typeof source.evidenceId!=='string')continue;
+      const offer=world.merchantBuyOffers?.buyOffers?.find(o=>o.offerId===source.evidenceId&&o.status==='OPEN');
+      if(!offer||offer.buyerId===actor.id||offer.itemKind!==signal.itemKind||tradeAssetType(offer)!==expected)continue;
+      const buyer=world.agents?.find(a=>a.id===offer.buyerId&&a.alive&&a.profession==='merchant');if(!buyer)continue;
+      const market=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:offer.marketId});
+      if(!market.ok||market.market.open!==true||routeDistance(routeField(world,actor),market.market)<0)continue;
+      return {kind:'open-merchant-buy-offer',offerId:offer.offerId,marketId:offer.marketId,buyerId:offer.buyerId,itemKind:offer.itemKind};
+    }
+  }
+  // Once an observed procurement Listing flips FILLED, the corresponding open
+  // BuyOffer disappears from live demand before the Merchant can publish resale.
+  // Keep the Crafter on the same observed pipeline only while the exact filled
+  // Listing is in personal market memory and the Merchant still retains that
+  // canonical purchase basis. No hidden stock alone can create this hold.
+  for(const known of actor.rc4MarketKnowledge?.knownListings??[]){
+    if(!needed.has(known?.itemKind)||known?.status!=='FILLED'||!known.buyOfferId||
+      !Number.isSafeInteger(known.observedTick)||known.observedTick<0||known.observedTick>world.tick||
+      world.tick-known.observedTick>ECONOMIC_DEMAND_TTL_TICKS)continue;
+    const current=world.merchantListings?.listings?.find(l=>l.id===known.id);
+    if(!current||current.status!=='FILLED'||current.marketId!==known.marketId||current.sellerId!==known.sellerId||
+      current.itemKind!==known.itemKind||current.buyOfferId!==known.buyOfferId||current.revision!==known.revision)continue;
+    const receipt=world.tradeReplay?.receipts?.find(r=>r.listingId===current.id&&r.marketId===current.marketId&&
+      r.sellerId===current.sellerId&&r.itemKind===current.itemKind);
+    if(!receipt||receipt.buyerId===actor.id)continue;
+    const expected=validBulkTradeResourceKey(current.itemKind)?TRADE_ASSET_TYPES.BULK_RESOURCE:TRADE_ASSET_TYPES.PHYSICAL_ITEM;
+    if(tradeAssetType(receipt)!==expected)continue;
+    const buyer=world.agents?.find(a=>a.id===receipt.buyerId&&a.alive&&a.profession==='merchant');if(!buyer)continue;
+    if(expected===TRADE_ASSET_TYPES.BULK_RESOURCE&&sameResourceAccount(world,actor,buyer))continue;
+    const ledger=merchantLedgerFromCollection(world.merchantLedgers,buyer.id);
+    const purchase=ledger?.purchases?.find(p=>p.transactionId===receipt.transactionId&&p.itemKind===receipt.itemKind);
+    const retained=expected===TRADE_ASSET_TYPES.BULK_RESOURCE
+      ?Number.isSafeInteger(purchase?.remainingQuantity)&&purchase.remainingQuantity>0
+      :Array.isArray(purchase?.remainingItemIds)&&purchase.remainingItemIds.length>0;
+    if(!retained)continue;
+    const market=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:receipt.marketId});
+    if(!market.ok||market.market.open!==true||routeDistance(routeField(world,actor),market.market)<0)continue;
+    return {kind:'observed-filled-procurement',transactionId:receipt.transactionId,listingId:current.id,
+      marketId:receipt.marketId,buyerId:receipt.buyerId,itemKind:receipt.itemKind,quantity:receipt.quantity};
+  }
+  return null;
+}
+
 function procurementPlan(world,agent){
   const actor=world?.agents?.find(a=>a.id===agent?.id)??null;
   if(!actor||actor!==agent)return view('UNKNOWN','actor');
-  const craft=demandDrivenCrafterSnapshot(world,actor,{allowCanonicalMarketTravel:true});
+  const craft=demandDrivenCrafterSnapshot(world,actor,{allowCanonicalMarketTravel:true,allowGenericExplore:true,allowMarketPreemptibleTask:true});
   const travelling=isCanonicalMarketTravelTask(actor.task);
   if(craft.status==='UNKNOWN')return view('UNKNOWN',craft.reason,{agentId:actor.id,craftStatus:craft.status});
   if(craft.status!=='NEEDS_MATERIALS'){
@@ -87,7 +162,20 @@ function procurementPlan(world,agent){
       a.distance-b.distance||a.marketId.localeCompare(b.marketId)||a.listingId.localeCompare(b.listingId));
 
   if(!candidates.length){
-    if(travelling)return view('SAT','observed-supply-gone',{agentId:actor.id,type:'CANCEL_TRAVEL',recipeId:craft.recipeId,missing});
+    const sourcing=observedMarketSourcing(world,actor,projection,missing);
+    if(sourcing){
+      if(travelling)return view('SAT','observed-supply-gone',{agentId:actor.id,type:'CANCEL_TRAVEL',recipeId:craft.recipeId,missing});
+      return view('NEEDS_SUPPLY','observed-market-sourcing',{
+        agentId:actor.id,recipeId:craft.recipeId,missing,holdFallback:true,sourcing
+      });
+    }
+    const recheck=staleMarketRecheck(world,actor,missing);
+    if(travelling){
+      if(recheck&&actor.task.rc4MarketTravel.marketId===recheck.marketId)
+        return view('RECHECK_MARKET','stale-market-recheck-travelling',{agentId:actor.id,recipeId:craft.recipeId,missing,...recheck});
+      return view('SAT','observed-supply-gone',{agentId:actor.id,type:'CANCEL_TRAVEL',recipeId:craft.recipeId,missing});
+    }
+    if(recheck)return view('RECHECK_MARKET','stale-market-recheck',{agentId:actor.id,recipeId:craft.recipeId,missing,...recheck});
     return view('NEEDS_SUPPLY','no-observed-listing',{agentId:actor.id,recipeId:craft.recipeId,missing});
   }
 
@@ -116,6 +204,17 @@ function procurementPlan(world,agent){
 
 export function crafterMaterialProcurementSnapshot(world,agent){
   const plan=procurementPlan(world,agent);
+  if(plan.status==='RECHECK_MARKET'){
+    const actor=world.agents.find(a=>a.id===plan.agentId);
+    const travel=isCanonicalMarketTravelTask(actor?.task);
+    if(travel)return view('SAT','stale-market-recheck-travelling',{
+      ...plan,type:'WAIT_TRAVEL',agentId:actor.id,marketId:plan.marketId
+    });
+    return view('SAT','stale-market-recheck',{
+      ...plan,type:'TRAVEL_TO_MARKET',agentId:actor.id,marketId:plan.marketId,
+      intent:freeze({agentId:actor.id,marketId:plan.marketId})
+    });
+  }
   if(plan.status!=='READY')return plan;
   const actor=world.agents.find(a=>a.id===plan.agentId);
   const travel=isCanonicalMarketTravelTask(actor?.task);
