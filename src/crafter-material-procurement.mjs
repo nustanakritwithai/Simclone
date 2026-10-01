@@ -3,7 +3,7 @@
  * but owns no wallet, material, Rust item, market, trade, profession or task writes.
  */
 import {demandDrivenCrafterSnapshot} from './demand-driven-crafter.mjs?v=0.5.0';
-import {projectActorObservedDemand} from './economic-demand.mjs?v=0.5.0';
+import {projectActorObservedDemand,ECONOMIC_DEMAND_TTL_TICKS} from './economic-demand.mjs?v=0.5.0';
 import {getBalance} from './currency-wallet.mjs?v=0.5.0';
 import {TRADE_ASSET_TYPES,tradeAssetType,validBulkTradeResourceKey} from './trade-assets.mjs?v=0.5.0';
 import {sameResourceAccount} from './individual-resources.mjs?v=0.5.0';
@@ -88,7 +88,9 @@ function observedMarketSourcing(world,actor,projection,missing){
   // Listing is in personal market memory and the Merchant still retains that
   // canonical purchase basis. No hidden stock alone can create this hold.
   for(const known of actor.rc4MarketKnowledge?.knownListings??[]){
-    if(!needed.has(known?.itemKind)||known?.status!=='FILLED'||!known.buyOfferId)continue;
+    if(!needed.has(known?.itemKind)||known?.status!=='FILLED'||!known.buyOfferId||
+      !Number.isSafeInteger(known.observedTick)||known.observedTick<0||known.observedTick>world.tick||
+      world.tick-known.observedTick>ECONOMIC_DEMAND_TTL_TICKS)continue;
     const current=world.merchantListings?.listings?.find(l=>l.id===known.id);
     if(!current||current.status!=='FILLED'||current.marketId!==known.marketId||current.sellerId!==known.sellerId||
       current.itemKind!==known.itemKind||current.buyOfferId!==known.buyOfferId||current.revision!==known.revision)continue;

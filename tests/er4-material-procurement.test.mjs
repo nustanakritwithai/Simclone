@@ -253,6 +253,9 @@ test('ER4 observed verified Merchant purchase bridges FILLED sourcing offer unti
   assert.equal(bridge.holdFallback,true);
   assert.equal(bridge.sourcing.kind,'observed-filled-procurement');
   assert.equal(bridge.sourcing.transactionId,acquired.transactionId);
+  const stale=restore(serialize(s));stale.tick+=ECONOMIC_DEMAND_TTL_TICKS+1;
+  const staleView=crafterMaterialProcurementSnapshot(stale,live(stale,crafterId));
+  assert.notEqual(staleView.holdFallback,true,'stale filled-procurement memory must release generic fallback');
 
   seller=live(s,merchantId);
   const listed=addBulkListing(s,seller,{itemKind:'wood',quantity:1,unitPrice:2,requestId:'er4-verified-bridge'});
