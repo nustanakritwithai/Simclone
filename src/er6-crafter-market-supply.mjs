@@ -68,7 +68,9 @@ export function crafterMarketSupplySnapshot(world,agent){
 
   const marketTask=isCanonicalMarketTravelTask(actor.task);
   const ownTravel=marketTask&&isEr6CrafterSupplyMarketTravelTask(actor.task);
-  if(actor.task&&!marketTask)return view('BLOCKED','task',{agentId:actor.id});
+  const genericExplore=actor.task?.kind==='EXPLORE'&&!actor.task?.purposeKind&&!actor.task?.knowledgeKey&&
+    !actor.task?.adventureExpedition&&!actor.task?.adventureHunt;
+  if(actor.task&&!marketTask&&!genericExplore)return view('BLOCKED','task',{agentId:actor.id});
   if(marketTask&&!ownTravel)return view('BLOCKED','foreign-market-travel',{agentId:actor.id});
 
   const knowledgeErrors=validateRc4MarketKnowledge(actor);
