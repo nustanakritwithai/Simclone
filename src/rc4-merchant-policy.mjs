@@ -202,6 +202,20 @@ function er5DemandRows(projection){
 function er5AssetType(signal){
   return signal?.unit==='bulk-resource'?TRADE_ASSET_TYPES.BULK_RESOURCE:TRADE_ASSET_TYPES.PHYSICAL_ITEM;
 }
+function er5IndependentDemandQuantity(signal,actor){
+  let live=0;
+  for(const source of signal?.sources??[]){
+    if(source?.side!=='DEMAND')continue;
+    // A Merchant's own stock-shortage BuyOffer is commitment evidence, not new
+    // customer demand. Counting it back into its own demand creates a self-loop
+    // where WAIT_BUY_OFFER can starve unrelated live needs forever.
+    if(source.kind==='MERCHANT_STOCK_SHORTAGE_BUY_OFFER'&&source.buyerId===actor.id)continue;
+    const quantity=source.quantity;
+    if(er5Positive(quantity))live+=quantity;
+  }
+  const history=er5Safe(signal?.historicalDemandQuantity)?signal.historicalDemandQuantity:0;
+  return Math.max(live,history);
+}
 function er5OpenOffers(world,actor,{excludeOfferId=null}={}){
   return (world?.merchantBuyOffers?.buyOffers??[]).filter(o=>
     o?.status==='OPEN'&&o.buyerId===actor.id&&o.offerId!==excludeOfferId
@@ -481,7 +495,7 @@ export function merchantAutonomySnapshot(world,agent){
   }
 
   // Owned canonical resale stock is always offered before sourcing more.
-  let blocked=null;
+  let blocked=null,waiting=null;
   for(const signal of rows){
     const stock=er5SaleableStock(world,actor,ledger,signal);
     if(stock.status==='UNKNOWN')return er5View('UNKNOWN','stock-evidence',{agentId:actor.id,itemKind:signal.itemKind});
@@ -521,7 +535,13 @@ export function merchantAutonomySnapshot(world,agent){
         blocked??=er5View('BLOCKED','buy-offer-unfunded',{agentId:actor.id,offerId:existing.offerId,required:total,available:funding.available});
         continue;
       }
-      return er5View('SAT','buy-offer-open',{type:'WAIT_BUY_OFFER',agentId:actor.id,offerId:existing.offerId,itemKind:signal.itemKind});
+      // Waiting on one valid offer must not starve another actionable demand row.
+      // Keep the commitment as the fallback decision, but continue scanning for
+      // travel, listing or a second funded BuyOffer first. If the only apparent
+      // demand is this Merchant's own BuyOffer, do not let it self-sustain WAIT.
+      if(er5IndependentDemandQuantity(signal,actor)>0)
+        waiting??=er5View('SAT','buy-offer-open',{type:'WAIT_BUY_OFFER',agentId:actor.id,offerId:existing.offerId,itemKind:signal.itemKind});
+      continue;
     }
 
     const reference=er5ReferencePrice(signal,ledger);
@@ -548,7 +568,7 @@ export function merchantAutonomySnapshot(world,agent){
     });
   }
 
-  return blocked??er5View('IDLE','demand-covered',{agentId:actor.id});
+  return waiting??blocked??er5View('IDLE','demand-covered',{agentId:actor.id});
 }
 
 export function merchantAutonomyDecision(world,agent){
