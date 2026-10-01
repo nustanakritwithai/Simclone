@@ -48,7 +48,7 @@ import {craftTrainingCommand,craftTrainingIntent,validateCraftTraining} from './
 import {crafterCareerCommand} from './crafter-career.mjs?v=0.5.0';
 import {ensureCrafterTierPolicy,migrateCrafterTierPolicy,validateCrafterTierPolicy} from './crafter-tier-policy.mjs?v=0.5.0';
 import {migrateRc4EconomyState,validateRc4EconomyState,ensureRc4AccountForAgent,rc4Command,stepRc4Economy,isEr5MerchantMarketTravelTask,isEr6ConsumerMarketTravelTask,isEr6CrafterSupplyMarketTravelTask} from './rc4-market-runtime.mjs?v=0.5.0';
-import {rawProducerDecision,rawProducerGatherPressure} from './raw-producer-autonomy.mjs?v=0.5.0';
+import {rawProducerDecision,rawProducerGatherPressure,hasEstablishedRawProducerTrade} from './raw-producer-autonomy.mjs?v=0.5.0';
 import {demandDrivenCrafterIntent} from './demand-driven-crafter.mjs?v=0.5.0';
 import {crafterMaterialProcurementDecision} from './crafter-material-procurement.mjs?v=0.5.0';
 import {merchantAutonomyDecision} from './rc4-merchant-policy.mjs?v=0.5.0';
@@ -796,8 +796,16 @@ function execute(s,a){
   }else if(t.work>=6){
     finishPersonalExploration(s,a,t);
     const belief=t.knowledgeKey?a.knowledgeState?.beliefs?.find(b=>b.key===t.knowledgeKey):null;
+    const exploreKind=t.purposeKind??t.kind;
+    // A worker who has already completed a canonical raw-resource sale is an
+    // established Producer. Generic roaming may still happen, but those idle
+    // EXPLORE completions must not silently convert that economic role into the
+    // special Adventurer career. Resource-purpose exploration was already
+    // excluded above via purposeKind; this covers only generic exploration after
+    // verified Producer participation. No profession write happens here.
+    const qualificationKind=exploreKind==='EXPLORE'&&hasEstablishedRawProducerTrade(s,a)?'RAW_PRODUCER_CONTINUITY':exploreKind;
     const qualification=noteExploreCompletion(a,{
-      kind:t.purposeKind??t.kind,tick:s.tick,x:a.x,y:a.y,started:t.started,
+      kind:qualificationKind,tick:s.tick,x:a.x,y:a.y,started:t.started,
       alive:a.alive===true,productive:canPerformProductiveWork(s,a),
       knowledge:t.knowledgeKey?(belief?.status??'UNKNOWN'):'none'
     });
