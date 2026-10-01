@@ -47,6 +47,27 @@ function rawProducerIntentCapability(agent){
   if(!LEGACY_WORKER_PROFESSIONS.has(agent?.profession))return null;
   return PREFERENCE_CAPABILITY[agent?.preference]??rawProducerCapability(agent);
 }
+export function hasEstablishedRawProducerTrade(world,agent){
+  if(!world||!agent?.alive||world.agents?.find(a=>a.id===agent.id)!==agent)return false;
+  const profile=PREFERENCE_CAPABILITY[agent.preference]??null;
+  if(!profile)return false;
+  const receipts=world.tradeReplay?.receipts,listings=world.merchantListings?.listings,offers=world.merchantBuyOffers?.buyOffers;
+  const payments=world.currencyWallet?.receipts;
+  if(!Array.isArray(receipts)||!Array.isArray(listings)||!Array.isArray(offers)||!Array.isArray(payments))return false;
+  for(const receipt of receipts){
+    if(receipt?.sellerId!==agent.id||tradeAssetType(receipt)!==TRADE_ASSET_TYPES.BULK_RESOURCE||!profile.resources.includes(receipt.itemKind))continue;
+    const listing=listings.find(l=>l.id===receipt.listingId&&l.sellerId===agent.id&&l.buyOfferId&&l.status==='FILLED'&&
+      l.marketId===receipt.marketId&&l.itemKind===receipt.itemKind&&tradeAssetType(l)===TRADE_ASSET_TYPES.BULK_RESOURCE);
+    if(!listing)continue;
+    const offer=offers.find(o=>o.offerId===listing.buyOfferId&&o.status==='FILLED'&&o.buyerId===receipt.buyerId&&
+      o.marketId===receipt.marketId&&o.itemKind===receipt.itemKind&&tradeAssetType(o)===TRADE_ASSET_TYPES.BULK_RESOURCE);
+    if(!offer)continue;
+    const payment=payments.find(p=>p.transactionId===receipt.transactionId&&p.kind==='TRANSFER'&&
+      p.fromAgentId===receipt.buyerId&&p.toAgentId===agent.id&&p.amount===receipt.totalPrice);
+    if(payment)return true;
+  }
+  return false;
+}
 function shadowFor(world,agent){
   const shadow=clone(world),actor=shadow.agents?.find(a=>a.id===agent?.id&&a.alive===true)??null;
   return actor?{shadow,actor}:null;
