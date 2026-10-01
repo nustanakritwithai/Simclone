@@ -52,8 +52,8 @@ export function hasEstablishedRawProducerTrade(world,agent){
   const profile=PREFERENCE_CAPABILITY[agent.preference]??null;
   if(!profile)return false;
   const receipts=world.tradeReplay?.receipts,listings=world.merchantListings?.listings,offers=world.merchantBuyOffers?.buyOffers;
-  const payments=world.currencyWallet?.receipts;
-  if(!Array.isArray(receipts)||!Array.isArray(listings)||!Array.isArray(offers)||!Array.isArray(payments))return false;
+  const payments=world.currencyWallet?.receipts,reservations=world.merchantReservations?.reservations;
+  if(!Array.isArray(receipts)||!Array.isArray(listings)||!Array.isArray(offers)||!Array.isArray(payments)||!Array.isArray(reservations))return false;
   for(const receipt of receipts){
     if(receipt?.sellerId!==agent.id||tradeAssetType(receipt)!==TRADE_ASSET_TYPES.BULK_RESOURCE||!profile.resources.includes(receipt.itemKind))continue;
     const listing=listings.find(l=>l.id===receipt.listingId&&l.sellerId===agent.id&&l.buyOfferId&&l.status==='FILLED'&&
@@ -62,8 +62,12 @@ export function hasEstablishedRawProducerTrade(world,agent){
     const offer=offers.find(o=>o.offerId===listing.buyOfferId&&o.status==='FILLED'&&o.buyerId===receipt.buyerId&&
       o.marketId===receipt.marketId&&o.itemKind===receipt.itemKind&&tradeAssetType(o)===TRADE_ASSET_TYPES.BULK_RESOURCE);
     if(!offer)continue;
+    const reservation=reservations.find(r=>r.id===receipt.reservationId&&r.status==='COMMITTED'&&
+      r.transactionId===receipt.transactionId&&r.listingId===receipt.listingId&&r.buyerId===receipt.buyerId&&r.sellerId===agent.id);
+    if(!reservation)continue;
     const payment=payments.find(p=>p.transactionId===receipt.transactionId&&p.kind==='TRANSFER'&&
-      p.fromAgentId===receipt.buyerId&&p.toAgentId===agent.id&&p.amount===receipt.totalPrice);
+      p.fromAgentId===receipt.buyerId&&p.toAgentId===agent.id&&p.amount===receipt.totalPrice&&
+      p.evidence?.operation==='TRADE_TRANSFER'&&p.evidence.listingId===receipt.listingId&&p.evidence.reservationId===receipt.reservationId);
     if(payment)return true;
   }
   return false;
