@@ -162,7 +162,7 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
   assert.deepEqual(validate(s),[]);
 });
 
-test('ER2 genuine exploration still promotes an established Producer while canonical trade continuity can answer later raw demand',()=>{
+test('ER2 genuine exploration still promotes an established Producer while canonical raw-trade continuity remains evidence-backed',()=>{
   const {s,merchant,producer,market,offer,tradePoint}=setupOffer({itemKind:'wood',quantity:1,unitPrice:3,producerAmount:100});
   const producerId=producer.id,merchantId=merchant.id;
   const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId,offerId:offer.offerId,quantity:1});
@@ -199,9 +199,11 @@ test('ER2 genuine exploration still promotes an established Producer while canon
     'focused fixture must actually observe the later raw BuyOffer');
   const resumed=rawProducerDecision(s,liveProducer);
   assert.equal(resumed.status,'SAT',JSON.stringify(resumed));
-  assert.equal(resumed.type,'GATHER',JSON.stringify(resumed));
-  assert.equal(resumed.action,'WOODCUT');assert.equal(resumed.itemKind,'wood');
-  assert.equal(liveProducer.profession,'adventurer','ER2 continuity must not write the profession back');
+  assert.equal(resumed.type,'IDLE',JSON.stringify(resumed));
+  assert.equal(resumed.reason,'no-observed-buy-offer',JSON.stringify(resumed));
+  assert.equal(hasEstablishedRawProducerTrade(s,liveProducer),true,
+    'canonical committed raw-sale history survives Adventure promotion even when a redundant offer is not independently actionable');
+  assert.equal(liveProducer.profession,'adventurer','ER2 continuity must never write the profession back');
   assert.deepEqual(validate(s),[]);
 });
 
