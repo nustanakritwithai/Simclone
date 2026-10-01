@@ -217,6 +217,7 @@ test('ER5 waiting BuyOffer does not starve unrelated actionable demand or self-s
     const f=setupObservedResale(),s=f.s,m=actor(s,f.merchantId);
     const unrelated=command(s,'RC4_CREATE_BUY_OFFER',{agentId:m.id,itemKind:'HIDE_ARMOR',unitPrice:1});
     assert.equal(unrelated.ok,true,JSON.stringify(unrelated));
+    assert.equal(command(s,'RC4_OPEN_MARKET',{agentId:m.id,marketId:f.merchantMarket}).ok,true);
     const snap=merchantAutonomySnapshot(s,actor(s,f.merchantId));
     assert.equal(snap.status,'SAT',JSON.stringify(snap));
     assert.equal(snap.type,'TRAVEL_TO_MARKET',JSON.stringify(snap));
