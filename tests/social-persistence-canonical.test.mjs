@@ -68,6 +68,10 @@ function setupCanonicalResearchWorld(){
   const s=createWorld(230926,{mode:'independent',worldProfile:'same-world',population:6});
   for(const a of s.agents){a.task=null;a.hp=a.satiety=a.energy=100;}
   const merchant=s.agents[0],crafter=s.agents[1],producers=s.agents.slice(2,6);
+  Object.assign(resourceStock(s,merchant),{food:900,wood:900,stone:900,ironOre:120,ironIngot:120,steelIngot:90});
+  merchant.hp=merchant.satiety=merchant.energy=100;merchant.task=null;
+  craftFixtureTable(s,merchant);
+  craftFixtureHome(s,merchant);
   qualifyCrafter(s,crafter);
 
   const marketMade=command(s,'RC4_CREATE_MARKET',{agentId:merchant.id});assert.equal(marketMade.ok,true,JSON.stringify(marketMade));
@@ -82,10 +86,11 @@ function setupCanonicalResearchWorld(){
   const projected=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:marketMade.marketId});assert.equal(projected.ok,true,JSON.stringify(projected));
   const market={...projected.market,marketId:marketMade.marketId};
 
-  setProfession(producers[0],'miner','MINE');
-  setProfession(producers[1],'woodcutter','WOODCUT');
-  setProfession(producers[2],'miner','MINE');
-  setProfession(producers[3],'woodcutter','WOODCUT');
+  setProfession(producers[0],'miner','FORAGE');
+  setProfession(producers[1],'woodcutter','FORAGE');
+  setProfession(producers[2],'miner','FORAGE');
+  setProfession(producers[3],'woodcutter','FORAGE');
+  merchant.preference='FORAGE';
   Object.assign(resourceStock(s,producers[0]),{wood:0,stone:900,ironOre:900});
   Object.assign(resourceStock(s,producers[1]),{wood:0,stone:0});
   Object.assign(resourceStock(s,producers[2]),{wood:0,stone:900,ironOre:900});
