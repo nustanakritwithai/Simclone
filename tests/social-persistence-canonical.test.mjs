@@ -92,9 +92,9 @@ function setupCanonicalResearchWorld(){
   setProfession(producers[2],'miner','FORAGE');
   setProfession(producers[3],'woodcutter','FORAGE');
   merchant.preference='FORAGE';
-  Object.assign(resourceStock(s,producers[0]),{wood:0,stone:900,ironOre:900});
+  Object.assign(resourceStock(s,producers[0]),{wood:0,stone:900,ironOre:120});
   Object.assign(resourceStock(s,producers[1]),{wood:0,stone:0});
-  Object.assign(resourceStock(s,producers[2]),{wood:0,stone:900,ironOre:900});
+  Object.assign(resourceStock(s,producers[2]),{wood:0,stone:900,ironOre:120});
   Object.assign(resourceStock(s,producers[3]),{wood:900,stone:0});
 
   resourceStock(s,crafter).wood=0;
