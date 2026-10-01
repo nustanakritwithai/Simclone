@@ -1,0 +1,26 @@
+name: FA-R3 Social Persistence Canonical
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "research/social-persistence.mjs"
+      - "tests/social-persistence-canonical.test.mjs"
+      - "docs/FA_R3_SOCIAL_PERSISTENCE_CANONICAL_SUCCESS_CONTRACT.md"
+      - ".github/workflows/fa-r3-social-persistence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Verify FA-R3 canonical Resource to Crafter proof
+        run: node --test tests/social-persistence-canonical.test.mjs
