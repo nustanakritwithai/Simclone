@@ -13,7 +13,7 @@ import {CRAFT_TRAINING_RULES} from './craft-training.mjs?v=0.5.0';
 import {resourceStock,isIndependent} from './individual-resources.mjs?v=0.5.0';
 import {autonomousBirthFoodTarget} from './reproduction.mjs?v=0.5.0';
 import {routeField,routeDistance} from './survival.mjs?v=0.5.0';
-import {isCanonicalMarketTravelTask} from './navigation-arrival-evidence.mjs?v=0.5.0';
+import {isCanonicalMarketTravelTask,canPreemptForCanonicalMarketTravel} from './navigation-arrival-evidence.mjs?v=0.5.0';
 
 export const ER3_CRAFTER_DEMAND_VERSION='ER3-demand-crafter/1';
 
@@ -147,7 +147,7 @@ export function crafterMaterialNeedsForObservedItems(s,a,itemKinds=[]){
     needs:[...merged].map(([materialKind,quantity])=>({materialKind,quantity})).sort((x,y)=>x.materialKind.localeCompare(y.materialKind))});
 }
 
-export function crafterProductionPlanFromProjection(s,a,projection,{allowCanonicalMarketTravel=false,allowGenericExplore=false,checkStationRoute=true}={}){
+export function crafterProductionPlanFromProjection(s,a,projection,{allowCanonicalMarketTravel=false,allowGenericExplore=false,allowMarketPreemptibleTask=false,checkStationRoute=true}={}){
   const identity=canonicalCrafter(s,a);
   if(identity.status!=='SAT')return view(identity.status,identity.reason);
   const actor=identity.actor;
@@ -156,7 +156,9 @@ export function crafterProductionPlanFromProjection(s,a,projection,{allowCanonic
   if(actor.adventureCombat?.status==='ACTIVE'||actor.adventureEncounter)return view('BLOCKED','adventure',{agentId:actor.id});
   const genericExplore=actor.task?.kind==='EXPLORE'&&!actor.task?.purposeKind&&!actor.task?.knowledgeKey&&
     !actor.task?.adventureExpedition&&!actor.task?.adventureHunt;
-  if(actor.task&&!(allowCanonicalMarketTravel&&isCanonicalMarketTravelTask(actor.task))&&!(allowGenericExplore&&genericExplore))
+  const marketPreemptible=allowMarketPreemptibleTask&&canPreemptForCanonicalMarketTravel(actor.task,actor);
+  if(actor.task&&!(allowCanonicalMarketTravel&&isCanonicalMarketTravelTask(actor.task))&&
+    !(allowGenericExplore&&genericExplore)&&!marketPreemptible)
     return view('BLOCKED','task',{agentId:actor.id});
   if((s.rustPossessions?.orders??[]).some(o=>o.agentId===actor.id)||(s.rustMaterials?.orders??[]).some(o=>o.agentId===actor.id))
     return view('BLOCKED','craft-busy',{agentId:actor.id});
