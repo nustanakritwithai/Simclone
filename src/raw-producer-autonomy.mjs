@@ -32,6 +32,23 @@ export function rawProducerCapability(agent,itemKind=null){
   if(itemKind!==null&&!profile.resources.includes(itemKind))return null;
   return profile;
 }
+const LEGACY_WORKER_PROFESSIONS=new Set(['forager','woodcutter','miner','builder']);
+const PREFERENCE_CAPABILITY=Object.freeze({
+  FORAGE:RAW_PRODUCER_CAPABILITIES.forager,
+  WOODCUT:RAW_PRODUCER_CAPABILITIES.woodcutter,
+  MINE:RAW_PRODUCER_CAPABILITIES.miner,
+});
+function rawProducerIntentCapability(agent){
+  const direct=rawProducerCapability(agent);
+  if(direct)return direct;
+  // Legacy jobs are intentionally fluid. A generic scarcity task may temporarily
+  // move a worker between forager/woodcutter/miner/builder. Preserve the actor's
+  // explicit productive preference as the Raw Producer intent so observed market
+  // demand can pull the worker back through the existing planner/adoptProfession
+  // path. Special professions remain locked out of ER2.
+  if(!LEGACY_WORKER_PROFESSIONS.has(agent?.profession))return null;
+  return PREFERENCE_CAPABILITY[agent?.preference]??null;
+}
 function shadowFor(world,agent){
   const shadow=clone(world),actor=shadow.agents?.find(a=>a.id===agent?.id&&a.alive===true)??null;
   return actor?{shadow,actor}:null;
@@ -189,7 +206,7 @@ function accountOpenProcurementCommitment(world,agent,profile){
 export function rawProducerDecision(world,agent){
   if(!world||!agent?.alive||world.agents?.find(a=>a.id===agent.id)!==agent)return view('UNKNOWN','actor');
   if(!isIndependent(world))return view('INELIGIBLE','independent-world-required');
-  const profile=rawProducerCapability(agent);if(!profile)return view('INELIGIBLE','raw-producer-profession');
+  const profile=rawProducerIntentCapability(agent);if(!profile)return view('INELIGIBLE','raw-producer-profession');
   if(!canPerformProductiveWork(world,agent))return view('INELIGIBLE','productive-stage');
   const marketTask=isCanonicalMarketTravelTask(agent.task);
   if(agent.satiety<RULES.hungry||agent.energy<RULES.exhausted)
