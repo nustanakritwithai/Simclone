@@ -564,8 +564,8 @@ function applyRawProducerIntent(s,a,intent){
 }
 
 function stepMerchantAutonomy(s){
-  const blockFallback=new Set(),freshSourcingItems=new Set();
-  if(!isIndependent(s))return {changed:false,rootReplaced:false,blockFallback,freshSourcingItems};
+  const blockFallback=new Set();
+  if(!isIndependent(s))return {changed:false,rootReplaced:false,blockFallback};
   const ids=living(s).filter(a=>a.profession==='merchant').map(a=>a.id).sort((a,b)=>a-b);
   let changed=false;
   for(const id of ids){
@@ -597,21 +597,14 @@ function stepMerchantAutonomy(s){
         // no pre-settlement references from the Merchant candidate list are reused.
         blockFallback.add(id);
         return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId,
-          itemKind:intent.itemKind,assetType:intent.assetType,blockFallback,freshSourcingItems};
+          itemKind:intent.itemKind,assetType:intent.assetType,blockFallback};
       }
     }else if(intent.type==='CREATE_BUY_OFFER'){
       r=command(s,'RC4_CREATE_BUY_OFFER',{
         agentId:a.id,assetType:intent.assetType,itemKind:intent.itemKind,
         quantityWanted:intent.quantityWanted,unitPrice:intent.unitPrice
       });
-      if(r?.ok&&!r.duplicate){
-        event(s,'market',a.name+' เปิดรับซื้อ '+intent.itemKind+' x'+intent.quantityWanted,a.id);
-        // The BuyOffer was created after this tick's market-observation pass.
-        // Expose only its item kind as an ephemeral one-tick handoff so a Crafter
-        // with the matching live shortage does not select generic gathering before
-        // it can legally observe the canonical offer on the next tick.
-        freshSourcingItems.add(intent.itemKind);
-      }
+      if(r?.ok&&!r.duplicate)event(s,'market',a.name+' เปิดรับซื้อ '+intent.itemKind+' x'+intent.quantityWanted,a.id);
     }else if(intent.type==='CREATE_LISTING'){
       const data={
         agentId:a.id,assetType:intent.assetType,unitPrice:intent.unitPrice,requestId:intent.requestId,
@@ -625,7 +618,7 @@ function stepMerchantAutonomy(s){
       if(intent.type==='CREATE_BUY_OFFER')blockFallback.add(id);
     }
   }
-  return {changed,rootReplaced:false,blockFallback,freshSourcingItems};
+  return {changed,rootReplaced:false,blockFallback};
 }
 
 function stepConsumerAutonomy(s){
@@ -684,23 +677,17 @@ function stepCrafterMarketSupply(s){
   return {changed};
 }
 
-function stepCrafterMaterialProcurement(s,merchantStep=null){
+function stepCrafterMaterialProcurement(s,freshMerchantPurchase=null){
   const candidates=living(s).filter(a=>a.profession==='crafter').sort((a,b)=>a.id-b.id);
   const blockFallback=new Set();
   let changed=false;
   for(const a of candidates){
     if(a.task?.rc4MarketTravel&&isEr6CrafterSupplyMarketTravelTask(a.task))continue;
     const intent=crafterMaterialProcurementDecision(s,a);
-    const freshPurchaseHold=merchantStep?.kind==='purchase'&&
-      merchantStep.assetType===TRADE_ASSET_TYPES.BULK_RESOURCE&&intent?.status==='NEEDS_SUPPLY'&&
-      Array.isArray(intent.missing)&&intent.missing.some(x=>x.itemKind===merchantStep.itemKind);
-    const freshOfferHold=intent?.status==='NEEDS_SUPPLY'&&Array.isArray(intent.missing)&&
-      intent.missing.some(x=>merchantStep?.freshSourcingItems?.has?.(x.itemKind)===true);
-    // Merchant actions happen after this tick's market-observation pass. A one-tick
-    // ephemeral bridge may delay generic fallback, but it grants no purchase
-    // authority and carries no hidden stock/listing data. The next tick must still
-    // succeed or fail from the Crafter's own observed evidence.
-    if(intent?.holdFallback===true||freshPurchaseHold||freshOfferHold)blockFallback.add(a.id);
+    const freshSourcingHold=freshMerchantPurchase?.kind==='purchase'&&
+      freshMerchantPurchase.assetType===TRADE_ASSET_TYPES.BULK_RESOURCE&&intent?.status==='NEEDS_SUPPLY'&&
+      Array.isArray(intent.missing)&&intent.missing.some(x=>x.itemKind===freshMerchantPurchase.itemKind);
+    if(intent?.holdFallback===true||freshSourcingHold)blockFallback.add(a.id);
     if(intent?.status!=='SAT'||typeof intent.type!=='string')continue;
     if(intent.type==='WAIT_TRAVEL')continue;
     preemptIdleExplore(a);
