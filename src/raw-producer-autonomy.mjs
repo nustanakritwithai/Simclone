@@ -170,10 +170,13 @@ function accountOpenListingForOffer(world,agent,offerId){
     .sort((a,b)=>String(a.id).localeCompare(String(b.id)))[0]??null;
 }
 function accountOpenProcurementCommitment(world,agent,profile){
-  const ctx=shadowFor(world,agent);if(!ctx)return null;
   const rows=(world.merchantListings?.listings??[]).filter(l=>l?.status==='OPEN'&&l.buyOfferId&&
     tradeAssetType(l)===TRADE_ASSET_TYPES.BULK_RESOURCE&&profile.resources.includes(l.itemKind)&&
     l.sellerId===agent.id).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+  if(!rows.length)return null;
+  // Most ticks have no accepted procurement for this Producer. Avoid building the
+  // account shadow unless canonical open work actually exists.
+  const ctx=shadowFor(world,agent);if(!ctx)return null;
   for(const listing of rows){
     const offer=world.merchantBuyOffers?.buyOffers?.find(o=>o.offerId===listing.buyOfferId);
     if(!offer||offer.status!=='OPEN'||tradeAssetType(offer)!==TRADE_ASSET_TYPES.BULK_RESOURCE)continue;
