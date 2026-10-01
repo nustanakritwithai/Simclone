@@ -223,8 +223,9 @@ test('ER2 accepted procurement outranks unrelated work, persists across save/loa
   merchant.task={kind:'REST',targetId:merchant.id,x:merchant.x,y:merchant.y,path:[],work:0,started:s.tick,score:1,policy:'survival-0.2',fieldRest:true};
   step(s,1);
   assert.equal(producer.profession,'woodcutter');
-  assert.equal(producer.task?.kind,'EXPLORE');assert.equal(producer.task?.work,5);
-  assert.equal(producer.adventurerQualification,undefined);
+  assert.equal(producer.task,null,'canonical WAIT_SETTLEMENT preempts only generic idle EXPLORE while the commitment is open');
+  assert.equal(rawProducerDecision(s,producer).type,'WAIT_SETTLEMENT');
+  assert.equal(producer.adventurerQualification,undefined,'preempted idle exploration cannot count as a completed Adventure qualification');
 
   merchant.task=null;merchant.satiety=100;merchant.energy=100;
   arrive(s,merchant,market.marketId);
@@ -234,7 +235,8 @@ test('ER2 accepted procurement outranks unrelated work, persists across save/loa
   const liveProducer=s.agents.find(a=>a.id===producer.id);
   assert.ok(liveProducer);
   const exit=rawProducerDecision(s,liveProducer);
-  assert.equal(exit.status,'BLOCKED',JSON.stringify(exit));assert.equal(exit.reason,'task',JSON.stringify(exit));
+  assert.equal(exit.status,'SAT',JSON.stringify(exit));assert.equal(exit.type,'IDLE',JSON.stringify(exit));
+  assert.equal(exit.reason,'no-observed-buy-offer',JSON.stringify(exit));
   assert.equal(liveProducer.profession,'woodcutter');assert.deepEqual(validate(s),[]);
 });
 

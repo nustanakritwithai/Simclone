@@ -243,13 +243,26 @@ function er5PhysicalBasis(ledger,itemId,itemKind){
   }
   return null;
 }
-function er5BulkBasis(ledger,itemKind){
+function er5BulkBasisState(ledger,itemKind,committedQuantity=0){
+  if(!er5Safe(committedQuantity))return null;
+  const rows=[];let totalQuantity=0;
   for(const purchase of ledger?.purchases??[]){
     if(tradeAssetType(purchase)!==TRADE_ASSET_TYPES.BULK_RESOURCE||purchase.itemKind!==itemKind)continue;
-    if(er5Positive(purchase.remainingQuantity))
-      return {transactionId:purchase.transactionId,unitPrice:purchase.unitPrice,remainingQuantity:purchase.remainingQuantity};
+    if(!er5Safe(purchase.remainingQuantity))return null;
+    if(!er5Positive(purchase.remainingQuantity))continue;
+    totalQuantity+=purchase.remainingQuantity;
+    if(!Number.isSafeInteger(totalQuantity))return null;
+    rows.push({transactionId:purchase.transactionId,unitPrice:purchase.unitPrice,remainingQuantity:purchase.remainingQuantity});
   }
-  return null;
+  // Open resale Listings reserve purchased basis FIFO without mutating the Ledger.
+  // Pick the first basis row with unlisted capacity for the next canonical Listing.
+  let skip=committedQuantity,basis=null;
+  for(const row of rows){
+    if(skip>=row.remainingQuantity){skip-=row.remainingQuantity;continue;}
+    basis={...row,remainingQuantity:row.remainingQuantity-skip};
+    break;
+  }
+  return {totalQuantity,basis};
 }
 function er5OpenOwnListings(world,actor,itemKind){
   return (world?.merchantListings?.listings??[]).filter(l=>
@@ -284,14 +297,16 @@ function er5SaleableStock(world,actor,ledger,signal){
     const listedWithBasis=open.filter(l=>tradeAssetType(l)===type&&!!er5PhysicalBasis(ledger,l.itemInstanceId,signal.itemKind)).length;
     return {type,ownedQuantity:owned.length,listedQuantity:listedWithBasis,availableQuantity:unlisted.length,unlisted};
   }
-  const basis=er5BulkBasis(ledger,signal.itemKind);
   const owned=Math.floor(materialAmount(world,actor,signal.itemKind));
   const committed=er5BulkCommittedByActor(world,actor,signal.itemKind);
   if(!er5Safe(owned)||committed===null)return {type,status:'UNKNOWN'};
-  const basisQuantity=basis?.remainingQuantity??0;
-  const available=Math.max(0,Math.min(owned,basisQuantity)-committed);
+  const basisState=er5BulkBasisState(ledger,signal.itemKind,committed);
+  if(!basisState)return {type,status:'UNKNOWN'};
+  const backedQuantity=Math.min(owned,basisState.totalQuantity);
+  const available=Math.max(0,backedQuantity-committed);
   const listedQuantity=open.filter(l=>tradeAssetType(l)===type).reduce((n,l)=>n+l.quantity,0);
-  return {type,ownedQuantity:owned,listedQuantity,availableQuantity:available,basis};
+  return {type,ownedQuantity:owned,listedQuantity,availableQuantity:available,basis:basisState.basis,
+    basisQuantity:basisState.totalQuantity};
 }
 function er5AskPrice(stock,signal){
   const basis=stock.type===TRADE_ASSET_TYPES.PHYSICAL_ITEM?stock.unlisted?.[0]?.basis:stock.basis;
