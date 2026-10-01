@@ -102,11 +102,12 @@ function setupCanonicalResearchWorld(){
   crafter.preference='BUILD';
 
   arriveAtMarket(s,merchant.id,market);
-  arriveAtMarket(s,crafter.id,market);
   for(const p of producers)arriveAtMarket(s,p.id,market);
+  const currentCrafter=live(s,crafter.id);
+  currentCrafter.x=market.x;currentCrafter.y=market.y;currentCrafter.task=null;
   observeRc4Markets(s);
 
-  const snap=demandDrivenCrafterSnapshot(s,live(s,crafter.id));
+  const snap=demandDrivenCrafterSnapshot(s,currentCrafter);
   assert.equal(snap.status,'NEEDS_MATERIALS',JSON.stringify(snap));
   assert.equal(snap.recipeId,'STONE_PICKAXE');
   assert.ok((snap.missing?.wood??0)>0);
@@ -167,7 +168,13 @@ function runCanonicalChain(){
   const listing=s.merchantListings.listings.find(l=>l.id===sale.listingId);assert.ok(listing);
 
   observeRc4Markets(s);
-  const crafter=live(s,crafterId),procure=crafterMaterialProcurementDecision(s,crafter);
+  const crafter=live(s,crafterId);
+  const travelIntent=crafterMaterialProcurementDecision(s,crafter);
+  assert.equal(travelIntent.status,'SAT',JSON.stringify(travelIntent));
+  assert.equal(travelIntent.type,'TRAVEL_TO_MARKET',JSON.stringify(travelIntent));
+  const travel=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:crafterId,marketId:travelIntent.marketId});
+  assert.equal(travel.ok,true,JSON.stringify(travel));
+  const procure=crafterMaterialProcurementDecision(s,live(s,crafterId));
   assert.equal(procure.status,'SAT',JSON.stringify(procure));
   assert.equal(procure.type,'BUY_LISTING',JSON.stringify(procure));
   assert.equal(procure.itemKind,'wood');
