@@ -238,6 +238,8 @@ export function rawProducerDecision(world,agent){
   const profile=rawProducerIntentCapability(world,agent);if(!profile)return view('INELIGIBLE','raw-producer-profession');
   if(!canPerformProductiveWork(world,agent))return view('INELIGIBLE','productive-stage');
   const marketTask=isCanonicalMarketTravelTask(agent.task);
+  const genericExplore=agent.task?.kind==='EXPLORE'&&!agent.task?.purposeKind&&!agent.task?.knowledgeKey&&
+    !agent.task?.adventureExpedition&&!agent.task?.adventureHunt;
   if(agent.satiety<RULES.hungry||agent.energy<RULES.exhausted)
     return view('BLOCKED','survival',{action:profile.action});
 
@@ -250,7 +252,9 @@ export function rawProducerDecision(world,agent){
     type:'WAIT_SETTLEMENT',agentId:agent.id,marketId:commitment.offer.marketId,
     listingId:commitment.listing.id,offerId:commitment.offer.offerId,itemKind:commitment.offer.itemKind
   });
-  if(agent.task&&!marketTask)return view('BLOCKED','task',{action:profile.action});
+  // Generic idle roaming is preemptible when actor-observed market work appears.
+  // Survival, purposeful exploration and every other task remain protected.
+  if(agent.task&&!marketTask&&!genericExplore)return view('BLOCKED','task',{action:profile.action});
 
   const observed=currentObservedOffers(world,agent,profile);
   if(observed.status!=='SAT')return observed;
