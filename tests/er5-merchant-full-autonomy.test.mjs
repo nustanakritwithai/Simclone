@@ -229,7 +229,13 @@ test('ER5 waiting BuyOffer does not starve unrelated actionable demand or self-s
     calm(...s.agents);
     const marketId=prepareMerchant(s,merchant,'self-offer-only',{open:true});
     const p=marketPoint(s,marketId);merchant.x=p.x;merchant.y=p.y;merchant.task=null;
-    for(const other of s.agents.filter(a=>a.id!==merchant.id)){other.x=90;other.y=90;other.task=null;}
+    const far=s.nodes.filter(n=>walkable(s,n.x,n.y)&&Math.abs(n.x-p.x)+Math.abs(n.y-p.y)>20)
+      .sort((a,b)=>b.id-a.id);
+    assert.ok(far.length>=s.agents.length-1,'fixture needs valid distant cells');
+    let farIndex=0;
+    for(const other of s.agents.filter(a=>a.id!==merchant.id)){
+      const cell=far[farIndex++];other.x=cell.x;other.y=cell.y;other.task=null;
+    }
     observeRc4Markets(s);
     const offer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchant.id,itemKind:'HIDE_ARMOR',unitPrice:1});
     assert.equal(offer.ok,true,JSON.stringify(offer));
