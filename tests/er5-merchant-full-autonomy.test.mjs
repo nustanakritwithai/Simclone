@@ -212,6 +212,33 @@ test('ER5 unaffordable observed ask creates one funded BuyOffer and save/load do
   const saved=serialize(s);s=restore(saved);assert.equal(serialize(s),saved);
 });
 
+test('ER5 waiting BuyOffer does not starve unrelated actionable demand or self-sustain without independent demand',()=>{
+  {
+    const f=setupObservedResale(),s=f.s,m=actor(s,f.merchantId);
+    const unrelated=command(s,'RC4_CREATE_BUY_OFFER',{agentId:m.id,itemKind:'HIDE_ARMOR',unitPrice:1});
+    assert.equal(unrelated.ok,true,JSON.stringify(unrelated));
+    const snap=merchantAutonomySnapshot(s,actor(s,f.merchantId));
+    assert.equal(snap.status,'SAT',JSON.stringify(snap));
+    assert.equal(snap.type,'TRAVEL_TO_MARKET',JSON.stringify(snap));
+    assert.equal(snap.listingId,f.resaleId,'existing unrelated BuyOffer must not starve observed actionable supply');
+    assert.equal(snap.itemKind,'STONE_AXE');
+  }
+  {
+    const s=createWorld(925021,{mode:'independent',worldProfile:'same-world',population:4}),merchant=s.agents[0];
+    calm(...s.agents);
+    const marketId=prepareMerchant(s,merchant,'self-offer-only',{open:true});
+    const p=marketPoint(s,marketId);merchant.x=p.x;merchant.y=p.y;merchant.task=null;
+    for(const other of s.agents.filter(a=>a.id!==merchant.id)){other.x=90;other.y=90;other.task=null;}
+    observeRc4Markets(s);
+    const offer=command(s,'RC4_CREATE_BUY_OFFER',{agentId:merchant.id,itemKind:'HIDE_ARMOR',unitPrice:1});
+    assert.equal(offer.ok,true,JSON.stringify(offer));
+    const snap=merchantAutonomySnapshot(s,actor(s,merchant.id));
+    assert.notEqual(snap.type,'WAIT_BUY_OFFER','own BuyOffer alone must not manufacture permanent live demand');
+    assert.equal(snap.status,'IDLE',JSON.stringify(snap));
+    assert.deepEqual(validate(s),[]);
+  }
+});
+
 test('ER5 accepted bulk procurement outranks unrelated open BuyOffer and settles canonically',()=>{
   let s=createWorld(925002,{mode:'independent',worldProfile:'same-world',population:4});
   let merchant=s.agents[0],producer=s.agents[3];calm(merchant,producer);
