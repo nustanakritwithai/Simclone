@@ -491,7 +491,16 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
     tick:s.tick,
     producerWoodTrades:postStartProducerWoodTrades.map(r=>({transactionId:r.transactionId,quantity:r.quantity,unitPrice:r.unitPrice,listingId:r.listingId})),
     crafterWoodTrades:postStartCrafterWoodTrades.map(r=>({transactionId:r.transactionId,quantity:r.quantity,unitPrice:r.unitPrice,listingId:r.listingId})),
-    producer:{wood:resourceStock(s,actor(s,f.producerId))?.wood,task:actor(s,f.producerId)?.task??null,decision:rawProducerDecision(s,actor(s,f.producerId))},
+    producer:{
+      profession:actor(s,f.producerId)?.profession,preference:actor(s,f.producerId)?.preference,
+      professionSinceTick:actor(s,f.producerId)?.professionSinceTick,
+      career:actor(s,f.producerId)?.career??null,
+      adventurerQualification:actor(s,f.producerId)?.adventurerQualification??null,
+      wood:resourceStock(s,actor(s,f.producerId))?.wood,task:actor(s,f.producerId)?.task??null,
+      knownWoodOffers:(actor(s,f.producerId)?.rc4MarketKnowledge?.knownBuyOffers??[]).filter(o=>o.itemKind==='wood')
+        .map(o=>({offerId:o.offerId,status:o.status,quantityWanted:o.quantityWanted,unitPrice:o.unitPrice,observedTick:o.observedTick})),
+      decision:rawProducerDecision(s,actor(s,f.producerId))
+    },
     crafter:{wood:resourceStock(s,actor(s,f.crafterId))?.wood,task:actor(s,f.crafterId)?.task??null,production:demandDrivenCrafterSnapshot(s,actor(s,f.crafterId),{allowCanonicalMarketTravel:true})},
     merchant:{task:actor(s,f.merchantId)?.task??null,decision:merchantAutonomySnapshot(s,actor(s,f.merchantId))},
     woodOffers:(s.merchantBuyOffers?.buyOffers??[]).filter(o=>o.itemKind==='wood').map(o=>({offerId:o.offerId,status:o.status,quantityWanted:o.quantityWanted,unitPrice:o.unitPrice,createdTick:o.createdTick})),
