@@ -194,10 +194,12 @@ test('ER4 hidden and stale Listings cannot authorize procurement; corrupt roots 
     assert.equal(serialize(s),before);
   }
   {
-    const {s,crafterId}=setupBulkProcurement(),a=live(s,crafterId);
+    const {s,crafterId,market}=setupBulkProcurement(),a=live(s,crafterId);
     s.tick+=ECONOMIC_DEMAND_TTL_TICKS+1;
     const snap=crafterMaterialProcurementSnapshot(s,a);
-    assert.notEqual(snap.type,'BUY_LISTING');assert.notEqual(snap.type,'TRAVEL_TO_MARKET');
+    assert.notEqual(snap.type,'BUY_LISTING','stale supply can never authorize purchase');
+    assert.equal(snap.type,'TRAVEL_TO_MARKET',JSON.stringify(snap));
+    assert.equal(snap.reason,'stale-market-recheck');assert.equal(snap.marketId,market.marketId);
   }
   {
     const {s,crafterId}=setupBulkProcurement(),a=live(s,crafterId);
@@ -205,6 +207,30 @@ test('ER4 hidden and stale Listings cannot authorize procurement; corrupt roots 
     const snap=crafterMaterialProcurementSnapshot(s,a);
     assert.equal(snap.status,'UNKNOWN');
   }
+});
+
+test('ER4 stale known supply can preempt generic resource fallback once, while re-observed closure releases it',()=>{
+  const {s,merchantId,crafterId,market}=setupBulkProcurement();
+  let a=live(s,crafterId);
+  s.tick+=ECONOMIC_DEMAND_TTL_TICKS+1;
+  const woodNode=s.nodes.find(n=>n.type==='wood'&&n.amount>0);assert.ok(woodNode);
+  a.task={kind:'WOODCUT',targetId:woodNode.id,x:woodNode.x,y:woodNode.y,path:[],work:0,score:1,started:s.tick,policy:'survival-0.2'};
+  const recheck=crafterMaterialProcurementSnapshot(s,a);
+  assert.equal(recheck.status,'SAT',JSON.stringify(recheck));
+  assert.equal(recheck.type,'TRAVEL_TO_MARKET');assert.equal(recheck.reason,'stale-market-recheck');
+  assert.equal(recheck.marketId,market.marketId);
+  const travel=command(s,'RC4_TRAVEL_TO_MARKET',recheck.intent);
+  assert.equal(travel.ok,true,JSON.stringify(travel));
+  assert.ok(live(s,crafterId).task?.rc4MarketTravel,'canonical market travel preempts generic WOODCUT fallback');
+
+  assert.equal(command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:crafterId}).ok,true);
+  assert.equal(command(s,'RC4_CLOSE_MARKET',{agentId:merchantId,marketId:market.marketId}).ok,true);
+  a=live(s,crafterId);a.x=market.tradePoint?.x??market.x;a.y=market.tradePoint?.y??market.y;a.task=null;
+  observeRc4Markets(s);
+  const released=crafterMaterialProcurementSnapshot(s,a);
+  assert.notEqual(released.type,'TRAVEL_TO_MARKET','a re-observed closed market cannot trap stale recheck');
+  assert.notEqual(released.holdFallback,true,'failed stale knowledge must release generic fallback');
+  assert.deepEqual(validate(s),[]);
 });
 
 test('ER4 observed Merchant sourcing holds safe generic material fallback without inventing supply',()=>{
