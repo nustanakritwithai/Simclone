@@ -222,6 +222,13 @@ function setupClosedLoop(){
   const producerAxe=give(s,producer,'STONE_AXE');assert.equal(command(s,'EQUIP_ITEM',{agentId:producerId,itemId:producerAxe}).ok,true);
 
   const marketId=prepareMerchant(s,merchantId);
+  const p=marketPoint(s,marketId);
+  // Build the Crafter's canonical workstation inside the same local market
+  // neighborhood before START. The acceptance loop depends on actor-observed
+  // supply; a remote fixture workstation would make the Crafter lose fresh
+  // Listing observations while doing legitimate craft work, then generic
+  // WOODCUT fallback could satisfy the shortage before brokerage completes.
+  placeNear(s,crafterId,p,3,5);
   qualifyAdventurer(s,consumerId);
   // Suppress only the live ARMOR deficit during wood price bootstrap without
   // creating Armor trade history that could outrank the Blade material shortage.
@@ -235,10 +242,13 @@ function setupClosedLoop(){
   dropItem(s,actor(s,consumerId),s.rustPossessions.items.find(i=>i.id===calibrationBladeId));
 
   prepareCrafter(s,crafterId);
+  const crafterTable=s.rustStations.stations.find(st=>st.complete&&st.kind==='CRAFTING_TABLE_LV1'&&st.placedBy===crafterId);
+  assert.ok(crafterTable,'Crafter fixture must retain its canonical workstation');
+  assert.ok(Math.abs(crafterTable.x-p.x)+Math.abs(crafterTable.y-p.y)<=8,
+    'Crafter workstation must remain inside local Home Market observation range');
   const blade=CRAFT_RECIPE_CATALOG.EMBER_BLADE;
   const firstWoodNeed=(blade.materials?.wood??0)+CRAFT_TRAINING_RULES.wood;
   Object.assign(resourceStock(s,actor(s,crafterId)),{food:900,wood:firstWoodNeed-2,stone:900});
-  const p=marketPoint(s,marketId);
   actor(s,merchantId).x=p.x;actor(s,merchantId).y=p.y;calm(actor(s,merchantId));
   placeNear(s,crafterId,p,1,2);placeNear(s,consumerId,p,1,2);placeNear(s,producerId,p,3,5);
   observeRc4Markets(s);
