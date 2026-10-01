@@ -38,14 +38,20 @@ const PREFERENCE_CAPABILITY=Object.freeze({
   WOODCUT:RAW_PRODUCER_CAPABILITIES.woodcutter,
   MINE:RAW_PRODUCER_CAPABILITIES.miner,
 });
-function rawProducerIntentCapability(agent){
+function rawProducerIntentCapability(world,agent){
   // Legacy jobs are intentionally fluid. A generic scarcity task may temporarily
   // move a worker between forager/woodcutter/miner/builder. Preserve the actor's
   // explicit productive preference as the Raw Producer intent so observed market
-  // demand can pull the worker back through the existing planner/adoptProfession
-  // path. Special professions remain locked out of ER2.
-  if(!LEGACY_WORKER_PROFESSIONS.has(agent?.profession))return null;
-  return PREFERENCE_CAPABILITY[agent?.preference]??rawProducerCapability(agent);
+  // demand can pull the worker back through the existing planner/adoptProfession path.
+  if(LEGACY_WORKER_PROFESSIONS.has(agent?.profession))
+    return PREFERENCE_CAPABILITY[agent?.preference]??rawProducerCapability(agent);
+  // Real EXPLORE is still allowed to promote an established Producer to Adventurer.
+  // Only canonical committed raw-trade history lets that actor continue answering
+  // later raw BuyOffers; ordinary Adventurers and every other special career remain
+  // outside ER2. This is derived continuity, never a second profession write.
+  if(agent?.profession==='adventurer'&&hasEstablishedRawProducerTrade(world,agent))
+    return PREFERENCE_CAPABILITY[agent?.preference]??null;
+  return null;
 }
 export function hasEstablishedRawProducerTrade(world,agent){
   if(!world||!agent?.alive||world.agents?.find(a=>a.id===agent.id)!==agent)return false;
@@ -229,7 +235,7 @@ function accountOpenProcurementCommitment(world,agent,profile){
 export function rawProducerDecision(world,agent){
   if(!world||!agent?.alive||world.agents?.find(a=>a.id===agent.id)!==agent)return view('UNKNOWN','actor');
   if(!isIndependent(world))return view('INELIGIBLE','independent-world-required');
-  const profile=rawProducerIntentCapability(agent);if(!profile)return view('INELIGIBLE','raw-producer-profession');
+  const profile=rawProducerIntentCapability(world,agent);if(!profile)return view('INELIGIBLE','raw-producer-profession');
   if(!canPerformProductiveWork(world,agent))return view('INELIGIBLE','productive-stage');
   const marketTask=isCanonicalMarketTravelTask(agent.task);
   if(agent.satiety<RULES.hungry||agent.energy<RULES.exhausted)

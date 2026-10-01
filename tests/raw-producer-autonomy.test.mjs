@@ -162,30 +162,43 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
   assert.deepEqual(validate(s),[]);
 });
 
-test('ER2 canonical raw sale keeps generic exploration from silently promoting an established Producer to Adventurer',()=>{
+test('ER2 genuine exploration still promotes an established Producer while canonical trade continuity can answer later raw demand',()=>{
   const {s,merchant,producer,market,offer}=setupOffer({itemKind:'wood',quantity:1,unitPrice:3,producerAmount:100});
-  const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId:producer.id,offerId:offer.offerId,quantity:1});
+  const producerId=producer.id,merchantId=merchant.id;
+  const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId,offerId:offer.offerId,quantity:1});
   assert.equal(accepted.ok,true,JSON.stringify(accepted));
   const listing=s.merchantListings.listings.find(l=>l.id===accepted.listingId);assert.ok(listing);
   merchant.task=null;arrive(s,merchant,market.marketId);
-  const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchant.id,listingId:listing.id,listingRevision:listing.revision});
+  const bought=command(s,'RC4_BUY_LISTING',{buyerId:merchantId,listingId:listing.id,listingRevision:listing.revision});
   assert.equal(bought.ok,true,JSON.stringify(bought));
-  let liveProducer=s.agents.find(a=>a.id===producer.id);assert.ok(liveProducer);
-  assert.equal(hasEstablishedRawProducerTrade(s,liveProducer),true,'canonical committed sale must establish Producer continuity');
-  assert.equal(liveProducer.profession,'woodcutter');
-  assert.equal(liveProducer.adventurerQualification,undefined);
+  let liveProducer=s.agents.find(a=>a.id===producerId);assert.ok(liveProducer);
+  assert.equal(hasEstablishedRawProducerTrade(s,liveProducer),true,'canonical committed sale must establish derived Producer continuity');
 
-  for(let i=0;i<4;i++){
-    liveProducer=s.agents.find(a=>a.id===producer.id);assert.ok(liveProducer);
+  for(let i=0;i<3;i++){
+    liveProducer=s.agents.find(a=>a.id===producerId);assert.ok(liveProducer);
     liveProducer.hp=liveProducer.satiety=liveProducer.energy=100;
     liveProducer.task={kind:'EXPLORE',targetId:null,x:liveProducer.x,y:liveProducer.y,path:[],work:5,
       started:s.tick,score:1,policy:'survival-0.2'};
     step(s,1);
-    liveProducer=s.agents.find(a=>a.id===producer.id);assert.ok(liveProducer);
-    assert.equal(liveProducer.profession,'woodcutter','idle exploration cannot erase established Producer role');
-    assert.equal(liveProducer.adventurerQualification,undefined,'Producer exploration is not Adventure qualification');
   }
+  liveProducer=s.agents.find(a=>a.id===producerId);assert.ok(liveProducer);
+  assert.equal(liveProducer.adventurerQualification?.accepted,3,'real generic EXPLORE must retain the released Adventure qualification rule');
+  assert.equal(liveProducer.profession,'adventurer','genuine exploration may still promote an established Producer');
+  assert.equal(rawProducerCapability(liveProducer,'wood'),null,'exported career capability remains strict after promotion');
   assert.equal(hasEstablishedRawProducerTrade(s,liveProducer),true);
+
+  liveProducer.task=null;liveProducer.hp=liveProducer.satiety=liveProducer.energy=100;liveProducer.preference='WOODCUT';
+  const reserve=personalTargets(s,liveProducer).wood;resourceStock(s,liveProducer).wood=reserve;
+  const second=command(s,'RC4_CREATE_BUY_OFFER',{
+    agentId:merchantId,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantityWanted:1,unitPrice:2
+  });
+  assert.equal(second.ok,true,JSON.stringify(second));
+  observeRc4Markets(s);
+  const resumed=rawProducerDecision(s,liveProducer);
+  assert.equal(resumed.status,'SAT',JSON.stringify(resumed));
+  assert.equal(resumed.type,'GATHER',JSON.stringify(resumed));
+  assert.equal(resumed.action,'WOODCUT');assert.equal(resumed.itemKind,'wood');
+  assert.equal(liveProducer.profession,'adventurer','ER2 continuity must not write the profession back');
   assert.deepEqual(validate(s),[]);
 });
 
