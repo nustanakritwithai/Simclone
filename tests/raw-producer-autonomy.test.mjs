@@ -163,7 +163,7 @@ test('ER2 real Woodcutter gathers through the existing node authority, walks to 
 });
 
 test('ER2 genuine exploration still promotes an established Producer while canonical trade continuity can answer later raw demand',()=>{
-  const {s,merchant,producer,market,offer}=setupOffer({itemKind:'wood',quantity:1,unitPrice:3,producerAmount:100});
+  const {s,merchant,producer,market,offer,tradePoint}=setupOffer({itemKind:'wood',quantity:1,unitPrice:3,producerAmount:100});
   const producerId=producer.id,merchantId=merchant.id;
   const accepted=command(s,'RC4_ACCEPT_BUY_OFFER',{producerId,offerId:offer.offerId,quantity:1});
   assert.equal(accepted.ok,true,JSON.stringify(accepted));
@@ -189,11 +189,14 @@ test('ER2 genuine exploration still promotes an established Producer while canon
 
   liveProducer.task=null;liveProducer.hp=liveProducer.satiety=liveProducer.energy=100;liveProducer.preference='WOODCUT';
   const reserve=personalTargets(s,liveProducer).wood;resourceStock(s,liveProducer).wood=reserve;
+  liveProducer.x=tradePoint.x;liveProducer.y=tradePoint.y;liveProducer.task=null;liveProducer.moveTick=0;
   const second=command(s,'RC4_CREATE_BUY_OFFER',{
     agentId:merchantId,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantityWanted:1,unitPrice:2
   });
   assert.equal(second.ok,true,JSON.stringify(second));
   observeRc4Markets(s);
+  assert.ok(liveProducer.rc4MarketKnowledge?.knownBuyOffers?.some(o=>o.offerId===second.offerId&&o.status==='OPEN'),
+    'focused fixture must actually observe the later raw BuyOffer');
   const resumed=rawProducerDecision(s,liveProducer);
   assert.equal(resumed.status,'SAT',JSON.stringify(resumed));
   assert.equal(resumed.type,'GATHER',JSON.stringify(resumed));
