@@ -397,8 +397,14 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
     // Do not stop merely because both gear sales happened. The acceptance gate
     // closes only after the independent raw-material brokerage path, both exact
     // equipment applications and every save/load checkpoint have also occurred.
+    const producerWoodUnits=s.tradeReplay.receipts
+      .filter(r=>!startTx.has(r.transactionId)&&r.sellerId===f.producerId&&r.buyerId===f.merchantId&&r.itemKind==='wood')
+      .reduce((n,r)=>n+r.quantity,0);
+    const crafterWoodUnits=s.tradeReplay.receipts
+      .filter(r=>!startTx.has(r.transactionId)&&r.sellerId===f.merchantId&&r.buyerId===f.crafterId&&r.itemKind==='wood')
+      .reduce((n,r)=>n+r.quantity,0);
     if(bladeConsumerReceipt&&armorConsumerReceipt&&firstProducerReceipt&&firstMaterialToCrafterReceipt&&
-      renewedMaterialShortageObserved&&gearDeficitsAccounted&&checkpoints.size===8&&
+      renewedMaterialShortageObserved&&gearDeficitsAccounted&&producerWoodUnits>=3&&crafterWoodUnits>=3&&checkpoints.size===8&&
       equippedKind(s,f.consumerId,'WEAPON')==='EMBER_BLADE'&&equippedKind(s,f.consumerId,'ARMOR')==='HIDE_ARMOR')break;
   }
 
