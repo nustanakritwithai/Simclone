@@ -390,7 +390,9 @@ function er5Protected(world,actor){
   if(!canPerformProductiveWork(world,actor))return 'productive-stage';
   if(actor.adventureCombat?.status==='ACTIVE'||actor.adventureEncounter)return 'adventure';
   if(actor.satiety<RULES.hungry||actor.energy<RULES.exhausted)return 'survival';
-  if(actor.task&&!isCanonicalMarketTravelTask(actor.task))return 'task';
+  const genericExplore=actor.task?.kind==='EXPLORE'&&!actor.task?.purposeKind&&!actor.task?.knowledgeKey&&
+    !actor.task?.adventureExpedition&&!actor.task?.adventureHunt;
+  if(actor.task&&!isCanonicalMarketTravelTask(actor.task)&&!genericExplore)return 'task';
   return null;
 }
 function er5ListingIntent(world,actor,market,signal,stock){
