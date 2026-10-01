@@ -5,6 +5,7 @@
 import {demandDrivenCrafterSnapshot} from './demand-driven-crafter.mjs?v=0.5.0';
 import {projectActorObservedDemand,ECONOMIC_DEMAND_TTL_TICKS} from './economic-demand.mjs?v=0.5.0';
 import {getBalance} from './currency-wallet.mjs?v=0.5.0';
+import {knownRc4Markets,knownRc4Listings,knownRc4BuyOffers} from './rc4-market-observation.mjs?v=0.5.0';
 import {TRADE_ASSET_TYPES,tradeAssetType,validBulkTradeResourceKey} from './trade-assets.mjs?v=0.5.0';
 import {sameResourceAccount} from './individual-resources.mjs?v=0.5.0';
 import {projectHomeMarketForTrade} from './home-market.mjs?v=0.5.0';
@@ -67,6 +68,31 @@ function listingCandidate(world,actor,projection,need){
   return rows;
 }
 
+function staleMarketRecheck(world,actor,missing){
+  const needed=new Set(missing.map(x=>x.itemKind));
+  if(!needed.size)return null;
+  const markets=knownRc4Markets(actor)
+    .filter(m=>m?.status==='open'&&Number.isSafeInteger(m.observedTick)&&m.observedTick>=0&&m.observedTick<=world.tick);
+  const evidence=[
+    ...knownRc4Listings(actor).filter(x=>x?.sellerId!==actor.id),
+    ...knownRc4BuyOffers(actor).filter(x=>x?.buyerId!==actor.id)
+  ].filter(x=>needed.has(x?.itemKind)&&Number.isSafeInteger(x.observedTick)&&x.observedTick>=0&&x.observedTick<=world.tick&&
+    world.tick-x.observedTick>ECONOMIC_DEMAND_TTL_TICKS);
+  const rows=[];
+  for(const market of markets){
+    const relevant=evidence.filter(x=>x.marketId===market.marketId);
+    if(!relevant.length)continue;
+    const latestEvidenceTick=Math.max(...relevant.map(x=>x.observedTick));
+    // A later market observation means the actor already came back after this
+    // stale evidence. With no fresh actionable row above, fall back instead of
+    // looping forever on the same memory.
+    if(market.observedTick>latestEvidenceTick)continue;
+    rows.push({marketId:market.marketId,marketObservedTick:market.observedTick,evidenceObservedTick:latestEvidenceTick});
+  }
+  return rows.sort((a,b)=>b.evidenceObservedTick-a.evidenceObservedTick||
+    b.marketObservedTick-a.marketObservedTick||a.marketId.localeCompare(b.marketId))[0]??null;
+}
+
 function observedMarketSourcing(world,actor,projection,missing){
   const needed=new Set(missing.map(x=>x.itemKind));
   for(const signal of projection?.signals??[]){
@@ -118,7 +144,7 @@ function observedMarketSourcing(world,actor,projection,missing){
 function procurementPlan(world,agent){
   const actor=world?.agents?.find(a=>a.id===agent?.id)??null;
   if(!actor||actor!==agent)return view('UNKNOWN','actor');
-  const craft=demandDrivenCrafterSnapshot(world,actor,{allowCanonicalMarketTravel:true,allowGenericExplore:true});
+  const craft=demandDrivenCrafterSnapshot(world,actor,{allowCanonicalMarketTravel:true,allowGenericExplore:true,allowMarketPreemptibleTask:true});
   const travelling=isCanonicalMarketTravelTask(actor.task);
   if(craft.status==='UNKNOWN')return view('UNKNOWN',craft.reason,{agentId:actor.id,craftStatus:craft.status});
   if(craft.status!=='NEEDS_MATERIALS'){
@@ -136,11 +162,20 @@ function procurementPlan(world,agent){
       a.distance-b.distance||a.marketId.localeCompare(b.marketId)||a.listingId.localeCompare(b.listingId));
 
   if(!candidates.length){
-    if(travelling)return view('SAT','observed-supply-gone',{agentId:actor.id,type:'CANCEL_TRAVEL',recipeId:craft.recipeId,missing});
     const sourcing=observedMarketSourcing(world,actor,projection,missing);
-    if(sourcing)return view('NEEDS_SUPPLY','observed-market-sourcing',{
-      agentId:actor.id,recipeId:craft.recipeId,missing,holdFallback:true,sourcing
-    });
+    if(sourcing){
+      if(travelling)return view('SAT','observed-supply-gone',{agentId:actor.id,type:'CANCEL_TRAVEL',recipeId:craft.recipeId,missing});
+      return view('NEEDS_SUPPLY','observed-market-sourcing',{
+        agentId:actor.id,recipeId:craft.recipeId,missing,holdFallback:true,sourcing
+      });
+    }
+    const recheck=staleMarketRecheck(world,actor,missing);
+    if(travelling){
+      if(recheck&&actor.task.rc4MarketTravel.marketId===recheck.marketId)
+        return view('RECHECK_MARKET','stale-market-recheck-travelling',{agentId:actor.id,recipeId:craft.recipeId,missing,...recheck});
+      return view('SAT','observed-supply-gone',{agentId:actor.id,type:'CANCEL_TRAVEL',recipeId:craft.recipeId,missing});
+    }
+    if(recheck)return view('RECHECK_MARKET','stale-market-recheck',{agentId:actor.id,recipeId:craft.recipeId,missing,...recheck});
     return view('NEEDS_SUPPLY','no-observed-listing',{agentId:actor.id,recipeId:craft.recipeId,missing});
   }
 
@@ -169,6 +204,17 @@ function procurementPlan(world,agent){
 
 export function crafterMaterialProcurementSnapshot(world,agent){
   const plan=procurementPlan(world,agent);
+  if(plan.status==='RECHECK_MARKET'){
+    const actor=world.agents.find(a=>a.id===plan.agentId);
+    const travel=isCanonicalMarketTravelTask(actor?.task);
+    if(travel)return view('SAT','stale-market-recheck-travelling',{
+      ...plan,type:'WAIT_TRAVEL',agentId:actor.id,marketId:plan.marketId
+    });
+    return view('SAT','stale-market-recheck',{
+      ...plan,type:'TRAVEL_TO_MARKET',agentId:actor.id,marketId:plan.marketId,
+      intent:freeze({agentId:actor.id,marketId:plan.marketId})
+    });
+  }
   if(plan.status!=='READY')return plan;
   const actor=world.agents.find(a=>a.id===plan.agentId);
   const travel=isCanonicalMarketTravelTask(actor?.task);
