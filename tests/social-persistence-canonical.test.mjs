@@ -73,6 +73,7 @@ function setupCanonicalResearchWorld(){
   merchant.hp=merchant.satiety=merchant.energy=100;merchant.task=null;
   craftFixtureTable(s,merchant);
   craftFixtureHome(s,merchant);
+  resourceStock(s,merchant).wood=0;
   qualifyCrafter(s,crafter);
 
   const marketMade=command(s,'RC4_CREATE_MARKET',{agentId:merchant.id});assert.equal(marketMade.ok,true,JSON.stringify(marketMade));
@@ -80,10 +81,6 @@ function setupCanonicalResearchWorld(){
   assert.equal(productOffer.ok,true,JSON.stringify(productOffer));
   const promoted=command(s,'RC4_BECOME_MERCHANT',{agentId:merchant.id});assert.equal(promoted.ok,true,JSON.stringify(promoted));
   assert.equal(command(s,'RC4_OPEN_MARKET',{agentId:merchant.id,marketId:marketMade.marketId}).ok,true);
-  const bulkOffer=command(s,'RC4_CREATE_BUY_OFFER',{
-    agentId:merchant.id,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantityWanted:8,unitPrice:1
-  });
-  assert.equal(bulkOffer.ok,true,JSON.stringify(bulkOffer));
   const projected=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:marketMade.marketId});assert.equal(projected.ok,true,JSON.stringify(projected));
   const market={...projected.market,marketId:marketMade.marketId};
 
@@ -110,9 +107,15 @@ function setupCanonicalResearchWorld(){
   const snap=demandDrivenCrafterSnapshot(s,currentCrafter);
   assert.equal(snap.status,'NEEDS_MATERIALS',JSON.stringify(snap));
   assert.equal(snap.recipeId,'STONE_PICKAXE');
-  assert.ok((snap.missing?.wood??0)>0);
+  const missingWood=snap.missing?.wood??0;
+  assert.ok(missingWood>0);
+  const bulkOffer=command(s,'RC4_CREATE_BUY_OFFER',{
+    agentId:merchant.id,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',quantityWanted:missingWood,unitPrice:1
+  });
+  assert.equal(bulkOffer.ok,true,JSON.stringify(bulkOffer));
+  observeRc4Markets(s);
   assert.deepEqual(validate(s),[]);
-  return {s,merchantId:merchant.id,crafterId:crafter.id,producerIds:producers.map(p=>p.id),market,bulkOfferId:bulkOffer.offerId};
+  return {s,merchantId:merchant.id,crafterId:crafter.id,producerIds:producers.map(p=>p.id),market,bulkOfferId:bulkOffer.offerId,missingWood};
 }
 function findAcceptableProducer(s,order){
   let probes=0;
@@ -124,7 +127,7 @@ function findAcceptableProducer(s,order){
   return null;
 }
 function runCanonicalChain(){
-  const {s,merchantId,crafterId,producerIds,market}=setupCanonicalResearchWorld();
+  const {s,merchantId,crafterId,producerIds,market,missingWood}=setupCanonicalResearchWorld();
   const beforeProjection=serialize(s);
 
   const social=projectPersistentSocialGroups(s.agents.map(a=>a.id),{
@@ -160,9 +163,10 @@ function runCanonicalChain(){
   assert.equal(materialAmount(s,live(s,merchantId),'wood'),merchantBefore+socialPick.decision.quantity);
   assert.equal(totalCurrency(s),moneyBefore);
 
+  assert.equal(socialPick.decision.quantity,missingWood);
   const sale=command(s,'RC4_CREATE_LISTING',{
     agentId:merchantId,assetType:TRADE_ASSET_TYPES.BULK_RESOURCE,itemKind:'wood',
-    quantity:3,unitPrice:2,requestId:'fa-r3-persistence-canonical'
+    quantity:missingWood,unitPrice:2,requestId:'fa-r3-persistence-canonical'
   });
   assert.equal(sale.ok,true,JSON.stringify(sale));
   const listing=s.merchantListings.listings.find(l=>l.id===sale.listingId);assert.ok(listing);
@@ -184,6 +188,7 @@ function runCanonicalChain(){
   assert.equal(crafterBuy.receipt.sellerId,merchantId);
   assert.equal(crafterBuy.receipt.buyerId,crafterId);
   assert.equal(crafterBuy.receipt.itemKind,'wood');
+  assert.equal(crafterBuy.receipt.quantity,missingWood);
   assert.equal(getBalance(s,crafterId),crafterMoneyBefore-crafterBuy.receipt.totalPrice);
   assert.equal(getBalance(s,merchantId),merchantMoneyBefore+crafterBuy.receipt.totalPrice);
   assert.equal(totalCurrency(s),moneyBefore);
