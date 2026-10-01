@@ -25,7 +25,8 @@ export function ensureProductionPlan(s){
   return s.productionPlan;
 }
 
-const eligible=s=>s.agents.filter(a=>a.alive&&canPerformProductiveWork(s,a)).sort((a,b)=>a.id-b.id);
+const eligible=(s,blockedAgentIds=null)=>s.agents.filter(a=>a.alive&&canPerformProductiveWork(s,a)&&
+  !(blockedAgentIds?.has?.(a.id)===true)).sort((a,b)=>a.id-b.id);
 const itemDef=(s,item)=>item&&ITEM_CATALOG[item.kind];
 const bagItems=(s,kind=null)=>s.rustPossessions.items.filter(i=>i.location?.kind==='bag'&&(!kind||i.kind===kind));
 const hasKind=(s,kind)=>s.rustPossessions.items.some(i=>i.kind===kind)||s.rustPossessions.orders.some(o=>o.recipe===kind);
@@ -148,8 +149,8 @@ export function productionCommand(s,type,data={}){
   return {ok:true,enabled,message:enabled?'เปิดแผนผลิตอัตโนมัติแล้ว':'หยุดแผนผลิตอัตโนมัติแล้ว'};
 }
 /** IC3 runs the same Rust orders per person. No colony-wide head-of-line lock. */
-function stepCrafterProgression(s,p,isWalkable){
- const crafters=eligible(s).filter(a=>a.profession==='crafter');
+function stepCrafterProgression(s,p,isWalkable,blockedAgentIds=null){
+ const crafters=eligible(s,blockedAgentIds).filter(a=>a.profession==='crafter');
  if(!crafters.length)return null;
  const offset=Math.floor(s.tick/PRODUCTION_RULES.attemptPeriod)%crafters.length;
  for(let i=0;i<crafters.length;i++){
@@ -161,10 +162,10 @@ function stepCrafterProgression(s,p,isWalkable){
  }
  return null;
 }
-function stepIndependentHomePlans(s,p,isWalkable){
+function stepIndependentHomePlans(s,p,isWalkable,blockedAgentIds=null){
  if(s.tick-p.lastAttemptTick<PRODUCTION_RULES.attemptPeriod)return null;
  p.lastAttemptTick=s.tick;
- const agents=eligible(s);if(!agents.length)return null;
+ const agents=eligible(s,blockedAgentIds);if(!agents.length)return null;
  const offset=Math.floor(s.tick/PRODUCTION_RULES.attemptPeriod)%agents.length;
  for(let i=0;i<agents.length;i++){
   const a=agents[(i+offset)%agents.length];
@@ -193,12 +194,12 @@ function stepIndependentHomePlans(s,p,isWalkable){
  }
  return null;
 }
-export function stepProductionPlanning(s,isWalkable,dispatch=null){
+export function stepProductionPlanning(s,isWalkable,dispatch=null,{blockedAgentIds=null}={}){
   const p=ensureProductionPlan(s);
   if(isIndependent(s)){
-    const home=stepIndependentHomePlans(s,p,isWalkable);
+    const home=stepIndependentHomePlans(s,p,isWalkable,blockedAgentIds);
     if(home)return home;
-    return p.enabled===true?stepCrafterProgression(s,p,isWalkable):null;
+    return p.enabled===true?stepCrafterProgression(s,p,isWalkable,blockedAgentIds):null;
   }
   const housingOnly=p.enabled!==true&&autonomousHousingNeeded(s);
   if(!p.enabled&&!housingOnly)return null;

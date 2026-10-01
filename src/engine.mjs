@@ -846,7 +846,7 @@ export function step(s,count=1,options={}){
     const crafterProcurementStep=stepCrafterMaterialProcurement(s,merchantStep);
     stepCrafterMarketSupply(s);
     const consumerStep=stepConsumerAutonomy(s);
-    stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data));
+    stepProductionPlanning(s,walkable,(type,data)=>command(s,type,data),{blockedAgentIds:crafterProcurementStep.blockFallback});
     const {book,rejected}=reservations(s);
     for(const id of rejected)s.agents.find(a=>a.id===id).task=null;
     const agents=living(s),rotation=s.tick%Math.max(1,agents.length);

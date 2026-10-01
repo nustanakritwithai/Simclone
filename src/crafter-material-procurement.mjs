@@ -73,34 +73,42 @@ function observedMarketSourcing(world,actor,projection,missing){
     if(!needed.has(signal.itemKind))continue;
     const expected=validBulkTradeResourceKey(signal.itemKind)?TRADE_ASSET_TYPES.BULK_RESOURCE:TRADE_ASSET_TYPES.PHYSICAL_ITEM;
     for(const source of signal.sources??[]){
-      if(typeof source?.evidenceId!=='string')continue;
-      if(['BUY_OFFER','MERCHANT_STOCK_SHORTAGE_BUY_OFFER'].includes(source.kind)){
-        const offer=world.merchantBuyOffers?.buyOffers?.find(o=>o.offerId===source.evidenceId&&o.status==='OPEN');
-        if(!offer||offer.buyerId===actor.id||offer.itemKind!==signal.itemKind||tradeAssetType(offer)!==expected)continue;
-        const buyer=world.agents?.find(a=>a.id===offer.buyerId&&a.alive&&a.profession==='merchant');if(!buyer)continue;
-        const market=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:offer.marketId});
-        if(!market.ok||market.market.open!==true||routeDistance(routeField(world,actor),market.market)<0)continue;
-        return {kind:'open-merchant-buy-offer',offerId:offer.offerId,marketId:offer.marketId,buyerId:offer.buyerId,itemKind:offer.itemKind};
-      }
-      if(source.kind!=='VERIFIED_TRADE')continue;
-      // A trade appears here only when this Crafter previously observed the exact
-      // market Listing. Bridge the short FILLED-offer -> resale-listing gap from
-      // that actor-observed receipt, never from hidden global Merchant stock.
-      const receipt=world.tradeReplay?.receipts?.find(r=>r.transactionId===source.evidenceId&&r.itemKind===signal.itemKind);
-      if(!receipt||receipt.buyerId===actor.id||tradeAssetType(receipt)!==expected)continue;
-      const buyer=world.agents?.find(a=>a.id===receipt.buyerId&&a.alive&&a.profession==='merchant');if(!buyer)continue;
-      if(expected===TRADE_ASSET_TYPES.BULK_RESOURCE&&sameResourceAccount(world,actor,buyer))continue;
-      const ledger=merchantLedgerFromCollection(world.merchantLedgers,buyer.id);
-      const purchase=ledger?.purchases?.find(p=>p.transactionId===receipt.transactionId&&p.itemKind===receipt.itemKind);
-      const retained=expected===TRADE_ASSET_TYPES.BULK_RESOURCE
-        ?Number.isSafeInteger(purchase?.remainingQuantity)&&purchase.remainingQuantity>0
-        :Array.isArray(purchase?.remainingItemIds)&&purchase.remainingItemIds.length>0;
-      if(!retained)continue;
-      const market=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:receipt.marketId});
+      if(!['BUY_OFFER','MERCHANT_STOCK_SHORTAGE_BUY_OFFER'].includes(source?.kind)||typeof source.evidenceId!=='string')continue;
+      const offer=world.merchantBuyOffers?.buyOffers?.find(o=>o.offerId===source.evidenceId&&o.status==='OPEN');
+      if(!offer||offer.buyerId===actor.id||offer.itemKind!==signal.itemKind||tradeAssetType(offer)!==expected)continue;
+      const buyer=world.agents?.find(a=>a.id===offer.buyerId&&a.alive&&a.profession==='merchant');if(!buyer)continue;
+      const market=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:offer.marketId});
       if(!market.ok||market.market.open!==true||routeDistance(routeField(world,actor),market.market)<0)continue;
-      return {kind:'verified-merchant-purchase',transactionId:receipt.transactionId,marketId:receipt.marketId,
-        buyerId:receipt.buyerId,itemKind:receipt.itemKind,quantity:receipt.quantity};
+      return {kind:'open-merchant-buy-offer',offerId:offer.offerId,marketId:offer.marketId,buyerId:offer.buyerId,itemKind:offer.itemKind};
     }
+  }
+  // Once an observed procurement Listing flips FILLED, the corresponding open
+  // BuyOffer disappears from live demand before the Merchant can publish resale.
+  // Keep the Crafter on the same observed pipeline only while the exact filled
+  // Listing is in personal market memory and the Merchant still retains that
+  // canonical purchase basis. No hidden stock alone can create this hold.
+  for(const known of actor.rc4MarketKnowledge?.knownListings??[]){
+    if(!needed.has(known?.itemKind)||known?.status!=='FILLED'||!known.buyOfferId)continue;
+    const current=world.merchantListings?.listings?.find(l=>l.id===known.id);
+    if(!current||current.status!=='FILLED'||current.marketId!==known.marketId||current.sellerId!==known.sellerId||
+      current.itemKind!==known.itemKind||current.buyOfferId!==known.buyOfferId||current.revision!==known.revision)continue;
+    const receipt=world.tradeReplay?.receipts?.find(r=>r.listingId===current.id&&r.marketId===current.marketId&&
+      r.sellerId===current.sellerId&&r.itemKind===current.itemKind);
+    if(!receipt||receipt.buyerId===actor.id)continue;
+    const expected=validBulkTradeResourceKey(current.itemKind)?TRADE_ASSET_TYPES.BULK_RESOURCE:TRADE_ASSET_TYPES.PHYSICAL_ITEM;
+    if(tradeAssetType(receipt)!==expected)continue;
+    const buyer=world.agents?.find(a=>a.id===receipt.buyerId&&a.alive&&a.profession==='merchant');if(!buyer)continue;
+    if(expected===TRADE_ASSET_TYPES.BULK_RESOURCE&&sameResourceAccount(world,actor,buyer))continue;
+    const ledger=merchantLedgerFromCollection(world.merchantLedgers,buyer.id);
+    const purchase=ledger?.purchases?.find(p=>p.transactionId===receipt.transactionId&&p.itemKind===receipt.itemKind);
+    const retained=expected===TRADE_ASSET_TYPES.BULK_RESOURCE
+      ?Number.isSafeInteger(purchase?.remainingQuantity)&&purchase.remainingQuantity>0
+      :Array.isArray(purchase?.remainingItemIds)&&purchase.remainingItemIds.length>0;
+    if(!retained)continue;
+    const market=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:receipt.marketId});
+    if(!market.ok||market.market.open!==true||routeDistance(routeField(world,actor),market.market)<0)continue;
+    return {kind:'observed-filled-procurement',transactionId:receipt.transactionId,listingId:current.id,
+      marketId:receipt.marketId,buyerId:receipt.buyerId,itemKind:receipt.itemKind,quantity:receipt.quantity};
   }
   return null;
 }

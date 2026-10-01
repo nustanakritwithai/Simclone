@@ -234,24 +234,24 @@ test('ER4 observed Merchant sourcing holds safe generic material fallback withou
 
 test('ER4 observed verified Merchant purchase bridges FILLED sourcing offer until resale is listed',()=>{
   const {s,merchant,crafter}=qualifiedCrafterFixture(),merchantId=merchant.id,crafterId=crafter.id;
-  const supplier=s.agents.find(a=>a.id!==merchantId&&a.id!==crafterId);assert.ok(supplier);
   merchant.preference='MINE';crafter.preference='BUILD';
   const far=farWalkable(s,merchant);assert.ok(far);crafter.x=far.x;crafter.y=far.y;crafter.task=null;
   const market=setupMerchantMarket(s,merchant,{productDemand:'STONE_PICKAXE',productPrice:70});
-  let buyer=live(s,crafterId),seller=live(s,merchantId),source=live(s,supplier.id);
-  Object.assign(resourceStock(s,buyer),{food:900,stone:900,wood:CRAFT_TRAINING_RULES.wood});
-  Object.assign(resourceStock(s,source),{food:900,wood:900,stone:900});
+  let buyer=live(s,crafterId),seller=live(s,merchantId);
+  Object.assign(resourceStock(s,buyer),{food:900,stone:900,wood:900});
   const point=projectHomeMarketForTrade(s,s.homeMarkets,{marketId:market.marketId}).market;
-  for(const a of [buyer,seller,source]){a.x=point.x;a.y=point.y;a.task=null;a.hp=a.satiety=a.energy=100;}
+  for(const a of [buyer,seller]){a.x=point.x;a.y=point.y;a.task=null;a.hp=a.satiety=a.energy=100;}
   observeRc4Markets(s);
 
-  const acquired=merchantAcquireBulkBasis(s,{merchantId,supplierId:source.id,marketId:market.marketId,itemKind:'wood',quantity:1,unitPrice:1});
+  const acquired=merchantAcquireBulkBasis(s,{merchantId,supplierId:crafterId,marketId:market.marketId,itemKind:'wood',quantity:1,unitPrice:1});
   buyer=live(s,crafterId);buyer.task=null;
+  Object.assign(resourceStock(s,buyer),{food:900,stone:900,wood:CRAFT_TRAINING_RULES.wood});
+  assert.equal(command(s,'SET_PRODUCTION_POLICY',{enabled:true}).ok,true);
   const bridge=crafterMaterialProcurementSnapshot(s,buyer);
   assert.equal(bridge.status,'NEEDS_SUPPLY',JSON.stringify(bridge));
   assert.equal(bridge.reason,'observed-market-sourcing',JSON.stringify(bridge));
   assert.equal(bridge.holdFallback,true);
-  assert.equal(bridge.sourcing.kind,'verified-merchant-purchase');
+  assert.equal(bridge.sourcing.kind,'observed-filled-procurement');
   assert.equal(bridge.sourcing.transactionId,acquired.transactionId);
 
   seller=live(s,merchantId);
