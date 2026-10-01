@@ -487,8 +487,18 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
   assert.equal(new Set(txIds).size,txIds.length,'trade replay ids remain unique');
   const postStartProducerWoodTrades=s.tradeReplay.receipts.filter(r=>!startTx.has(r.transactionId)&&r.sellerId===f.producerId&&r.buyerId===f.merchantId&&r.itemKind==='wood');
   const postStartCrafterWoodTrades=s.tradeReplay.receipts.filter(r=>!startTx.has(r.transactionId)&&r.sellerId===f.merchantId&&r.buyerId===f.crafterId&&r.itemKind==='wood');
-  assert.ok(postStartProducerWoodTrades.length>=3,'two cycles require one + two Producer wood units');
-  assert.ok(postStartCrafterWoodTrades.length>=3,'Merchant must relay all required post-start wood to Crafter');
+  const secondCycleDiag={
+    tick:s.tick,
+    producerWoodTrades:postStartProducerWoodTrades.map(r=>({transactionId:r.transactionId,quantity:r.quantity,unitPrice:r.unitPrice,listingId:r.listingId})),
+    crafterWoodTrades:postStartCrafterWoodTrades.map(r=>({transactionId:r.transactionId,quantity:r.quantity,unitPrice:r.unitPrice,listingId:r.listingId})),
+    producer:{wood:resourceStock(s,actor(s,f.producerId))?.wood,task:actor(s,f.producerId)?.task??null,decision:rawProducerDecision(s,actor(s,f.producerId))},
+    crafter:{wood:resourceStock(s,actor(s,f.crafterId))?.wood,task:actor(s,f.crafterId)?.task??null,production:demandDrivenCrafterSnapshot(s,actor(s,f.crafterId),{allowCanonicalMarketTravel:true})},
+    merchant:{task:actor(s,f.merchantId)?.task??null,decision:merchantAutonomySnapshot(s,actor(s,f.merchantId))},
+    woodOffers:(s.merchantBuyOffers?.buyOffers??[]).filter(o=>o.itemKind==='wood').map(o=>({offerId:o.offerId,status:o.status,quantityWanted:o.quantityWanted,unitPrice:o.unitPrice,createdTick:o.createdTick})),
+    woodListings:(s.merchantListings?.listings??[]).filter(l=>l.itemKind==='wood').map(l=>({id:l.id,status:l.status,sellerId:l.sellerId,buyOfferId:l.buyOfferId??null,quantity:l.quantity,unitPrice:l.unitPrice,revision:l.revision}))
+  };
+  assert.ok(postStartProducerWoodTrades.length>=3,'two cycles require one + two Producer wood units · '+JSON.stringify(secondCycleDiag));
+  assert.ok(postStartCrafterWoodTrades.length>=3,'Merchant must relay all required post-start wood to Crafter · '+JSON.stringify(secondCycleDiag));
   const ledgerAfter=s.merchantLedgers.ledgers.find(l=>l.merchantId===f.merchantId);assert.ok(ledgerAfter);
   assert.ok(ledgerAfter.purchases.length>ledgerBefore.purchases,'Merchant Ledger must ingest post-START sourcing');
   assert.ok(ledgerAfter.sales.length>ledgerBefore.sales,'Merchant Ledger must ingest post-START resale');
