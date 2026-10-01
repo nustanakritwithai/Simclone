@@ -137,7 +137,7 @@ export function rawProducerSettlementGate(world,{sellerId,itemKind,quantity,list
 }
 
 function currentObservedOffers(world,agent,profile){
-  const demand=projectActorObservedDemand(world,agent);
+  const demand=projectActorObservedDemand(world,agent,{includeResourceShortages:false});
   if(demand.status!=='SAT')return view('UNKNOWN',demand.reason??'demand',{offers:[]});
   const known=new Map(knownRc4BuyOffers(agent).map(o=>[o.offerId,o]));
   const rows=[];
