@@ -79,6 +79,7 @@ test('ER2 legacy worker keeps preferred raw-producer intent across temporary gen
     assert.equal(blocked.status,'INELIGIBLE',special+': '+JSON.stringify(blocked));
     assert.equal(blocked.reason,'raw-producer-profession');
   }
+  producer.profession='miner';
   assert.deepEqual(validate(s),[]);
 });
 
