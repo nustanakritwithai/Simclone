@@ -231,6 +231,12 @@ function runCanonicalChain(){
   assert.ok(producerReceipt,'resource provenance must include Producer -> Merchant receipt');
   assert.equal(crafterTradeReceipts.length,2,'resource provenance must include both Merchant -> Crafter partial receipts');
   assert.equal(crafterTradeReceipts.reduce((n,r)=>n+r.quantity,0),supplyWood);
+
+  for(const a of s.agents.filter(a=>a.task?.rc4MarketTravel)){
+    const canceled=command(s,'RC4_CANCEL_MARKET_TRAVEL',{agentId:a.id});
+    assert.equal(canceled.ok,true,JSON.stringify(canceled));
+  }
+  assert.equal(s.agents.some(a=>a.task?.rc4MarketTravel),false,'no ephemeral market-arrival proof may remain before persistence check');
   assert.deepEqual(validate(s),[]);
 
   const wire=serialize(s),loaded=restore(wire);
