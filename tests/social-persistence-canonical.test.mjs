@@ -17,7 +17,7 @@ import {demandDrivenCrafterSnapshot,demandDrivenCrafterIntent} from '../src/dema
 import {craftFixtureTable,craftFixtureHome,craftFixtureItem} from './fixtures/rc2-world.mjs';
 import {
   SOCIAL_PERSISTENCE_VERSION,projectPersistentSocialGroups,persistentSocialCandidateOrder,persistenceRetention
-} from '../src/social-persistence.mjs';
+} from '../research/social-persistence.mjs';
 
 const live=(s,id)=>s.agents.find(a=>a.id===id&&a.alive);
 
@@ -59,6 +59,7 @@ function seededOrder(ids,seed){
 }
 function arriveAtMarket(s,agentId,market){
   const a=live(s,agentId);a.x=market.x;a.y=market.y;a.task=null;
+  observeRc4Markets(s);
   const r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId,marketId:market.marketId});
   assert.equal(r.ok,true,JSON.stringify(r));
   assert.ok(live(s,agentId).task?.rc4MarketTravel);
@@ -240,7 +241,7 @@ test('FA-R3 persistence candidate selection stays read-only and canonical Produc
 });
 
 test('FA-R3 source owns no gameplay authority or hidden world access',()=>{
-  const source=fs.readFileSync(new URL('../src/social-persistence.mjs',import.meta.url),'utf8');
+  const source=fs.readFileSync(new URL('../research/social-persistence.mjs',import.meta.url),'utf8');
   assert.doesNotMatch(source,/Math\.random|\bDate\b|document\.|window\.|fetch\(/);
   assert.doesNotMatch(source,/\.stock\s*=|\.balance\s*=|\.profession\s*=|\.task\s*=|\.items\.push|\.orders\.push|command\(|rustCommand\(/);
   for(const token of ['currencyWallet','rustPossessions','merchantListings','merchantBuyOffers','resourceStock','CRAFT_ITEM','RC4_BUY_LISTING'])
