@@ -585,6 +585,7 @@ function stepMerchantAutonomy(s){
         event(s,'market',(buyer?.name??('Clone #'+id))+' ซื้อ stock '+intent.itemKind+' x'+intent.quantity,id);
         // Trade settlement atomically replaces the live root. Stop this pass so
         // no pre-settlement references from the Merchant candidate list are reused.
+        blockFallback.add(id);
         return {changed:true,rootReplaced:true,kind:'purchase',agentId:id,listingId:intent.listingId,transactionId:r.transactionId,
           itemKind:intent.itemKind,assetType:intent.assetType,blockFallback};
       }

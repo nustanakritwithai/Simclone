@@ -245,6 +245,8 @@ test('ER5 accepted bulk procurement outranks unrelated open BuyOffer and settles
   step(s,1);merchant=actor(s,merchant.id);
   assert.equal(merchant.task?.rc4MarketTravel?.marketId,marketId);
   step(s,1);
+  merchant=actor(s,merchant.id);
+  assert.equal(merchant.task,null,'successful accepted procurement keeps the same tick owned by Merchant market flow');
   assert.equal(s.merchantListings.listings.find(l=>l.id===accepted.listingId)?.status,'FILLED');
   assert.equal(s.merchantBuyOffers.buyOffers.find(o=>o.offerId===wood.offerId)?.status,'FILLED');
   assert.equal(s.merchantBuyOffers.buyOffers.find(o=>o.offerId===armor.offerId)?.status,'OPEN');
