@@ -147,14 +147,17 @@ export function crafterMaterialNeedsForObservedItems(s,a,itemKinds=[]){
     needs:[...merged].map(([materialKind,quantity])=>({materialKind,quantity})).sort((x,y)=>x.materialKind.localeCompare(y.materialKind))});
 }
 
-export function crafterProductionPlanFromProjection(s,a,projection,{allowCanonicalMarketTravel=false,checkStationRoute=true}={}){
+export function crafterProductionPlanFromProjection(s,a,projection,{allowCanonicalMarketTravel=false,allowGenericExplore=false,checkStationRoute=true}={}){
   const identity=canonicalCrafter(s,a);
   if(identity.status!=='SAT')return view(identity.status,identity.reason);
   const actor=identity.actor;
 
   if(actor.craftTraining?.enabled===true)return view('BLOCKED','manual-training',{agentId:actor.id});
   if(actor.adventureCombat?.status==='ACTIVE'||actor.adventureEncounter)return view('BLOCKED','adventure',{agentId:actor.id});
-  if(actor.task&&!(allowCanonicalMarketTravel&&isCanonicalMarketTravelTask(actor.task)))return view('BLOCKED','task',{agentId:actor.id});
+  const genericExplore=actor.task?.kind==='EXPLORE'&&!actor.task?.purposeKind&&!actor.task?.knowledgeKey&&
+    !actor.task?.adventureExpedition&&!actor.task?.adventureHunt;
+  if(actor.task&&!(allowCanonicalMarketTravel&&isCanonicalMarketTravelTask(actor.task))&&!(allowGenericExplore&&genericExplore))
+    return view('BLOCKED','task',{agentId:actor.id});
   if((s.rustPossessions?.orders??[]).some(o=>o.agentId===actor.id)||(s.rustMaterials?.orders??[]).some(o=>o.agentId===actor.id))
     return view('BLOCKED','craft-busy',{agentId:actor.id});
   if(!homeOf(s,actor.id,{completeOnly:true}))return view('BLOCKED','housing',{agentId:actor.id});
