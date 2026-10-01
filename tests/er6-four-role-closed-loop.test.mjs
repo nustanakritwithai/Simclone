@@ -417,7 +417,29 @@ test('ER6 final four-role loop proves renewed material shortage, two gear fulfil
     'after-merchant-purchase','after-resource-settlement','before-material-procurement','during-canonical-travel'
   ].sort(),JSON.stringify(producerDiag));
   assert.ok(firstProducerReceipt,'Producer-origin raw material must settle to Merchant after START');
-  assert.ok(firstMaterialToCrafterReceipt,'the same canonical resource path must continue Merchant -> Crafter');
+  const materialRelayDiag={
+    tick:s.tick,
+    producerReceipt:firstProducerReceipt?{transactionId:firstProducerReceipt.transactionId,quantity:firstProducerReceipt.quantity,unitPrice:firstProducerReceipt.unitPrice}:null,
+    crafter:{
+      profession:actor(s,f.crafterId)?.profession,task:actor(s,f.crafterId)?.task??null,workDone:actor(s,f.crafterId)?.workDone,
+      wood:resourceStock(s,actor(s,f.crafterId))?.wood,
+      production:demandDrivenCrafterSnapshot(s,actor(s,f.crafterId),{allowCanonicalMarketTravel:true}),
+      knownWoodListings:(actor(s,f.crafterId)?.rc4MarketKnowledge?.knownListings??[]).filter(l=>l.itemKind==='wood')
+        .map(l=>({id:l.id,status:l.status,sellerId:l.sellerId,buyOfferId:l.buyOfferId??null,quantity:l.quantity,unitPrice:l.unitPrice,observedTick:l.observedTick}))
+    },
+    merchant:{
+      task:actor(s,f.merchantId)?.task??null,wood:resourceStock(s,actor(s,f.merchantId))?.wood,
+      decision:merchantAutonomySnapshot(s,actor(s,f.merchantId)),
+      ledger:s.merchantLedgers.ledgers.find(l=>l.merchantId===f.merchantId)??null
+    },
+    woodOffers:(s.merchantBuyOffers?.buyOffers??[]).filter(o=>o.itemKind==='wood')
+      .map(o=>({offerId:o.offerId,status:o.status,buyerId:o.buyerId,quantityWanted:o.quantityWanted,unitPrice:o.unitPrice})),
+    woodListings:(s.merchantListings?.listings??[]).filter(l=>l.itemKind==='wood')
+      .map(l=>({id:l.id,status:l.status,sellerId:l.sellerId,buyOfferId:l.buyOfferId??null,quantity:l.quantity,unitPrice:l.unitPrice,revision:l.revision})),
+    postStartWoodReceipts:s.tradeReplay.receipts.filter(r=>!startTx.has(r.transactionId)&&r.itemKind==='wood')
+      .map(r=>({transactionId:r.transactionId,sellerId:r.sellerId,buyerId:r.buyerId,quantity:r.quantity,unitPrice:r.unitPrice,listingId:r.listingId}))
+  };
+  assert.ok(firstMaterialToCrafterReceipt,'the same canonical resource path must continue Merchant -> Crafter · '+JSON.stringify(materialRelayDiag));
   assert.equal(firstProducerReceipt.quantity,1);assert.equal(firstMaterialToCrafterReceipt.quantity,1);
   assert.ok(bladeCrafterReceipt,'Crafter exact physical Blade output must settle to Merchant');
   assert.ok(armorCrafterReceipt,'Crafter exact physical Armor output must settle to Merchant');
