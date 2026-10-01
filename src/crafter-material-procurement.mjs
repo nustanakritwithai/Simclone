@@ -118,7 +118,7 @@ function observedMarketSourcing(world,actor,projection,missing){
 function procurementPlan(world,agent){
   const actor=world?.agents?.find(a=>a.id===agent?.id)??null;
   if(!actor||actor!==agent)return view('UNKNOWN','actor');
-  const craft=demandDrivenCrafterSnapshot(world,actor,{allowCanonicalMarketTravel:true});
+  const craft=demandDrivenCrafterSnapshot(world,actor,{allowCanonicalMarketTravel:true,allowGenericExplore:true});
   const travelling=isCanonicalMarketTravelTask(actor.task);
   if(craft.status==='UNKNOWN')return view('UNKNOWN',craft.reason,{agentId:actor.id,craftStatus:craft.status});
   if(craft.status!=='NEEDS_MATERIALS'){
