@@ -10,6 +10,7 @@ import {sameResourceAccount} from './individual-resources.mjs?v=0.5.0';
 import {projectHomeMarketForTrade} from './home-market.mjs?v=0.5.0';
 import {isCanonicalMarketTravelTask,verifyCanonicalMarketArrival} from './navigation-arrival-evidence.mjs?v=0.5.0';
 import {routeField,routeDistance} from './survival.mjs?v=0.5.0';
+import {merchantLedgerFromCollection} from './merchant-ledger.mjs?v=0.5.0';
 
 export const ER4_MATERIAL_PROCUREMENT_VERSION='ER4-material-procurement/1';
 
@@ -72,13 +73,33 @@ function observedMarketSourcing(world,actor,projection,missing){
     if(!needed.has(signal.itemKind))continue;
     const expected=validBulkTradeResourceKey(signal.itemKind)?TRADE_ASSET_TYPES.BULK_RESOURCE:TRADE_ASSET_TYPES.PHYSICAL_ITEM;
     for(const source of signal.sources??[]){
-      if(!['BUY_OFFER','MERCHANT_STOCK_SHORTAGE_BUY_OFFER'].includes(source?.kind)||typeof source.evidenceId!=='string')continue;
-      const offer=world.merchantBuyOffers?.buyOffers?.find(o=>o.offerId===source.evidenceId&&o.status==='OPEN');
-      if(!offer||offer.buyerId===actor.id||offer.itemKind!==signal.itemKind||tradeAssetType(offer)!==expected)continue;
-      const buyer=world.agents?.find(a=>a.id===offer.buyerId&&a.alive&&a.profession==='merchant');if(!buyer)continue;
-      const market=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:offer.marketId});
-      if(!market.ok||market.market.open!==true)continue;
-      return {offerId:offer.offerId,marketId:offer.marketId,buyerId:offer.buyerId,itemKind:offer.itemKind};
+      if(typeof source?.evidenceId!=='string')continue;
+      if(['BUY_OFFER','MERCHANT_STOCK_SHORTAGE_BUY_OFFER'].includes(source.kind)){
+        const offer=world.merchantBuyOffers?.buyOffers?.find(o=>o.offerId===source.evidenceId&&o.status==='OPEN');
+        if(!offer||offer.buyerId===actor.id||offer.itemKind!==signal.itemKind||tradeAssetType(offer)!==expected)continue;
+        const buyer=world.agents?.find(a=>a.id===offer.buyerId&&a.alive&&a.profession==='merchant');if(!buyer)continue;
+        const market=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:offer.marketId});
+        if(!market.ok||market.market.open!==true||routeDistance(routeField(world,actor),market.market)<0)continue;
+        return {kind:'open-merchant-buy-offer',offerId:offer.offerId,marketId:offer.marketId,buyerId:offer.buyerId,itemKind:offer.itemKind};
+      }
+      if(source.kind!=='VERIFIED_TRADE')continue;
+      // A trade appears here only when this Crafter previously observed the exact
+      // market Listing. Bridge the short FILLED-offer -> resale-listing gap from
+      // that actor-observed receipt, never from hidden global Merchant stock.
+      const receipt=world.tradeReplay?.receipts?.find(r=>r.transactionId===source.evidenceId&&r.itemKind===signal.itemKind);
+      if(!receipt||receipt.buyerId===actor.id||tradeAssetType(receipt)!==expected)continue;
+      const buyer=world.agents?.find(a=>a.id===receipt.buyerId&&a.alive&&a.profession==='merchant');if(!buyer)continue;
+      if(expected===TRADE_ASSET_TYPES.BULK_RESOURCE&&sameResourceAccount(world,actor,buyer))continue;
+      const ledger=merchantLedgerFromCollection(world.merchantLedgers,buyer.id);
+      const purchase=ledger?.purchases?.find(p=>p.transactionId===receipt.transactionId&&p.itemKind===receipt.itemKind);
+      const retained=expected===TRADE_ASSET_TYPES.BULK_RESOURCE
+        ?Number.isSafeInteger(purchase?.remainingQuantity)&&purchase.remainingQuantity>0
+        :Array.isArray(purchase?.remainingItemIds)&&purchase.remainingItemIds.length>0;
+      if(!retained)continue;
+      const market=projectHomeMarketForTrade(world,world.homeMarkets,{marketId:receipt.marketId});
+      if(!market.ok||market.market.open!==true||routeDistance(routeField(world,actor),market.market)<0)continue;
+      return {kind:'verified-merchant-purchase',transactionId:receipt.transactionId,marketId:receipt.marketId,
+        buyerId:receipt.buyerId,itemKind:receipt.itemKind,quantity:receipt.quantity};
     }
   }
   return null;
