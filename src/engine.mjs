@@ -525,6 +525,15 @@ function stepAutonomousAdventure(s,a){
   return false;
 }
 
+function isPreemptibleEconomicExplore(task){
+  return task?.kind==='EXPLORE'&&!task?.purposeKind&&!task?.knowledgeKey&&
+    !task?.adventureExpedition&&!task?.adventureHunt&&!task?.rc4MarketTravel;
+}
+function preemptIdleExplore(a){
+  if(!isPreemptibleEconomicExplore(a?.task))return false;
+  a.task=null;a.moveTick=0;return true;
+}
+
 function applyRawProducerIntent(s,a,intent){
   if(intent?.status!=='SAT')return {handled:false};
   // An accepted procurement Listing is already a canonical commitment. While it
@@ -570,6 +579,7 @@ function stepMerchantAutonomy(s){
     let r=null;
     if(intent.type==='WAIT_TRAVEL')continue;
     if(intent.type==='WAIT_BUY_OFFER'){blockFallback.add(id);continue;}
+    preemptIdleExplore(a);
     if(intent.type==='CREATE_MARKET'){
       r=command(s,'RC4_CREATE_MARKET',{agentId:a.id});
     }else if(intent.type==='OPEN_MARKET'){
@@ -652,6 +662,7 @@ function stepCrafterMarketSupply(s){
     if(!a)continue;
     const intent=crafterMarketSupplyDecision(s,a);
     if(intent?.status!=='SAT'||typeof intent.type!=='string'||['WAIT_TRAVEL','WAIT_SETTLEMENT'].includes(intent.type))continue;
+    preemptIdleExplore(a);
     let r=null;
     if(intent.type==='TRAVEL_TO_MARKET'){
       r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId,control:'ER6_CRAFTER_MARKET_SUPPLY'});
@@ -679,6 +690,7 @@ function stepCrafterMaterialProcurement(s,freshMerchantPurchase=null){
     if(intent?.holdFallback===true||freshSourcingHold)blockFallback.add(a.id);
     if(intent?.status!=='SAT'||typeof intent.type!=='string')continue;
     if(intent.type==='WAIT_TRAVEL')continue;
+    preemptIdleExplore(a);
     if(intent.type==='TRAVEL_TO_MARKET'){
       const r=command(s,'RC4_TRAVEL_TO_MARKET',{agentId:a.id,marketId:intent.marketId});
       if(r.ok)changed=true;
@@ -864,6 +876,7 @@ export function step(s,count=1,options={}){
       const producerMarketPriority=producerIntent?.status==='SAT'&&
         ['GATHER','TRAVEL_TO_MARKET','ACCEPT_BUY_OFFER','WAIT_SETTLEMENT','CANCEL_TRAVEL'].includes(producerIntent.type)&&
         a.adventureCombat?.status!=='ACTIVE'&&!a.adventureEncounter;
+      if(producerMarketPriority)preemptIdleExplore(a);
       if(!practiceAccepted&&!demandCraftAccepted&&!consumerStep.adventureReadinessWaiting.has(a.id)&&
         !producerMarketPriority&&stepAutonomousAdventure(s,a))continue;
       const producerStep=applyRawProducerIntent(s,a,producerIntent);
