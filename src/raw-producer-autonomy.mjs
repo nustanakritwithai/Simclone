@@ -39,15 +39,13 @@ const PREFERENCE_CAPABILITY=Object.freeze({
   MINE:RAW_PRODUCER_CAPABILITIES.miner,
 });
 function rawProducerIntentCapability(agent){
-  const direct=rawProducerCapability(agent);
-  if(direct)return direct;
   // Legacy jobs are intentionally fluid. A generic scarcity task may temporarily
   // move a worker between forager/woodcutter/miner/builder. Preserve the actor's
   // explicit productive preference as the Raw Producer intent so observed market
   // demand can pull the worker back through the existing planner/adoptProfession
   // path. Special professions remain locked out of ER2.
   if(!LEGACY_WORKER_PROFESSIONS.has(agent?.profession))return null;
-  return PREFERENCE_CAPABILITY[agent?.preference]??null;
+  return PREFERENCE_CAPABILITY[agent?.preference]??rawProducerCapability(agent);
 }
 function shadowFor(world,agent){
   const shadow=clone(world),actor=shadow.agents?.find(a=>a.id===agent?.id&&a.alive===true)??null;
